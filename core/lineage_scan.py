@@ -71,6 +71,7 @@ def _run_admin_scan(
     client: PowerBILineageClient,
     full: bool,
     progress: Log,
+    started_at: str,
 ) -> str:
     last_scan = conn.execute(
         """SELECT MAX(started_at) FROM scan_run
@@ -78,7 +79,6 @@ def _run_admin_scan(
     ).fetchone()[0]
     modified_since = None if (full or not last_scan) else last_scan
     scan_mode = "incremental" if modified_since else "full"
-    started_at = now_iso()
 
     workspace_ids = client.modified_workspaces(modified_since)
     progress(f"Mode {scan_mode}: {len(workspace_ids)} workspace akan di-scan")
@@ -114,9 +114,9 @@ def _run_member_scan(
     conn: Any,
     client: PowerBILineageClient,
     progress: Log,
+    started_at: str,
 ) -> str:
     scan_id = f"member-{uuid.uuid4()}"
-    started_at = now_iso()
     workspaces = client.member_workspaces()
     progress(
         f"Mode member: {len(workspaces)} workspace yang dapat diakses service principal"
@@ -190,14 +190,14 @@ def run_lineage_scan(
             log(f"Mode terpilih otomatis: {resolved_mode}")
 
         if resolved_mode == "admin":
-            scan_id = _run_admin_scan(conn, client, full, log)
+            scan_id = _run_admin_scan(conn, client, full, log, started_at)
         elif resolved_mode == "member":
             if full:
                 log(
                     "Mode member memindai seluruh workspace yang dapat diakses; "
                     "opsi full tidak mengubah hasil."
                 )
-            scan_id = _run_member_scan(conn, client, log)
+            scan_id = _run_member_scan(conn, client, log, started_at)
         else:
             raise ExtractionError(f"Mode scan lineage tidak dikenal: {resolved_mode}")
 

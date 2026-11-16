@@ -729,8 +729,8 @@ class ScanTest(unittest.TestCase):
             return [
                 dict(row)
                 for row in conn.execute(
-                    "SELECT scan_id, mode, workspace_count, status FROM scan_run "
-                    "ORDER BY started_at"
+                    "SELECT scan_id, started_at, mode, workspace_count, status "
+                    "FROM scan_run ORDER BY started_at"
                 )
             ]
         finally:
@@ -770,6 +770,18 @@ class ScanTest(unittest.TestCase):
         self.assertEqual(forced.modified_since, [None])
         self.assertEqual(self.scan_rows()[-1]["mode"], "full")
         self.assertEqual(len(self.scan_rows()), 3)
+
+    def test_scan_result_matches_recorded_start(self) -> None:
+        """Watermark incremental memakai waktu mulai scan, bukan waktu insert."""
+        stamps = iter(
+            f"2026-01-01T00:00:{index:02d}.0000000Z" for index in range(30)
+        )
+        with patch("core.lineage_scan.now_iso", side_effect=lambda: next(stamps)):
+            result = self.run_scan(FakeLineageClient(), mode="admin")
+
+        row = self.scan_rows()[0]
+        self.assertEqual(row["started_at"], result.started_at)
+        self.assertNotEqual(row["started_at"], result.finished_at)
 
     def test_auto_falls_back_to_member_scan(self) -> None:
         client = FakeLineageClient(admin=False)

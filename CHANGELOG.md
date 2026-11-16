@@ -32,6 +32,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   `_internal`), dan `core/report.py` membuat folder `outputs/` yang belum ada.
 - Pesan `CaptureError` saat Chromium belum terpasang menyebut
   `bi-tools-cli install-browser` (paket tidak menyertakan browser).
+- `core/lineage_scan.py`: `scan_run.started_at` dan `LineageScanResult.started_at`
+  memakai satu timestamp (waktu mulai scan), sehingga watermark scan incremental
+  tidak meleset beberapa detik pada mesin lambat; `close()` capture juga menutup
+  socket server.
 
 ## 2026-11-12 - Fondasi ekstraksi, GUI, dan lineage
 
