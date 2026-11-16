@@ -25,7 +25,8 @@ class AppDirTests(unittest.TestCase):
             with patch.object(sys, "frozen", True, create=True), patch.object(
                 sys, "executable", str(exe)
             ):
-                self.assertEqual(paths.app_dir(), exe.parent)
+                # app_dir() me-resolve path (nama pendek Windows 8.3 bisa berbeda).
+                self.assertEqual(paths.app_dir(), exe.parent.resolve())
 
 
 class OutputsDirTests(unittest.TestCase):

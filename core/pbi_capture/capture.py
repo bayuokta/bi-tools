@@ -703,11 +703,19 @@ class ReportCapturer:
         return self
 
     def close(self) -> None:
+        def _stop_server() -> None:
+            if not self._server:
+                return
+            self._server.shutdown()
+            # Tanpa server_close() socket tetap terbuka (ResourceWarning).
+            self._server.server_close()
+            self._server = None
+
         for closer in (
             lambda: self._ctx and self._ctx.close(),
             lambda: self._browser and self._browser.close(),
             lambda: self._pw and self._pw.stop(),
-            lambda: self._server and self._server.shutdown(),
+            _stop_server,
         ):
             try:
                 closer()
