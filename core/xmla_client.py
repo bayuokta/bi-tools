@@ -22,8 +22,11 @@ from typing import Any
 from urllib.parse import quote, unquote, urlparse, urlunparse
 
 from .auth import POWERBI_SCOPE
+from .paths import APP_DIR
 
-ROOT = Path(__file__).resolve().parents[1]
+# Aset mengikuti folder aplikasi (folder .exe saat dipaket), bukan lokasi modul:
+# saat frozen, modul berada di _internal\ sehingga DLL tidak akan ditemukan.
+ROOT = APP_DIR
 DEFAULT_DLL = ROOT / "libs" / "Microsoft.AnalysisServices.AdomdClient.dll"
 DMV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CLOUD_XMLA = ("powerbi://", "asazure://")

@@ -59,6 +59,16 @@ Project Power BI (PBIP, TMDL, PBIR) ada di repo terpisah: `..\..\Power BI\<proje
 | `app\formatting.py` | sumber | `file_status`, `credential_status`, `duration_text`, warna status |
 | `app\forms.py` | sumber | `TsdForm` (`load`/`save`) untuk kunci `tsd/*` |
 | `app\widgets.py` | sumber | Widget pendukung (`PathRow`, `searchable_combo`, `sync_combo` untuk combo workspace/report) |
+| `core\version.py` | sumber | `APP_NAME`/`__version__`/`version_tuple()`; satu-satunya tempat nomor versi ditulis (dipakai spec PyInstaller dan Inno Setup) |
+| `cli\__main__.py` | sumber | Dispatcher CLI tunggal `bi-tools-cli`: `report`, `model`, `tsd`, `lineage`, `analyze`, `install-browser`; impor malas per perintah |
+| `packaging\bi_tools.spec` | paket | PyInstaller onedir: `BI Tools.exe` (GUI) + `bi-tools-cli.exe` (console) dalam satu folder; menyalin `templates\` dan `libs\` ke samping exe |
+| `packaging\bi-tools.iss` | paket | Installer Inno Setup 6: pemasangan per pengguna, shortcut, task unduh Chromium, uninstaller tidak menghapus `outputs\`/`data\` |
+| `packaging\build.ps1` | paket | Build lokal: cek versi, uji, PyInstaller, ZIP portable, ISCC, `SHA256SUMS.txt` |
+| `packaging\make_icon.py` | paket | Render `bi-tools.ico` (beberapa ukuran) dengan QPainter; tanpa Pillow |
+| `packaging\bi-tools.ico` | aset | Ikon exe + installer; hasil generate yang ikut di-commit |
+| `.github\workflows\ci.yml` | CI | flake8 + unittest pada push/PR |
+| `.github\workflows\release.yml` | CI | Tag `v*`: uji, build, installer, checksum, terbitkan rilis GitHub |
+| `.flake8` | konfigurasi | Aturan lint; panjang baris dan E402 diabaikan, bug-class tetap ditegakkan |
 | `tests\test_core.py` | uji | Angka acuan, deteksi jenis `.pbix`, aturan instance, `desktop_file_name`, cakupan ekstraksi, workbook validasi |
 | `tests\test_fabric.py` | uji | Fabric API mock: LRO, retry 429, parse URL, decode base64, materialisasi PBIR, job report service |
 | `tests\test_lineage.py` | uji | Transform, SQLite, REST client mock, scan, CSV, CLI, smoke GUI offscreen |
@@ -84,6 +94,7 @@ Project Power BI (PBIP, TMDL, PBIR) ada di repo terpisah: `..\..\Power BI\<proje
 | `tests\test_formatting.py` | uji | Format `file_status`, status kredensial, durasi |
 | `tests\test_job_runner.py` | uji | `JobRunner`: sukses/gagal, log diteruskan, submit kedua ditolak saat sibuk |
 | `tests\test_forms.py` | uji | `TsdForm`: default, fallback RLS dari tab Pengaturan, roundtrip QSettings |
+| `tests\test_packaging.py` | uji | Versi (`core\version.py`), dispatcher `cli\__main__.py`, isi spec/ISS/build/workflow, header ICO |
 | `templates\tsd.template.html` | sumber | Salinan apa adanya dari `..\template-tsd`; jangan diedit di repo ini |
 | `extract_report_metadata.py`, `extract_model_metadata.py`, `extract_tsd.py`, `extract_lineage.py`, `analyze_semantic_model.py` | wrapper | Memanggil `cli\`; jangan tambah logika di sini |
 | `verify_reference.py` | skrip | Bandingkan hasil ekstraksi dengan angka acuan report + model; `--no-model` untuk report saja |
@@ -125,6 +136,11 @@ python extract_lineage.py --scan                # scan REST API (butuh kredensia
 python extract_lineage.py --sync-workspaces     # daftar workspace ke SQLite (1-2 request)
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds>              # ukuran + pemakaian kolom
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --list-reports
+python -m cli report --report "<file>.pbix"      # dispatcher yang dipakai bi-tools-cli.exe
+powershell -File packaging\build.ps1             # uji + dist + zip portable + installer
+powershell -File packaging\build.ps1 -SkipTests -SkipInstaller   # hanya dist + zip
+python packaging\make_icon.py                    # regenerate packaging\bi-tools.ico
+ISCC.exe /DMyAppVersion=0.2.0 packaging\bi-tools.iss             # installer saja
 python -m unittest discover -s tests -t .       # uji
 ```
 
@@ -134,6 +150,13 @@ python -m unittest discover -s tests -t .       # uji
 - `core\` tidak boleh mengimpor PySide6; `app\` tidak boleh dipakai `cli\`.
 - `core\requests.py` adalah satu sumber pemetaan input: cakupan (`SCOPE_*`/`split_scope`), validasi GUID/endpoint/path, dan `CaptureOptions`. GUI/CLI tidak menyusun `CaptureOptions` atau `extract_report`/`extract_model` sendiri.
 - `cli\` dan `app\` hanya merangkai input dan menampilkan hasil; logika ekstraksi tetap di `core\`.
+- Nomor versi hanya ditulis di `core\version.py`. Tag rilis `vX.Y.Z` wajib sama dengan nilai itu; jangan menulis nomor versi di spec, ISS, workflow, atau dokumentasi perintah.
+- Paket executable wajib **onedir**. `core\paths.py` menentukan folder aplikasi dari folder `.exe`, sedangkan `core\tsd.py` (template) dan `core\xmla_client.py` (DLL ADOMD) mencari aset di `ROOT`; karena itu `packaging\bi_tools.spec` menyalin `templates\` dan `libs\` ke samping exe setelah `COLLECT`, bukan lewat `datas` yang berakhir di `_internal`. Jangan mengubah ke onefile tanpa menyesuaikan `core\paths.py`.
+- Satu paket berisi dua executable: `BI Tools.exe` (GUI, windowed) dan `bi-tools-cli.exe` (console). Permukaan CLI paket adalah `cli\__main__.py`; perintah baru wajib didaftarkan di `COMMANDS` dan modulnya tetap menyediakan `main(argv)`.
+- `bi-tools-cli install-browser` memanggil driver Playwright bawaan (`playwright.__main__`), bukan `python -m playwright`, karena paket tidak menyertakan interpreter. Chromium (±150 MB) tidak dibundel; installer menawarkan task unduhan, dan pesan `CaptureError` saat Chromium belum ada menyebut `bi-tools-cli install-browser` (bukan hanya `pip`).
+- Installer Inno Setup memasang per pengguna (`{autopf}` = `%LOCALAPPDATA%\Programs`) supaya tanpa UAC dan folder aplikasi bisa ditulis. Opsi all-users tetap ada dan mengandalkan fallback `%LOCALAPPDATA%\BI Tools` di `core\paths.py`. Jangan menambahkan `[UninstallDelete]` untuk `outputs\`/`data\`, dan jangan membundel `outputs\`, `data\`, `.pbix`, `.env`, atau `TSD_assets\` (ISS memakai `Excludes`, ZIP memakai filter). `packaging\build.ps1` memakai `BI_TOOLS_ISCC` bila ISCC tidak ada di lokasi standar.
+- Rilis hanya diterbitkan dari tag `vX.Y.Z` (`.github\workflows\release.yml`); `workflow_dispatch` hanya menghasilkan artefak. Artefak: `BITools-Setup-<versi>.exe`, `BITools-<versi>-portable.zip`, `SHA256SUMS.txt`. Paket belum ditandatangani digital, jadi peringatan SmartScreen adalah perilaku yang diketahui.
+- `outputs\` dan `data\` tetap dibuat saat runtime, bukan oleh installer; `packaging\build.ps1` dan workflow tidak boleh membuatnya di `dist\`.
 - Lokasi runtime hanya di `core\paths.py`: `APP_DIR` (folder executable saat `sys.frozen`, root repo saat dijalankan sebagai skrip), `OUTPUTS_DIR`, `outputs_dir()`, `data_dir()`. Semua default hasil generate (report, model, TSD, ekspor analisa, CLI tanpa `--out`) memakai `outputs\`; folder tidak dibuat saat import, hanya di jalur tulis. Bila folder aplikasi read-only (mis. Program Files), `outputs_dir()`/`data_dir()` jatuh ke `%LOCALAPPDATA%\BI Tools`. `core\pbix.ROOT` = `APP_DIR`, sehingga `DEFAULT_PBIX`, `templates\`, dan `data\` ikut executable.
 - Sesi GUI selalu mulai bersih: `run()` memanggil `AppSettings.reset_session()` yang menghapus `SESSION_SELECTION_KEYS` (workspace/report Service, workspace/report/manual TSD, workspace/dataset analisa, instance Desktop). Preferensi tetap: kredensial/RLS, path database, cakupan ekstraksi, filter & sort analisa, tab/sub-tab aktif, opsi render TSD, dan folder output. Jangan menyimpan pilihan sesi di kunci baru tanpa menambahkannya ke `SESSION_SELECTION_KEYS`.
 - Field `.pbix` sub-tab Local mulai kosong dan tombol Jalankan nonaktif sampai file dipilih; `DEFAULT_PBIX` hanya fallback CLI/core, bukan prefill GUI. Folder output tidak lagi mengikuti folder `.pbix`.
@@ -244,7 +267,7 @@ python -m unittest discover -s tests -t .       # uji
 - Endpoint XMLA selalu diturunkan dari workspace, bukan diketik manual: `workspace_endpoint()` membentuk `powerbi://api.powerbi.com/v1.0/<tenant>/<nama>`, dan `parse_workspace_endpoint()` membaca kembali nama dari endpoint lama. Suffix `" - <GUID>"` hanya dipisah bila benar-benar GUID lengkap (nama seperti `Contoh - SO` harus utuh); suffix itu dipakai hanya saat nama workspace duplikat.
 - Endpoint XMLA memakai **nama** workspace, bukan ID. Workspace yang dipilih di GUI menyimpan `workspace_id`; nama diambil dari tabel `workspace`/`nodes`. Jangan menyusun endpoint dari ID.
 - `workspace_list` menyembunyikan tipe `PersonalGroup`/`Personal`/`AdminWorkspace` dan workspace non-`Active` secara default; parameter `include_personal`/`active_only` membuka filter itu.
-- Setiap perubahan logika harus lulus `tests\test_core.py`, `tests\test_fabric.py`, `tests\test_lineage.py`, `tests\test_catalog.py`, `tests\test_lineage_service.py`, `tests\test_viewmodels_lineage.py`, `tests\test_tsd.py`, `tests\test_pbi_capture.py`, `tests\test_api_transport.py`, `tests\test_xmla_auth.py`, `tests\test_app_settings.py`, `tests\test_app_tabs.py`, `tests\test_viewmodels_metadata.py`, `tests\test_viewmodels_tsd.py`, `tests\test_viewmodels_settings.py`, `tests\test_requests.py`, `tests\test_forms.py`, `tests\test_job_runner.py`, `tests\test_paths.py`, `tests\test_column_stats.py`, `tests\test_report_usage.py`, `tests\test_usage_store.py`, `tests\test_usage_service.py`, `tests\test_viewmodels_analysis.py`, dan `tests\test_architecture.py`; jika mengubah angka acuan, perbarui uji dan dokumen ini dengan alasan yang jelas.
+- Setiap perubahan logika harus lulus `tests\test_core.py`, `tests\test_fabric.py`, `tests\test_lineage.py`, `tests\test_catalog.py`, `tests\test_lineage_service.py`, `tests\test_viewmodels_lineage.py`, `tests\test_tsd.py`, `tests\test_pbi_capture.py`, `tests\test_api_transport.py`, `tests\test_xmla_auth.py`, `tests\test_app_settings.py`, `tests\test_app_tabs.py`, `tests\test_viewmodels_metadata.py`, `tests\test_viewmodels_tsd.py`, `tests\test_viewmodels_settings.py`, `tests\test_requests.py`, `tests\test_forms.py`, `tests\test_job_runner.py`, `tests\test_paths.py`, `tests\test_column_stats.py`, `tests\test_report_usage.py`, `tests\test_usage_store.py`, `tests\test_usage_service.py`, `tests\test_viewmodels_analysis.py`, `tests\test_packaging.py`, dan `tests\test_architecture.py`; jika mengubah angka acuan, perbarui uji dan dokumen ini dengan alasan yang jelas.
 
 ## Aturan umum
 
@@ -273,6 +296,6 @@ Nama report, workspace, halaman, tabel, dan GUID di bagian ini sengaja netral (b
 - Analisa kolom multi-report (live, `Report Uji B`, workspace `Workspace Uji B`): **38 report** = 25 dipindai (22 PBIR-Legacy + 3 PBIR), **12 personal dilewati**, **1 App dilewati**, 0 inaccessible, **0 field tak terpetakan**. Setelah report `[App] …` dan My Workspace dilewati, cakupan **lengkap** → model **6,0 GB** (data 1,6 GB + hierarki 871,8 MB + dictionary 3,5 GB); kolom: 184 `Tidak dipakai` (**3,8 GB**), 48 `Dipakai`, 16 `Wajib dipertahankan`; measure: **29 measure, 26 `Dipakai`, 3 `Tidak dipakai`** (mis. tiga measure bisnis). Run dengan cache: ±12 dtk (XMLA ±6 dtk, 25 report dari cache); `refresh=True` ±54 dtk.
 - Analisa kolom multi-report (live, `Report Uji C`, workspace `Workspace Uji C`): admin `$filter=datasetId` mengembalikan **165 report di 28 workspace** (66 PBIR + 99 PBIR-Legacy); model 1,2 GB dan 431 kolom. Audit PBIR-Legacy terpisah: 42 dari 43 report terbaca, 3.190 visual, 3.121 dari 3.201 referensi field terpetakan (97,7%). `max_reports`/stop menurunkan kolom tanpa referensi menjadi `Perlu dicek` beserta jumlah `n belum dipindai` — jangan melaporkan `Tidak dipakai` dari cakupan parsial.
 - `getDefinition` selalu ±20–21 detik bila mengikuti `Retry-After: 20`, padahal operasi selesai ±1,2 detik; dengan `poll_wait=1` satu report ±1,5–2,5 detik. Paralel 4 tidak menolong (Fabric meng-throttle), jadi analisa berjalan sekuensial + cache.
-- Uji: 610 tes, 601 lulus, 9 skip, 0 gagal (tanpa env contoh). Uji yang butuh file `.pbix` membaca `RUN_PBIX` (angka acuan report/model), `RUN_LIVE_PBIX` (live connection), `RUN_DQ_PBIX` (DirectQuery), dan `RUN_MODEL_CATALOG` (nama Catalog di `01_Model_Overview`); tanpa variabel itu uji terkait di-skip, bukan gagal. Uji model live memakai `RUN_LIVE_TESTS=1`. Uji Fabric, transport, token XMLA, TSD, katalog workspace, picker Service/TSD, sinkronisasi di Pengaturan, dan capture screenshot memakai mock/workbook sintetis dan tidak membutuhkan login atau network.
+- Uji: 633 tes, 624 lulus, 9 skip, 0 gagal (tanpa env contoh). Uji yang butuh file `.pbix` membaca `RUN_PBIX` (angka acuan report/model), `RUN_LIVE_PBIX` (live connection), `RUN_DQ_PBIX` (DirectQuery), dan `RUN_MODEL_CATALOG` (nama Catalog di `01_Model_Overview`); tanpa variabel itu uji terkait di-skip, bukan gagal. Uji model live memakai `RUN_LIVE_TESTS=1`. Uji Fabric, transport, token XMLA, TSD, katalog workspace, picker Service/TSD, sinkronisasi di Pengaturan, capture screenshot, dan packaging memakai mock/workbook sintetis dan tidak membutuhkan login atau network.
 - Capture dengan hint posisi absolut (live, report uji D `<report-id>`, scope visual): 313 visual non-dekoratif, **313 tersimpan, 0 tanpa gambar** (sebelum hint: 229 dari 313; 84 visual di dalam group gagal dipasangkan).
 - `python verify_reference.py --pbix "<file>.pbix"` membandingkan hasil ekstraksi baru dengan angka acuan di atas. Tanpa Desktop, model dilewati dan exit code 1 (belum lengkap); `--no-model` hanya memeriksa report.

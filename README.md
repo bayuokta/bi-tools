@@ -41,7 +41,9 @@ hints.py                    hint posisi absolut visual (dari workbook report) un
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
   paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
+  version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
 cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py
+  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/install-browser)
 app\                            GUI PySide6 (python -m app)
   main_window.py                tab, log, progress, JobRunner
   job_runner.py                 JobRunner: satu tempat menjalankan worker + sinyal status
@@ -79,6 +81,9 @@ outputs\                        hasil generate: Report_Metadata.xlsx, Semantic_M
 data\bi_tools.db                 database lineage + katalog + cache analisa kolom (TIDAK di-commit)
 TSD_assets\                     cache screenshot page/visual/mobile (TIDAK di-commit)
 .env.example                    contoh kredensial CLI lineage dan screenshot (RLS)
+packaging\                      bi_tools.spec (PyInstaller onedir), bi-tools.iss (Inno Setup),
+                                build.ps1, make_icon.py + bi-tools.ico
+.github\workflows\              ci.yml (flake8 + uji) dan release.yml (tag v* -> installer + rilis)
 *<nama report>.pbix               salinan sumber (TIDAK di-commit)
 requirements.txt
 ```
@@ -375,6 +380,47 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset denga
 | `07_Unresolved` | field yang tidak bisa dipetakan (report, halaman, visual, queryRef, alasan) |
 | `08_Measures` | semua measure + data type, status, pemakaian, format, DAX, alasan |
 
+## Paket dan rilis
+
+Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (GUI) dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
+
+Rilis otomatis berjalan di GitHub Actions setiap tag `vX.Y.Z`:
+
+1. ubah `core\version.py` (`__version__`) dan `CHANGELOG.md`;
+2. commit, lalu `git tag -a v0.2.0 -m "BI Tools 0.2.0"`;
+3. `git push origin main --tags`.
+
+`.github\workflows\release.yml` menjalankan uji, membangun paket, lalu menerbitkan rilis dengan tiga aset:
+
+| Aset | Isi |
+|---|---|
+| `BITools-Setup-<versi>.exe` | installer Inno Setup (per pengguna, tanpa UAC) |
+| `BITools-<versi>-portable.zip` | folder aplikasi siap ekstrak |
+| `SHA256SUMS.txt` | checksum SHA-256 kedua aset |
+
+Tag yang tidak sama dengan `core\version.py` menggagalkan build. `workflow_dispatch` hanya menghasilkan artefak (tanpa menerbitkan rilis); push/PR menjalankan `ci.yml` (flake8 + uji).
+
+Build lokal memakai jalur yang sama dengan CI:
+
+```powershell
+python -m pip install -r requirements.txt "pyinstaller==6.22.3"
+winget install JRSoftware.InnoSetup                                    # sekali saja, untuk installer
+powershell -File packaging\build.ps1                                   # uji + dist + zip + installer
+powershell -File packaging\build.ps1 -SkipTests -SkipInstaller          # hanya dist + zip portable
+```
+
+`build.ps1` mencari `ISCC.exe` di lokasi standar Inno Setup 6. Bila Inno dipasang di tempat lain (mis. mode portable), set `$env:BI_TOOLS_ISCC = "path\ke\ISCC.exe"`.
+
+Hasil: `dist\BI Tools\` (folder aplikasi), `dist\BITools-<versi>-portable.zip`, dan `packaging\Output\BITools-Setup-<versi>.exe`.
+
+Catatan paket:
+
+- Paket memakai mode **onedir**. `templates\` dan `libs\` (ADOMD) disalin ke samping exe karena `core\paths.py` mencari aset di folder aplikasi, bukan di `sys._MEIPASS`; mode onefile akan memutus pencarian itu.
+- Installer memasang per pengguna (`%LOCALAPPDATA%\Programs\BI Tools`) sehingga tidak perlu UAC. Opsi "all users" tetap tersedia; dalam kasus itu `outputs\` dan `data\` otomatis pindah ke `%LOCALAPPDATA%\BI Tools`.
+- Uninstaller tidak menghapus `outputs\` dan `data\`.
+- Screenshot TSD butuh Chromium (±150 MB) dan tidak ikut dibundel. Installer menyediakan task opsional untuk mengunduhnya; kapan saja bisa diulang dengan `bi-tools-cli install-browser`.
+- Paket belum ditandatangani digital, jadi Windows SmartScreen bisa menampilkan peringatan saat pertama dijalankan.
+
 ## Uji
 
 ```powershell
@@ -417,7 +463,7 @@ $env:RUN_LIVE_TESTS = "1"; python -m unittest discover -s tests -t .
 - Token hanya disimpan di memori proses. Satu service principal dipakai untuk Fabric API (`https://api.fabric.microsoft.com/.default`), Power BI REST, dan XMLA (`https://analysis.windows.net/powerbi/api/.default`); token Power BI yang sama dipakai embed/Scanner/ADOMD. Token disegarkan 2 menit sebelum kedaluwarsa, termasuk lewat `OnAccessTokenExpired` pada koneksi ADOMD.
 - Folder output default `outputs\` di samping aplikasi (folder executable saat dipaket, root repo saat `python -m app`); dapat diubah dan nilainya tersimpan. Folder tidak lagi mengikuti folder `.pbix`. Bila folder aplikasi tidak bisa ditulis (mis. `C:\Program Files`), hasil pindah ke `%LOCALAPPDATA%\BI Tools\outputs`.
 - Sesi GUI selalu mulai bersih: pilihan workspace/report Service, workspace/report TSD, workspace/dataset Analisa, dan instance Desktop dikosongkan tiap aplikasi dibuka. Kredensial, RLS, path database, cakupan ekstraksi, filter/sort, tab aktif, dan opsi render TSD tetap tersimpan.
-- Untuk paket executable: `templates\tsd.template.html` harus ikut dibundel (`--add-data "templates;templates"`); `outputs\` dan `data\` dibuat saat runtime, jangan di-bundle.
+- Untuk paket executable: `templates\tsd.template.html` dan `libs\` harus berada di samping exe (diatur `packaging\bi_tools.spec`); `outputs\` dan `data\` dibuat saat runtime, jangan di-bundle. Lihat [Paket dan rilis](#paket-dan-rilis).
 - `Report_Metadata.xlsx` dan `Semantic_Model_Metadata.xlsx` adalah file biner hasil generate; setiap regenerasi menghasilkan diff biner.
 - `data\bi_tools.db`, `outputs\`, file `*.db` lain, dan `.env` di-ignore git. Jangan meng-commit database lineage atau secret.
 - Credential GUI disimpan di QSettings (`HKCU\Software\BITools\Metadata`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi oleh `AppSettings` saat GUI dibuka. Setelan dari organisasi lama (`2W-Dragon`/`BI Tools`) disalin sekali ke organisasi baru (`settings/org_migrated_v2`) tanpa menimpa nilai yang sudah ada; setelah migrasi terverifikasi, kunci lama boleh dihapus manual:

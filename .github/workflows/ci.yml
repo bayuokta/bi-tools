@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instal dependensi
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install flake8
+
+      - name: Lint (sintaks, nama tak terdefinisi, perbandingan salah)
+        run: python -m flake8 --select=E9,F63,F7,F82 .
+
+      - name: Uji
+        # 9 uji angka acuan/file contoh di-skip tanpa RUN_*; itu disengaja.
+        run: python -m unittest discover -s tests -t .

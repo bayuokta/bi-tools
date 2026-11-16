@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versi X.Y.Z (kosong = core/version.py). Tanpa tag: hanya artefak, tidak menerbitkan rilis."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instal dependensi build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install "pyinstaller==6.22.3"
+
+      - name: Tentukan versi
+        id: version
+        shell: pwsh
+        run: |
+          $declared = [regex]::Match(
+            (Get-Content core/version.py -Raw),
+            '__version__\s*=\s*"([^"]+)"'
+          ).Groups[1].Value
+          if (-not $declared) { throw "core/version.py tidak memuat __version__" }
+
+          $inputVersion = "${{ inputs.version }}"
+          if ($inputVersion -and $inputVersion -ne $declared) {
+            throw "Input versi $inputVersion berbeda dengan core/version.py ($declared)"
+          }
+
+          $publish = "false"
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tagVersion = "${{ github.ref_name }}".TrimStart("v")
+            if ($tagVersion -ne $declared) {
+              throw "Tag ${{ github.ref_name }} tidak cocok dengan core/version.py ($declared). Perbarui versi lalu buat tag ulang."
+            }
+            $publish = "true"
+            Write-Host "Tag cocok; rilis akan diterbitkan." -ForegroundColor Green
+          } else {
+            Write-Host "Bukan tag; hanya artefak yang dihasilkan." -ForegroundColor Yellow
+          }
+
+          "version=$declared" >> $env:GITHUB_OUTPUT
+          "publish=$publish" >> $env:GITHUB_OUTPUT
+
+      - name: Uji
+        run: python -m unittest discover -s tests -t .
+
+      - name: PyInstaller (onedir)
+        run: python -m PyInstaller --noconfirm --clean packaging\bi_tools.spec
+
+      - name: Verifikasi hasil build
+        shell: pwsh
+        run: |
+          $required = @(
+            "dist\BI Tools\BI Tools.exe",
+            "dist\BI Tools\bi-tools-cli.exe",
+            "dist\BI Tools\templates\tsd.template.html",
+            "dist\BI Tools\libs\Microsoft.AnalysisServices.AdomdClient.dll"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "Hasil build tidak lengkap: $file" }
+          }
+          & "dist\BI Tools\bi-tools-cli.exe" --version
+
+      - name: ZIP portable
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $zip = "dist\BITools-$version-portable.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          # outputs/data/TSD_assets dibuat saat runtime; jangan ikut ke paket.
+          $runtimeDirs = @("outputs", "data", "TSD_assets")
+          $items = Get-ChildItem "dist\BI Tools" | Where-Object { $_.Name -notin $runtimeDirs }
+          Compress-Archive -Path $items.FullName -DestinationPath $zip -CompressionLevel Optimal
+
+      - name: Installer Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe tidak ditemukan di runner" }
+          & $iscc "/DMyAppVersion=${{ steps.version.outputs.version }}" "packaging\bi-tools.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Kompilasi Inno Setup gagal" }
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $files = @(
+            "packaging\Output\BITools-Setup-$version.exe",
+            "dist\BITools-$version-portable.zip"
+          )
+          $lines = foreach ($file in $files) {
+            if (-not (Test-Path $file)) { throw "Artefak hilang: $file" }
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $(Split-Path -Leaf $file)"
+          }
+          Set-Content -Path "dist\SHA256SUMS.txt" -Value $lines -Encoding utf8NoBOM
+          Get-Content "dist\SHA256SUMS.txt"
+
+      - name: Simpan artefak
+        uses: actions/upload-artifact@v4
+        with:
+          name: BI-Tools-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/BITools-*-portable.zip
+            dist/SHA256SUMS.txt
+            packaging/Output/BITools-Setup-*.exe
+
+      - name: Terbitkan rilis
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Jangan hentikan skrip hanya karena `gh release view` mengembalikan 1.
+          $ErrorActionPreference = 'Continue'
+          $version = "${{ steps.version.outputs.version }}"
+          $tag = "${{ github.ref_name }}"
+          $assets = @(
+            "packaging\Output\BITools-Setup-$version.exe",
+            "dist\BITools-$version-portable.zip",
+            "dist\SHA256SUMS.txt"
+          )
+
+          $existing = $false
+          try {
+            gh release view $tag --json tagName *> $null
+            $existing = ($LASTEXITCODE -eq 0)
+          } catch {
+            $existing = $false
+          }
+
+          if ($existing) {
+            Write-Host "Rilis $tag sudah ada; unggah ulang aset." -ForegroundColor Yellow
+            gh release upload $tag @assets --clobber
+          } else {
+            gh release create $tag @assets `
+              --title "BI Tools $version" `
+              --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Gagal menerbitkan rilis $tag" }

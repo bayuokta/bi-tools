@@ -1862,7 +1862,7 @@ def run_model(
     log(f"OK  -> {out_file}")
     log(f"Endpoint              : {endpoint} / {catalog}")
     log(f"Tables                : {len(tables)}")
-    log(f"Table modes           : " + ", ".join(f"{key}={value}" for key, value in sorted(mode_counts.items())))
+    log("Table modes           : " + ", ".join(f"{key}={value}" for key, value in sorted(mode_counts.items())))
     log(f"Columns               : {len(columns)}  (internal excluded: {internal_columns})")
     lineage_counts = defaultdict(int)
     for row in columns:

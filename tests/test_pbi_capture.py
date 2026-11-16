@@ -934,5 +934,33 @@ class CaptureReportTests(unittest.TestCase):
             capture_mock.assert_called_once()
 
 
+class MissingBrowserTests(unittest.TestCase):
+    """Chromium tidak dibundel: pesan harus menunjuk perintah paket."""
+
+    class _BrokenFactory:
+        def __call__(self):
+            class _Broken:
+                def start(self):
+                    raise RuntimeError("Executable doesn't exist at chrome.exe")
+
+            return _Broken()
+
+    def test_open_explains_how_to_install_chromium(self) -> None:
+        from core.pbi_capture import capture as capture_module
+
+        capturer = ReportCapturer(
+            report_id=REPORT,
+            workspace_id=WORKSPACE,
+            embed_token="token",
+        )
+        with patch.object(capture_module, "sync_playwright", self._BrokenFactory()):
+            with self.assertRaises(ExtractionError) as ctx:
+                capturer.open()
+
+        message = str(ctx.exception)
+        self.assertIn("install-browser", message)
+        self.assertIn("playwright install chromium", message)
+
+
 if __name__ == "__main__":
     unittest.main()

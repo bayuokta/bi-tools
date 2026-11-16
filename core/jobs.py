@@ -25,7 +25,7 @@ from .pbix import (
     resolve_pbix,
 )
 from .paths import outputs_dir
-from .report import OUT_FILE, find_validation_workbook, resolve_validation_model, run_report
+from .report import OUT_FILE, resolve_validation_model, run_report
 
 Log = Callable[[str], None]
 

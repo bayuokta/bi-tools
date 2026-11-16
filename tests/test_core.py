@@ -44,6 +44,7 @@ from core.report import (
     page_is_hidden,
     parse_field,
     resolve_validation_model,
+    run_report,
 )
 from core.xmla_client import DesktopInstance
 
@@ -1010,6 +1011,34 @@ class VerifyReferenceScriptTests(unittest.TestCase):
                 self.assertEqual(
                     verify_reference.main(["--pbix", str(RUN_PBIX)]), 2
                 )
+
+
+class ReportOutputDirTests(unittest.TestCase):
+    """Folder output dibuat saat menulis, bukan saat import.
+
+    Penting untuk paket: ``outputs\\`` tidak ikut dibundel, jadi proses pertama
+    harus membuatnya sendiri (dulu gagal dengan "non-existent directory").
+    """
+
+    def test_creates_missing_output_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            definition = Path(tmp) / "definition"
+            ReportUsageTests._write_report(definition, [])
+            (definition / "report.json").write_text(
+                json.dumps({"name": "uji"}), encoding="utf-8"
+            )
+            out_file = Path(tmp) / "outputs" / "Report_Metadata.xlsx"
+
+            run_report(
+                report_def=definition,
+                report_source="uji",
+                tables={},
+                inventory=[],
+                model_source="",
+                out_file=out_file,
+            )
+
+            self.assertTrue(out_file.exists())
 
 
 if __name__ == "__main__":

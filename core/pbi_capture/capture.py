@@ -609,8 +609,9 @@ class ReportCapturer:
     ) -> None:
         if sync_playwright is None:
             raise CaptureError(
-                "Playwright belum terinstall. Jalankan: "
-                "'pip install playwright' lalu 'python -m playwright install chromium' "
+                "Playwright belum terpasang. Dari source: 'pip install playwright' "
+                "lalu 'python -m playwright install chromium'. Di aplikasi "
+                "terpaket: jalankan 'bi-tools-cli install-browser' "
                 f"(import error: {_PLAYWRIGHT_IMPORT_ERROR})"
             )
         self.report_id = report_id
@@ -662,8 +663,17 @@ class ReportCapturer:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         port = self._server.server_address[1]
 
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(headless=self.headless)
+        try:
+            self._pw = sync_playwright().start()
+            self._browser = self._pw.chromium.launch(headless=self.headless)
+        except Exception as exc:  # noqa: BLE001 - pesan Playwright
+            self.close()
+            raise CaptureError(
+                "Chromium untuk screenshot belum tersedia. Di aplikasi terpaket "
+                "jalankan 'bi-tools-cli install-browser', atau dari source "
+                "'python -m playwright install chromium', lalu ulangi capture. "
+                f"Detail: {exc}"
+            ) from exc
         self._ctx = self._browser.new_context(
             viewport=self.viewport, device_scale_factor=self.scale_factor
         )

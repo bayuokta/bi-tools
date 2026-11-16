@@ -24,6 +24,11 @@ __pycache__/
 venv/
 *.egg-info/
 
+# Hasil build paket (PyInstaller + Inno Setup)
+build/
+dist/
+packaging/Output/
+
 # Editor / OS
 .vscode/
 .idea/

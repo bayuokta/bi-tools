@@ -1,0 +1,8 @@
+[flake8]
+# Gaya yang tidak ditegakkan di repo ini: panjang baris (E501, banyak string DAX/M
+# panjang), urutan import setelah sys.path (E402), dan spasi dekoratif.
+# Yang ditegakkan tetap: sintaks, nama tak terdefinisi, import/variabel tak
+# terpakai, dan kesalahan perbandingan.
+max-line-length = 120
+extend-ignore = E122, E203, E266, E301, E302, E303, E305, E402, E501, W391, W503
+exclude = .git, __pycache__, build, dist, outputs, data, TSD_assets, .venv, libs, packaging/Output

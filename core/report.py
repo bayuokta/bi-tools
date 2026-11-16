@@ -1277,6 +1277,9 @@ def run_report(
         readme_rows.insert(2, ("Jenis report", report_kind))
     readme_df = pd.DataFrame(readme_rows, columns=["Bagian", "Penjelasan"])
 
+    # outputs\ tidak ikut dibundel di paket; buat folder saat menulis.
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
     with pd.ExcelWriter(out_file, engine="openpyxl") as writer:
         write_sheet(writer, readme_df, "00_README", {"Bagian": 24, "Penjelasan": 95})
         write_sheet(writer, pages_df, "01_Pages")

@@ -7,7 +7,33 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## 2026-11-12 — Fondasi ekstraksi, GUI, dan lineage
+## 2026-11-17 - Paket Windows dan rilis otomatis
+
+- `core/version.py` menjadi satu-satunya sumber versi (`0.2.0`); dipakai version
+  resource exe, installer, dan pemeriksaan tag rilis.
+- `cli/__main__.py`: dispatcher CLI tunggal `bi-tools-cli`
+  (`report`/`model`/`tsd`/`lineage`/`analyze`/`install-browser`) dengan impor malas.
+- `packaging/bi_tools.spec`: PyInstaller onedir berisi `BI Tools.exe` (GUI) dan
+  `bi-tools-cli.exe` (console); `templates/` dan `libs/` disalin ke samping exe
+  karena `core/paths.py` mencari aset di folder aplikasi.
+- `packaging/bi-tools.iss` + `packaging/build.ps1`: installer Inno Setup per
+  pengguna, ZIP portable, dan `SHA256SUMS.txt`; uninstaller tidak menghapus
+  `outputs/` dan `data/`.
+- `.github/workflows/ci.yml` (flake8 + uji) dan `release.yml` (tag `v*` → uji,
+  build, installer, rilis GitHub dengan tiga aset). Paket belum ditandatangani.
+- `packaging/make_icon.py` + `packaging/bi-tools.ico`: ikon aplikasi dan installer.
+- `install-browser` mengunduh Chromium untuk screenshot TSD dari paket tanpa
+  membutuhkan interpreter Python.
+- `.flake8` menetapkan aturan lint yang berlaku; dua temuan lama (F401 di
+  `core/jobs.py`, F541 di `core/model.py`) dibersihkan.
+- Uji baru `tests/test_packaging.py` (versi, dispatcher, spec/ISS/workflow, ICO).
+- Perbaikan yang hanya terlihat di paket frozen: DLL ADOMD dicari dari folder
+  aplikasi (`core/xmla_client.py` memakai `APP_DIR`, bukan folder modul di
+  `_internal`), dan `core/report.py` membuat folder `outputs/` yang belum ada.
+- Pesan `CaptureError` saat Chromium belum terpasang menyebut
+  `bi-tools-cli install-browser` (paket tidak menyertakan browser).
+
+## 2026-11-12 - Fondasi ekstraksi, GUI, dan lineage
 
 ### Ekstraksi metadata
 
