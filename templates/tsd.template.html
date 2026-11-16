@@ -1,0 +1,1153 @@
+{#-
+  TSD HTML template — version {{ meta.template_version }}
+  Confluence-style layout for "Technical Specification Design Business Intelligence".
+  Source reference: index.html (Confluence storage body) and TSD.doc (MHTML export).
+  Contract and integration notes: ./AGENTS.md and ./README.md
+-#}
+{%- macro value(v, placeholder="TODO") -%}
+{%- if v is not none and v|string|trim -%}{{ v }}{%- elif meta.draft -%}<span class="todo">{{ placeholder }}</span>{%- endif -%}
+{%- endmacro -%}
+
+{%- macro lines(v) -%}
+{%- if v is string -%}{{ v|nl2br }}
+{%- elif v -%}{% for item in v %}{{ item }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+{%- elif meta.draft -%}<span class="todo">TODO</span>{%- endif -%}
+{%- endmacro -%}
+
+{%- macro bullets(v) -%}
+{%- if v is string -%}{{ v|nl2br }}
+{%- elif v -%}<ul>{% for item in v %}<li>{{ item }}</li>{% endfor %}</ul>
+{%- elif meta.draft -%}<span class="todo">TODO</span>{%- endif -%}
+{%- endmacro -%}
+
+{%- macro link(v) -%}
+{%- if v is string and v|trim -%}
+{%- if v.startswith("http://") or v.startswith("https://") -%}<a href="{{ v }}">{{ v }}</a>{%- else -%}{{ v }}{%- endif -%}
+{%- elif meta.draft -%}<span class="todo">TODO</span>{%- endif -%}
+{%- endmacro -%}
+
+{%- macro expand(title, cls="") -%}
+<details class="expand{% if cls %} {{ cls }}{% endif %}"{% if meta.expand_all %} open{% endif %}>
+<summary>{{ title }}</summary>
+<div class="expand-body">{{ caller() }}</div>
+</details>
+{%- endmacro -%}
+
+{%- macro screenshot(src, caption, kind="page") -%}
+{%- if src -%}
+<img class="screenshot-{{ kind }}" src="{{ src }}" alt="{{ caption }}" loading="lazy">
+{%- else -%}
+<div class="shot-empty {{ kind }}"><span>{{ caption or "Screenshot" }}</span><small>Attach screenshot</small></div>
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro empty_row(colspan, text="No data available") -%}
+<tr><td colspan="{{ colspan }}" class="empty">{{ text }}</td></tr>
+{%- endmacro -%}
+
+{%- macro flag(v) -%}
+{%- if v is none -%}{%- elif v is sameas true -%}TRUE{%- elif v is sameas false -%}FALSE{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro filter_table(filters) -%}
+<table class="wrapped compact filter-table">
+<colgroup>
+<col style="width:26%;"><col style="width:19%;"><col style="width:13%;"><col style="width:16%;"><col style="width:13%;"><col style="width:13%;">
+</colgroup>
+<thead>
+<tr><th>Column / Measure Name</th><th>Table Name</th><th>Type</th><th>Values</th><th>is hidden</th><th>is locked</th></tr>
+</thead>
+<tbody>
+{% for f in (filters or []) %}
+<tr>
+<td>{{ f.field or "—" }}</td>
+<td>{{ f.table or "—" }}</td>
+<td>{{ f.filter_type or "—" }}</td>
+<td>{{ f['values'] or "—" }}</td>
+<td>{{ f.hidden or "—" }}</td>
+<td>{{ f.locked or "—" }}</td>
+</tr>
+{% else %}
+{{ empty_row(6) }}
+{% endfor %}
+</tbody>
+</table>
+{%- endmacro -%}
+
+{%- macro field_table(fields) -%}
+<table class="wrapped compact field-table">
+<colgroup>
+<col style="width:12%;"><col style="width:18%;"><col style="width:10%;"><col style="width:14%;"><col style="width:24%;"><col style="width:10%;"><col style="width:12%;">
+</colgroup>
+<thead>
+<tr><th>Table</th><th>Field</th><th>Type</th><th>Display Name</th><th>Expression</th><th>Aggregation</th><th>Query Ref</th></tr>
+</thead>
+<tbody>
+{% for c in (fields or []) %}
+<tr>
+<td>{{ c.table or "" }}</td>
+<td>{{ c.field or "" }}</td>
+<td>{{ c.type or "" }}</td>
+<td>{{ c.display_name or "" }}</td>
+<td>{% if c.expression %}<div class="field-expression">{{ c.expression }}</div>{% endif %}</td>
+<td>{{ c.aggregation or "" }}</td>
+<td>{{ c.query_ref or "" }}</td>
+</tr>
+{% else %}
+{{ empty_row(7) }}
+{% endfor %}
+</tbody>
+</table>
+{%- endmacro -%}
+
+{%- macro interaction_table(interactions) -%}
+<table class="wrapped compact interaction-table">
+<colgroup><col style="width:40%;"><col style="width:40%;"><col style="width:20%;"></colgroup>
+<thead>
+<tr><th>Source</th><th>Target</th><th>Type</th></tr>
+</thead>
+<tbody>
+{% for i in (interactions or []) %}
+<tr>
+<td>{{ i.source or "" }}</td>
+<td>{{ i.target or "" }}</td>
+<td>{{ i.type or "" }}</td>
+</tr>
+{% else %}
+{{ empty_row(3) }}
+{% endfor %}
+</tbody>
+</table>
+{%- endmacro -%}
+
+{%- macro columns_table(item) -%}
+<table class="wrapped compact">
+<thead>
+<tr><th>No</th><th>Source Column Name</th><th>Column Name</th><th>Data Type</th><th>Custom Column Logic</th><th>Is Hidden</th></tr>
+</thead>
+<tbody>
+{% if item.column_details %}
+{% for c in item.column_details %}
+<tr>
+<td>{{ loop.index }}</td>
+<td>{{ c.source_column or c.column_name or "" }}</td>
+<td>{{ c.column_name or c.name or "" }}</td>
+<td>{{ c.data_type or "" }}</td>
+<td>{{ c.custom_logic or "" }}</td>
+<td>{{ flag(c.is_hidden) }}</td>
+</tr>
+{% endfor %}
+{% elif item.columns %}
+{% for name in item.columns %}
+<tr><td>{{ loop.index }}</td><td>{{ name }}</td><td>{{ name }}</td><td></td><td></td><td></td></tr>
+{% endfor %}
+{% else %}
+{{ empty_row(6) }}
+{% endif %}
+</tbody>
+</table>
+{%- endmacro -%}
+
+{%- macro parameters_table(parameters) -%}
+<p><strong>Parameter :</strong></p>
+{% call expand("Click here to expand parameter list") %}
+<table class="wrapped compact">
+    <thead><tr><th>Parameter Name</th><th>Value</th></tr></thead>
+    <tbody>
+        {% for p in (parameters or []) %}
+        <tr><td>{{ value(p.name) }}</td><td>{{ value(p.value) }}</td></tr>
+        {% else %}
+        {{ empty_row(2) }}
+        {% endfor %}
+    </tbody>
+</table>
+{% endcall %}
+{%- endmacro -%}
+
+{%- macro dax_block(v, name="") -%}
+{%- if v is not none and v|string|trim -%}
+<div class="code-text">{% if name %}<span class="code-name">{{ name }} =</span><br>{% endif %}{{ v|dax }}</div>
+{%- elif meta.draft -%}<span class="todo">TODO</span>{%- endif -%}
+{%- endmacro -%}
+
+{%- macro m_block(v) -%}
+{%- if v is not none and v|string|trim -%}
+<div class="code-text">{{ v|mcode }}</div>
+{%- elif meta.draft -%}<span class="todo">TODO</span>{%- endif -%}
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="TSD HTML template v{{ meta.template_version }}">
+<meta name="description" content="Technical Specification Design Business Intelligence">
+<title>{{ document.title }}{% if report.name %} — {{ report.name }}{% endif %}</title>
+<style>
+/* --------------------------------------------------- Confluence theme */
+:root {
+    --text: #333333;
+    --heading: #333333;
+    --link: #0052cc;
+    --line: #cccccc;
+    --header: #f0f0f0;
+    --panel: #f4f5f7;
+    --muted: #707070;
+    --todo-bg: #fff8dc;
+    --todo-line: #d9b84a;
+    --todo-text: #7a6415;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+    margin: 0;
+    background: #ffffff;
+    color: var(--text);
+    font-family: Arial, Helvetica, FreeSans, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.doc {
+    margin: 0;
+    padding: 24px 28px 56px;
+}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+p { margin: 0 0 10px; }
+ul, ol { margin: 0 0 10px 0; padding-left: 24px; }
+li { margin: 2px 0; }
+
+/* ------------------------------------------------------------- headings */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--heading);
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 30px 0 10px;
+}
+h1 { font-size: 24px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
+h5 { font-size: 12px; }
+h6 { font-size: 12px; }
+h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+
+/* ---------------------------------------------------------------- cover */
+table.cover-table { width: 100%; }
+table.wrapped.cover-table th {
+    padding: 12px 14px;
+    background: #ffffff;
+    font-weight: 400;
+    text-align: left;
+}
+h1.cover-title { margin: 0 0 6px; font-size: 24px; }
+p.cover-subtitle { margin: 0; font-size: 14px; }
+
+/* --------------------------------------------------------------- tables */
+table.wrapped {
+    border-collapse: collapse;
+    margin: 10px 0 16px;
+    max-width: 100%;
+}
+table.wrapped.relative-table { width: 100%; }
+table.wrapped th,
+table.wrapped td {
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+table.wrapped th { background: var(--header); font-weight: 700; }
+table.wrapped td.table-header { font-weight: 700; }
+table.wrapped td.highlight-grey { background: var(--header); }
+table.wrapped.compact { font-size: 12px; }
+table.wrapped.compact th,
+table.wrapped.compact td { padding: 5px 7px; }
+table.wrapped.compact p { margin: 0; }
+table.wrapped.filter-table { width: 100%; font-size: 11px; table-layout: fixed; }
+table.wrapped.filter-table th,
+table.wrapped.filter-table td { padding: 3px 4px; overflow-wrap: break-word; }
+table.wrapped.field-table { width: 100%; font-size: 10px; table-layout: fixed; }
+table.wrapped.field-table th,
+table.wrapped.field-table td { padding: 3px 4px; overflow-wrap: break-word; }
+.field-expression { font-family: Consolas, "Courier New", monospace; font-size: 10px; line-height: 1.3; white-space: pre-wrap; }
+table.wrapped.interaction-table { font-size: 11px; }
+table.wrapped.interaction-table th,
+table.wrapped.interaction-table td { padding: 4px 5px; overflow-wrap: break-word; }
+details.columns-expand .expand-body { padding: 6px 6px 2px; }
+details.columns-expand table.wrapped.compact { font-size: 11px; }
+details.columns-expand table.wrapped.compact th,
+details.columns-expand table.wrapped.compact td { padding: 3px 4px; overflow-wrap: break-word; }
+table.wrapped.wide { font-size: 11px; table-layout: fixed; }
+table.wrapped.wide th,
+table.wrapped.wide td { padding: 5px 6px; overflow-wrap: break-word; }
+table.wrapped td.empty { color: var(--muted); font-style: italic; text-align: center; }
+table.wrapped td.shot-cell { text-align: left; }
+
+/* ------------------------------------------------------------- expand */
+details.expand {
+    margin: 8px 0;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: #ffffff;
+}
+details.expand > summary {
+    padding: 6px 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+details.expand > summary::-webkit-details-marker { display: none; }
+details.expand > summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 16px;
+    color: #666666;
+}
+details.expand[open] > summary::before { content: "▾"; }
+details.expand > .expand-body { padding: 8px 10px 2px; }
+details.expand > .expand-body > p:first-child { margin-top: 0; }
+
+/* ---------------------------------------------------------- screenshots */
+.screenshot-page { display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid var(--line); }
+.screenshot-visual { display: block; max-width: 320px; height: auto; border: 1px solid var(--line); }
+.screenshot-mobile { display: block; max-width: 220px; height: auto; border: 1px solid var(--line); }
+.shot-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px;
+    border: 1px dashed #bbbbbb;
+    background: #fafafa;
+    color: var(--muted);
+    font-size: 12px;
+}
+.shot-empty small { font-size: 11px; color: #999999; }
+.shot-empty.page { max-width: 420px; min-height: 120px; }
+.shot-empty.visual { max-width: 200px; min-height: 80px; }
+.shot-empty.mobile { max-width: 220px; min-height: 120px; }
+
+/* ------------------------------------------------------------- code */
+.code-text {
+    color: #000000;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.code-name { font-weight: 600; }
+.tok-kw, .tok-fn { color: #3165bb; }
+.tok-str { color: #a31515; }
+.tok-num { color: #098658; }
+.tok-ref { color: #001080; }
+.tok-comment { color: #6a737d; }
+
+/* -------------------------------------------------------------- misc */
+.instruction {
+    margin: 8px 0 10px;
+    color: var(--text);
+    font-size: 14px;
+}
+.instruction em { font-style: italic; }
+.page-title { margin: 18px 0 8px; font-size: 12px; font-weight: 700; }
+.todo {
+    display: inline-block;
+    padding: 0 6px;
+    border: 1px dashed var(--todo-line);
+    border-radius: 2px;
+    background: var(--todo-bg);
+    color: var(--todo-text);
+    font-size: 11px;
+    white-space: nowrap;
+}
+.muted { color: var(--muted); }
+
+/* ---------------------------------------------------------------- TOC */
+.toc { margin: 10px 0 20px; }
+.toc ul { margin: 0; padding-left: 22px; list-style: disc; }
+.toc ul ul { margin: 2px 0; }
+.toc a { color: var(--link); }
+
+@media screen and (max-width: 720px) {
+    .doc { padding: 16px 14px 40px; }
+    table.wrapped.wide { font-size: 10px; }
+    .screenshot-page { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<article class="doc">
+
+<!-- ============================================================== COVER -->
+<p><strong>{{ document.confidentiality or "Confidential" }}</strong></p>
+
+<table class="wrapped cover-table">
+    <tbody>
+        <tr>
+            <th>
+                <h1 id="cover" class="cover-title">{{ document.title }}</h1>
+                {% if document.subtitle %}<p class="cover-subtitle"><em>{{ document.subtitle }}</em></p>{% endif %}
+            </th>
+        </tr>
+    </tbody>
+</table>
+
+<p><br></p>
+<p><br></p>
+<p><br></p>
+
+<p>Prepared for:</p>
+<p>{{ value(document.prepared_for, "Company / team name") }}</p>
+
+<!-- =========================================== VERSION & AUTHORIZATION -->
+<h1 id="doc-version">Document Version and Authorization</h1>
+
+<h2 id="doc-history">Document History</h2>
+<table class="wrapped">
+    <colgroup><col style="width:74px;"><col style="width:124px;"><col style="width:106px;"><col></colgroup>
+    <tbody>
+        <tr>
+            <td><strong>Version</strong></td>
+            <td><strong>Date Published</strong></td>
+            <td><strong>Modified By</strong></td>
+            <td><strong>Comment</strong></td>
+        </tr>
+        {% for h in (document.history or []) %}
+        <tr>
+            <td>{{ value(h.version) }}</td>
+            <td>{{ value(h.date) }}</td>
+            <td>{{ value(h.author) }}</td>
+            <td>{{ value(h.comment) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2 id="doc-authorization">Document Authorization</h2>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>
+    <tbody>
+        <tr>
+            <td><strong>Author</strong></td>
+            <td><strong>Authorizer</strong></td>
+        </tr>
+        <tr>
+            {% for person in [document.author, document.authorizer] %}
+            <td>
+                <div style="text-align:center;">
+                    {% if meta.draft %}<span class="todo">Signature</span>{% endif %}
+                    <div style="height:70px;border-bottom:1px solid #999;margin:6px 0;"></div>
+                    <p style="margin:4px 0 1px;"><strong>{{ value(person.name, "Full name") }}</strong></p>
+                    <p style="margin:0;color:#707070;font-size:12px;">{{ value(person.role, "Role / title") }}</p>
+                    <p style="margin:0;color:#707070;font-size:12px;">Date: {{ value(person.date, "Date") }}</p>
+                </div>
+            </td>
+            {% endfor %}
+        </tr>
+    </tbody>
+</table>
+
+<!-- ====================================================== TABLE OF CONTENTS -->
+<h1 id="toc">Table of Contents</h1>
+<nav class="toc" aria-label="Table of contents">
+    <ul>
+        <li><a href="#cover">{{ document.title }}</a></li>
+        <li><a href="#doc-version">Document Version and Authorization</a>
+            <ul>
+                <li><a href="#doc-history">Document History</a></li>
+                <li><a href="#doc-authorization">Document Authorization</a></li>
+            </ul>
+        </li>
+        <li><a href="#overview">1. Overview</a>
+            <ul>
+                <li><a href="#report-information">1.1 Report Information</a></li>
+                <li><a href="#report-overview">1.2 Report Overview and Insight</a></li>
+            </ul>
+        </li>
+        <li><a href="#solution-design">2. Solution Design</a>
+            <ul>
+                <li><a href="#data-model">2.1 Data Model</a>
+                    <ul>
+                        <li><a href="#physical-data-dictionary">2.1.1 Physical Data Dictionary</a></li>
+                        <li><a href="#physical-data-model">2.1.2 Physical Data Model</a></li>
+                        <li><a href="#datasets">2.1.2.1 Datasets</a></li>
+                        <li><a href="#relationships">2.1.2.2 Relationships</a></li>
+                    </ul>
+                </li>
+                <li><a href="#application-objects">2.2 Application Objects</a>
+                    <ul>
+                        <li><a href="#tables">2.2.1 Tables</a>
+                            <ul>
+                                <li><a href="#tables-database">2.2.1.1 Database / Datamart Table</a></li>
+                                <li><a href="#tables-live">2.2.1.2 Live Connection (Dataset / Dataflow) Table</a></li>
+                                <li><a href="#tables-file">2.2.1.3 File-based table</a></li>
+                                <li><a href="#m-queries">2.2.1.4 M Language Queries</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#parameters">2.2.2 Parameters Dataset</a></li>
+                        <li><a href="#calculated-tables">2.2.3 Calculated Tables</a></li>
+                        <li><a href="#calculated-columns">2.2.4 Calculated Columns</a></li>
+                        <li><a href="#measures">2.2.5 Measure</a></li>
+                        <li><a href="#hierarchies">2.2.6 Hierarchy Mode</a></li>
+                        <li><a href="#dashboard-report">2.2.7 Dashboard &amp; Report</a>
+                            <ul>
+                                <li><a href="#web-layout">2.2.7.1 Web layout</a>
+                                    {% if objects.pages %}
+                                    <ul>
+                                        {% for p in objects.pages %}
+                                        <li><a href="#page-{{ loop.index }}">{{ loop.index }}. {{ p.title }}</a></li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                </li>
+                                <li><a href="#mobile-layout">2.2.7.2 Mobile layout</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#custom-visuals">2.2.8 Custom Visuals</a></li>
+                        <li><a href="#rls">2.2.9 Row-level Security (RLS)</a></li>
+                        <li><a href="#bookmarks">2.2.10 Bookmarks</a></li>
+                        <li><a href="#slicer-sync">2.2.11 Slicer Synchronization</a></li>
+                        <li><a href="#serving">2.2.12 Serving</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</nav>
+
+<!-- ========================================================= 1. OVERVIEW -->
+<h1 id="overview">1. Overview</h1>
+
+<h2 id="report-information">1.1 Report Information</h2>
+{% set info_rows = report.info_rows if report.info_rows else [{
+    "report_name": report.name,
+    "workspace": report.workspace,
+    "folder": report.folder,
+    "apps_name": report.apps_name,
+    "apps_tsd_link": report.apps_tsd_link
+}] %}
+<table class="wrapped relative-table" style="width:86%;">
+    <colgroup><col style="width:21%;"><col style="width:22%;"><col style="width:18%;"><col style="width:17%;"><col style="width:22%;"></colgroup>
+    <tbody>
+        <tr>
+            <td><strong>Report Name</strong></td>
+            <td><strong>Workspace</strong></td>
+            <td><strong>Folder Name</strong></td>
+            <td><strong>Apps Name</strong></td>
+            <td><strong>Apps TSD Link</strong></td>
+        </tr>
+        {% for r in info_rows %}
+        <tr>
+            <td>{{ value(r.report_name) }}</td>
+            <td>{{ value(r.workspace) }}</td>
+            <td>{{ value(r.folder) }}</td>
+            <td>{{ value(r.apps_name) }}</td>
+            <td>{{ link(r.apps_tsd_link) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2 id="report-overview">1.2 Report Overview and Insight</h2>
+{% if report.overview %}
+<p>{{ report.overview|nl2br }}</p>
+{% elif meta.draft %}
+<p><span class="todo">TODO</span> Write the report overview.</p>
+{% endif %}
+{% if report.insight %}
+<ul>
+    {% for item in report.insight %}<li>{{ item }}</li>{% endfor %}
+</ul>
+{% elif meta.draft %}
+<p><span class="todo">TODO</span> List the key insights.</p>
+{% endif %}
+
+<!-- =================================================== 2. SOLUTION DESIGN -->
+<h1 id="solution-design">2. Solution Design</h1>
+
+<h2 id="data-model">2.1 Data Model</h2>
+
+<h3 id="physical-data-dictionary">2.1.1 Physical Data Dictionary</h3>
+<table class="wrapped">
+    <colgroup><col style="width:45%;"><col style="width:55%;"></colgroup>
+    <tbody>
+        <tr><td><strong>BPS Name</strong></td><td><strong>Link / BPS File</strong></td></tr>
+        {% for item in (bps or []) %}
+        <tr>
+            <td>{{ value(item.name) }}</td>
+            <td>
+                {% if item.link %}{{ link(item.link) }}{% endif %}
+                {% if item.link and item.file %}<br>{% endif %}
+                {% if item.file %}{{ item.file }}{% endif %}
+                {% if not item.link and not item.file %}{{ value("") }}{% endif %}
+            </td>
+        </tr>
+        {% else %}
+        {{ empty_row(2) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="physical-data-model">2.1.2 Physical Data Model</h3>
+
+<h4 id="datasets">2.1.2.1 Datasets</h4>
+<table class="wrapped">
+    <colgroup><col style="width:26%;"><col style="width:22%;"><col style="width:20%;"><col style="width:32%;"></colgroup>
+    <tbody>
+        <tr><td><strong>Dataset Name</strong></td><td><strong>Workspace Name</strong></td><td><strong>Refresh Schedule</strong></td><td><strong>Sharepoint Path / Link</strong></td></tr>
+        {% for d in (datasets or []) %}
+        <tr>
+            <td>{{ value(d.name) }}</td>
+            <td>{{ value(d.workspace) }}</td>
+            <td>{{ value(d.refresh_schedule) }}</td>
+            <td>{{ link(d.sharepoint) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 id="relationships">2.1.2.2 Relationships</h4>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:38%;"><col style="width:18%;"><col style="width:14%;"><col style="width:30%;"></colgroup>
+    <tbody>
+        <tr><td><strong>Relationship</strong></td><td><strong>Relationship Type</strong></td><td><strong>Active / Inactive</strong></td><td><strong>Remarks</strong></td></tr>
+        {% for rel in (relationships or []) %}
+        <tr>
+            <td>{{ value(rel.relationship) }}</td>
+            <td>{{ value(rel.type) }}</td>
+            <td>{{ value(rel.active) }}</td>
+            <td>{{ value(rel.remarks) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2 id="application-objects">2.2 Application Objects</h2>
+
+<h3 id="tables">2.2.1 Tables</h3>
+
+<h4 id="tables-database">2.2.1.1 Database / Datamart Table</h4>
+<table class="wrapped wide relative-table" style="width: 99.83%;">
+    <colgroup>
+        <col style="width:3.17%;"><col style="width:7.79%;"><col style="width:4.64%;"><col style="width:7.39%;"><col style="width:6.81%;">
+        <col style="width:8.84%;"><col style="width:8.34%;"><col style="width:9.40%;"><col style="width:12.41%;"><col style="width:31.21%;">
+    </colgroup>
+    <tbody>
+        <tr>
+            <th class="highlight-grey">No</th>
+            <th class="highlight-grey">Table Name</th>
+            <th class="highlight-grey">Data Source Type</th>
+            <th class="highlight-grey">Data Source Application</th>
+            <th class="highlight-grey">Table Source Name</th>
+            <th class="highlight-grey">Source/ Host</th>
+            <th class="highlight-grey">Data Source Gateway Connection</th>
+            <th class="highlight-grey">Data Retention</th>
+            <th class="highlight-grey">Incremental Refresh</th>
+            <th class="highlight-grey">Columns</th>
+        </tr>
+        {% for t in (objects.tables.database or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(t.table_name) }}</td>
+            <td>{{ value(t.source_type) }}</td>
+            <td>{{ value(t.source_application) }}</td>
+            <td>{{ value(t.source_name) }}</td>
+            <td>{{ value(t.source_host) }}</td>
+            <td>{{ value(t.gateway) }}</td>
+            <td>{{ value(t.retention) }}</td>
+            <td>{{ value(t.incremental) }}</td>
+            <td rowspan="2">
+                {% call expand("Click here to expand columns list", "columns-expand") %}
+                {{ columns_table(t) }}
+                {% endcall %}
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td colspan="8">
+                <p><strong>Power Query Formula :</strong></p>
+                {% call expand("Click here to expand power query formula") %}{{ m_block(t.expression) }}{% endcall %}
+                {{ parameters_table(t.parameters) }}
+            </td>
+        </tr>
+        {% else %}
+        {{ empty_row(10) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 id="tables-live">2.2.1.2 Live Connection (Dataset / Dataflow) Table</h4>
+<table class="wrapped wide relative-table" style="width: 99.5%;">
+    <colgroup>
+        <col style="width:3.5%;"><col style="width:6%;"><col style="width:7%;"><col style="width:5.5%;"><col style="width:6%;">
+        <col style="width:5.5%;"><col style="width:8%;"><col style="width:6%;"><col style="width:5%;"><col style="width:6%;">
+        <col style="width:24%;"><col style="width:7%;"><col style="width:10%;">
+    </colgroup>
+    <tbody>
+        <tr>
+            <th class="highlight-grey">No</th>
+            <th class="highlight-grey">Dataflow / Dataset</th>
+            <th class="highlight-grey">Dataflow / Dataset Name*</th>
+            <th class="highlight-grey">Table Name *</th>
+            <th class="highlight-grey">Workspace *</th>
+            <th class="highlight-grey">Data Source Type</th>
+            <th class="highlight-grey">Source/ Host</th>
+            <th class="highlight-grey">Data Source Gateway Connection</th>
+            <th class="highlight-grey">Data Retention</th>
+            <th class="highlight-grey">Incremental Refresh</th>
+            <th class="highlight-grey">Columns</th>
+            <th class="highlight-grey">Refresh Schedule</th>
+            <th class="highlight-grey">Link related Documentation Dataflow/ Dataset*</th>
+        </tr>
+        {% for t in (objects.tables.live or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(t.kind) }}</td>
+            <td>{{ value(t.dataset_name) }}</td>
+            <td>{{ value(t.table_name) }}</td>
+            <td>{{ value(t.workspace) }}</td>
+            <td>{{ value(t.source_type) }}</td>
+            <td>{{ value(t.source_host) }}</td>
+            <td>{{ value(t.gateway) }}</td>
+            <td>{{ value(t.retention) }}</td>
+            <td>{{ value(t.incremental) }}</td>
+            <td rowspan="2">
+                {% call expand("Click here to expand columns list", "columns-expand") %}
+                {{ columns_table(t) }}
+                {% endcall %}
+            </td>
+            <td>{{ value(t.refresh_schedule) }}</td>
+            <td>{{ link(t.doc_link) }}</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td colspan="9">
+                <p><strong>Power Query Formula :</strong></p>
+                {% call expand("Click here to expand power query formula") %}{{ m_block(t.expression) }}{% endcall %}
+
+                {{ parameters_table(t.parameters) }}
+            </td>
+            <td colspan="2"></td>
+        </tr>
+        {% else %}
+        {{ empty_row(13) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 id="tables-file">2.2.1.3 File-based table</h4>
+<table class="wrapped wide relative-table" style="width: 99.83%;">
+    <colgroup>
+        <col style="width:3.17%;"><col style="width:7.79%;"><col style="width:4.64%;"><col style="width:7.39%;"><col style="width:6.81%;">
+        <col style="width:8.84%;"><col style="width:8.34%;"><col style="width:9.40%;"><col style="width:12.41%;"><col style="width:31.21%;">
+    </colgroup>
+    <tbody>
+        <tr>
+            <th class="highlight-grey">No</th>
+            <th class="highlight-grey">Table Name</th>
+            <th class="highlight-grey">Data Source Type</th>
+            <th class="highlight-grey">Data Source Application</th>
+            <th class="highlight-grey">Table Source Name</th>
+            <th class="highlight-grey">Source/ Host</th>
+            <th class="highlight-grey">Data Source Gateway Connection</th>
+            <th class="highlight-grey">Data Retention</th>
+            <th class="highlight-grey">Incremental Refresh</th>
+            <th class="highlight-grey">Columns</th>
+        </tr>
+        {% for t in (objects.tables.file or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(t.table_name) }}</td>
+            <td>{{ value(t.source_type) }}</td>
+            <td>{{ value(t.source_application) }}</td>
+            <td>{{ value(t.source_name) }}</td>
+            <td>{{ value(t.source_host) }}</td>
+            <td>{{ value(t.gateway) }}</td>
+            <td>{{ value(t.retention) }}</td>
+            <td>{{ value(t.incremental) }}</td>
+            <td rowspan="2">
+                {% call expand("Click here to expand columns list", "columns-expand") %}
+                {{ columns_table(t) }}
+                {% endcall %}
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td colspan="8">
+                <p><strong>Power Query Formula :</strong></p>
+                {% call expand("Click here to expand power query formula") %}{{ m_block(t.expression) }}{% endcall %}
+                {{ parameters_table(t.parameters) }}
+            </td>
+        </tr>
+        {% else %}
+        {{ empty_row(10) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 id="m-queries">2.2.1.4 M Language Queries</h4>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:5%;"><col style="width:51%;"><col style="width:11%;"><col style="width:33%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Name</strong></td><td><strong>Purpose</strong></td><td><strong>Output</strong></td></tr>
+        {% for q in (objects.m_queries or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+                {{ value(q.name) }}
+                <p style="margin:6px 0 0;"><strong>Power Query Formula :</strong></p>
+                {% call expand("Click here to expand power query formula") %}{{ m_block(q.expression) }}{% endcall %}
+            </td>
+            <td>{{ value(q.purpose) }}</td>
+            <td>{{ lines(q.output) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="parameters">2.2.2 Parameters Dataset</h3>
+<table class="wrapped">
+    <colgroup><col style="width:8%;"><col style="width:42%;"><col style="width:50%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Parameter Name</strong></td><td><strong>Value</strong></td></tr>
+        {% for p in (objects.parameters or []) %}
+        <tr><td>{{ loop.index }}</td><td>{{ value(p.name) }}</td><td>{{ value(p.value) }}</td></tr>
+        {% else %}
+        {{ empty_row(3) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="calculated-tables">2.2.3 Calculated Tables</h3>
+<table class="wrapped relative-table" style="width:94%;">
+    <colgroup><col style="width:6%;"><col style="width:10%;"><col style="width:17%;"><col style="width:32%;"><col style="width:35%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Table Name</strong></td><td><strong>Table Description</strong></td><td><strong>DAX Formula</strong></td><td><strong>Columns</strong></td></tr>
+        {% for t in (objects.calculated_tables or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(t.table_name) }}</td>
+            <td>{{ value(t.description) }}</td>
+            <td>
+                {% call expand("Click here to expand DAX Formula") %}{{ dax_block(t.dax) }}{% endcall %}
+            </td>
+            <td></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td colspan="4">
+                {% call expand("Click here to expand list columns") %}{{ columns_table(t) }}{% endcall %}
+            </td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="calculated-columns">2.2.4 Calculated Columns</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:6%;"><col style="width:22%;"><col style="width:22%;"><col style="width:32%;"><col style="width:18%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Table Name</strong></td><td><strong>Column Name</strong></td><td><strong>DAX Formula</strong></td><td><strong>Purpose</strong></td></tr>
+        {% for c in (objects.calculated_columns or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(c.table) }}</td>
+            <td>{{ value(c.column) }}</td>
+            <td>{{ dax_block(c.dax) }}</td>
+            <td>{{ value(c.purpose) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="measures">2.2.5 Measure</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:3%;"><col style="width:7%;"><col style="width:13%;"><col style="width:52%;"><col style="width:25%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Table Name</strong></td><td><strong>Measure Name</strong></td><td><strong>Measure Formula</strong></td><td><strong>Purpose</strong></td></tr>
+        {% for m in (objects.measures or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(m.table) }}</td>
+            <td>{{ value(m.name) }}</td>
+            <td>{{ dax_block(m.formula, m.name) }}</td>
+            <td>{{ value(m.purpose) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="hierarchies">2.2.6 Hierarchy Mode</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:6%;"><col style="width:26%;"><col style="width:22%;"><col style="width:34%;"><col style="width:12%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Hierarchy Name</strong></td><td><strong>Table Name</strong></td><td><strong>Column Name</strong></td><td><strong>Capture</strong></td></tr>
+        {% for h in (objects.hierarchies or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(h.name) }}</td>
+            <td>{{ value(h.table) }}</td>
+            <td>{{ lines(h.levels) }}</td>
+            <td>{{ value(h.capture) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="dashboard-report">2.2.7 Dashboard &amp; Report</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:20%;"><col style="width:14%;"><col style="width:20%;"><col style="width:22%;"><col style="width:24%;"></colgroup>
+    <tbody>
+        <tr><td><strong>Workspace Name</strong></td><td><strong>Folder Name</strong></td><td><strong>Report Name</strong></td><td><strong>Page Title</strong></td><td><strong>Sharepoint Path</strong></td></tr>
+        {% for p in (objects.pages or []) %}
+        <tr>
+            <td>{{ value(p.workspace or report.workspace) }}</td>
+            <td>{{ value(p.folder or report.folder) }}</td>
+            <td>{{ value(p.report_name or report.name) }}</td>
+            <td>{{ value(p.title) }}</td>
+            <td>{{ link(p.sharepoint or report.sharepoint) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 id="web-layout">2.2.7.1 Web layout</h4>
+{% if report.navigation_menu %}
+<p>Navigation Menu Report: {{ report.navigation_menu }}</p>
+{% elif meta.draft %}
+<p>Navigation Menu Report: <span class="todo">TODO</span></p>
+{% endif %}
+<p><strong>Filter in All Page:</strong></p>
+{% call expand("Click here to expand filter all page") %}{{ filter_table(report.filters) }}{% endcall %}
+
+{% for p in (objects.pages or []) %}
+<h5 id="page-{{ loop.index }}" class="page-title" style="margin-left:30px;">{{ loop.index }}. {{ p.title }}</h5>
+<table class="wrapped relative-table page-table" style="margin-left:30px;">
+    <colgroup>
+        <col style="width:3%;"><col style="width:26%;"><col style="width:38%;"><col style="width:10%;"><col style="width:15%;"><col style="width:8%;">
+    </colgroup>
+    <tbody>
+        <tr>
+            <td colspan="5" class="table-header">Report Screenshot</td>
+            <td class="table-header">Is hidden</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="shot-cell">
+                {{ screenshot(p.screenshot, p.title, "page") }}
+                <p style="margin-top:8px;"><strong>Filter in All This Page:</strong></p>
+                {% call expand("Click here to expand filter in this page") %}{{ filter_table(p.page_filters) }}{% endcall %}
+            </td>
+            <td>{% if p.is_hidden is not none %}{{ "TRUE" if p.is_hidden else "FALSE" }}{% else %}{{ value("") }}{% endif %}</td>
+        </tr>
+        <tr>
+            <td colspan="6" class="table-header">Visual(s) Information</td>
+        </tr>
+        <tr>
+            <td>No</td>
+            <td>Screenshot</td>
+            <td><strong>Column/ Measure/ Visual Calculation</strong></td>
+            <td><strong>Report Page Tooltip</strong></td>
+            <td><strong>Interaction</strong></td>
+            <td><strong>Is hidden</strong></td>
+        </tr>
+        {% for v in (p.visuals or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td class="shot-cell">
+                {{ screenshot(v.screenshot, v.name, "visual") }}
+                {% if v.filters %}
+                <p style="margin-top:6px;"><strong>Filter in this visual:</strong></p>
+                {% call expand("Click here to expand filter in this visual") %}{{ filter_table(v.filters) }}{% endcall %}
+                {% endif %}
+            </td>
+            <td>{% if v.field_details %}{% call expand("Click here to expand field list") %}{{ field_table(v.field_details) }}{% endcall %}{% else %}{{ bullets(v.fields) }}{% endif %}</td>
+            <td><em>{{ v.tooltip or "N/A" }}</em></td>
+            <td>{% if v.interactions %}{{ interaction_table(v.interactions) }}{% else %}{{ v.interaction or "N/A" }}{% endif %}</td>
+            <td>{{ flag(v.is_hidden) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(6) }}
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="instruction"><em>No pages available. Provide at least one page in <strong>objects.pages</strong>.</em></p>
+{% endfor %}
+
+<h4 id="mobile-layout">2.2.7.2 Mobile layout</h4>
+{% if objects.mobile.note %}<p>{{ objects.mobile.note|nl2br }}</p>{% endif %}
+<table class="wrapped">
+    <tbody>
+        <tr><td><strong>Report Screenshot</strong></td></tr>
+        {% for shot in (objects.mobile.screenshots or []) %}
+        <tr><td>{{ screenshot(shot.src, shot.caption, "mobile") }}</td></tr>
+        {% else %}
+        <tr><td>{{ screenshot("", "Mobile layout", "mobile") }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="custom-visuals">2.2.8 Custom Visuals</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:30%;"><col style="width:48%;"><col style="width:22%;"></colgroup>
+    <tbody>
+        <tr><td><strong>Custom Visual Name</strong></td><td><strong>Visual Details</strong></td><td><strong>Source</strong></td></tr>
+        {% for v in (objects.custom_visuals or []) %}
+        <tr><td>{{ value(v.name) }}</td><td>{{ value(v.details) }}</td><td>{{ value(v.source) }}</td></tr>
+        {% else %}
+        {{ empty_row(3) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="rls">2.2.9 Row-level Security (RLS)</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:6%;"><col style="width:20%;"><col style="width:22%;"><col style="width:40%;"><col style="width:12%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Role</strong></td><td><strong>Tables</strong></td><td><strong>Table Filter DAX Expression</strong></td><td><strong>Capture</strong></td></tr>
+        {% for r in (objects.rls or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(r.role) }}</td>
+            <td>{{ lines(r.tables) }}</td>
+            <td>{{ dax_block(r.expression) }}</td>
+            <td>{{ value(r.capture) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="bookmarks">2.2.10 Bookmarks</h3>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:6%;"><col style="width:26%;"><col style="width:56%;"><col style="width:12%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Bookmark Name</strong></td><td><strong>Bookmark Configuration</strong></td><td><strong>Is Selection</strong></td></tr>
+        {% for b in (objects.bookmarks or []) %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ value(b.name) }}</td>
+            <td>{{ value(b.configuration) }}</td>
+            <td>{{ value(b.selection) }}</td>
+        </tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 id="slicer-sync">2.2.11 Slicer Synchronization</h3>
+{% for group in (objects.sync_slicers or []) %}
+<p><strong>{{ group.label }}</strong></p>
+<table class="wrapped">
+    <colgroup><col style="width:6%;"><col style="width:40%;"><col style="width:36%;"><col style="width:18%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Slicer</strong></td><td><strong>Page(s)</strong></td><td><strong>Group Name</strong></td></tr>
+        {% for s in (group['items'] or []) %}
+        <tr><td>{{ loop.index }}</td><td>{{ value(s.slicer) }}</td><td>{{ value(s.pages) }}</td><td>{{ value(s.group) }}</td></tr>
+        {% else %}
+        {{ empty_row(4) }}
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<table class="wrapped">
+    <colgroup><col style="width:6%;"><col style="width:40%;"><col style="width:36%;"><col style="width:18%;"></colgroup>
+    <tbody>
+        <tr><td><strong>No</strong></td><td><strong>Slicer</strong></td><td><strong>Page(s)</strong></td><td><strong>Group Name</strong></td></tr>
+        {{ empty_row(4) }}
+    </tbody>
+</table>
+{% endfor %}
+
+<h3 id="serving">2.2.12 Serving</h3>
+<p><strong>Embedding Report</strong></p>
+<table class="wrapped relative-table">
+    <colgroup><col style="width:18%;"><col style="width:14%;"><col style="width:18%;"><col style="width:25%;"><col style="width:25%;"></colgroup>
+    <tbody>
+        <tr>
+            <th>Application</th>
+            <th>Authorization set by</th>
+            <th>Account login to Power BI</th>
+            <th>Authorization method</th>
+            <th>Menu Report / Page embedded</th>
+        </tr>
+        {% for a in (objects.serving.applications or []) %}
+        <tr>
+            <td>{{ lines(a.application) }}</td>
+            <td>{{ value(a.auth_by) }}</td>
+            <td>{{ value(a.account) }}</td>
+            <td>
+                {{ value(a.auth_method) }}
+                {% if a.authorization_levels %}
+                {% call expand("Click here to expand parameter authorization level") %}
+                <table class="wrapped compact">
+                    <tbody>
+                        <tr><th>Authorization Level</th><th>Table Name</th><th>Column Name</th></tr>
+                        {% for l in a.authorization_levels %}
+                        <tr><td>{{ value(l.level) }}</td><td>{{ value(l.table) }}</td><td>{{ value(l.column) }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endcall %}
+                {% endif %}
+            </td>
+            <td>
+                {{ lines(a.menus) }}
+                {% if objects.serving.embedded_pages %}
+                {% call expand("Click here to expand list report & page") %}
+                <table class="wrapped compact">
+                    <tbody>
+                        <tr><th>Application</th><th>Menu</th><th>Report ID</th><th>Report Name</th><th>Report Section/ PageID</th><th>Page Name</th></tr>
+                        {% for e in objects.serving.embedded_pages %}
+                        <tr>
+                            <td>{{ value(e.application) }}</td>
+                            <td>{{ value(e.menu) }}</td>
+                            <td>{{ value(e.report_id) }}</td>
+                            <td>{{ value(e.report_name) }}</td>
+                            <td>{{ value(e.page_id) }}</td>
+                            <td>{{ value(e.page_name) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endcall %}
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        {{ empty_row(5) }}
+        {% endfor %}
+    </tbody>
+</table>
+
+</article>
+</body>
+</html>

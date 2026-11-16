@@ -1,0 +1,43 @@
+# Salinan .pbix sumber (data report; jangan di-commit)
+*.pbix
+*.pbix.bak
+*.pbit
+
+# Database lineage lokal dan kredensial (jangan di-commit)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+
+# Cache screenshot TSD (data turunan; jangan di-commit)
+TSD_assets/
+
+# Database dan data lokal (jangan di-commit)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Berkas sementara
+_probe_*.py
+_pbir/
+~$*.xlsx
+
+# Hasil analisa semantic model (regenerate dari script)
+Analisa_Semantic_Model_*.xlsx
+
+# Workbook metadata hasil generate (regenerate dari script; jangan di-commit)
+/Report_Metadata.xlsx
+/Semantic_Model_Metadata.xlsx
