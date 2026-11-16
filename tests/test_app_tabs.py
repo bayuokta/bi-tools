@@ -241,6 +241,12 @@ class LocalTabTests(MetadataTabTestCase):
 
         self.assertEqual(tab.local_tab.vm.out_dir, outputs_dir())
 
+    def test_instance_picker_is_enabled_before_pbix_is_chosen(self) -> None:
+        tab = self.make_tab()
+
+        self.assertTrue(tab.local_tab.instance.isEnabled())
+        self.assertTrue(tab.local_tab.refresh_button.isEnabled())
+
     def test_missing_pbix_disables_run(self) -> None:
         tab = self.make_tab()
         tab.local_tab.pbix.edit.setText(str(self.folder / "hilang.pbix"))

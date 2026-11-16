@@ -160,6 +160,31 @@ class ViewModelCase(unittest.TestCase):
 
 
 class LocalViewModelTests(ViewModelCase):
+    def test_model_inputs_enabled_before_pbix_is_chosen(self) -> None:
+        vm = self.local()
+
+        state = vm.build_state()
+
+        self.assertTrue(state.model_inputs_active)
+        self.assertFalse(state.can_run)
+
+    def test_model_inputs_disabled_for_live_connection(self) -> None:
+        pbix = self.folder / "live.pbix"
+        pbix.write_bytes(b"x")
+        with patch(
+            "app.viewmodels.metadata.detect_pbix_source",
+            return_value=source_info(local_model=False),
+        ):
+            vm = self.local(pbix=pbix)
+
+        self.assertFalse(vm.build_state().model_inputs_active)
+
+    def test_model_inputs_disabled_for_report_scope(self) -> None:
+        vm = self.local()
+        vm.set_scope(SCOPE_REPORT)
+
+        self.assertFalse(vm.build_state().model_inputs_active)
+
     def test_out_dir_does_not_follow_pbix(self) -> None:
         pbix = self.folder / "Uji.pbix"
         pbix.write_bytes(b"x")

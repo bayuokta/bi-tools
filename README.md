@@ -106,7 +106,7 @@ python -m app
   - **Workspace dipilih dari katalog SQLite** (hasil *Sinkronisasi workspace* di tab Pengaturan); combo bisa difilter dengan mengetik. **Endpoint XMLA diturunkan otomatis** dari nama workspace dan ditampilkan read-only, jadi tidak ada lagi input endpoint manual.
   - Setelah workspace dipilih, aplikasi memuat **dataset** (untuk catalog) dan **report** workspace itu lewat REST API. Daftar dimuat hanya untuk cakupan yang relevan: dataset saat cakupan menyertakan model, report saat menyertakan report.
   - Memilih report otomatis mengisi **Catalog** dari dataset report tersebut. Bila datasetnya berada di workspace lain, muncul peringatan dan catalog dibiarkan kosong. Report `PaginatedReport` (RDL) ditolak karena ekstraksi membutuhkan PBIR.
-  - Pilihan workspace/report terakhir dipulihkan saat aplikasi dibuka. Tidak ada lagi input URL/ID manual; seluruh sumber dipilih dari combo.
+  - Pilihan workspace/report hanya berlaku per sesi: keduanya kosong saat aplikasi dibuka. Tidak ada lagi input URL/ID manual; seluruh sumber dipilih dari combo.
   - Login Fabric API memakai **service principal** (kredensial yang sama dengan tab Lineage dan screenshot). Token hanya disimpan di memori, tidak ditulis ke disk. Bila kredensial belum lengkap, sub-tab ini menampilkan satu dialog peringatan saat dibuka (sekali per sesi) dengan tombol **Buka Pengaturan**; pengisiannya tetap di tab **Pengaturan**.
   - Grup **Semantic model** berisi **Workspace**, **Endpoint XMLA** (read-only), dan **Catalog** (combo dataset). Urutan section sama dengan Local: **Cakupan ekstraksi → Semantic model → Sumber report → Output**.
   - Mendukung ketiga cakupan. Report diambil lewat Fabric API; semantic model diekstrak lewat endpoint XMLA workspace + catalog nama model (XMLA Read harus aktif, token dipasang otomatis).
@@ -116,7 +116,7 @@ python -m app
   - `Report saja` tidak memerlukan Power BI Desktop. Bila `Semantic_Model_Metadata.xlsx` sudah ada di folder output (atau `outputs\`), report tetap divalidasi dengan workbook itu; bila tidak ada, semua field berstatus `TIDAK DIVALIDASI`. Tidak ada opsi untuk mematikan validasi di GUI.
   - `Semantic model saja` hanya menulis `Semantic_Model_Metadata.xlsx` dan tidak menyentuh `Report_Metadata.xlsx`. Cakupan ini tidak tersedia untuk live connection.
   - Pilihan cakupan disimpan per sub-tab di QSettings (`extraction/scope_local` dan `extraction/scope_service`); nilai lama `extraction/scope` dipakai sekali saat kunci baru belum ada.
-- Untuk model lokal, pilih instance Power BI Desktop. Power BI Desktop harus terbuka. Tombol **Muat ulang** membaca ulang daftar instance; pembacaan instance hanya dipakai sub-tab Local.
+- Untuk model lokal, pilih instance Power BI Desktop. Power BI Desktop harus terbuka. Combo instance dan tombol **Muat ulang** aktif sejak aplikasi dibuka selama cakupan menyertakan model (tidak menunggu file `.pbix` dipilih); input model baru dinonaktifkan bila file yang dipilih adalah live connection. Pembacaan instance hanya dipakai sub-tab Local.
 - Semua ringkasan hasil (jumlah halaman, visual, field, measure, dan file output) tampil di log bagian bawah. Tidak ada panel Ringkasan terpisah.
 - Ekstraksi berjalan di thread terpisah, sehingga jendela tetap responsif. Tombol **Buka report**, **Buka model**, dan **Buka folder** tersedia di grup Output.
 - Bila ekstraksi model gagal (mis. Desktop belum terbuka), report tetap dibuat tanpa validasi model dan penyebabnya dicatat di log.

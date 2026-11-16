@@ -213,6 +213,15 @@ class MetadataViewModel(QObject):
         """Apakah model bisa diekstrak dari sumber ini."""
         return True
 
+    def model_inputs_available(self) -> bool:
+        """Apakah widget input model boleh dipakai.
+
+        Berbeda dari :meth:`model_available` (kemampuan ekstraksi model), hook ini
+        hanya mengatur enable/disable widget. View boleh membukanya lebih awal
+        supaya pengguna bisa memilih instance/workspace sebelum sumber dipilih.
+        """
+        return self.model_available()
+
     def source_ready(self) -> bool:
         return True
 
@@ -233,7 +242,9 @@ class MetadataViewModel(QObject):
             scope=self._scope,
             idle=idle,
             can_run=idle and self.source_ready(),
-            model_inputs_active=idle and self.wants_model and self.model_available(),
+            model_inputs_active=idle
+            and self.wants_model
+            and self.model_inputs_available(),
             source_active=self.source_active(idle),
             report_status=file_status(self.report_out),
             model_status=file_status(self.model_out),
@@ -492,6 +503,13 @@ class LocalMetadataViewModel(MetadataViewModel):
 
     def model_available(self) -> bool:
         return self._info is not None and self._info.has_local_model
+
+    def model_inputs_available(self) -> bool:
+        # Instance Desktop tidak bergantung pada isi .pbix: daftar instance boleh
+        # dibuka sebelum file dipilih. Bila file yang dipilih adalah live
+        # connection (tanpa model lokal), input model dinonaktifkan lagi.
+        info = self._info
+        return info is None or info.has_local_model
 
     def source_ready(self) -> bool:
         info = self._info
