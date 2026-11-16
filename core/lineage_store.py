@@ -11,9 +11,9 @@ from typing import Any, Iterable, Mapping
 
 from .errors import ExtractionError
 from .lineage_transform import datasource_name
-from .pbix import ROOT
+from .paths import data_dir
 
-DATA_DIR = ROOT / "data"
+DATA_DIR = data_dir()
 DEFAULT_DB = DATA_DIR / "bi_tools.db"
 
 SCHEMA = """

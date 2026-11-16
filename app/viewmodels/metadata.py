@@ -23,7 +23,8 @@ from core.fabric_api import ServiceReportRef, parse_report_url
 from core.jobs import run_metadata_job
 from core.lineage_service import WorkspaceOption
 from core.lineage_store import DEFAULT_DB
-from core.pbix import DEFAULT_PBIX, ROOT, PbixSourceInfo, detect_pbix_source
+from core.paths import outputs_dir
+from core.pbix import PbixSourceInfo, detect_pbix_source
 from core.report import MODEL_WORKBOOK_NAME, OUT_FILE
 from core.requests import (
     SCOPE_BOTH,
@@ -64,10 +65,6 @@ class JobSubmitter(Protocol):
         on_success: Callable[[Any], None] | None = None,
     ) -> Any:
         ...
-
-
-def same_path(text: str, expected: Path) -> bool:
-    return bool(text) and Path(text).expanduser().resolve() == expected.resolve()
 
 
 # --------------------------------------------------------------------- state
@@ -142,8 +139,7 @@ class MetadataViewModel(QObject):
         self._scope_key = scope_key
         self._scope = self._initial_scope(default_scope)
         self._busy = False
-        self._out_dir = ROOT
-        self._out_dir_auto = False
+        self._out_dir = outputs_dir()
         self._settings.changed.connect(self._on_settings_changed)
 
     # -- siklus ------------------------------------------------------------
@@ -181,11 +177,9 @@ class MetadataViewModel(QObject):
 
     def set_out_dir(self, value: Path | str, *, automatic: bool = False) -> None:
         text = str(value or "").strip()
-        path = Path(text).expanduser().resolve() if text else ROOT
+        path = Path(text).expanduser().resolve() if text else outputs_dir()
         changed = path != self._out_dir
         self._out_dir = path
-        if not automatic:
-            self._out_dir_auto = False
         if changed:
             self.refresh()
 
@@ -327,7 +321,7 @@ class LocalMetadataViewModel(MetadataViewModel):
         default_scope: str = SCOPE_BOTH,
         pbix: Path | str | None = None,
     ) -> None:
-        self._pbix_text = str(pbix or DEFAULT_PBIX)
+        self._pbix_text = str(pbix or "")
         self._info: PbixSourceInfo | None = None
         self._kind_text = ""
         self._dataset_text = ""
@@ -337,7 +331,6 @@ class LocalMetadataViewModel(MetadataViewModel):
         super().__init__(
             settings, runner, scope_key=scope_key, default_scope=default_scope
         )
-        self._out_dir_auto = True
         self._detect(emit=False)
 
     # -- sumber ------------------------------------------------------------
@@ -378,8 +371,6 @@ class LocalMetadataViewModel(MetadataViewModel):
                     if not info.has_pbir:
                         kind += " - Report/definition tidak ditemukan (format legacy?)"
                     detail = self._detail_text(info)
-                    if self._out_dir_auto:
-                        self._out_dir = path.parent
 
         self._info = info
         self._kind_text = kind
@@ -554,11 +545,7 @@ class LocalMetadataViewModel(MetadataViewModel):
                 "(Report/definition tidak ditemukan)."
             )
 
-        pbix = (
-            None
-            if same_path(self._pbix_text, DEFAULT_PBIX)
-            else Path(self._pbix_text).expanduser()
-        )
+        pbix = Path(self._pbix_text).expanduser()
         request = LocalMetadataRequest(
             out_dir=self.out_dir,
             scope=self._scope,

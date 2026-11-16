@@ -775,10 +775,15 @@ class ExtractionScopeTests(unittest.TestCase):
     def test_output_folder_wins_over_tooling_folder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            fallback = write_minimal_model_workbook(root / "tooling" / DEFAULT_MODEL_WORKBOOK.name)
+            tooling = root / "tooling"
+            fallback = write_minimal_model_workbook(
+                tooling / DEFAULT_MODEL_WORKBOOK.name
+            )
             out_dir = root / "output"
             local = write_minimal_model_workbook(out_dir / DEFAULT_MODEL_WORKBOOK.name)
-            with patch("core.report.DEFAULT_MODEL_WORKBOOK", fallback):
+            with patch("core.report.OUT_DIR", root / "outputs"), patch(
+                "core.report.APP_DIR", tooling
+            ):
                 self.assertEqual(find_validation_workbook(out_dir), local)
                 self.assertEqual(find_validation_workbook(root / "kosong"), fallback)
 

@@ -15,6 +15,7 @@ TSD_assets/
 
 # Database dan data lokal (jangan di-commit)
 data/
+outputs/
 
 # Python
 __pycache__/

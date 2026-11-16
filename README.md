@@ -40,6 +40,7 @@ hints.py                    hint posisi absolut visual (dari workbook report) un
   usage_store.py                tabel SQLite analisa kolom (cache report, pemakaian, snapshot ukuran)
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
+  paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
 cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py
 app\                            GUI PySide6 (python -m app)
   main_window.py                tab, log, progress, JobRunner
@@ -74,8 +75,7 @@ extract_tsd.py                  wrapper CLI generate TSD
 extract_lineage.py              wrapper CLI lineage
 analyze_semantic_model.py       wrapper CLI analisa ukuran + pemakaian kolom
 verify_reference.py             verifikasi angka acuan report + model (opsional, butuh Desktop untuk model)
-Report_Metadata.xlsx            hasil: metadata report
-Semantic_Model_Metadata.xlsx    hasil: metadata model
+outputs\                        hasil generate: Report_Metadata.xlsx, Semantic_Model_Metadata.xlsx, TSD_*.html/json, ekspor analisa (TIDAK di-commit)
 data\bi_tools.db                 database lineage + katalog + cache analisa kolom (TIDAK di-commit)
 TSD_assets\                     cache screenshot page/visual/mobile (TIDAK di-commit)
 .env.example                    contoh kredensial CLI lineage dan screenshot (RLS)
@@ -87,7 +87,7 @@ requirements.txt
 
 - Windows + Power BI Desktop (hanya untuk ekstraksi model via XMLA).
 - Python 3.11 dengan `pip install -r requirements.txt`.
-- Salinan `.pbix` ada di folder ini. Salin ulang dari project setiap kali report berubah.
+- Salinan `.pbix` ada di folder ini (atau pilih file lain di GUI). Salin ulang dari project setiap kali report berubah. Tanpa `--report`, CLI memakai `.pbix` bawaan; sub-tab Local di GUI mulai dengan field kosong.
 - Untuk scan lineage: akses jaringan ke `login.microsoftonline.com` dan `api.powerbi.com`, serta service principal yang terdaftar di Microsoft Entra.
 - Untuk screenshot TSD dari Power BI Service: `pip install playwright` lalu `python -m playwright install chromium` (sekali per mesin), akses **Build** ke dataset report, dan role RLS bila dataset memakainya.
 
@@ -113,7 +113,7 @@ python -m app
   - Untuk `Report + semantic model`, kolom usage report dihitung dari definition report yang sama (tanpa file `.pbix`). Untuk `Semantic model saja` tidak ada usage report karena tidak ada report yang dipilih.
   - Bila katalog workspace masih kosong, sub-tab menampilkan tautan **Buka Pengaturan** untuk menjalankan sinkronisasi.
 - **Cakupan** menentukan file yang dibuat: `Report + semantic model` (default), `Report saja`, atau `Semantic model saja`.
-  - `Report saja` tidak memerlukan Power BI Desktop. Bila `Semantic_Model_Metadata.xlsx` sudah ada di folder output (atau folder tooling), report tetap divalidasi dengan workbook itu; bila tidak ada, semua field berstatus `TIDAK DIVALIDASI`. Tidak ada opsi untuk mematikan validasi di GUI.
+  - `Report saja` tidak memerlukan Power BI Desktop. Bila `Semantic_Model_Metadata.xlsx` sudah ada di folder output (atau `outputs\`), report tetap divalidasi dengan workbook itu; bila tidak ada, semua field berstatus `TIDAK DIVALIDASI`. Tidak ada opsi untuk mematikan validasi di GUI.
   - `Semantic model saja` hanya menulis `Semantic_Model_Metadata.xlsx` dan tidak menyentuh `Report_Metadata.xlsx`. Cakupan ini tidak tersedia untuk live connection.
   - Pilihan cakupan disimpan per sub-tab di QSettings (`extraction/scope_local` dan `extraction/scope_service`); nilai lama `extraction/scope` dipakai sekali saat kunci baru belum ada.
 - Untuk model lokal, pilih instance Power BI Desktop. Power BI Desktop harus terbuka. Tombol **Muat ulang** membaca ulang daftar instance; pembacaan instance hanya dipakai sub-tab Local.
@@ -137,7 +137,7 @@ python -m app
     - **Sinkronisasi katalog workspace** menarik daftar workspace (1-2 request) untuk picker di sub-tab **Power BI Service** dan **Generate TSD**. Mode otomatis memakai Admin API bila service principal berperan Fabric administrator, jika tidak jatuh ke endpoint member.
     - **Scan lineage** menjalankan Scanner API untuk node, edge, dan datasource yang dipakai tab **Lineage**. Mode `Otomatis` mencoba admin lalu fallback member; centang **Full scan lineage** mengabaikan timestamp incremental (tidak mengubah hasil mode member).
     - Status menunjukkan jumlah workspace siap dipilih, sync katalog terakhir, dan scan lineage terakhir. Kedua aksi berjalan di worker; hasil scan langsung terlihat saat tab Lineage dibuka.
-  - Database default `data\bi_tools.db` di folder tooling; path dapat diganti dan disimpan di grup Path. File lama `lineage.db` di root tidak dibaca otomatis — pindahkan manual ke `data\bi_tools.db` bila Anda memperbarui dari versi sebelumnya.
+  - Database default `<folder aplikasi>\data\bi_tools.db` (fallback `%LOCALAPPDATA%\BI Tools\data` bila folder aplikasi read-only); path dapat diganti dan disimpan di grup Path. File lama `lineage.db` di root tidak dibaca otomatis — pindahkan manual ke `data\bi_tools.db` bila Anda memperbarui dari versi sebelumnya.
   - Kunci lama `lineage/*` dimigrasi otomatis sekali ke `auth/*` (dan `paths/lineage_db`); nilai baru tidak ditimpa.
   - Secret tersimpan sebagai teks biasa di QSettings (registry Windows) dan tab menampilkan peringatan. Token tetap hanya di memori proses.
   - Tab lain tidak punya formulir kredensial. Sub-tab **Power BI Service** memakai dialog peringatan sekali per sesi; sub-tab **Generate TSD** menampilkan tombol **Buka Pengaturan** hanya saat katalog kosong.
@@ -161,7 +161,7 @@ python extract_report_metadata.py --model-workbook Semantic_Model_Metadata.xlsx
 python extract_report_metadata.py --report "path\ke\Report.pbix" --extract-to _pbir
 ```
 
-Tanpa `--model-workbook`, workbook `Semantic_Model_Metadata.xlsx` dicari di folder `--out` lebih dulu, lalu di folder tooling. `--no-model` tetap berarti validasi dimatikan.
+Tanpa `--model-workbook`, workbook `Semantic_Model_Metadata.xlsx` dicari di folder `--out` lebih dulu, lalu `outputs\`, lalu folder aplikasi. `--no-model` tetap berarti validasi dimatikan.
 
 Report dari Power BI Service (memakai Fabric API `getDefinition`):
 
@@ -202,7 +202,7 @@ Nama workspace/dataset diambil dari katalog SQLite (`data\bi_tools.db`); `--work
 Dokumen TSD (Technical Specification Design) dibuat dari workbook metadata memakai template Confluence di `..\template-tsd`. Template disalin apa adanya ke `templates\tsd.template.html`; perubahan template dilakukan di repo `template-tsd` lebih dulu.
 
 ```powershell
-python extract_tsd.py                        # workbook di folder tooling -> TSD_<nama>.html
+python extract_tsd.py                        # workbook di outputs\ -> TSD_<nama>.html
 python extract_tsd.py --name "Report Uji"
 python extract_tsd.py --model Semantic_Model_Metadata.xlsx --final --expand-all
 python extract_tsd.py --manual TSD_uji.json --out out\TSD_uji.html
@@ -410,9 +410,11 @@ $env:RUN_LIVE_TESTS = "1"; python -m unittest discover -s tests -t .
 - Report service harus memakai format PBIR. Report PBIR-Legacy (satu file `report.json`) tidak bisa diekstrak; simpan ulang report sebagai PBIR di Power BI Desktop lalu publish lagi.
 - Semantic model dari service diekstrak lewat XMLA. Di GUI sub-tab Service selalu memakai endpoint workspace + catalog; pemanggil CLI/`core\jobs.py` juga menerima instance Power BI Desktop (port + catalog). Jika cakupan menyertakan report, definition report service dipakai sebagai sumber kolom usage model tanpa perlu file `.pbix`.
 - Token hanya disimpan di memori proses. Satu service principal dipakai untuk Fabric API (`https://api.fabric.microsoft.com/.default`), Power BI REST, dan XMLA (`https://analysis.windows.net/powerbi/api/.default`); token Power BI yang sama dipakai embed/Scanner/ADOMD. Token disegarkan 2 menit sebelum kedaluwarsa, termasuk lewat `OnAccessTokenExpired` pada koneksi ADOMD.
-- Folder output dapat diubah; default mengikuti folder file `.pbix` yang dipilih. Nama kedua workbook tetap.
+- Folder output default `outputs\` di samping aplikasi (folder executable saat dipaket, root repo saat `python -m app`); dapat diubah dan nilainya tersimpan. Folder tidak lagi mengikuti folder `.pbix`. Bila folder aplikasi tidak bisa ditulis (mis. `C:\Program Files`), hasil pindah ke `%LOCALAPPDATA%\BI Tools\outputs`.
+- Sesi GUI selalu mulai bersih: pilihan workspace/report Service, workspace/report TSD, workspace/dataset Analisa, dan instance Desktop dikosongkan tiap aplikasi dibuka. Kredensial, RLS, path database, cakupan ekstraksi, filter/sort, tab aktif, dan opsi render TSD tetap tersimpan.
+- Untuk paket executable: `templates\tsd.template.html` harus ikut dibundel (`--add-data "templates;templates"`); `outputs\` dan `data\` dibuat saat runtime, jangan di-bundle.
 - `Report_Metadata.xlsx` dan `Semantic_Model_Metadata.xlsx` adalah file biner hasil generate; setiap regenerasi menghasilkan diff biner.
-- `data\bi_tools.db`, file `*.db` lain, dan `.env` di-ignore git. Jangan meng-commit database lineage atau secret.
+- `data\bi_tools.db`, `outputs\`, file `*.db` lain, dan `.env` di-ignore git. Jangan meng-commit database lineage atau secret.
 - Credential GUI disimpan di QSettings (`2W-Dragon`/`BI Tools`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi oleh `AppSettings` saat GUI dibuka. Nama organisasi QSettings sengaja tidak diubah karena menjadi kunci penyimpanan; menggantinya membuat path, kredensial, dan pilihan workspace yang sudah tersimpan tidak terbaca (butuh migrasi).
 - Nama node Workspace mengikuti nama workspace saat scan terakhir; node Datasource memakai nama `"<tipe>: <server> / <database>"` atau URL/path bila tersedia.
 - `--check` pada salinan database saat ini mencatat 4 sumber edge `feeds` dan 11 sumber `uses_dataset` yang belum memiliki metadata node; aktifkan detailed metadata admin lalu jalankan `--scan --full` bila angka ini perlu ditekan.

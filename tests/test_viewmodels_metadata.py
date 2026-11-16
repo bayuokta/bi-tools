@@ -16,6 +16,7 @@ try:
 except ImportError:  # pragma: no cover - tergantung environment
     QT_AVAILABLE = False
 
+from core.paths import outputs_dir
 from core.requests import SCOPE_BOTH, SCOPE_MODEL, SCOPE_REPORT
 
 if QT_AVAILABLE:
@@ -159,7 +160,7 @@ class ViewModelCase(unittest.TestCase):
 
 
 class LocalViewModelTests(ViewModelCase):
-    def test_automatic_out_dir_follows_pbix(self) -> None:
+    def test_out_dir_does_not_follow_pbix(self) -> None:
         pbix = self.folder / "Uji.pbix"
         pbix.write_bytes(b"x")
         with patch(
@@ -169,7 +170,7 @@ class LocalViewModelTests(ViewModelCase):
             vm = self.local(pbix=pbix)
 
         state = vm.build_state()
-        self.assertEqual(vm.out_dir, self.folder)
+        self.assertEqual(vm.out_dir, outputs_dir())
         self.assertIn("Lokal", state.kind_text)
         self.assertTrue(state.can_run)
 

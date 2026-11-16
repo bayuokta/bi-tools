@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .errors import ExtractionError
+from .paths import APP_DIR
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = APP_DIR
 DEFAULT_PBIX = ROOT / "Dragon - KK Acquisition & Insight.pbix"
 PBIX_SOURCE_ENV = "DRAGON_PBIX_SOURCE"
 PBIR_PREFIX = "Report/definition/"

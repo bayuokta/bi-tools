@@ -56,3 +56,18 @@ SETTINGS_ANALYSIS_OBJECT_FILTER_KEY = "analysis/object_filter"
 SETTINGS_ANALYSIS_SORT_COLUMN_KEY = "analysis/sort_column"
 SETTINGS_ANALYSIS_SORT_DESC_KEY = "analysis/sort_desc"
 SETTINGS_ANALYSIS_UNUSED_ONLY_KEY = "analysis/unused_only"
+
+# Pilihan yang dikosongkan setiap aplikasi dibuka: sesi selalu mulai bersih.
+# Kredensial, RLS, path database, cakupan, filter, sort, tab aktif, dan opsi
+# render TSD tetap tersimpan karena itu preferensi, bukan pilihan sesi.
+SESSION_SELECTION_KEYS = (
+    SETTINGS_SERVICE_WORKSPACE_KEY,
+    SETTINGS_SERVICE_REPORT_KEY,
+    SETTINGS_SERVICE_URL_KEY,
+    SETTINGS_INSTANCE_KEY,
+    SETTINGS_TSD_WORKSPACE_KEY,
+    SETTINGS_TSD_REPORT_ID_KEY,
+    SETTINGS_TSD_MANUAL_KEY,
+    SETTINGS_ANALYSIS_WORKSPACE_KEY,
+    SETTINGS_ANALYSIS_DATASET_KEY,
+)

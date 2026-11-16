@@ -129,6 +129,10 @@ class MainWindow(QMainWindow):
 
 def run() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
-    window = MainWindow()
+    settings = AppSettings()
+    # Sesi selalu mulai bersih: pilihan workspace/report/dataset dikosongkan,
+    # preferensi dan kredensial tetap tersimpan.
+    settings.reset_session()
+    window = MainWindow(settings=settings)
     window.show()
     return app.exec()

@@ -16,7 +16,7 @@ from PySide6.QtCore import QObject, Signal
 
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB
-from core.pbix import ROOT
+from core.paths import OUTPUTS_DIR
 from core.requests import AnalysisRequest
 from core.usage_service import (
     AnalysisResult,
@@ -516,10 +516,10 @@ class AnalysisViewModel(QObject):
 
     def default_output_path(self) -> Path:
         if self._result is not None:
-            return ROOT / output_file_name(
+            return OUTPUTS_DIR / output_file_name(
                 self._result.dataset_name, self._result.dataset_id
             )
-        return ROOT / "Analisa_Semantic_Model.xlsx"
+        return OUTPUTS_DIR / "Analisa_Semantic_Model.xlsx"
 
     def export(self, target: Path | str) -> Path:
         if self._result is None:

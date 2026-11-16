@@ -24,6 +24,7 @@ from .settings import (
     LINEAGE_SECRET_KEY,
     LINEAGE_TENANT_KEY,
     PATHS_LINEAGE_DB_KEY,
+    SESSION_SELECTION_KEYS,
     SETTINGS_APP,
     SETTINGS_MIGRATED_KEY,
     SETTINGS_ORG,
@@ -53,6 +54,16 @@ class AppSettings(QObject):
     def set_value(self, key: str, value: Any) -> None:
         self._settings.setValue(key, value)
         self.changed.emit(key.split("/", 1)[0])
+
+    def reset_session(self) -> None:
+        """Kosongkan pilihan sesi (workspace/report/dataset/instance) saat aplikasi dibuka.
+
+        Preferensi (kredensial, RLS, path database, cakupan, filter, sort, tab
+        aktif, opsi render TSD) tidak disentuh.
+        """
+        for key in SESSION_SELECTION_KEYS:
+            self._settings.remove(key)
+        self.sync()
 
     def sync(self) -> None:
         self._settings.sync()

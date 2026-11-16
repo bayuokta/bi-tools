@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from core.pbix import ROOT
+from core.paths import OUTPUTS_DIR
 from core.pbi_capture.assets import SCOPES as SHOT_SCOPES
 from core.report import MODEL_WORKBOOK_NAME, OUT_FILE
 
@@ -57,9 +57,9 @@ class TsdForm:
     """Nilai formulir Generate TSD yang disimpan antar sesi."""
 
     report_workbook: str = str(OUT_FILE)
-    model_workbook: str = str(ROOT / MODEL_WORKBOOK_NAME)
+    model_workbook: str = str(OUTPUTS_DIR / MODEL_WORKBOOK_NAME)
     manual_path: str = ""
-    out_dir: str = str(ROOT)
+    out_dir: str = str(OUTPUTS_DIR)
     draft: bool = True
     expand_all: bool = False
     screenshots: bool = False
@@ -86,10 +86,10 @@ class TsdForm:
         return cls(
             report_workbook=value(SETTINGS_TSD_REPORT_KEY, str(OUT_FILE)),
             model_workbook=value(
-                SETTINGS_TSD_MODEL_KEY, str(ROOT / MODEL_WORKBOOK_NAME)
+                SETTINGS_TSD_MODEL_KEY, str(OUTPUTS_DIR / MODEL_WORKBOOK_NAME)
             ),
             manual_path=value(SETTINGS_TSD_MANUAL_KEY),
-            out_dir=value(SETTINGS_TSD_OUT_DIR_KEY, str(ROOT)),
+            out_dir=value(SETTINGS_TSD_OUT_DIR_KEY, str(OUTPUTS_DIR)),
             draft=settings.value(SETTINGS_TSD_DRAFT_KEY, True, type=bool),
             expand_all=settings.value(SETTINGS_TSD_EXPAND_KEY, False, type=bool),
             screenshots=settings.value(SETTINGS_TSD_SHOTS_KEY, False, type=bool),

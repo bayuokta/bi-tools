@@ -19,7 +19,6 @@ from .model import DEFAULT_OUT as DEFAULT_MODEL_OUT
 from .model import run_model
 from .pbix import (
     DEFAULT_PBIX,
-    ROOT,
     PbixSourceInfo,
     detect_pbix_source,
     display_path,
@@ -27,6 +26,7 @@ from .pbix import (
     resolve_pbix,
     stale_copy_warning,
 )
+from .paths import outputs_dir
 from .report import OUT_FILE, find_validation_workbook, resolve_validation_model, run_report
 
 Log = Callable[[str], None]
@@ -207,7 +207,7 @@ def _run_service_metadata_job(
     if include_report_usage and extract_model and not usage:
         log("Usage report     : dilewati (cakupan report tidak aktif)")
 
-    target_dir = (out_dir or ROOT).resolve()
+    target_dir = (out_dir or outputs_dir()).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     report_out = target_dir / OUT_FILE.name
     model_out = target_dir / DEFAULT_MODEL_OUT.name
@@ -388,7 +388,7 @@ def run_metadata_job(
     if not extract_report:
         log("Report           : dilewati (cakupan semantic model saja)")
 
-    target_dir = (out_dir or ROOT).resolve()
+    target_dir = (out_dir or outputs_dir()).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     report_out = target_dir / OUT_FILE.name
     model_out = target_dir / DEFAULT_MODEL_OUT.name

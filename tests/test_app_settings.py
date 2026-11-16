@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     from PySide6.QtCore import QSettings
@@ -23,7 +24,14 @@ if QT_AVAILABLE:
         LINEAGE_DB_KEY,
         LINEAGE_SECRET_KEY,
         LINEAGE_TENANT_KEY,
+        SETTINGS_ANALYSIS_DATASET_KEY,
+        SETTINGS_ANALYSIS_SORT_COLUMN_KEY,
+        SETTINGS_INSTANCE_KEY,
         SETTINGS_MIGRATED_KEY,
+        SETTINGS_SCOPE_LOCAL_KEY,
+        SETTINGS_SERVICE_WORKSPACE_KEY,
+        SETTINGS_TSD_REPORT_ID_KEY,
+        SETTINGS_TSD_WORKSPACE_KEY,
     )
     from app.settings_store import AppSettings
 
@@ -129,6 +137,51 @@ class PathTests(AppSettingsTestCase):
 
         self.assertTrue(settings.lineage_db().endswith("bi_tools.db"))
         self.assertEqual(groups, ["paths"])
+
+
+class SessionResetTests(AppSettingsTestCase):
+    """Pilihan sesi dikosongkan, preferensi (kredensial/cakupan/sort) tetap."""
+
+    def test_reset_session_clears_selection_but_keeps_preferences(self) -> None:
+        self.raw.setValue(SETTINGS_SERVICE_WORKSPACE_KEY, "ws-service")
+        self.raw.setValue(SETTINGS_TSD_WORKSPACE_KEY, "ws-tsd")
+        self.raw.setValue(SETTINGS_TSD_REPORT_ID_KEY, "report-tsd")
+        self.raw.setValue(SETTINGS_ANALYSIS_DATASET_KEY, "dataset")
+        self.raw.setValue(SETTINGS_INSTANCE_KEY, "51249")
+        self.raw.setValue(AUTH_TENANT_KEY, "tenant")
+        self.raw.setValue(SETTINGS_SCOPE_LOCAL_KEY, "model")
+        self.raw.setValue(SETTINGS_ANALYSIS_SORT_COLUMN_KEY, "size")
+
+        settings = self.settings()
+        settings.reset_session()
+
+        for key in (
+            SETTINGS_SERVICE_WORKSPACE_KEY,
+            SETTINGS_TSD_WORKSPACE_KEY,
+            SETTINGS_TSD_REPORT_ID_KEY,
+            SETTINGS_ANALYSIS_DATASET_KEY,
+            SETTINGS_INSTANCE_KEY,
+        ):
+            self.assertIsNone(self.raw.value(key), key)
+        self.assertEqual(self.raw.value(AUTH_TENANT_KEY), "tenant")
+        self.assertEqual(self.raw.value(SETTINGS_SCOPE_LOCAL_KEY), "model")
+        self.assertEqual(self.raw.value(SETTINGS_ANALYSIS_SORT_COLUMN_KEY), "size")
+
+
+class StartupTests(AppSettingsTestCase):
+    def test_run_resets_session_before_showing_window(self) -> None:
+        with patch("app.main_window.QApplication") as app_cls, patch(
+            "app.main_window.AppSettings"
+        ) as settings_cls, patch("app.main_window.MainWindow") as window_cls:
+            app_cls.instance.return_value = app_cls.return_value
+            app_cls.return_value.exec.return_value = 0
+
+            from app.main_window import run
+
+            self.assertEqual(run(), 0)
+
+        settings_cls.return_value.reset_session.assert_called_once()
+        window_cls.assert_called_once_with(settings=settings_cls.return_value)
 
 
 if __name__ == "__main__":

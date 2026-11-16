@@ -24,6 +24,7 @@ if QT_AVAILABLE:
         initialize,
         save_workspaces,
     )
+    from core.paths import outputs_dir
     from core.requests import SCOPE_BOTH, SCOPE_MODEL
 
     from app.settings import (
@@ -91,12 +92,6 @@ class MetadataTabTestCase(unittest.TestCase):
         self.raw = QSettings(
             str(self.folder / "settings.ini"), QSettings.Format.IniFormat
         )
-        # Jangan menyentuh .pbix asli: default diarahkan ke file yang tidak ada.
-        patcher = patch(
-            "app.viewmodels.metadata.DEFAULT_PBIX", self.folder / "tidak-ada.pbix"
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.database = self.folder / "katalog.db"
         conn = connect(self.database)
         try:
@@ -231,6 +226,20 @@ class LocalTabTests(MetadataTabTestCase):
             local.vm.submit()
         self.assertTrue(captured["validate_with_existing"])
         self.assertTrue(captured["include_report_usage"])
+
+    def test_pbix_field_starts_empty(self) -> None:
+        tab = self.make_tab()
+
+        self.assertEqual(tab.local_tab.vm.pbix_text, "")
+        self.assertEqual(
+            tab.local_tab.kind_label.text(), "Pilih file .pbix sumber."
+        )
+        self.assertFalse(tab.local_tab.run_button.isEnabled())
+
+    def test_default_out_dir_is_outputs(self) -> None:
+        tab = self.make_tab()
+
+        self.assertEqual(tab.local_tab.vm.out_dir, outputs_dir())
 
     def test_missing_pbix_disables_run(self) -> None:
         tab = self.make_tab()

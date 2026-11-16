@@ -20,8 +20,9 @@ from openpyxl.utils import get_column_letter
 from .errors import ExtractionError
 from .metadata_common import QUERY_AGGREGATE_FUNCTION
 from .pbix import ROOT, display_path
+from .paths import APP_DIR, OUTPUTS_DIR
 
-OUT_DIR = ROOT
+OUT_DIR = OUTPUTS_DIR
 MODEL_WORKBOOK_NAME = "Semantic_Model_Metadata.xlsx"
 DEFAULT_MODEL_WORKBOOK = OUT_DIR / MODEL_WORKBOOK_NAME
 OUT_FILE = OUT_DIR / "Report_Metadata.xlsx"
@@ -1493,11 +1494,12 @@ def run_report(
 
 
 def find_validation_workbook(search_dir: Path | None = None) -> Path | None:
-    """Cari workbook model untuk validasi: folder output dulu, lalu folder tooling."""
+    """Cari workbook model untuk validasi: folder output, outputs, lalu folder aplikasi."""
     candidates: list[Path] = []
     if search_dir is not None:
         candidates.append(Path(search_dir) / MODEL_WORKBOOK_NAME)
-    candidates.append(DEFAULT_MODEL_WORKBOOK)
+    candidates.append(OUT_DIR / MODEL_WORKBOOK_NAME)
+    candidates.append(APP_DIR / MODEL_WORKBOOK_NAME)
     for candidate in candidates:
         if candidate.exists():
             return candidate
