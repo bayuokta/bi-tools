@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-SETTINGS_ORG = "2W-Dragon"
-SETTINGS_APP = "BI Tools"
+SETTINGS_ORG = "BITools"
+SETTINGS_APP = "Metadata"
+
+# Hanya untuk migrasi sekali dari penyimpanan lama (organisasi/aplikasi lama).
+LEGACY_SETTINGS_ORG = "2W-Dragon"
+LEGACY_SETTINGS_APP = "BI Tools"
+SETTINGS_ORG_MIGRATED_KEY = "settings/org_migrated_v2"
 
 SETTINGS_INSTANCE_KEY = "model/last_catalog"
 SETTINGS_SCOPE_KEY = "extraction/scope"

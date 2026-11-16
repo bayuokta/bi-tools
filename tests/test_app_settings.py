@@ -28,6 +28,7 @@ if QT_AVAILABLE:
         SETTINGS_ANALYSIS_SORT_COLUMN_KEY,
         SETTINGS_INSTANCE_KEY,
         SETTINGS_MIGRATED_KEY,
+        SETTINGS_ORG_MIGRATED_KEY,
         SETTINGS_SCOPE_LOCAL_KEY,
         SETTINGS_SERVICE_WORKSPACE_KEY,
         SETTINGS_TSD_REPORT_ID_KEY,
@@ -182,6 +183,65 @@ class StartupTests(AppSettingsTestCase):
 
         settings_cls.return_value.reset_session.assert_called_once()
         window_cls.assert_called_once_with(settings=settings_cls.return_value)
+
+
+class OrgMigrationTests(AppSettingsTestCase):
+    """Setelan dari organisasi QSettings lama disalin sekali ke organisasi baru."""
+
+    def store(self, name: str) -> QSettings:
+        return QSettings(
+            str(Path(self._tmp.name) / name), QSettings.Format.IniFormat
+        )
+
+    def test_org_migration_copies_once(self) -> None:
+        legacy = self.store("legacy.ini")
+        legacy.setValue(AUTH_TENANT_KEY, "lama")
+        legacy.setValue(LINEAGE_SECRET_KEY, "rahasia-lama")
+        legacy.setValue(SETTINGS_SCOPE_LOCAL_KEY, "model")
+        legacy.sync()
+        target = self.store("baru.ini")
+
+        settings = AppSettings(target, legacy_settings=legacy)
+
+        self.assertEqual(settings.value(AUTH_TENANT_KEY), "lama")
+        self.assertEqual(settings.principal().client_secret, "rahasia-lama")
+        self.assertEqual(settings.value(SETTINGS_SCOPE_LOCAL_KEY), "model")
+        self.assertTrue(settings.value(SETTINGS_ORG_MIGRATED_KEY, False, type=bool))
+
+    def test_org_migration_does_not_overwrite(self) -> None:
+        legacy = self.store("legacy2.ini")
+        legacy.setValue(AUTH_TENANT_KEY, "lama")
+        legacy.sync()
+        target = self.store("baru2.ini")
+        target.setValue(AUTH_TENANT_KEY, "baru")
+        target.sync()
+
+        settings = AppSettings(target, legacy_settings=legacy)
+
+        self.assertEqual(settings.value(AUTH_TENANT_KEY), "baru")
+
+    def test_org_migration_runs_once(self) -> None:
+        legacy = self.store("legacy3.ini")
+        legacy.setValue(AUTH_TENANT_KEY, "lama")
+        legacy.sync()
+        target = self.store("baru3.ini")
+
+        first = AppSettings(target, legacy_settings=legacy)
+        self.assertEqual(first.value(AUTH_TENANT_KEY), "lama")
+
+        legacy.setValue(AUTH_TENANT_KEY, "diubah")
+        legacy.sync()
+        second = AppSettings(target, legacy_settings=legacy)
+
+        self.assertEqual(second.value(AUTH_TENANT_KEY), "lama")
+
+    def test_org_migration_without_legacy_values(self) -> None:
+        legacy = self.store("kosong.ini")
+        target = self.store("baru4.ini")
+
+        settings = AppSettings(target, legacy_settings=legacy)
+
+        self.assertTrue(settings.value(SETTINGS_ORG_MIGRATED_KEY, False, type=bool))
 
 
 if __name__ == "__main__":

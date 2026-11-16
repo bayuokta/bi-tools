@@ -420,6 +420,9 @@ $env:RUN_LIVE_TESTS = "1"; python -m unittest discover -s tests -t .
 - Untuk paket executable: `templates\tsd.template.html` harus ikut dibundel (`--add-data "templates;templates"`); `outputs\` dan `data\` dibuat saat runtime, jangan di-bundle.
 - `Report_Metadata.xlsx` dan `Semantic_Model_Metadata.xlsx` adalah file biner hasil generate; setiap regenerasi menghasilkan diff biner.
 - `data\bi_tools.db`, `outputs\`, file `*.db` lain, dan `.env` di-ignore git. Jangan meng-commit database lineage atau secret.
-- Credential GUI disimpan di QSettings (`2W-Dragon`/`BI Tools`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi oleh `AppSettings` saat GUI dibuka. Nama organisasi QSettings sengaja tidak diubah karena menjadi kunci penyimpanan; menggantinya membuat path, kredensial, dan pilihan workspace yang sudah tersimpan tidak terbaca (butuh migrasi).
+- Credential GUI disimpan di QSettings (`HKCU\Software\BITools\Metadata`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi oleh `AppSettings` saat GUI dibuka. Setelan dari organisasi lama (`2W-Dragon`/`BI Tools`) disalin sekali ke organisasi baru (`settings/org_migrated_v2`) tanpa menimpa nilai yang sudah ada; setelah migrasi terverifikasi, kunci lama boleh dihapus manual:
+  ```powershell
+  Remove-Item 'HKCU:\Software\2W-Dragon' -Recurse
+  ```
 - Nama node Workspace mengikuti nama workspace saat scan terakhir; node Datasource memakai nama `"<tipe>: <server> / <database>"` atau URL/path bila tersedia.
 - `--check` pada salinan database saat ini mencatat 4 sumber edge `feeds` dan 11 sumber `uses_dataset` yang belum memiliki metadata node; aktifkan detailed metadata admin lalu jalankan `--scan --full` bila angka ini perlu ditekan.

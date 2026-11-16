@@ -19,6 +19,8 @@ from .settings import (
     AUTH_CLIENT_KEY,
     AUTH_SECRET_KEY,
     AUTH_TENANT_KEY,
+    LEGACY_SETTINGS_APP,
+    LEGACY_SETTINGS_ORG,
     LINEAGE_CLIENT_KEY,
     LINEAGE_DB_KEY,
     LINEAGE_SECRET_KEY,
@@ -28,6 +30,7 @@ from .settings import (
     SETTINGS_APP,
     SETTINGS_MIGRATED_KEY,
     SETTINGS_ORG,
+    SETTINGS_ORG_MIGRATED_KEY,
 )
 
 
@@ -40,10 +43,31 @@ class AppSettings(QObject):
         self,
         settings: QSettings | None = None,
         parent: QObject | None = None,
+        legacy_settings: QSettings | None = None,
     ) -> None:
         super().__init__(parent)
         self._settings = settings or QSettings(SETTINGS_ORG, SETTINGS_APP)
+        if legacy_settings is not None:
+            self._migrate_org(legacy_settings)
+        elif settings is None:
+            self._migrate_org(QSettings(LEGACY_SETTINGS_ORG, LEGACY_SETTINGS_APP))
         self._migrate()
+
+    def _migrate_org(self, legacy: QSettings) -> None:
+        """Salin setelan dari organisasi lama sekali, tanpa menimpa nilai baru.
+
+        Kunci lama sengaja tidak dihapus agar bisa rollback; hapus manual
+        setelah migrasi terverifikasi.
+        """
+        if self._settings.value(SETTINGS_ORG_MIGRATED_KEY, False, type=bool):
+            return
+        if not self._settings.allKeys():
+            for key in legacy.allKeys():
+                value = legacy.value(key)
+                if value is not None:
+                    self._settings.setValue(key, value)
+        self._settings.setValue(SETTINGS_ORG_MIGRATED_KEY, True)
+        self._settings.sync()
 
     # -- dasar -------------------------------------------------------------
     def value(self, key: str, default: Any = None, type: Any = None) -> Any:
