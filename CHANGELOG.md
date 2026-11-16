@@ -2,8 +2,10 @@
 
 Riwayat pengembangan tooling metadata Power BI, 2026-11-12 s.d. 2026-11-16 (62 commit).
 
-Baseline `v0.1.0` memuat seluruh perubahan di bawah ini dalam satu commit. Riwayat
-per-commit lengkap disimpan di luar repo sebagai `bi-tools-main-62commits.bundle`.
+Tag `v0.1.0` menunjuk commit terakhir di `main`: baseline satu commit berisi seluruh
+perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
+per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
+`bi-tools-main-62commits.bundle`.
 
 ## 2026-11-12 — Fondasi ekstraksi, GUI, dan lineage
 
@@ -78,3 +80,31 @@ per-commit lengkap disimpan di luar repo sebagai `bi-tools-main-62commits.bundle
 
 - Identifier pelanggan dinetralkan di dokumentasi, judul jendela, pesan error, dan tes.
 - Workbook hasil generate tidak lagi di-track.
+
+## 2026-11-16 — Pengerasan rilis: path eksplisit, `outputs`, dan setelan bersih
+
+### Lokasi hasil generate
+
+- Folder `outputs\` di samping aplikasi/executable menjadi lokasi bawaan workbook report,
+  model, TSD, dan ekspor analisa; fallback `%LOCALAPPDATA%\BI Tools` bila folder aplikasi
+  read-only. Override lewat `BI_TOOLS_OUTPUTS`/`BI_TOOLS_DATA` (`core\paths.py`).
+
+### Path `.pbix` dan sumber instance
+
+- `DEFAULT_PBIX`, `DRAGON_PBIX_SOURCE`, dan peringatan salinan usang dihapus; path `.pbix`
+  selalu disebut eksplisit (`--report`, `--pbix`) dan CLI menolak jalan tanpa path.
+- Combo instance Power BI Desktop aktif sebelum file `.pbix` dipilih; hanya nonaktif untuk
+  live connection atau cakupan report saja.
+
+### Sesi GUI dan setelan
+
+- Sesi GUI mulai bersih: pilihan workspace/report/dataset/instance dihapus saat aplikasi
+  dibuka, sementara kredensial, RLS, path database, cakupan, filter, sort, tab aktif, dan
+  opsi render tetap tersimpan.
+- QSettings pindah ke `HKCU\Software\BITools\Metadata`; setelan organisasi lama
+  (`2W-Dragon\BI Tools`) disalin sekali (`settings/org_migrated_v2`) tanpa menimpa nilai baru.
+
+### Uji
+
+- Uji yang butuh file contoh membaca `RUN_PBIX`/`RUN_LIVE_PBIX`/`RUN_DQ_PBIX`/
+  `RUN_MODEL_CATALOG`; tanpa variabel itu uji terkait di-skip, bukan gagal.
