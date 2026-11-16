@@ -87,7 +87,7 @@ requirements.txt
 
 - Windows + Power BI Desktop (hanya untuk ekstraksi model via XMLA).
 - Python 3.11 dengan `pip install -r requirements.txt`.
-- Salinan `.pbix` ada di folder ini (atau pilih file lain di GUI). Salin ulang dari project setiap kali report berubah. Tanpa `--report`, CLI memakai `.pbix` bawaan; sub-tab Local di GUI mulai dengan field kosong.
+- Path `.pbix` selalu disebut eksplisit (`--report` di GUI/CLI, `--pbix` di `verify_reference.py`); tidak ada file bawaan. Salin ulang dari project setiap kali report berubah.
 - Untuk scan lineage: akses jaringan ke `login.microsoftonline.com` dan `api.powerbi.com`, serta service principal yang terdaftar di Microsoft Entra.
 - Untuk screenshot TSD dari Power BI Service: `pip install playwright` lalu `python -m playwright install chromium` (sekali per mesin), akses **Build** ke dataset report, dan role RLS bila dataset memakainya.
 
@@ -155,9 +155,9 @@ python -m app
 Report (tidak butuh Power BI Desktop terbuka):
 
 ```powershell
-python extract_report_metadata.py
-python extract_report_metadata.py --no-model        # lewati validasi; semua field TIDAK DIVALIDASI
-python extract_report_metadata.py --model-workbook Semantic_Model_Metadata.xlsx
+python extract_report_metadata.py --report "path\ke\Report.pbix"
+python extract_report_metadata.py --report "path\ke\Report.pbix" --no-model   # lewati validasi; semua field TIDAK DIVALIDASI
+python extract_report_metadata.py --report "path\ke\Report.pbix" --model-workbook Semantic_Model_Metadata.xlsx
 python extract_report_metadata.py --report "path\ke\Report.pbix" --extract-to _pbir
 ```
 
@@ -176,13 +176,14 @@ Model via XMLA (Power BI Desktop **harus terbuka**):
 
 ```powershell
 python extract_model_metadata.py --list-instances
-python extract_model_metadata.py                     # hanya jika tepat satu instance terbuka
-python extract_model_metadata.py --port 59348
-python extract_model_metadata.py --catalog "<guid>"
-python extract_model_metadata.py --endpoint "powerbi://..." --catalog "Dataset"
-python extract_model_metadata.py --report "path\ke\Report.pbix"
-python extract_model_metadata.py --no-report
+python extract_model_metadata.py --report "path\ke\Report.pbix"   # hanya jika tepat satu instance terbuka
+python extract_model_metadata.py --report "path\ke\Report.pbix" --port 59348
+python extract_model_metadata.py --report "path\ke\Report.pbix" --catalog "<guid>"
+python extract_model_metadata.py --endpoint "powerbi://..." --catalog "Dataset" --report "path\ke\Report.pbix"
+python extract_model_metadata.py --no-report                      # lewati kolom usage report
 ```
+
+`--report` wajib bila kolom usage report diinginkan; gunakan `--no-report` untuk melewatinya.
 
 Untuk `--endpoint` berisi `powerbi://`/`asazure://`, token Power BI diambil otomatis dari service principal di `.env` (workspace di-encode dan `?readonly` ditambahkan bila belum ada). Instance Desktop lokal (`localhost:<port>`) tidak memakai token. Jangan menempelkan `Password=<token>` di connection string.
 
@@ -285,17 +286,11 @@ python extract_lineage.py --impact <node-id> --export-csv Lineage.csv
 - Nama yang tampil di daftar instance adalah nama file report yang dibuka di jendela Power BI Desktop (mis. `Report Uji - localhost:51249`), diambil dari judul jendela. Bila judulnya tidak terbaca, dipakai nama model `Model`.
 - Instance dideteksi dari workspace Power BI Desktop, baik installer klasik (`%LOCALAPPDATA%\Microsoft\Power BI Desktop\AnalysisServicesWorkspaces`) maupun Microsoft Store (`%USERPROFILE%\Microsoft\Power BI Desktop Store App\AnalysisServicesWorkspaces`).
 
-### Peringatan salinan `.pbix` usang
-
-Set variabel lingkungan `DRAGON_PBIX_SOURCE` ke path `.pbix` asli di project. Jika sumber lebih baru dari salinan, script dan GUI menampilkan peringatan:
+### Verifikasi angka acuan
 
 ```powershell
-$env:DRAGON_PBIX_SOURCE = "C:\...\<project PBIP>\<report>.pbix"
-```
-
-```powershell
-python verify_reference.py              # bandingkan report + model (Desktop terbuka)
-python verify_reference.py --no-model   # bandingkan report saja
+python verify_reference.py --pbix "path\ke\Report.pbix"              # report + model (Desktop terbuka)
+python verify_reference.py --pbix "path\ke\Report.pbix" --no-model   # report saja
 ```
 
 Skrip mengekstrak ulang ke folder sementara (workbook di folder tooling tidak ditimpa), lalu membandingkan jumlah halaman, visual, field, slicer, filter, interaksi, measure, kolom, dan jumlah sheet dengan angka acuan. Angka model hanya diperiksa bila ada instance Desktop (atau `--port`/`--catalog`). Exit code: `0` cocok, `1` ada beda/belum diverifikasi, `2` tidak bisa dijalankan. Bila ada lebih dari satu instance, skrip berhenti dan menampilkan pilihan; jalankan ulang dengan `--port`/`--catalog`.
@@ -383,6 +378,16 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset denga
 ## Uji
 
 ```powershell
+python -m unittest discover -s tests -t .
+```
+
+Uji angka acuan dan file contoh butuh path `.pbix` lewat environment (tanpa env, uji tersebut dilewati):
+
+```powershell
+$env:RUN_PBIX = "path\ke\Report.pbix"            # angka acuan report/model
+$env:RUN_MODEL_CATALOG = "<Catalog di 01_Model_Overview>"   # bila ingin angka acuan measure/kolom
+$env:RUN_LIVE_PBIX = "path\ke\live.pbix"         # uji live connection
+$env:RUN_DQ_PBIX = "path\ke\directquery.pbix"    # uji model lokal DirectQuery
 python -m unittest discover -s tests -t .
 ```
 

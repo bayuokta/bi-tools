@@ -30,7 +30,7 @@ from .metadata_common import (
     split_outside_quotes,
     write_sheet,
 )
-from .pbix import DEFAULT_PBIX, ROOT, display_path, extract_pbix_definition, stale_copy_warning
+from .pbix import ROOT, display_path, extract_pbix_definition
 from .xmla_client import XmlaError, label, open_client
 
 DEFAULT_OUT = ROOT / "Semantic_Model_Metadata.xlsx"
@@ -1106,7 +1106,11 @@ def resolve_report_pbix(report: Path | None, no_report: bool) -> Path | None:
     """Validasi file .pbix sumber usage. None bila report dilewati."""
     if no_report:
         return None
-    pbix = report.resolve() if report else DEFAULT_PBIX
+    if report is None:
+        raise ExtractionError(
+            "File .pbix wajib ditentukan (--report) atau lewati dengan --no-report."
+        )
+    pbix = report.resolve()
     if not pbix.exists():
         raise ExtractionError(
             f"File .pbix tidak ditemukan: {display_path(pbix)}. Pilih file .pbix sumber."
@@ -1182,10 +1186,6 @@ def run_model(
         pbix = None
     else:
         pbix = resolve_report_pbix(report, False)
-    if pbix is not None and report is None:
-        warning = stale_copy_warning(pbix)
-        if warning:
-            log(f"WARNING: {warning}")
 
     report_measures, report_columns, report_source, report_available = (
         _resolve_report_usage(report_definition, pbix, no_report, report_label)

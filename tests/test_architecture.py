@@ -144,6 +144,12 @@ class PresentationBoundaryTests(unittest.TestCase):
         hits = matching_in(target, r"^\s*(import core\b|from core\b)")
         self.assertEqual(hits, [], "view pengaturan hanya boleh lewat SettingsViewModel")
 
+    def test_no_hardcoded_pbix_default(self) -> None:
+        hits = matching(r"DEFAULT_PBIX|DRAGON_PBIX_SOURCE|stale_copy_warning")
+        self.assertEqual(
+            hits, [], "path .pbix wajib eksplisit; jangan ada default/env di kode"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

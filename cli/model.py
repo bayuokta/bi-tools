@@ -14,7 +14,7 @@ from core.xmla_client import list_instances
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Ekstraksi metadata semantic model via XMLA ke Excel.")
-    parser.add_argument("--report", help="File .pbix untuk kolom usage report.")
+    parser.add_argument("--report", help="File .pbix untuk kolom usage report (wajib bila tidak memakai --no-report).")
     parser.add_argument("--out", help="Path file Excel output.")
     parser.add_argument("--endpoint", help="Endpoint XMLA (host:port atau connection string).")
     parser.add_argument("--catalog", help="Nama catalog/dataset (wajib bila ada lebih dari satu instance tanpa --port).")
@@ -41,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_instances:
         return print_instances()
     try:
+        if not args.no_report and not args.report:
+            raise ExtractionError(
+                "File .pbix untuk usage report wajib ditentukan dengan --report, "
+                "atau lewati dengan --no-report."
+            )
         run_model(
             endpoint=args.endpoint,
             catalog=args.catalog,

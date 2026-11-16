@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import shutil
 import tempfile
 import zipfile
@@ -16,8 +15,6 @@ from .errors import ExtractionError
 from .paths import APP_DIR
 
 ROOT = APP_DIR
-DEFAULT_PBIX = ROOT / "Dragon - KK Acquisition & Insight.pbix"
-PBIX_SOURCE_ENV = "DRAGON_PBIX_SOURCE"
 PBIR_PREFIX = "Report/definition/"
 
 LOCAL_MODEL = "local_model"
@@ -180,34 +177,19 @@ def extract_pbix_definition(pbix_path: Path, target_root: Path) -> Path:
     return target_root / "Report" / "definition"
 
 
-def stale_copy_warning(copy_path: Path) -> str | None:
-    """Peringatan bila salinan default lebih lama dari .pbix sumber (env DRAGON_PBIX_SOURCE)."""
-    source_text = os.environ.get(PBIX_SOURCE_ENV, "").strip().strip('"')
-    if not source_text or not copy_path.exists():
-        return None
-    source = Path(source_text)
-    if source.exists() and source.stat().st_mtime > copy_path.stat().st_mtime + 1:
-        return (
-            f"salinan {display_path(copy_path)} lebih lama dari sumber {source}. "
-            "Salin ulang file tersebut atau pilih .pbix lain."
-        )
-    return None
+def resolve_pbix(report_path: Path | None, workdir: Path) -> tuple[Path, str]:
+    """Kembalikan (folder Report/definition, label sumber).
 
-
-def resolve_pbix(report_path: Path | None, workdir: Path) -> tuple[Path, str, str | None]:
-    """Kembalikan (folder Report/definition, label sumber, peringatan atau None)."""
-    warning: str | None = None
+    Path ``.pbix`` wajib disebutkan pemanggil; tidak ada file bawaan.
+    """
     if report_path is None:
-        report_path = DEFAULT_PBIX
-        if not report_path.exists():
-            raise ExtractionError(
-                f"File .pbix tidak ditemukan: {display_path(report_path)}. Pilih file .pbix sumber."
-            )
-        warning = stale_copy_warning(report_path)
+        raise ExtractionError(
+            "File .pbix wajib ditentukan (--report). Tidak ada file bawaan."
+        )
 
     report_path = _validate_pbix_path(report_path.resolve())
     definition = extract_pbix_definition(report_path, workdir)
-    return definition, f"pbix {display_path(report_path)} (Report/definition)", warning
+    return definition, f"pbix {display_path(report_path)} (Report/definition)"
 
 
 @contextlib.contextmanager

@@ -23,7 +23,7 @@ from core.errors import ExtractionError
 from core.jobs import run_report_job
 from core.model import DEFAULT_OUT as DEFAULT_MODEL_OUT
 from core.model import run_model
-from core.pbix import DEFAULT_PBIX, display_path, detect_pbix_source
+from core.pbix import detect_pbix_source, display_path
 from core.report import DEFAULT_MODEL_WORKBOOK, OUT_FILE
 from core.xmla_client import DesktopInstance, list_instances
 
@@ -55,13 +55,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Ekstrak ulang report/model ke folder sementara, lalu bandingkan hasilnya "
-            "dengan angka acuan report/model. Tidak menimpa workbook di folder tooling."
+            "dengan angka acuan report/model. Tidak menimpa workbook di folder outputs."
         ),
         allow_abbrev=False,
     )
     parser.add_argument(
         "--pbix",
-        help="File .pbix sumber (default: berkas .pbix bawaan di folder tooling).",
+        required=True,
+        help="File .pbix sumber (wajib).",
     )
     parser.add_argument("--port", type=int, help="Port instance Power BI Desktop (lihat --list-instances).")
     parser.add_argument("--catalog", help="Nama catalog/dataset untuk XMLA (opsional bila hanya satu instance).")
@@ -124,7 +125,7 @@ def resolve_instance(args: argparse.Namespace) -> tuple[int | None, str | None, 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    pbix = Path(args.pbix).expanduser().resolve() if args.pbix else DEFAULT_PBIX.resolve()
+    pbix = Path(args.pbix).expanduser().resolve()
     try:
         source = detect_pbix_source(pbix)
     except ExtractionError as exc:

@@ -23,7 +23,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--report",
-        help="File .pbix sumber report (default: berkas .pbix bawaan di folder tooling).",
+        help="File .pbix sumber report (wajib untuk sumber lokal).",
     )
     parser.add_argument("--report-url", help="URL report Power BI Service (workspace/reports).")
     parser.add_argument("--workspace-id", help="Workspace ID (GUID) untuk sumber Power BI Service.")
@@ -76,8 +76,13 @@ def main(argv: list[str] | None = None) -> int:
                 log=print,
             )
         else:
+            if not args.report:
+                raise ExtractionError(
+                    "File .pbix wajib ditentukan dengan --report, atau pakai opsi "
+                    "Power BI Service (--report-url / --workspace-id + --report-id)."
+                )
             run_report_job(
-                pbix=Path(args.report) if args.report else None,
+                pbix=Path(args.report),
                 model_workbook=Path(args.model_workbook).resolve() if args.model_workbook else None,
                 no_model=args.no_model,
                 out_file=out_file,

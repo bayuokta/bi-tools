@@ -7,7 +7,7 @@ Project Power BI (PBIP, TMDL, PBIR) ada di repo terpisah: `..\..\Power BI\<proje
 
 | Path | Jenis | Catatan |
 |---|---|---|
-| `core\pbix.py` | sumber | Sumber `.pbix`: ekstraksi Report/definition, deteksi jenis sumber; `resolve_pbix()`, `extract_pbix_definition()`, `detect_pbix_source()`, `PbixSourceInfo`, `stale_copy_warning()` |
+| `core\pbix.py` | sumber | Sumber `.pbix`: ekstraksi Report/definition, deteksi jenis sumber; `resolve_pbix()`, `extract_pbix_definition()`, `detect_pbix_source()`, `PbixSourceInfo` |
 | `core\report.py` | sumber | Ekstraksi report -> `Report_Metadata.xlsx`; `run_report()` + ringkasan; `resolve_validation_model()` + `find_validation_workbook()`; `extract_sync_slicers()` (syncGroup slicer); `position_x_abs`/`position_y_abs` (posisi visual + group induk) untuk hint capture |
 | `core\model.py` | sumber | Ekstraksi model via XMLA -> `Semantic_Model_Metadata.xlsx`; `run_model()` + ringkasan; `resolve_report_pbix()`; `report_definition` untuk usage dari folder PBIR |
 | `core\jobs.py` | sumber | Orkestrasi report dan job gabungan dengan cakupan report/model; `run_report_job()`, `run_service_report_job()`, `fetch_service_report_definition()`, `run_metadata_job()`, `_run_service_metadata_job()` |
@@ -108,15 +108,16 @@ Jangan membuka file JSON di project PBI (`Report/definition/**`, `SemanticModel/
 
 ```powershell
 python -m app                                   # GUI
-python extract_report_metadata.py               # report, tanpa Desktop
+python extract_report_metadata.py --report "<file>.pbix"          # report, tanpa Desktop
 python extract_report_metadata.py --report-url "https://app.powerbi.com/groups/<ws>/reports/<id>"  # report dari Power BI Service
 python extract_report_metadata.py --workspace-id <ws> --report-id <id>                              # service principal dari .env
-python extract_model_metadata.py                # model, Desktop harus terbuka (satu instance)
+python extract_model_metadata.py --report "<file>.pbix"           # model, Desktop harus terbuka (satu instance)
+python extract_model_metadata.py --no-report                      # model tanpa kolom usage report
 python extract_model_metadata.py --list-instances  # daftar instance Power BI Desktop
 python extract_tsd.py                           # TSD dari workbook di folder tooling
 python extract_tsd.py --final --expand-all      # dokumen final, semua panel expand terbuka
-python verify_reference.py                      # bandingkan report + model dengan angka acuan
-python verify_reference.py --no-model           # verifikasi report saja
+python verify_reference.py --pbix "<file>.pbix"                   # bandingkan report + model dengan angka acuan
+python verify_reference.py --pbix "<file>.pbix" --no-model         # verifikasi report saja
 python extract_lineage.py --stats               # statistik database lineage
 python extract_lineage.py --search "Contoh"    # cari item di database lineage
 python extract_lineage.py --check               # diagnostik edge dan riwayat scan
@@ -251,6 +252,7 @@ python -m unittest discover -s tests -t .       # uji
 - Teks DAX/M disimpan utuh dalam satu sel; jangan dipotong.
 - Jangan commit `*.pbix`, `.pbi\*`, `*.db`, `.env`, `outputs\`, atau cache.
 - Sumber report hanya `.pbix` (PBIR GA). Sumber model hanya XMLA atau workbook.
+- Path `.pbix` selalu eksplisit: CLI report/model mewajibkan `--report` (model boleh `--no-report`), `verify_reference.py` mewajibkan `--pbix`, GUI memilih file sendiri. Jangan menambahkan path bawaan, env default, atau nama file pelanggan di kode (`DEFAULT_PBIX`/`DRAGON_PBIX_SOURCE` sudah dihapus).
 - Struktur flat di root tooling (tidak pakai subfolder `_report_metadata`); hasil generate masuk `outputs\`.
 - Line ending CRLF di Windows; ikuti gaya file yang ada.
 
@@ -270,6 +272,6 @@ Nama report, workspace, halaman, tabel, dan GUID di bagian ini sengaja netral (b
 - Analisa kolom multi-report (live, `Report Uji B`, workspace `Workspace Uji B`): **38 report** = 25 dipindai (22 PBIR-Legacy + 3 PBIR), **12 personal dilewati**, **1 App dilewati**, 0 inaccessible, **0 field tak terpetakan**. Setelah report `[App] …` dan My Workspace dilewati, cakupan **lengkap** → model **6,0 GB** (data 1,6 GB + hierarki 871,8 MB + dictionary 3,5 GB); kolom: 184 `Tidak dipakai` (**3,8 GB**), 48 `Dipakai`, 16 `Wajib dipertahankan`; measure: **29 measure, 26 `Dipakai`, 3 `Tidak dipakai`** (mis. tiga measure bisnis). Run dengan cache: ±12 dtk (XMLA ±6 dtk, 25 report dari cache); `refresh=True` ±54 dtk.
 - Analisa kolom multi-report (live, `Report Uji C`, workspace `Workspace Uji C`): admin `$filter=datasetId` mengembalikan **165 report di 28 workspace** (66 PBIR + 99 PBIR-Legacy); model 1,2 GB dan 431 kolom. Audit PBIR-Legacy terpisah: 42 dari 43 report terbaca, 3.190 visual, 3.121 dari 3.201 referensi field terpetakan (97,7%). `max_reports`/stop menurunkan kolom tanpa referensi menjadi `Perlu dicek` beserta jumlah `n belum dipindai` — jangan melaporkan `Tidak dipakai` dari cakupan parsial.
 - `getDefinition` selalu ±20–21 detik bila mengikuti `Retry-After: 20`, padahal operasi selesai ±1,2 detik; dengan `poll_wait=1` satu report ±1,5–2,5 detik. Paralel 4 tidak menolong (Fabric meng-throttle), jadi analisa berjalan sekuensial + cache.
-- Uji: 605 tes, 603 lulus, 2 skip, 0 gagal. Uji deteksi `.pbix` dan live connection ikut di-skip tanpa file contoh (`RUN_LIVE_TESTS=1` untuk uji model live). Uji angka acuan measure/kolom memakai `01_Model_Overview` untuk memastikan `Semantic_Model_Metadata.xlsx` memang model acuan; nama catalog-nya tidak disimpan di repo, jadi set `RUN_MODEL_CATALOG=<nama Catalog>` agar uji itu berjalan dan tanpa variabel itu di-skip (angka acuan report tetap diperiksa dari `.pbix`). Uji Fabric, transport, token XMLA, TSD, katalog workspace, picker Service/TSD, sinkronisasi di Pengaturan, dan capture screenshot memakai mock/workbook sintetis dan tidak membutuhkan login atau network.
+- Uji: 606 tes, 597 lulus, 9 skip, 0 gagal (tanpa env contoh). Uji yang butuh file `.pbix` membaca `RUN_PBIX` (angka acuan report/model), `RUN_LIVE_PBIX` (live connection), `RUN_DQ_PBIX` (DirectQuery), dan `RUN_MODEL_CATALOG` (nama Catalog di `01_Model_Overview`); tanpa variabel itu uji terkait di-skip, bukan gagal. Uji model live memakai `RUN_LIVE_TESTS=1`. Uji Fabric, transport, token XMLA, TSD, katalog workspace, picker Service/TSD, sinkronisasi di Pengaturan, dan capture screenshot memakai mock/workbook sintetis dan tidak membutuhkan login atau network.
 - Capture dengan hint posisi absolut (live, report uji D `<report-id>`, scope visual): 313 visual non-dekoratif, **313 tersimpan, 0 tanpa gambar** (sebelum hint: 229 dari 313; 84 visual di dalam group gagal dipasangkan).
-- `python verify_reference.py` membandingkan hasil ekstraksi baru dengan angka acuan di atas. Tanpa Desktop, model dilewati dan exit code 1 (belum lengkap); `--no-model` hanya memeriksa report.
+- `python verify_reference.py --pbix "<file>.pbix"` membandingkan hasil ekstraksi baru dengan angka acuan di atas. Tanpa Desktop, model dilewati dan exit code 1 (belum lengkap); `--no-model` hanya memeriksa report.

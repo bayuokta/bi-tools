@@ -29,15 +29,12 @@ from core.errors import ExtractionError
 from core.jobs import run_metadata_job, run_report_job
 from core.metadata_common import parse_report_field, report_aggregation_label, scan_report_usage
 from core.pbix import (
-    DEFAULT_PBIX,
     LIVE_CONNECTION,
     LOCAL_MODEL,
-    PBIX_SOURCE_ENV,
     ROOT,
     UNSUPPORTED,
     detect_pbix_source,
     resolve_pbix,
-    stale_copy_warning,
 )
 from core.report import (
     DEFAULT_MODEL_WORKBOOK,
@@ -50,8 +47,14 @@ from core.report import (
 )
 from core.xmla_client import DesktopInstance
 
-LIVE_SAMPLE = ROOT / "HO - Leads Management H1.pbix"
-DIRECT_QUERY_SAMPLE = ROOT / "Report Monitoring AR dan Cashbank.pbix"
+def _sample_pbix(env_name: str) -> Path:
+    """File .pbix contoh dari env; path pengganti yang tidak ada bila kosong."""
+    text = os.environ.get(env_name, "").strip()
+    return Path(text).expanduser() if text else ROOT / "tidak-diset.pbix"
+
+
+LIVE_SAMPLE = _sample_pbix("RUN_LIVE_PBIX")
+DIRECT_QUERY_SAMPLE = _sample_pbix("RUN_DQ_PBIX")
 
 
 def write_minimal_model_workbook(path: Path) -> Path:
@@ -137,6 +140,12 @@ REPORT_SHEET_ORDER = [
 # tanpa variabel itu uji tersebut dilewati, bukan gagal.
 EXPECTED_MODEL_CATALOG = os.getenv("RUN_MODEL_CATALOG", "").strip()
 
+# Path .pbix acuan juga tidak disimpan di repo. Isi RUN_PBIX dengan path file
+# .pbix model lokal untuk menjalankan uji angka acuan report/model.
+PBIX_TEXT = os.environ.get("RUN_PBIX", "").strip()
+RUN_PBIX = Path(PBIX_TEXT).expanduser() if PBIX_TEXT else None
+PBIX_READY = RUN_PBIX is not None and RUN_PBIX.exists()
+
 
 def model_catalog(path: Path) -> str:
     """Nama catalog di 01_Model_Overview (kosong bila workbook tidak cocok)."""
@@ -199,8 +208,10 @@ def make_pbix(
 class ReportReferenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        if not DEFAULT_PBIX.exists():
-            raise unittest.SkipTest(f"{DEFAULT_PBIX.name} tidak ditemukan")
+        if not PBIX_READY:
+            raise unittest.SkipTest(
+                "set RUN_PBIX=<file .pbix model lokal> untuk uji angka acuan report/model"
+            )
         cls.model_matches = False
         model_workbook = None
         if DEFAULT_MODEL_WORKBOOK.exists():
@@ -213,7 +224,7 @@ class ReportReferenceTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.out_file = Path(cls._tmp.name) / "Report_Metadata.xlsx"
         cls.summary = run_report_job(
-            pbix=DEFAULT_PBIX,
+            pbix=RUN_PBIX,
             model_workbook=model_workbook,
             out_file=cls.out_file,
         )
@@ -652,13 +663,36 @@ class ErrorHandlingTests(unittest.TestCase):
             with self.assertRaises(ExtractionError):
                 resolve_pbix(text_file, Path(tmp))
 
-    def test_stale_warning_disabled_without_env(self) -> None:
-        previous = os.environ.pop(PBIX_SOURCE_ENV, None)
-        try:
-            self.assertIsNone(stale_copy_warning(Path(__file__)))
-        finally:
-            if previous is not None:
-                os.environ[PBIX_SOURCE_ENV] = previous
+    def test_missing_path_argument_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(ExtractionError):
+            resolve_pbix(None, Path(tmp))
+
+    def test_model_usage_requires_report_or_no_report(self) -> None:
+        from core.model import resolve_report_pbix
+
+        with self.assertRaises(ExtractionError):
+            resolve_report_pbix(None, False)
+        self.assertIsNone(resolve_report_pbix(None, True))
+
+
+class CliPbixArgumentTests(unittest.TestCase):
+    """CLI menolak jalan tanpa path .pbix eksplisit."""
+
+    def test_report_cli_requires_pbix(self) -> None:
+        from cli.report import main as report_main
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            self.assertEqual(report_main(["--no-model"]), 2)
+        self.assertIn("--report", buffer.getvalue())
+
+    def test_model_cli_requires_report_or_no_report(self) -> None:
+        from cli.model import main as model_main
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            self.assertEqual(model_main([]), 2)
+        self.assertIn("--no-report", buffer.getvalue())
 
 
 class PbixDetectionTests(unittest.TestCase):
@@ -703,15 +737,21 @@ class PbixDetectionTests(unittest.TestCase):
                 detect_pbix_source(path)
 
 
-@unittest.skipUnless(LIVE_SAMPLE.exists(), f"{LIVE_SAMPLE.name} tidak ditemukan")
 class SampleSourceTests(unittest.TestCase):
-    """Verifikasi deteksi pada file contoh nyata (opsional, tidak di-commit)."""
+    """Verifikasi deteksi pada file contoh nyata (opsional, dari env)."""
 
+    @unittest.skipUnless(
+        LIVE_SAMPLE.exists(), "set RUN_LIVE_PBIX=<file .pbix live connection>"
+    )
     def test_live_sample(self) -> None:
         info = detect_pbix_source(LIVE_SAMPLE)
         self.assertEqual(info.kind, LIVE_CONNECTION)
         self.assertTrue(info.has_pbir)
 
+    @unittest.skipUnless(
+        DIRECT_QUERY_SAMPLE.exists(),
+        "set RUN_DQ_PBIX=<file .pbix DirectQuery/model lokal>",
+    )
     def test_direct_query_sample(self) -> None:
         info = detect_pbix_source(DIRECT_QUERY_SAMPLE)
         self.assertEqual(info.kind, LOCAL_MODEL)
@@ -719,7 +759,9 @@ class SampleSourceTests(unittest.TestCase):
         self.assertTrue(info.has_pbir)
 
 
-@unittest.skipUnless(LIVE_SAMPLE.exists(), f"{LIVE_SAMPLE.name} tidak ditemukan")
+@unittest.skipUnless(
+    LIVE_SAMPLE.exists(), "set RUN_LIVE_PBIX=<file .pbix live connection>"
+)
 class LiveConnectionJobTests(unittest.TestCase):
     """Live connection: report dibuat, model tidak dicoba."""
 
@@ -927,11 +969,17 @@ class ModelLiveTests(unittest.TestCase):
 class VerifyReferenceScriptTests(unittest.TestCase):
     """Skrip verifikasi: parsing argumen dan status perbandingan."""
 
-    def test_parse_args_defaults(self) -> None:
-        args = verify_reference.parse_args([])
+    def test_parse_args_reads_pbix(self) -> None:
+        args = verify_reference.parse_args(["--pbix", "contoh.pbix"])
+        self.assertEqual(args.pbix, "contoh.pbix")
         self.assertFalse(args.no_model)
         self.assertIsNone(args.port)
         self.assertIsNone(args.catalog)
+
+    def test_pbix_is_required(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                verify_reference.parse_args([])
 
     def test_print_comparison(self) -> None:
         buffer = io.StringIO()
@@ -942,12 +990,16 @@ class VerifyReferenceScriptTests(unittest.TestCase):
         self.assertIn("OK", output)
         self.assertIn("BEDA", output)
 
-    @unittest.skipUnless(LIVE_SAMPLE.exists(), f"{LIVE_SAMPLE.name} tidak ditemukan")
+    @unittest.skipUnless(
+        LIVE_SAMPLE.exists(), "set RUN_LIVE_PBIX=<file .pbix live connection>"
+    )
     def test_live_source_is_rejected(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(verify_reference.main(["--pbix", str(LIVE_SAMPLE)]), 2)
 
-    @unittest.skipUnless(DEFAULT_PBIX.exists(), f"{DEFAULT_PBIX.name} tidak ditemukan")
+    @unittest.skipUnless(
+        PBIX_READY, "set RUN_PBIX=<file .pbix model lokal>"
+    )
     def test_multiple_instances_require_explicit_choice(self) -> None:
         instances = [
             DesktopInstance(port=60000, catalog="a", model_name="A", modified=""),
@@ -955,7 +1007,9 @@ class VerifyReferenceScriptTests(unittest.TestCase):
         ]
         with patch.object(verify_reference, "list_instances", return_value=instances):
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(verify_reference.main([]), 2)
+                self.assertEqual(
+                    verify_reference.main(["--pbix", str(RUN_PBIX)]), 2
+                )
 
 
 if __name__ == "__main__":

@@ -18,13 +18,11 @@ from .fabric_api import (
 from .model import DEFAULT_OUT as DEFAULT_MODEL_OUT
 from .model import run_model
 from .pbix import (
-    DEFAULT_PBIX,
     PbixSourceInfo,
     detect_pbix_source,
     display_path,
     report_workspace,
     resolve_pbix,
-    stale_copy_warning,
 )
 from .paths import outputs_dir
 from .report import OUT_FILE, find_validation_workbook, resolve_validation_model, run_report
@@ -95,9 +93,7 @@ def run_report_job(
     ``model_workbook`` tidak diberikan.
     """
     with report_workspace(extract_to) as workdir:
-        report_def, report_source, warning = resolve_pbix(pbix, workdir)
-        if warning:
-            log(f"WARNING: {warning}")
+        report_def, report_source = resolve_pbix(pbix, workdir)
         return _run_report_from_definition(
             report_def,
             report_source,
@@ -368,11 +364,11 @@ def run_metadata_job(
             log=log,
         )
 
-    pbix_path = (pbix or DEFAULT_PBIX).resolve()
     if pbix is None:
-        warning = stale_copy_warning(pbix_path)
-        if warning:
-            log(f"WARNING: {warning}")
+        raise ExtractionError(
+            "File .pbix wajib ditentukan (--report). Tidak ada file bawaan."
+        )
+    pbix_path = pbix.resolve()
 
     source = detect_pbix_source(pbix_path)
     log(f"Jenis sumber     : {source.label}")
