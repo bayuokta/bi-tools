@@ -20,7 +20,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_run (
   scan_id TEXT PRIMARY KEY,
   started_at TEXT, finished_at TEXT,
-  mode TEXT, workspace_count INTEGER, status TEXT
+  mode TEXT, workspace_count INTEGER, status TEXT,
+  include_personal INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS nodes (
   node_id TEXT PRIMARY KEY,
@@ -96,6 +97,15 @@ def initialize(conn: sqlite3.Connection) -> None:
     if "connection_details_json" not in columns:
         conn.execute(
             "ALTER TABLE datasource_detail ADD COLUMN connection_details_json TEXT"
+        )
+        conn.commit()
+    scan_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(scan_run)")
+    }
+    if "include_personal" not in scan_columns:
+        # Database lama: scan belum pernah menyertakan My Workspace.
+        conn.execute(
+            "ALTER TABLE scan_run ADD COLUMN include_personal INTEGER DEFAULT 0"
         )
         conn.commit()
 

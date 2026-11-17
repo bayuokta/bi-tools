@@ -24,7 +24,7 @@ from core.lineage_service import database_summary, workspace_status
 from core.lineage_store import DEFAULT_DB
 
 from ..formatting import ERROR_COLOR, OK_COLOR, credential_status, duration_text
-from ..settings import SETTINGS_CATALOG_MODE_KEY
+from ..settings import SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY, SETTINGS_CATALOG_MODE_KEY
 from ..settings_store import AppSettings
 from .metadata import JobSubmitter
 
@@ -46,6 +46,7 @@ class SettingsState:
     status_color: str
     catalog_mode: str = "auto"
     full_scan: bool = False
+    include_personal: bool = False
     sync_status: str = ""
     sync_status_color: str = ""
 
@@ -71,6 +72,7 @@ class SettingsViewModel(QObject):
         self._database = str(DEFAULT_DB)
         self._catalog_mode = "auto"
         self._full_scan = False
+        self._include_personal = False
         self._sync_status = ""
         self._sync_color = ""
         self._reload(emit=False)
@@ -129,6 +131,7 @@ class SettingsViewModel(QObject):
             status_color=color,
             catalog_mode=self._catalog_mode,
             full_scan=self._full_scan,
+            include_personal=self._include_personal,
             sync_status=self._sync_status,
             sync_status_color=self._sync_color,
         )
@@ -144,6 +147,11 @@ class SettingsViewModel(QObject):
         self._rls_roles = ",".join(roles)
         self._database = self._settings.lineage_db() or str(DEFAULT_DB)
         self._catalog_mode = self._saved_catalog_mode()
+        self._include_personal = bool(
+            self._settings.value(
+                SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY, False, type=bool
+            )
+        )
         self._refresh_sync_status()
         self._feedback = None
         if emit:
@@ -253,6 +261,14 @@ class SettingsViewModel(QObject):
         self._full_scan = value
         self.refresh()
 
+    def set_include_personal(self, value: bool) -> None:
+        enabled = bool(value)
+        if enabled == self._include_personal:
+            return
+        self._include_personal = enabled
+        self._settings.set_value(SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY, enabled)
+        self.refresh()
+
     def sync_catalog(self) -> bool:
         principal = self.principal()
         if not principal.is_complete:
@@ -315,10 +331,16 @@ class SettingsViewModel(QObject):
         database = self._database_path()
         mode = self._catalog_mode
         full = self._full_scan
+        include_personal = self._include_personal
 
         def job(log):
             return run_lineage_scan(
-                database, principal, mode=mode, full=full, log=log
+                database,
+                principal,
+                mode=mode,
+                full=full,
+                include_personal=include_personal,
+                log=log,
             )
 
         self._sync_status = "Scan lineage berjalan..."
@@ -344,15 +366,20 @@ class SettingsViewModel(QObject):
             edges = int(getattr(result, "edge_count", 0) or 0)
             mode = str(getattr(result, "mode", self._catalog_mode))
             duration = float(getattr(result, "duration_seconds", 0.0) or 0.0)
+            scope = (
+                "termasuk personal"
+                if bool(getattr(result, "include_personal", False))
+                else "tanpa personal"
+            )
             self._sync_status = (
-                f"Scan lineage selesai: {workspaces} workspace, {nodes} node, "
-                f"{edges} edge (mode {mode}, {duration_text(duration)}). "
-                f"{self._sync_status}"
+                f"Scan lineage selesai: {workspaces} workspace ({scope}), "
+                f"{nodes} node, {edges} edge "
+                f"(mode {mode}, {duration_text(duration)}). {self._sync_status}"
             )
             self._sync_color = OK_COLOR
             self.log.emit(
-                f"Lineage: {workspaces} workspace, {nodes} node, {edges} edge "
-                f"(mode {mode}, {duration_text(duration)})."
+                f"Lineage: {workspaces} workspace ({scope}), {nodes} node, "
+                f"{edges} edge (mode {mode}, {duration_text(duration)})."
             )
             unresolved = int(getattr(result, "unresolved_sources", 0) or 0)
             if unresolved:

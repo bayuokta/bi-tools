@@ -45,15 +45,19 @@ class LineageScanResult:
     started_at: str
     finished_at: str
     duration_seconds: float
+    include_personal: bool = False
 
 
 def _record_failed_scan(
     conn: Any,
     mode: str,
     started_at: str,
+    include_personal: bool = False,
 ) -> None:
     conn.execute(
-        "INSERT OR REPLACE INTO scan_run VALUES (?,?,?,?,?,?)",
+        "INSERT OR REPLACE INTO scan_run "
+        "(scan_id, started_at, finished_at, mode, workspace_count, status, "
+        "include_personal) VALUES (?,?,?,?,?,?,?)",
         (
             f"failed-{uuid.uuid4()}",
             started_at,
@@ -61,6 +65,7 @@ def _record_failed_scan(
             mode,
             0,
             "Failed",
+            1 if include_personal else 0,
         ),
     )
     conn.commit()
@@ -72,16 +77,27 @@ def _run_admin_scan(
     full: bool,
     progress: Log,
     started_at: str,
+    include_personal: bool = False,
 ) -> str:
-    last_scan = conn.execute(
-        """SELECT MAX(started_at) FROM scan_run
+    watermark_sql = """SELECT MAX(started_at) FROM scan_run
            WHERE status='Succeeded' AND mode IN ('full','incremental')"""
-    ).fetchone()[0]
+    if include_personal:
+        # Scan lama tanpa personal belum memuat seluruh My Workspace, jadi
+        # watermark-nya tidak boleh dipakai: aktifkan opsi ini = full scan dulu.
+        watermark_sql += " AND include_personal = 1"
+    last_scan = conn.execute(watermark_sql).fetchone()[0]
     modified_since = None if (full or not last_scan) else last_scan
     scan_mode = "incremental" if modified_since else "full"
 
-    workspace_ids = client.modified_workspaces(modified_since)
-    progress(f"Mode {scan_mode}: {len(workspace_ids)} workspace akan di-scan")
+    workspace_ids = client.modified_workspaces(
+        modified_since, include_personal=include_personal
+    )
+    scope = (
+        "termasuk My Workspace (personal)"
+        if include_personal
+        else "tanpa My Workspace (personal)"
+    )
+    progress(f"Mode {scan_mode}: {len(workspace_ids)} workspace akan di-scan ({scope})")
 
     first_scan_id: str | None = None
     for offset in range(0, len(workspace_ids), BATCH_SIZE):
@@ -96,7 +112,9 @@ def _run_admin_scan(
 
     resolved_id = first_scan_id or started_at
     conn.execute(
-        "INSERT OR REPLACE INTO scan_run VALUES (?,?,?,?,?,?)",
+        "INSERT OR REPLACE INTO scan_run "
+        "(scan_id, started_at, finished_at, mode, workspace_count, status, "
+        "include_personal) VALUES (?,?,?,?,?,?,?)",
         (
             resolved_id,
             started_at,
@@ -104,6 +122,7 @@ def _run_admin_scan(
             scan_mode,
             len(workspace_ids),
             "Succeeded",
+            1 if include_personal else 0,
         ),
     )
     conn.commit()
@@ -145,8 +164,10 @@ def _run_member_scan(
         )
 
     conn.execute(
-        "INSERT OR REPLACE INTO scan_run VALUES (?,?,?,?,?,?)",
-        (scan_id, started_at, now_iso(), "member", len(workspaces), "Succeeded"),
+        "INSERT OR REPLACE INTO scan_run "
+        "(scan_id, started_at, finished_at, mode, workspace_count, status, "
+        "include_personal) VALUES (?,?,?,?,?,?,?)",
+        (scan_id, started_at, now_iso(), "member", len(workspaces), "Succeeded", 0),
     )
     conn.commit()
     return scan_id
@@ -158,12 +179,15 @@ def run_lineage_scan(
     *,
     mode: str = "auto",
     full: bool = False,
+    include_personal: bool = False,
     log: Log = _silent,
     client_factory: Callable[..., Any] | None = None,
 ) -> LineageScanResult:
     """Jalankan scan lineage dan simpan hasilnya ke database SQLite.
 
     Mode ``auto`` mencoba admin lebih dulu, lalu member bila akses admin ditolak.
+    ``include_personal`` menyertakan My Workspace; hanya mungkin di mode admin
+    karena service principal tidak pernah menjadi anggota My Workspace pengguna.
     ``client_factory`` dipakai oleh uji untuk mengganti client REST.
     """
     if mode not in {"auto", "admin", "member"}:
@@ -190,8 +214,21 @@ def run_lineage_scan(
             log(f"Mode terpilih otomatis: {resolved_mode}")
 
         if resolved_mode == "admin":
-            scan_id = _run_admin_scan(conn, client, full, log, started_at)
+            scan_id = _run_admin_scan(
+                conn,
+                client,
+                full,
+                log,
+                started_at,
+                include_personal=include_personal,
+            )
         elif resolved_mode == "member":
+            if include_personal:
+                log(
+                    "Mode member tidak dapat memindai My Workspace (personal): "
+                    "service principal bukan anggota My Workspace pengguna. "
+                    "Gunakan mode admin untuk menyertakan personal."
+                )
             if full:
                 log(
                     "Mode member memindai seluruh workspace yang dapat diakses; "
@@ -204,14 +241,20 @@ def run_lineage_scan(
         node_count, edge_count = active_counts(conn)
         summary = stats(conn)
         scan_row = conn.execute(
-            "SELECT workspace_count FROM scan_run WHERE scan_id=?", (scan_id,)
+            "SELECT workspace_count, include_personal FROM scan_run WHERE scan_id=?",
+            (scan_id,),
         ).fetchone()
         workspace_count = int(scan_row[0] or 0) if scan_row else 0
+        personal_scanned = bool(scan_row[1]) if scan_row else False
         finished_at = now_iso()
         duration = time.perf_counter() - clock
         log("")
         log(f"Scan selesai    : {scan_id}")
         log(f"Mode            : {resolved_mode}")
+        log(
+            "Cakupan         : "
+            + ("termasuk My Workspace (personal)" if personal_scanned else "workspace saja")
+        )
         log(f"Node aktif      : {node_count}")
         log(f"Edge aktif      : {edge_count}")
         log(f"Scan terakhir   : {summary.get('last_scan') or '-'}")
@@ -232,11 +275,14 @@ def run_lineage_scan(
             started_at=started_at,
             finished_at=finished_at,
             duration_seconds=duration,
+            include_personal=personal_scanned,
         )
     except Exception as exc:
         if conn is not None:
             try:
-                _record_failed_scan(conn, resolved_mode, started_at)
+                _record_failed_scan(
+                    conn, resolved_mode, started_at, include_personal=include_personal
+                )
             except Exception:  # noqa: BLE001 - kegagalan awal tidak boleh menutupi error asli
                 pass
         if isinstance(exc, ExtractionError):

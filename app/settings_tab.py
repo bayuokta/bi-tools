@@ -77,6 +77,7 @@ class SettingsTab(QWidget):
         self.catalog_button.clicked.connect(self.vm.sync_catalog)
         self.scan_button.clicked.connect(self.vm.run_scan)
         self.full_scan.toggled.connect(self.vm.set_full_scan)
+        self.include_personal.toggled.connect(self.vm.set_include_personal)
         self.vm.start()
 
     # -- UI ----------------------------------------------------------------
@@ -195,6 +196,14 @@ class SettingsTab(QWidget):
             "Hanya berlaku untuk Scan lineage. Mode member selalu memindai "
             "seluruh workspace yang dapat diakses."
         )
+        self.include_personal = QCheckBox("Sertakan My Workspace (personal)")
+        self.include_personal.setChecked(state.include_personal)
+        self.include_personal.setToolTip(
+            "Scan lineage ikut memindai My Workspace semua user (hanya mode "
+            "admin; aktivasi pertama memaksa full scan). Full scan pertama jauh "
+            "lebih lama dan menambah isi database. Nama personal workspace "
+            "memuat email pemilik."
+        )
         self.catalog_button = QPushButton("Sinkronisasi katalog workspace")
         self.catalog_button.setToolTip(
             "Menarik daftar workspace (1-2 request) untuk picker Workspace."
@@ -220,12 +229,14 @@ class SettingsTab(QWidget):
             "Kedua aksi memakai database yang sudah disimpan di grup Path dan "
             "kredensial dari sub-tab Kredensial. Mode dipakai bersama: katalog "
             "untuk picker Workspace, lineage untuk tab Lineage. Full scan hanya "
-            "mengubah cara scan lineage memilih workspace."
+            "mengubah cara scan lineage memilih workspace. Sertakan My Workspace "
+            "berlaku untuk scan lineage mode admin saja."
         )
         sync_note.setWordWrap(True)
         sync_form = QFormLayout()
         sync_form.addRow("Mode:", self.catalog_mode)
         sync_form.addRow("", self.full_scan)
+        sync_form.addRow("", self.include_personal)
         sync_form.addRow("", sync_buttons_widget)
         sync_form.addRow("Status:", self.sync_status)
         sync_form.addRow("", sync_note)
@@ -287,6 +298,10 @@ class SettingsTab(QWidget):
             self.full_scan.blockSignals(True)
             self.full_scan.setChecked(state.full_scan)
             self.full_scan.blockSignals(False)
+        if self.include_personal.isChecked() != state.include_personal:
+            self.include_personal.blockSignals(True)
+            self.include_personal.setChecked(state.include_personal)
+            self.include_personal.blockSignals(False)
         self.sync_status.setText(state.sync_status)
         self.sync_status.setStyleSheet(
             f"color: {state.sync_status_color};"
@@ -306,6 +321,7 @@ class SettingsTab(QWidget):
             self.test_button,
             self.catalog_mode,
             self.full_scan,
+            self.include_personal,
             self.catalog_button,
             self.scan_button,
         ):

@@ -122,7 +122,9 @@ def seed_database(path: Path) -> None:
         initialize(conn)
         save(conn, "scan-1", ["ws-1"], nodes, edges, datasources)
         conn.execute(
-            "INSERT OR REPLACE INTO scan_run VALUES (?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO scan_run "
+            "(scan_id, started_at, finished_at, mode, workspace_count, status, "
+            "include_personal) VALUES (?,?,?,?,?,?,?)",
             (
                 "scan-1",
                 "2025-12-31T23:59:00.0000000Z",
@@ -130,6 +132,7 @@ def seed_database(path: Path) -> None:
                 "full",
                 1,
                 "Succeeded",
+                0,
             ),
         )
         conn.commit()
@@ -199,6 +202,31 @@ class StoreTest(unittest.TestCase):
         conn = connect(self.path)
         self.addCleanup(lambda: close_quietly(conn))
         return conn
+
+    def test_old_scan_run_table_gets_include_personal_column(self) -> None:
+        path = Path(self._tmp.name) / "old.db"
+        old = sqlite3.connect(path)
+        try:
+            old.executescript(
+                "CREATE TABLE scan_run (scan_id TEXT PRIMARY KEY, started_at TEXT, "
+                "finished_at TEXT, mode TEXT, workspace_count INTEGER, status TEXT)"
+            )
+            old.execute(
+                "INSERT INTO scan_run VALUES ('old','a','b','full',1,'Succeeded')"
+            )
+            old.commit()
+        finally:
+            old.close()
+
+        conn = connect(path)
+        self.addCleanup(lambda: close_quietly(conn))
+        initialize(conn)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(scan_run)")}
+        self.assertIn("include_personal", columns)
+        row = conn.execute(
+            "SELECT include_personal FROM scan_run WHERE scan_id='old'"
+        ).fetchone()
+        self.assertEqual(row[0], 0)
 
     def test_search_filters(self) -> None:
         conn = self.open()
@@ -565,6 +593,25 @@ class ApiTest(unittest.TestCase):
             client.probe_admin()
         self.assertEqual(caught.exception.status_code, 500)
 
+    def test_modified_workspaces_can_include_personal(self) -> None:
+        session = FakeSession(
+            [
+                FakeResponse(200, [{"id": "ws-1"}]),
+                FakeResponse(200, [{"id": "personal-1"}]),
+            ]
+        )
+        client, _ = client_with(session)
+        self.assertEqual(client.modified_workspaces(), ["ws-1"])
+        self.assertEqual(
+            session.calls[0][2]["params"], {"excludePersonalWorkspaces": "True"}
+        )
+        self.assertEqual(
+            client.modified_workspaces(include_personal=True), ["personal-1"]
+        )
+        self.assertEqual(
+            session.calls[1][2]["params"], {"excludePersonalWorkspaces": "False"}
+        )
+
     def test_scan_polls_until_succeeded(self) -> None:
         # Scanner API menjawab POST dengan 202 Accepted + body job; 202 harus
         # diterima, bukan dianggap kegagalan seperti sebelumnya.
@@ -702,6 +749,7 @@ class FakeLineageClient:
         self.fail = fail
         self.scan_prefix = scan_prefix
         self.modified_since: list[str | None] = []
+        self.personal_flags: list[bool] = []
         self.scan_calls: list[list[str]] = []
         self.member_calls: list[object] = []
         self.closed = False
@@ -710,10 +758,16 @@ class FakeLineageClient:
     def probe_admin(self) -> bool:
         return self.admin
 
-    def modified_workspaces(self, modified_since: str | None = None) -> list[str]:
+    def modified_workspaces(
+        self,
+        modified_since: str | None = None,
+        *,
+        include_personal: bool = False,
+    ) -> list[str]:
         if self.fail == "modified":
             raise RuntimeError("boom")
         self.modified_since.append(modified_since)
+        self.personal_flags.append(include_personal)
         return ["ws-1"]
 
     def scan(self, workspace_ids: list[str]) -> tuple[str, dict]:
@@ -755,8 +809,8 @@ class ScanTest(unittest.TestCase):
             return [
                 dict(row)
                 for row in conn.execute(
-                    "SELECT scan_id, started_at, mode, workspace_count, status "
-                    "FROM scan_run ORDER BY started_at"
+                    "SELECT scan_id, started_at, mode, workspace_count, status, "
+                    "include_personal FROM scan_run ORDER BY started_at"
                 )
             ]
         finally:
@@ -796,6 +850,44 @@ class ScanTest(unittest.TestCase):
         self.assertEqual(forced.modified_since, [None])
         self.assertEqual(self.scan_rows()[-1]["mode"], "full")
         self.assertEqual(len(self.scan_rows()), 3)
+
+    def test_include_personal_forces_full_then_incremental(self) -> None:
+        first = FakeLineageClient(scan_prefix="first")
+        result = self.run_scan(first, mode="admin", include_personal=True)
+        self.assertTrue(result.include_personal)
+        self.assertEqual(first.personal_flags, [True])
+        self.assertEqual(first.modified_since, [None])
+        self.assertEqual(self.scan_rows()[-1]["include_personal"], 1)
+
+        second = FakeLineageClient(scan_prefix="second")
+        self.run_scan(second, mode="admin", include_personal=True)
+        self.assertEqual(second.personal_flags, [True])
+        self.assertEqual(second.modified_since, [result.started_at])
+        self.assertEqual(self.scan_rows()[-1]["mode"], "incremental")
+
+    def test_scan_without_personal_reuses_latest_watermark(self) -> None:
+        with_personal = FakeLineageClient(scan_prefix="personal")
+        first_result = self.run_scan(with_personal, mode="admin", include_personal=True)
+
+        plain = FakeLineageClient(scan_prefix="plain")
+        self.run_scan(plain, mode="admin")
+        self.assertEqual(plain.personal_flags, [False])
+        self.assertEqual(plain.modified_since, [first_result.started_at])
+        self.assertEqual(self.scan_rows()[-1]["include_personal"], 0)
+
+    def test_member_scan_explains_personal_is_not_possible(self) -> None:
+        lines: list[str] = []
+        client = FakeLineageClient(admin=False)
+        result = self.run_scan(
+            client, mode="auto", include_personal=True, log=lines.append
+        )
+        self.assertEqual(result.mode, "member")
+        self.assertFalse(result.include_personal)
+        self.assertEqual(client.member_calls, ["list", ("ws-1", "Sales Workspace")])
+        self.assertTrue(
+            any("Mode member tidak dapat memindai My Workspace" in line for line in lines)
+        )
+        self.assertEqual(self.scan_rows()[-1]["include_personal"], 0)
 
     def test_scan_result_matches_recorded_start(self) -> None:
         """Watermark incremental memakai waktu mulai scan, bukan waktu insert."""
@@ -952,10 +1044,12 @@ class CliTest(unittest.TestCase):
             started_at="2026-01-01T00:00:00.0000000Z",
             finished_at="2026-01-01T00:01:00.0000000Z",
             duration_seconds=1.25,
+            include_personal=True,
         )
 
-        def fake_scan(database, settings, *, mode, full, log):
+        def fake_scan(database, settings, *, mode, full, include_personal, log):
             log("progres scan")
+            self.assertTrue(include_personal)
             return result
 
         with patch.dict(
@@ -964,12 +1058,19 @@ class CliTest(unittest.TestCase):
             clear=False,
         ), patch("cli.lineage.run_lineage_scan", side_effect=fake_scan):
             code, out, err = self.run_cli(
-                ["--db", str(self.db), "--scan", "--json"]
+                [
+                    "--db",
+                    str(self.db),
+                    "--scan",
+                    "--include-personal",
+                    "--json",
+                ]
             )
         self.assertEqual(code, 0)
         data = json.loads(out)
         self.assertEqual(data["scan_id"], "scan-x")
         self.assertEqual(data["workspace_count"], 1)
+        self.assertTrue(data["include_personal"])
         self.assertAlmostEqual(data["duration_seconds"], 1.25)
         self.assertIn("progres scan", err)
 

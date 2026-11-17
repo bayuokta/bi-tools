@@ -598,6 +598,12 @@ class SettingsTabTests(MetadataTabTestCase):
         self.assertEqual(self.raw.value(SETTINGS_CATALOG_MODE_KEY), "member")
         tab.full_scan.setChecked(True)
         self.assertTrue(tab.vm.build_state().full_scan)
+        self.assertIn("personal", tab.include_personal.text().lower())
+        tab.include_personal.setChecked(True)
+        self.assertTrue(tab.vm.build_state().include_personal)
+        self.assertTrue(
+            self.raw.value("catalog/include_personal", False, type=bool)
+        )
 
     def test_two_sub_tabs_hold_their_sections(self) -> None:
         from app.settings_tab import SettingsTab
@@ -617,6 +623,7 @@ class SettingsTabTests(MetadataTabTestCase):
             "db_path",
             "catalog_mode",
             "full_scan",
+            "include_personal",
             "catalog_button",
             "scan_button",
             "sync_status",

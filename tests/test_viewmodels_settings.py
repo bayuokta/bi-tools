@@ -28,7 +28,10 @@ if QT_AVAILABLE:
         save_workspaces,
     )
 
-    from app.settings import SETTINGS_CATALOG_MODE_KEY
+    from app.settings import (
+        SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY,
+        SETTINGS_CATALOG_MODE_KEY,
+    )
     from app.settings_store import AppSettings
     from app.viewmodels.settings import SettingsViewModel
 
@@ -243,6 +246,46 @@ class SettingsViewModelTests(unittest.TestCase):
         self.assertEqual(vm.build_state().catalog_mode, "member")
         with self.assertRaises(ExtractionError):
             vm.set_catalog_mode("aneh")
+
+    def test_include_personal_is_persisted_and_passed_to_scan(self) -> None:
+        self.seed()
+        vm = self.make()
+        self.assertFalse(vm.build_state().include_personal)
+
+        vm.set_include_personal(True)
+        self.assertTrue(vm.build_state().include_personal)
+        self.assertTrue(
+            self.settings.value(
+                SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY, False, type=bool
+            )
+        )
+        # Sesi/view model baru membaca preferensi yang sama.
+        self.assertTrue(self.make().build_state().include_personal)
+
+        result = SimpleNamespace(
+            workspace_count=9000,
+            node_count=100,
+            edge_count=200,
+            mode="admin",
+            duration_seconds=2.0,
+            unresolved_sources=0,
+            include_personal=True,
+        )
+        captured: dict = {}
+        with patch(
+            "app.viewmodels.settings.run_lineage_scan",
+            side_effect=lambda database, principal, **kwargs: captured.update(
+                database=database, **kwargs
+            )
+            or result,
+        ):
+            self.assertTrue(vm.run_scan())
+            _title, job, on_success = self.runner.calls[0]
+            self.assertIs(job(lambda _message: None), result)
+            on_success(result)
+
+        self.assertTrue(captured["include_personal"])
+        self.assertIn("termasuk personal", vm.build_state().sync_status)
 
     def test_catalog_status_reads_saved_database(self) -> None:
         database = self.folder / "katalog.db"

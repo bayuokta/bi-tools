@@ -140,7 +140,7 @@ python -m app
   - **Kredensial**: isi **Tenant ID**, **Client ID**, dan **Client Secret** service principal, lalu **Simpan kredensial**; tombol **Tes koneksi** mengambil token Fabric dan Power BI lewat worker. Di sini juga disimpan **RLS default** (username/roles). Kredensial dipakai Fabric API, Power BI REST, embed/Scanner, XMLA, dan lineage sekaligus.
   - **Katalog & Database**: grup **Path** menyimpan lokasi `data\bi_tools.db`. Grup **Sinkronisasi data** memakai database yang sudah disimpan dan kredensial dari sub-tab Kredensial, dengan **Mode** bersama (otomatis/admin/member):
     - **Sinkronisasi katalog workspace** menarik daftar workspace (1-2 request) untuk picker di sub-tab **Power BI Service** dan **Generate TSD**. Mode otomatis memakai Admin API bila service principal berperan Fabric administrator, jika tidak jatuh ke endpoint member.
-    - **Scan lineage** menjalankan Scanner API untuk node, edge, dan datasource yang dipakai tab **Lineage**. Mode `Otomatis` mencoba admin lalu fallback member; centang **Full scan lineage** mengabaikan timestamp incremental (tidak mengubah hasil mode member).
+    - **Scan lineage** menjalankan Scanner API untuk node, edge, dan datasource yang dipakai tab **Lineage**. Mode `Otomatis` mencoba admin lalu fallback member; centang **Full scan lineage** mengabaikan timestamp incremental (tidak mengubah hasil mode member). Centang **Sertakan My Workspace (personal)** agar report dan dataset di My Workspace ikut terlihat di tab Lineage; opsi ini hanya berlaku mode admin, dan aktivasi pertama memaksa full scan.
     - Status menunjukkan jumlah workspace siap dipilih, sync katalog terakhir, dan scan lineage terakhir. Kedua aksi berjalan di worker; hasil scan langsung terlihat saat tab Lineage dibuka.
   - Database default `<folder aplikasi>\data\bi_tools.db` (fallback `%LOCALAPPDATA%\BI Tools\data` bila folder aplikasi read-only); path dapat diganti dan disimpan di grup Path. File lama `lineage.db` di root tidak dibaca otomatis — pindahkan manual ke `data\bi_tools.db` bila Anda memperbarui dari versi sebelumnya.
   - Kunci lama `lineage/*` dimigrasi otomatis sekali ke `auth/*` (dan `paths/lineage_db`); nilai baru tidak ditimpa.
@@ -265,6 +265,7 @@ python extract_lineage.py --scan                    # mode otomatis: admin lalu 
 python extract_lineage.py --scan --mode admin       # Scanner API admin
 python extract_lineage.py --scan --mode member      # hanya workspace yang dapat diakses
 python extract_lineage.py --scan --full             # abaikan timestamp incremental
+python extract_lineage.py --scan --include-personal # sertakan My Workspace (personal)
 python extract_lineage.py --scan --env-file .env    # kredensial dari file lain
 python extract_lineage.py --sync-workspaces         # daftar workspace ke SQLite (1-2 request)
 python extract_lineage.py --sync-workspaces --mode member
@@ -279,6 +280,7 @@ python extract_lineage.py --impact <node-id> --export-csv Lineage.csv
 - Scan admin memakai `admin/workspaces/modified` + Scanner API `getInfo`/`scanStatus`/`scanResult` dengan batch 100 workspace; mode member memakai endpoint `groups` dengan batch 20 workspace.
 - Respons `429` diulang maksimal 8 kali mengikuti header `Retry-After`.
 - Scan incremental admin hanya memindai workspace yang berubah sejak scan sukses terakhir. Mode member selalu memindai seluruh workspace yang dapat diakses.
+- Default scan **tidak** menyertakan My Workspace (personal). Dengan `--include-personal` (atau checkbox di Pengaturan), daftar workspace memakai `excludePersonalWorkspaces=false`: report yang berada di My Workspace pengguna ikut muncul sebagai downstream dataset bersama. Opsi ini hanya berjalan di mode admin (service principal tidak menjadi anggota My Workspace siapa pun) dan aktivasi pertama memaksa full scan karena watermark lama tidak memuat personal. Full scan pertama jauh lebih lama (tenant contoh: 866 menjadi 9.337 workspace) dan menambah isi database; nama personal workspace memuat email pemilik.
 - `--search`, `--impact`, `--upstream`, `--stats`, dan `--check` memakai database read-only. Tambahkan `--json` untuk hasil mesin, atau `--export-csv` pada `--impact`/`--upstream`.
 - Item yang hilang dari scan berikutnya ditandai nonaktif (`is_active=0`) dan tidak muncul lagi di pencarian; riwayat scan tetap tersimpan di tabel `scan_run`.
 - `--check` menampilkan edge per tipe, contoh ID node yang tidak ada di tabel `nodes`, jumlah sumber feed tanpa metadata, dan 10 scan terakhir.

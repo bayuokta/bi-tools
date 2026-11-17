@@ -20,6 +20,7 @@ SETTINGS_SERVICE_URL_KEY = "extraction/service_url"
 SETTINGS_SERVICE_WORKSPACE_KEY = "extraction/service_workspace_id"
 SETTINGS_SERVICE_REPORT_KEY = "extraction/service_report_id"
 SETTINGS_CATALOG_MODE_KEY = "catalog/mode"
+SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY = "catalog/include_personal"
 SETTINGS_SUB_TAB_KEY = "settings/active_tab"
 
 SETTINGS_TSD_REPORT_KEY = "tsd/report_workbook"

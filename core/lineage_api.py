@@ -156,8 +156,19 @@ class PowerBILineageClient:
             raise
         return True
 
-    def modified_workspaces(self, modified_since: str | None = None) -> list[str]:
-        params = {"excludePersonalWorkspaces": "True"}
+    def modified_workspaces(
+        self,
+        modified_since: str | None = None,
+        *,
+        include_personal: bool = False,
+    ) -> list[str]:
+        """Daftar workspace yang perlu di-scan.
+
+        ``include_personal`` mengirim ``excludePersonalWorkspaces=False`` sehingga
+        My Workspace ikut di-scan; Scanner API menerima ID personal workspace
+        (diverifikasi live: ``getInfo`` mengembalikan item di dalamnya).
+        """
+        params = {"excludePersonalWorkspaces": "False" if include_personal else "True"}
         if modified_since:
             params["modifiedSince"] = modified_since
         data = self._call("GET", "admin/workspaces/modified", params=params)

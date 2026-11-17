@@ -85,6 +85,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Paksa full scan pada mode admin.",
     )
+    parser.add_argument(
+        "--include-personal",
+        action="store_true",
+        help=(
+            "Sertakan My Workspace (personal) pada scan lineage. Hanya berlaku "
+            "mode admin; aktivasi pertama memaksa full scan."
+        ),
+    )
     parser.add_argument("--workspace", help="Filter nama workspace untuk --search.")
     parser.add_argument("--type", help="Filter tipe node untuk --search.")
     parser.add_argument(
@@ -130,6 +138,7 @@ def _scan(args: argparse.Namespace) -> int:
             settings,
             mode=args.mode,
             full=args.full,
+            include_personal=args.include_personal,
             log=(lambda line: print(line, file=sys.stderr)) if args.json else print,
         )
     except ExtractionError as exc:
@@ -146,6 +155,7 @@ def _scan(args: argparse.Namespace) -> int:
                     "node_count": result.node_count,
                     "edge_count": result.edge_count,
                     "unresolved_sources": result.unresolved_sources,
+                    "include_personal": result.include_personal,
                     "started_at": result.started_at,
                     "finished_at": result.finished_at,
                     "duration_seconds": round(result.duration_seconds, 2),
