@@ -165,6 +165,30 @@ class PackagingAssetsTests(unittest.TestCase):
         self.assertIn("gh release create", text)
         self.assertIn("SHA256SUMS.txt", text)
 
+    def test_workflows_use_node24_actions(self) -> None:
+        # Action lama (Node 20) memunculkan anotasi deprecation di setiap run.
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        release = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        for text in (ci, release):
+            self.assertIn("actions/checkout@v7", text)
+            self.assertIn("actions/setup-python@v7", text)
+            self.assertNotIn("actions/checkout@v4", text)
+            self.assertNotIn("actions/setup-python@v5", text)
+        self.assertIn("actions/upload-artifact@v6", release)
+        self.assertNotIn("actions/upload-artifact@v4", release)
+
+    def test_release_notes_are_built_from_changelog(self) -> None:
+        text = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Susun catatan rilis", text)
+        self.assertIn("dist\\RELEASE_NOTES.md", text)
+        self.assertIn("CHANGELOG.md", text)
+        self.assertIn("--notes $notes", text)
+        self.assertIn("--generate-notes", text)
+
     def test_ci_workflow_runs_tests_and_lint(self) -> None:
         text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("unittest discover", text)

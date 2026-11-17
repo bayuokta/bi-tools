@@ -7,7 +7,7 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-17 - Rilis 0.3.0
 
 - Lineage: opsi **Sertakan My Workspace (personal)** (checkbox di Pengaturan,
   CLI `--include-personal`). Scan memakai `excludePersonalWorkspaces=false`
@@ -16,6 +16,16 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   Aktivasi pertama memaksa full scan (watermark lama tidak memuat personal),
   opsi hanya berjalan di mode admin, dan cakupan disimpan di
   `scan_run.include_personal` (database lama dimigrasi otomatis).
+- Catatan rilis GitHub kini memuat ringkasan dari CHANGELOG, daftar aset,
+  catatan sebelum upgrade, dan checksum; daftar commit otomatis tetap
+  ditambahkan di bawahnya.
+- Workflow memakai action yang sudah berjalan di Node.js 24
+  (`checkout@v7`, `setup-python@v7`, `upload-artifact@v6`), sehingga anotasi
+  deprecation Node.js 20 hilang.
+- Catatan upgrade: default scan **tidak** berubah (tetap tanpa personal).
+  Yang mengaktifkan opsi ini akan menjalani satu full scan lebih lama
+  (tenant contoh: 866 menjadi 9.337 workspace) dan nama personal workspace
+  memuat email pemilik di database lokal.
 
 ## 2026-11-17 - Perbaikan 0.2.2
 

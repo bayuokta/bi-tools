@@ -17,11 +17,11 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
@@ -121,8 +121,46 @@ jobs:
           Set-Content -Path "dist\SHA256SUMS.txt" -Value $lines -Encoding utf8NoBOM
           Get-Content "dist\SHA256SUMS.txt"
 
+      - name: Susun catatan rilis
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^## [^\r\n]*\b" + [regex]::Escape($version) +
+            "\b[^\r\n]*\r?\n(.*?)(?=^## |\z)"
+          $match = [regex]::Match($changelog, $pattern)
+          if (-not $match.Success) {
+            throw "CHANGELOG.md tidak memuat bagian untuk versi $version. " +
+              "Ganti judul '## Belum dirilis' menjadi '## <tanggal> - Rilis $version'."
+          }
+          $summary = $match.Groups[1].Value.Trim()
+          $checksums = (Get-Content "dist\SHA256SUMS.txt" -Raw).Trim()
+
+          $lines = @(
+            "## BI Tools $version",
+            "",
+            $summary,
+            "",
+            "### Aset",
+            "- BITools-Setup-$version.exe - installer per pengguna (tanpa UAC)",
+            "- BITools-$version-portable.zip - portable onedir (ekstrak lalu jalankan BI Tools.exe)",
+            "- SHA256SUMS.txt - checksum SHA-256 kedua artefak",
+            "",
+            "### Sebelum upgrade",
+            "- Paket belum ditandatangani digital, jadi Windows SmartScreen bisa menampilkan peringatan.",
+            "- ZIP portable membawa Mark of the Web; aplikasi membuka blokir DLL .NET yang dibutuhkan otomatis sejak 0.2.2.",
+            "- Chromium untuk screenshot TSD tidak dibundel: installer menawarkan unduhan, atau jalankan bi-tools-cli install-browser.",
+            "",
+            "### Checksum",
+            "~~~",
+            $checksums,
+            "~~~"
+          )
+          Set-Content -Path "dist\RELEASE_NOTES.md" -Value ($lines -join "`n") -Encoding utf8NoBOM
+          Get-Content "dist\RELEASE_NOTES.md"
+
       - name: Simpan artefak
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: BI-Tools-${{ steps.version.outputs.version }}
           if-no-files-found: error
@@ -147,6 +185,7 @@ jobs:
             "dist\BITools-$version-portable.zip",
             "dist\SHA256SUMS.txt"
           )
+          $notes = Get-Content "dist\RELEASE_NOTES.md" -Raw
 
           $existing = $false
           try {
@@ -162,6 +201,7 @@ jobs:
           } else {
             gh release create $tag @assets `
               --title "BI Tools $version" `
+              --notes $notes `
               --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw "Gagal menerbitkan rilis $tag" }
