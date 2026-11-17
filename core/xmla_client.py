@@ -38,6 +38,74 @@ class XmlaError(RuntimeError):
 
 _ADOMD: tuple[Any, Any, Any] | None = None
 
+# Mark of the Web: berkas hasil unduhan ZIP ditandai Windows dengan stream
+# alternatif ini, dan .NET Framework menolak memuat assembly bertanda tersebut
+# (HRESULT 0x80131515). Gejalanya menyesatkan: pythonnet hanya melaporkan
+# "Failed to resolve Python.Runtime.Loader.Initialize".
+ZONE_IDENTIFIER = ":Zone.Identifier"
+
+
+def zone_marked(path: Path) -> bool:
+    """True bila berkas Windows masih bertanda "berasal dari internet"."""
+    if os.name != "nt":
+        return False
+    try:
+        os.stat(f"{path}{ZONE_IDENTIFIER}")
+    except OSError:
+        return False
+    return True
+
+
+def unblock_file(path: Path) -> bool:
+    """Hapus Mark of the Web dari satu berkas; True bila bersih setelahnya."""
+    if os.name != "nt" or not zone_marked(path):
+        return True
+    try:
+        os.remove(f"{path}{ZONE_IDENTIFIER}")
+    except OSError:
+        return False
+    return not zone_marked(path)
+
+
+def pythonnet_assembly() -> Path | None:
+    """Lokasi ``Python.Runtime.dll`` milik pythonnet (juga saat dipaket)."""
+    try:
+        import pythonnet
+    except ImportError:
+        return None
+    module_file = getattr(pythonnet, "__file__", None)
+    if module_file:
+        return Path(module_file).parent / "runtime" / "Python.Runtime.dll"
+    return ROOT / "_internal" / "pythonnet" / "runtime" / "Python.Runtime.dll"
+
+
+def unblock_dotnet_assemblies(*paths: Path | None) -> list[Path]:
+    """Buka blokir assembly .NET; kembalikan yang masih tidak bisa dimuat."""
+    blocked: list[Path] = []
+    for path in paths:
+        if path is None or not path.exists():
+            continue
+        unblock_file(path)
+        if zone_marked(path):
+            blocked.append(path)
+    return blocked
+
+
+def _blocked_assembly_message(paths: list[Path], detail: str = "") -> str:
+    listing = "\n".join(f"  - {path}" for path in paths)
+    message = (
+        "Berkas .NET aplikasi masih ditandai berasal dari internet "
+        "(Mark of the Web) dan Windows menolak memuatnya:\n"
+        f"{listing}\n"
+        "Jalankan PowerShell berikut satu kali, lalu ulangi:\n"
+        f'  Get-ChildItem -Recurse -Path "{ROOT}" | Unblock-File\n'
+        "Cara lain: klik kanan ZIP -> Properties -> Unblock sebelum ekstrak, "
+        "atau pakai installer (BI Tools Setup) yang tidak menandai berkas."
+    )
+    if detail:
+        message += f"\nDetail: {detail}"
+    return message
+
 
 def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
     """Muat assembly ADOMD. Return (AdomdConnection, AdomdCommand, DBNull)."""
@@ -45,15 +113,21 @@ def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
     if _ADOMD is not None:
         return _ADOMD
 
-    import clr  # pythonnet
-
     path = Path(dll_path) if dll_path else DEFAULT_DLL
     if not path.exists():
         raise XmlaError(f"DLL ADOMD tidak ditemukan: {path}")
 
-    clr.AddReference(str(path))
-    from Microsoft.AnalysisServices.AdomdClient import AdomdCommand, AdomdConnection
-    from System import DBNull
+    blocked = unblock_dotnet_assemblies(pythonnet_assembly(), path)
+
+    try:
+        import clr  # pythonnet
+        clr.AddReference(str(path))
+        from Microsoft.AnalysisServices.AdomdClient import AdomdCommand, AdomdConnection
+        from System import DBNull
+    except Exception as exc:  # noqa: BLE001 - pesan .NET tidak seragam
+        if blocked:
+            raise XmlaError(_blocked_assembly_message(blocked, str(exc))) from exc
+        raise
 
     _ADOMD = (AdomdConnection, AdomdCommand, DBNull)
     return _ADOMD

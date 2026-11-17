@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import os
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from core.auth import POWERBI_SCOPE
 from core.xmla_client import (
+    XmlaError,
     attach_token,
+    load_adomd,
     normalize_powerbi_endpoint,
     open_client,
+    pythonnet_assembly,
+    unblock_dotnet_assemblies,
+    unblock_file,
+    zone_marked,
 )
 
 ENDPOINT = "powerbi://api.powerbi.com/v1.0/myorg/My WS"
@@ -161,6 +171,65 @@ class CatalogQuotingTests(unittest.TestCase):
         name = 'Model "A"'
         _, calls = run_open(FakeTokens(), endpoint=ENDPOINT, catalog=name, names=[name])
         self.assertIn('Initial Catalog="Model ""A"""', calls[1][0])
+
+
+@unittest.skipUnless(os.name == "nt", "Mark of the Web hanya berlaku di Windows")
+class ZoneIdentifierTests(unittest.TestCase):
+    """ZIP unduhan menandai DLL; .NET menolak memuatnya sampai dibersihkan."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dll = Path(self._tmp.name) / "Python.Runtime.dll"
+        self.dll.write_bytes(b"MZ-bukan-assembly-asli")
+
+    def mark(self) -> None:
+        with open(f"{self.dll}:Zone.Identifier", "w", encoding="ascii") as handle:
+            handle.write("[ZoneTransfer]\r\nZoneId=3\r\n")
+
+    def test_marked_file_is_unblocked(self) -> None:
+        self.mark()
+        self.assertTrue(zone_marked(self.dll))
+        self.assertTrue(unblock_file(self.dll))
+        self.assertFalse(zone_marked(self.dll))
+
+    def test_clean_file_needs_no_action(self) -> None:
+        self.assertFalse(zone_marked(self.dll))
+        self.assertTrue(unblock_file(self.dll))
+
+    def test_assemblies_that_stay_blocked_are_reported(self) -> None:
+        self.mark()
+        with patch("core.xmla_client.unblock_file", return_value=False):
+            blocked = unblock_dotnet_assemblies(self.dll)
+        self.assertEqual(blocked, [self.dll])
+
+    def test_load_adomd_explains_mark_of_the_web(self) -> None:
+        self.mark()
+        with patch("core.xmla_client.pythonnet_assembly", return_value=self.dll), patch(
+            "core.xmla_client.unblock_file", return_value=False
+        ), patch.dict(sys.modules, {"clr": None}):
+            with self.assertRaises(XmlaError) as ctx:
+                load_adomd(self.dll)
+
+        message = str(ctx.exception)
+        self.assertIn("Mark of the Web", message)
+        self.assertIn("Unblock-File", message)
+        self.assertIn("installer", message)
+
+    def test_other_load_failures_are_not_swallowed(self) -> None:
+        # DLL bersih + pythonnet gagal karena sebab lain: error asli diteruskan.
+        with patch("core.xmla_client.pythonnet_assembly", return_value=self.dll), patch.dict(
+            sys.modules, {"clr": None}
+        ):
+            with self.assertRaises(ImportError):
+                load_adomd(self.dll)
+
+    def test_pythonnet_assembly_points_to_runtime(self) -> None:
+        path = pythonnet_assembly()
+        if path is None:  # pythonnet tidak terpasang
+            self.skipTest("pythonnet tidak tersedia")
+        self.assertEqual(path.name, "Python.Runtime.dll")
+        self.assertEqual(path.parent.name, "runtime")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,17 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-17 - Perbaikan 0.2.2
+
+- Paket portable: ZIP yang diunduh membawa Mark of the Web pada hampir semua
+  berkas, sehingga .NET Framework menolak memuat `Python.Runtime.dll` (pesan
+  menyesatkan `Failed to resolve Python.Runtime.Loader.Initialize`) dan ADOMD.
+  `core/xmla_client.py` kini membuka blokir kedua assembly otomatis sebelum
+  `import clr`; bila penanda tidak bisa dihapus (folder read-only), `XmlaError`
+  menyebut `Get-ChildItem -Recurse | Unblock-File` dan saran memakai installer.
+- Uji baru: deteksi `Zone.Identifier`, buka blokir, assembly yang tetap
+  terblokir, pesan bantuan, dan kegagalan non-MOTW yang tidak boleh ditelan.
+
 ## 2026-11-17 - Perbaikan 0.2.1
 
 - Perbaikan scan lineage: `POST admin/workspaces/getInfo` menjawab `202 Accepted`

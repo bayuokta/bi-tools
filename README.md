@@ -419,6 +419,11 @@ Catatan paket:
 - Installer memasang per pengguna (`%LOCALAPPDATA%\Programs\BI Tools`) sehingga tidak perlu UAC. Opsi "all users" tetap tersedia; dalam kasus itu `outputs\` dan `data\` otomatis pindah ke `%LOCALAPPDATA%\BI Tools`.
 - Uninstaller tidak menghapus `outputs\` dan `data\`.
 - Screenshot TSD butuh Chromium (±150 MB) dan tidak ikut dibundel. Installer menyediakan task opsional untuk mengunduhnya; kapan saja bisa diulang dengan `bi-tools-cli install-browser`.
+- ZIP portable yang diunduh ditandai Windows sebagai "berasal dari internet" (Mark of the Web). Aplikasi membuka blokir otomatis DLL .NET yang dibutuhkan (`Python.Runtime.dll` dan ADOMD) saat XMLA pertama dipakai. Bila folder aplikasi read-only sehingga penanda tidak bisa dihapus, jalankan sekali:
+  ```powershell
+  Get-ChildItem -Recurse -Path "<folder aplikasi>" | Unblock-File
+  ```
+  Alternatif: klik kanan ZIP → **Properties** → **Unblock** sebelum mengekstrak, atau pakai installer yang berkasnya dibuat ulang tanpa penanda.
 - Paket belum ditandatangani digital, jadi Windows SmartScreen bisa menampilkan peringatan saat pertama dijalankan.
 
 ## Uji
