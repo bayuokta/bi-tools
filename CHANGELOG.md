@@ -36,6 +36,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   memakai satu timestamp (waktu mulai scan), sehingga watermark scan incremental
   tidak meleset beberapa detik pada mesin lambat; `close()` capture juga menutup
   socket server.
+- Perbaikan scan lineage: `POST admin/workspaces/getInfo` menjawab `202 Accepted`
+  dengan body job, jadi `core/lineage_api.py` memakai `allow=(200, 202)` (sebelumnya
+  `202` dilaporkan sebagai "gagal (HTTP 202)").
+- `core/api/transport.py`: `Retry-After` di atas 5 menit tidak ditunggu; request
+  gagal dengan pesan throttling berisi perkiraan menit (dulu GUI bisa diam
+  puluhan menit), dan status `2xx` di luar `allow` menyebut petunjuk penyebabnya.
+- Uji regresi: POST `202` pada scan (termasuk `202` berulang saat masih berjalan),
+  throttle panjang, dan uji katalog tidak lagi membaca `.env` sungguhan.
 
 ## 2026-11-12 - Fondasi ekstraksi, GUI, dan lineage
 

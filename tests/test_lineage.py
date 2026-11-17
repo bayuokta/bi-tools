@@ -566,10 +566,12 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
 
     def test_scan_polls_until_succeeded(self) -> None:
+        # Scanner API menjawab POST dengan 202 Accepted + body job; 202 harus
+        # diterima, bukan dianggap kegagalan seperti sebelumnya.
         payload = {"workspaces": [{"id": "ws-1"}]}
         session = FakeSession(
             [
-                FakeResponse(200, {"id": "scan-1"}),
+                FakeResponse(202, {"id": "scan-1", "status": "NotStarted"}),
                 FakeResponse(200, {"status": "Running"}),
                 FakeResponse(200, {"status": "Succeeded"}),
                 FakeResponse(200, payload),
@@ -591,6 +593,30 @@ class ApiTest(unittest.TestCase):
         self.assertTrue(url.endswith("admin/workspaces/getInfo"))
         self.assertEqual(kwargs["json"], {"workspaces": ["ws-1"]})
         self.assertEqual(kwargs["params"]["lineage"], "True")
+        # ID dari body 202 dipakai untuk memantau status.
+        self.assertTrue(session.calls[1][1].endswith("scanStatus/scan-1"))
+
+    def test_scan_accepts_repeated_202_while_running(self) -> None:
+        payload = {"workspaces": [{"id": "ws-1"}]}
+        session = FakeSession(
+            [
+                FakeResponse(202, {"id": "scan-3", "status": "NotStarted"}),
+                FakeResponse(202, {"status": "Running"}, headers={"Retry-After": "2"}),
+                FakeResponse(200, {"status": "Succeeded"}),
+                FakeResponse(200, payload),
+            ]
+        )
+        sleeps: list[float] = []
+        client = PowerBILineageClient(
+            SETTINGS,
+            session=session,
+            msal_app=FakeMsal(),
+            sleep=sleeps.append,
+        )
+        scan_id, result = client.scan(["ws-1"])
+        self.assertEqual(scan_id, "scan-3")
+        self.assertEqual(result, payload)
+        self.assertEqual(sleeps, [2])
 
     def test_scan_failed_status_raises(self) -> None:
         session = FakeSession(

@@ -188,6 +188,10 @@ class PowerBILineageClient:
             "admin/workspaces/getInfo",
             params=params,
             json={"workspaces": workspace_ids},
+            # Scanner API menerima permintaan dengan 202 Accepted dan body-nya
+            # sudah berisi ID job; tanpa allow ini transport menganggap 202
+            # sebagai kegagalan ("gagal (HTTP 202)").
+            allow=(200, 202),
         )
         scan_id = str(job.get("id") or "")
         if not scan_id:

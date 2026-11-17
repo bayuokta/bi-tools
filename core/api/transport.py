@@ -27,6 +27,10 @@ from ..errors import ExtractionError
 DEFAULT_MAX_RETRIES = 8
 DEFAULT_TIMEOUT = 120
 MAX_BACKOFF_SECONDS = 60
+# Throttling Power BI bisa meminta tunggu puluhan menit; menunggu diam-diam di
+# dalam request membuat GUI/CLI tampak menggantung. Di atas batas ini request
+# digagalkan dengan pesan yang menyebut perkiraan waktu coba lagi.
+DEFAULT_MAX_RETRY_AFTER = 300.0
 
 Log = Callable[[str], None]
 
@@ -112,6 +116,7 @@ class Transport:
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
         retry_status: tuple[int, ...] = (429, 500, 502, 503, 504),
+        max_retry_after: float = DEFAULT_MAX_RETRY_AFTER,
         log: Log = _silent,
     ) -> None:
         self._token_provider = token_provider
@@ -119,6 +124,7 @@ class Transport:
         self.timeout = timeout
         self.max_retries = max(1, int(max_retries))
         self.retry_status = tuple(int(code) for code in retry_status)
+        self.max_retry_after = float(max_retry_after)
         self._session = session or requests.Session()
         self._owned_session = session is None
         self._sleep = sleep
@@ -149,12 +155,20 @@ class Transport:
     def _backoff(self, attempt: int) -> float:
         return float(min(MAX_BACKOFF_SECONDS, 2**attempt))
 
-    def _error(self, method: str, url: str, response: Any) -> ApiError:
+    def _error(
+        self, method: str, url: str, response: Any, note: str = ""
+    ) -> ApiError:
         status = int(getattr(response, "status_code", 0) or 0)
         detail, code = _detail(response)
         message = f"{method} {url} gagal (HTTP {status})"
         if detail:
             message += f": {detail}"
+        message += note
+        if 200 <= status < 300:
+            message += (
+                " (status sukses ini tidak ada di daftar allow pemanggil; "
+                "tambahkan bila memang jawaban normal endpoint)"
+            )
         if status in (401, 403):
             message += (
                 " (periksa izin service principal dan pengaturan Admin API tenant)"
@@ -208,6 +222,16 @@ class Transport:
                 return response
             if status in self.retry_status and attempt < self.max_retries - 1:
                 wait = retry_after(response) if status == 429 else self._backoff(attempt)
+                if wait > self.max_retry_after:
+                    raise self._error(
+                        method,
+                        url,
+                        response,
+                        note=(
+                            " - permintaan ditunda server (throttling); "
+                            f"coba lagi dalam ±{wait / 60:.0f} menit"
+                        ),
+                    )
                 self._log(
                     f"{method} {url} -> HTTP {status}; coba lagi dalam {wait:.0f}s"
                 )
@@ -265,6 +289,17 @@ class Transport:
                 return
             url = next_link
 
+    def _poll_delay(self, response: Any, wait: float) -> float:
+        """Jeda poll berikutnya; tolak permintaan tunggu yang tak wajar."""
+        delay = retry_after(response, wait)
+        if delay > self.max_retry_after:
+            raise ApiError(
+                "Server meminta tunggu "
+                f"±{delay / 60:.0f} menit sebelum operasi bisa dilanjutkan "
+                "(throttling); coba lagi nanti."
+            )
+        return delay
+
     def poll_status(
         self,
         path_or_url: str,
@@ -287,7 +322,7 @@ class Transport:
                 self._sleep(delay)
             response = self.request("GET", path_or_url, allow=(200, 202))
             if int(getattr(response, "status_code", 0) or 0) == 202:
-                delay = retry_after(response, wait)
+                delay = self._poll_delay(response, wait)
                 continue
             data = self._parse_json(path_or_url, response)
             if not isinstance(data, dict):
@@ -300,7 +335,7 @@ class Transport:
             if status in failed:
                 detail = data.get("error") or data.get("message") or status
                 raise ApiError(f"Operasi {status}: {detail}")
-            delay = retry_after(response, wait)
+            delay = self._poll_delay(response, wait)
         raise ApiError(
             f"Batas waktu menunggu operasi ({max_polls} polling)."
         )

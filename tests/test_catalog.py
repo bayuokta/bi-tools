@@ -566,7 +566,17 @@ class WorkspaceCliTests(unittest.TestCase):
             if key not in {"TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"}
         }
         with patch.dict(os.environ, clean, clear=True):
-            code, _, err = self.run_cli(["--db", str(self.db), "--sync-workspaces"])
+            code, _, err = self.run_cli(
+                [
+                    "--db",
+                    str(self.db),
+                    "--sync-workspaces",
+                    # Tanpa ini from_env membaca .env repo (bila ada) dan
+                    # uji akan memanggil API sungguhan.
+                    "--env-file",
+                    str(Path(self._tmp.name) / "missing.env"),
+                ]
+            )
         self.assertEqual(code, 2)
         self.assertIn("TENANT_ID", err)
 

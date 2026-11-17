@@ -135,6 +135,50 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(sleeps, [])
 
+    def test_long_throttle_wait_fails_fast(self) -> None:
+        # Power BI kadang meminta tunggu puluhan menit; jangan menggantung.
+        sleeps: list[float] = []
+        transport, session, _ = make_transport(
+            [FakeResponse(429, headers={"Retry-After": "2400"}, text="throttled")],
+            sleeps,
+        )
+        with self.assertRaises(ApiError) as ctx:
+            transport.json("GET", "items")
+        self.assertEqual(ctx.exception.status_code, 429)
+        self.assertIn("menit", str(ctx.exception))
+        self.assertEqual(sleeps, [])
+        self.assertEqual(len(session.calls), 1)
+
+    def test_long_poll_delay_fails_fast(self) -> None:
+        transport, _, _ = make_transport(
+            [FakeResponse(202, headers={"Retry-After": "1800"})],
+            [],
+        )
+        with self.assertRaises(ApiError) as ctx:
+            transport.poll_status("operations/1")
+        self.assertIn("menit", str(ctx.exception))
+
+    def test_2xx_outside_allow_is_reported_with_hint(self) -> None:
+        # Regresi: Scanner API menjawab 202; dulu hanya "gagal (HTTP 202)".
+        transport, _, _ = make_transport(
+            [FakeResponse(202, {"id": "job-1", "status": "NotStarted"}),],
+            [],
+        )
+        with self.assertRaises(ApiError) as ctx:
+            transport.json("POST", "admin/workspaces/getInfo")
+        self.assertEqual(ctx.exception.status_code, 202)
+        self.assertIn("tidak ada di daftar allow", str(ctx.exception))
+
+    def test_202_is_accepted_when_allowed(self) -> None:
+        transport, _, _ = make_transport(
+            [FakeResponse(202, {"id": "job-1", "status": "NotStarted"})],
+            [],
+        )
+        data = transport.json(
+            "POST", "admin/workspaces/getInfo", allow=(200, 202)
+        )
+        self.assertEqual(data["id"], "job-1")
+
     def test_4xx_carries_status_code_and_request_id(self) -> None:
         transport, _, _ = make_transport(
             [
