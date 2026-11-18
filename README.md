@@ -422,7 +422,7 @@ Catatan paket:
 - Paket memakai mode **onedir**. `templates\` dan `libs\` (ADOMD) disalin ke samping exe karena `core\paths.py` mencari aset di folder aplikasi, bukan di `sys._MEIPASS`; mode onefile akan memutus pencarian itu.
 - Installer memasang per pengguna (`%LOCALAPPDATA%\Programs\BI Tools`) sehingga tidak perlu UAC. Opsi "all users" tetap tersedia; dalam kasus itu `outputs\` dan `data\` otomatis pindah ke `%LOCALAPPDATA%\BI Tools`.
 - Uninstaller tidak menghapus `outputs\` dan `data\`.
-- Screenshot TSD butuh Chromium (±150 MB) dan tidak ikut dibundel. Capture pertama mengunduhnya otomatis; installer juga menyediakan task opsional, dan kapan saja bisa diulang dengan `bi-tools-cli install-browser` (tanpa argumen = `install chromium`).
+- Screenshot TSD butuh Chromium (±150 MB) dan tidak ikut dibundel. Capture pertama mengunduhnya otomatis ke `%LOCALAPPDATA%\ms-playwright` (bertahan saat aplikasi di-upgrade); installer juga menyediakan task opsional, dan kapan saja bisa diulang dengan `bi-tools-cli install-browser` (tanpa argumen = `install chromium`).
 - ZIP portable yang diunduh ditandai Windows sebagai "berasal dari internet" (Mark of the Web). Aplikasi membuka blokir otomatis DLL .NET yang dibutuhkan (`Python.Runtime.dll` dan ADOMD) saat XMLA pertama dipakai. Bila folder aplikasi read-only sehingga penanda tidak bisa dihapus, jalankan sekali:
   ```powershell
   Get-ChildItem -Recurse -Path "<folder aplikasi>" | Unblock-File

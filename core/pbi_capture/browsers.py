@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
+from pathlib import Path
 from typing import Callable
 
 from ..errors import ExtractionError
@@ -22,8 +24,39 @@ def _silent(_message: str) -> None:
     pass
 
 
+def default_browsers_path() -> Path:
+    """Folder browser Playwright normal (di luar folder aplikasi)."""
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA", "").strip()
+        root = Path(base) if base else Path.home() / "AppData" / "Local"
+        return root / "ms-playwright"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "ms-playwright"
+    return Path.home() / ".cache" / "ms-playwright"
+
+
+def prepare_environment() -> Path | None:
+    """Samakan folder browser installer dan driver saat aplikasi dipaket.
+
+    Playwright (``playwright/_impl/transport.py``) memaksa
+    ``PLAYWRIGHT_BROWSERS_PATH=0`` untuk proses driver ketika ``sys.frozen``:
+    browser dicari di dalam ``playwright/driver/package/.local-browsers``.
+    Unduhan memakai lokasi normal, jadi tanpa ini install dan launch menunjuk
+    folder berbeda dan launch selalu gagal. Nilai kustom non-``0`` dibiarkan.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    current = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if current and current != "0":
+        return Path(current).expanduser()
+    path = default_browsers_path()
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(path)
+    return path
+
+
 def driver_command(*args: str) -> list[str]:
     """Perintah driver Playwright; dipisah agar mudah diuji."""
+    prepare_environment()
     from playwright._impl._driver import compute_driver_executable
 
     node, cli = compute_driver_executable()
@@ -86,7 +119,9 @@ def install_chromium(log: Log = _silent) -> None:
 
 __all__ = [
     "BROWSER",
+    "default_browsers_path",
     "driver_command",
     "install_chromium",
     "missing_browser",
+    "prepare_environment",
 ]

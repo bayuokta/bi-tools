@@ -7,6 +7,20 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-18 - Perbaikan 0.3.2
+
+- Auto-unduh Chromium 0.3.1 mengunduh ke `%LOCALAPPDATA%\ms-playwright` tetapi
+  launch mencari di `_internal\playwright\driver\package\.local-browsers`:
+  Playwright memaksa `PLAYWRIGHT_BROWSERS_PATH=0` untuk proses driver saat
+  `sys.frozen`. `core/pbi_capture/browsers.py::prepare_environment()` kini
+  menyetel `PLAYWRIGHT_BROWSERS_PATH` ke `%LOCALAPPDATA%\ms-playwright` sebelum
+  `sync_playwright()` dan sebelum installer, sehingga unduhan dan launch
+  menunjuk folder yang sama. Unduhan 0.3.1 yang sudah ada dipakai ulang.
+- Lokasi browser berada di luar folder aplikasi, jadi bertahan saat aplikasi
+  di-upgrade atau dipindah; path kustom non-`0` tetap dihormati.
+- Uji baru: environment frozen (isi otomatis, timpa `0`, hormati path kustom,
+  abaikan saat dari source) dan `install-browser` memanggil persiapan.
+
 ## 2026-11-18 - Perbaikan 0.3.1
 
 - Sinkronisasi katalog/scan lineage mode otomatis gagal HTTP 400

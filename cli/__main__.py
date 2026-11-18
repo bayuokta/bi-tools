@@ -17,6 +17,8 @@ from collections.abc import Sequence
 
 from core.version import APP_NAME, __version__
 
+from core.pbi_capture.browsers import prepare_environment
+
 COMMANDS: dict[str, tuple[str, str]] = {
     "report": ("cli.report", "metadata report dari .pbix atau Power BI Service"),
     "model": ("cli.model", "metadata semantic model lewat XMLA"),
@@ -70,6 +72,7 @@ def install_browser(argv: Sequence[str] | None = None) -> int:
     original = sys.argv
     sys.argv = ["playwright", *args]
     try:
+        prepare_environment()
         playwright_main()
     except SystemExit as exc:  # playwright memanggil sys.exit(returncode)
         return int(exc.code or 0)

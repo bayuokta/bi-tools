@@ -88,15 +88,17 @@ class CliDispatcherTests(unittest.TestCase):
             self.assertEqual(cli_main.main(["install-browser", "chromium"]), 3)
         patched.assert_called_once_with(["chromium"])
 
-    def test_install_browser_defaults_to_chromium(self) -> None:
+    def test_install_browser_prepares_frozen_browser_path(self) -> None:
         seen: dict[str, list[str]] = {}
 
         def fake_main() -> None:
             seen["argv"] = list(sys.argv)
 
-        with patch("playwright.__main__.main", side_effect=fake_main):
+        with patch.object(cli_main, "prepare_environment") as prepare, patch(
+            "playwright.__main__.main", side_effect=fake_main
+        ):
             self.assertEqual(cli_main.install_browser([]), 0)
-        self.assertEqual(seen["argv"][0], "playwright")
+        prepare.assert_called_once()
         self.assertEqual(seen["argv"][1:], ["install", "chromium"])
 
     def test_install_browser_reports_missing_playwright(self) -> None:

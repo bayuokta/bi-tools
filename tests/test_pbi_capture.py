@@ -7,6 +7,8 @@ pemetaan manifest, penamaan file, cache, dan validasi opsi.
 from __future__ import annotations
 
 import json
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -967,13 +969,62 @@ class MissingBrowserTests(unittest.TestCase):
             workspace_id=WORKSPACE,
             embed_token="token",
         )
-        with patch.object(capture_module, "sync_playwright", self._BrokenFactory()):
+        with patch.object(
+            capture_module, "prepare_environment"
+        ) as prepare, patch.object(
+            capture_module, "sync_playwright", self._BrokenFactory()
+        ):
             with self.assertRaises(ExtractionError) as ctx:
                 capturer.open()
 
+        prepare.assert_called_once()
         message = str(ctx.exception)
         self.assertIn("install-browser", message)
         self.assertIn("playwright install chromium", message)
+
+    def test_prepare_environment_uses_user_cache_when_frozen(self) -> None:
+        from core.pbi_capture import browsers
+
+        with patch.object(sys, "frozen", True, create=True), patch.dict(
+            os.environ,
+            {"LOCALAPPDATA": r"C:\Users\contoh\AppData\Local"},
+            clear=False,
+        ):
+            os.environ.pop("PLAYWRIGHT_BROWSERS_PATH", None)
+            path = browsers.prepare_environment()
+            self.assertIsNotNone(path)
+            self.assertTrue(str(path).endswith("ms-playwright"))
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"], str(path))
+
+    def test_prepare_environment_overrides_zero_and_keeps_custom(self) -> None:
+        from core.pbi_capture import browsers
+
+        with patch.object(sys, "frozen", True, create=True), patch.dict(
+            os.environ, {"PLAYWRIGHT_BROWSERS_PATH": "0"}, clear=False
+        ):
+            path = browsers.prepare_environment()
+            self.assertNotEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"], "0")
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"], str(path))
+
+        with patch.object(sys, "frozen", True, create=True), patch.dict(
+            os.environ,
+            {"PLAYWRIGHT_BROWSERS_PATH": r"D:\browser-kustom"},
+            clear=False,
+        ):
+            path = browsers.prepare_environment()
+            self.assertEqual(str(path), r"D:\browser-kustom")
+            self.assertEqual(
+                os.environ["PLAYWRIGHT_BROWSERS_PATH"], r"D:\browser-kustom"
+            )
+
+    def test_prepare_environment_is_ignored_from_source(self) -> None:
+        from core.pbi_capture import browsers
+
+        with patch.dict(
+            os.environ, {"PLAYWRIGHT_BROWSERS_PATH": "0"}, clear=False
+        ):
+            self.assertIsNone(browsers.prepare_environment())
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"], "0")
 
     def _capturer_for_launch(self, auto_install: bool, error: str):
         capturer = ReportCapturer.__new__(ReportCapturer)

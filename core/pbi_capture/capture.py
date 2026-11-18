@@ -35,7 +35,7 @@ except ImportError as _exc:  # pragma: no cover - tergantung environment
 
 from ..errors import ExtractionError
 
-from .browsers import install_chromium, missing_browser
+from .browsers import install_chromium, missing_browser, prepare_environment
 
 Log = Callable[[str], None]
 
@@ -638,6 +638,9 @@ class ReportCapturer:
 
     # ------------------------------------------------------------- lifecycle
     def open(self) -> "ReportCapturer":
+        # Harus sebelum sync_playwright().start(): Playwright memasang
+        # PLAYWRIGHT_BROWSERS_PATH=0 untuk proses driver saat sys.frozen.
+        prepare_environment()
         embed_url = (
             "https://app.powerbi.com/reportEmbed"
             f"?reportId={self.report_id}&groupId={self.workspace_id}"
