@@ -797,3 +797,10 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{ transition:
 }
 .shot-cache .row-actions{ margin-left:auto; }
 
+/* Editor JSON konteks manual TSD */
+.json-editor{
+  width:100%; min-height:340px; height:auto; padding:10px;
+  font-family:var(--font-mono); font-size:12px; line-height:1.5;
+  resize:vertical; white-space:pre;
+}
+

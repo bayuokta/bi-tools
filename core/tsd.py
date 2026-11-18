@@ -1873,6 +1873,11 @@ def run_tsd(
     html = output.read_text(encoding="utf-8")
     pages = context.get("objects", {}).get("pages", [])
     visuals = sum(len(page.get("visuals", [])) for page in pages)
+    objects = context.get("objects", {})
+    table_buckets = objects.get("tables", {})
+    table_count = sum(
+        len(items) for items in table_buckets.values() if isinstance(items, list)
+    )
     shot_stats = context.get("meta", {}).get("screenshot_stats") or {}
     summary = {
         "output": output,
@@ -1881,6 +1886,8 @@ def run_tsd(
         "model_workbook": model_path,
         "pages": len(pages),
         "visuals": visuals,
+        "tables": table_count,
+        "measures": len(objects.get("measures") or []),
         "todos": html.count(TODO_MARKER),
         "size": output.stat().st_size,
         "screenshot_pages": shot_stats.get("pages", 0),

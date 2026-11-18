@@ -47,3 +47,7 @@ Analisa_Semantic_Model_*.xlsx
 # Workbook metadata hasil generate (regenerate dari script; jangan di-commit)
 /Report_Metadata.xlsx
 /Semantic_Model_Metadata.xlsx
+
+# Hasil TSD di root (preferensi lama) tetap hasil generate
+/TSD_*.html
+/TSD_*.json

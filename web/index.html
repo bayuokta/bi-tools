@@ -390,9 +390,9 @@
                       <label for="shotScope">Cakupan</label>
                       <div class="select">
                         <select id="shotScope">
-                          <option>Page saja</option>
-                          <option>Page + visual</option>
-                          <option>Semua halaman</option>
+                          <option value="both">Page + visual</option>
+                          <option value="pages">Page saja</option>
+                          <option value="visuals">Visual saja</option>
                         </select>
                       </div>
                     </div>
@@ -400,9 +400,9 @@
                       <label for="shotScale">Skala</label>
                       <div class="select">
                         <select id="shotScale">
-                          <option>1x (standar)</option>
-                          <option selected>2x (lebih tajam)</option>
-                          <option>3x (maksimal)</option>
+                          <option value="1">1x (standar)</option>
+                          <option value="2" selected>2x (lebih tajam)</option>
+                          <option value="3">3x (maksimal)</option>
                         </select>
                       </div>
                     </div>
@@ -466,16 +466,17 @@
                   </div>
                   <div id="tsdPreview" hidden="">
                     <div class="stat-list">
-                      <div class="stat-row"><span class="stat-key">Bagian</span><span class="stat-val">6</span></div>
-                      <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val">4</span></div>
-                      <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val">12</span></div>
-                      <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val">42</span></div>
-                      <div class="stat-row"><span class="stat-key">TODO tersisa</span><span class="stat-val">7</span></div>
+                      <div class="stat-row"><span class="stat-key">Bagian</span><span class="stat-val" id="tsdStatSections">6</span></div>
+                      <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val" id="tsdStatPages">—</span></div>
+                      <div class="stat-row"><span class="stat-key">Visual</span><span class="stat-val" id="tsdStatVisuals">—</span></div>
+                      <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val" id="tsdStatTables">—</span></div>
+                      <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val" id="tsdStatMeasures">—</span></div>
+                      <div class="stat-row"><span class="stat-key">TODO tersisa</span><span class="stat-val" id="tsdStatTodos">—</span></div>
                       <div class="stat-row" id="tsdShotRow" hidden><span class="stat-key">Screenshot Service</span><span class="stat-val" id="tsdShotVal">—</span></div>
                     </div>
                     <div class="note" style="margin-top:12px">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-                      <span>7 field ditandai <strong>TODO</strong> karena kosong di konteks manual.</span>
+                      <span id="tsdTodoNote">Field kosong di konteks manual ditandai <strong>TODO</strong> pada mode draft.</span>
                     </div>
                     <button class="btn btn-sm btn-primary" id="previewOpenTsd" type="button" style="margin-top:12px">Buka dokumen</button>
                   </div>
@@ -488,7 +489,7 @@
                   <div class="row-inline"><span class="chip chip-idle" id="checkReport"><span class="dot"></span>Workbook report</span><span class="helper" id="checkReportText">belum dipilih</span></div>
                   <div class="row-inline"><span class="chip chip-idle" id="checkModel"><span class="dot"></span>Workbook model</span><span class="helper" id="checkModelText">opsional</span></div>
                   <div class="row-inline"><span class="chip chip-idle" id="checkTemplate"><span class="dot"></span>Template</span><span class="helper" id="checkTemplateText">diperiksa saat generate</span></div>
-                  <div class="row-inline"><span class="chip chip-idle" id="checkContext"><span class="dot"></span>Konteks manual</span><span class="helper">opsional</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkContext"><span class="dot"></span>Konteks manual</span><span class="helper" id="checkContextText">opsional</span></div>
                 </div>
               </div>
             </div>
@@ -1147,6 +1148,26 @@
   <div class="dialog-foot">
     <button class="btn" id="cancelFolder" type="button">Batal</button>
     <button class="btn btn-primary" id="chooseFolder" type="button">Pilih folder ini</button>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="jsonDialog" aria-labelledby="jsonDialogTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="jsonDialogTitle">Konteks manual (JSON)</h2>
+      <p class="helper" id="jsonDialogPath"></p>
+    </div>
+    <button class="dialog-close" id="closeJsonDialog" type="button" aria-label="Tutup dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <textarea class="input mono json-editor" id="jsonEditor" spellcheck="false" aria-label="Isi konteks manual JSON"></textarea>
+    <p class="helper" id="jsonStatus">JSON harus berupa objek. Simpan menulis sidecar di path di atas.</p>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="cancelJsonDialog" type="button">Batal</button>
+    <button class="btn btn-primary" id="saveJsonDialog" type="button">Simpan</button>
   </div>
 </dialog>
 

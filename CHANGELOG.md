@@ -49,6 +49,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   log job.
 - Uji baru: presenter/endpoint metadata (instance, deteksi `.pbix`, workspace
   contents, validasi request, pemetaan kwargs lokal/service, ringkasan hasil).
+- Halaman **Generate TSD** web tersambung: state formulir + status berkas,
+  render `run_tsd` (HTML mandiri + sidecar), pratinjau dengan CSP ketat,
+  edit JSON sidecar, capture screenshot Power BI Service (embed + RLS +
+  Playwright) dengan cache `TSD_assets` dan tombol hapus cache.
+- Ringkasan `run_tsd` kini juga mengembalikan jumlah tabel dan measure sehingga
+  halaman TSD bisa menampilkan statistik tanpa membaca ulang workbook.
 - Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
   job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
 

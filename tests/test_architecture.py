@@ -201,6 +201,11 @@ class WebLayerTests(unittest.TestCase):
             "refreshCombo",
             "loadModelContents",
             "loadReportContents",
+            "tsdPayload",
+            "renderTsdState",
+            "runTsd",
+            "openTsdDocument",
+            "saveJsonDialog",
             "startJob",
         ):
             self.assertEqual(

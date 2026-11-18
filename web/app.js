@@ -70,6 +70,14 @@
     pickCallback: null,
     formDirty: false,
     secretDirty: false,
+    tsd: null,
+    tsdLoaded: false,
+    tsdManual: {},
+    tsdManualCustom: false,
+    tsdLastResult: null,
+    tsdOutputPath: "",
+    tsdTimer: null,
+    tsdInspectTimer: null,
     instances: [],
     workspaces: [],
     reports: [],
@@ -206,55 +214,6 @@
     }
   }
 
-  function runTsd() {
-    if (state.tsdRunning) return;
-    state.tsdRunning = true;
-    $("#runTsd").disabled = true;
-    $("#tsdRun").hidden = false;
-    $("#tsdBar").style.width = "0%";
-    $("#tsdRunPct").textContent = "0%";
-    $("#tsdRunLabel").textContent = "Membaca workbook…";
-    $("#metaTsd").textContent = "Sedang dibuat…";
-    setConsole(true);
-    addLog("=== Generate TSD ===", "info");
-    addLog("Template: templates/tsd.template.html", "info");
-
-    var steps = [
-      { pct: 30, label: "Menggabungkan metadata…", log: "Metadata report dan model digabungkan." },
-      { pct: 62, label: "Merender bagian dokumen…", log: "6 bagian · 4 halaman report · 12 tabel." },
-      { pct: 88, label: "Menandai field kosong…", log: "7 field kosong ditandai TODO (mode draft)." },
-      { pct: 100, label: "Selesai", log: "TSD_Report.html ditulis ke folder output." }
-    ];
-
-    var index = 0;
-    var timer = window.setInterval(function () {
-      if (index >= steps.length) {
-        window.clearInterval(timer);
-        finishTsd();
-        return;
-      }
-      var step = steps[index];
-      index += 1;
-      $("#tsdBar").style.width = step.pct + "%";
-      $("#tsdRunPct").textContent = step.pct + "%";
-      $("#tsdRunLabel").textContent = step.label;
-      addLog(step.log, "info");
-    }, 600);
-  }
-
-  function finishTsd() {
-    state.tsdRunning = false;
-    state.tsdReady = true;
-    var time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-    $("#runTsd").disabled = false;
-    $("#tsdRun").hidden = true;
-    $("#tsdPreviewEmpty").hidden = true;
-    $("#tsdPreview").hidden = false;
-    $("#metaTsd").textContent = "Siap · " + time + " · 412 KB";
-    $("#openTsd").disabled = false;
-    addLog("TSD_Report.html siap dibuka.", "ok");
-    toast("Dokumen TSD selesai");
-  }
 
   var modelTables = [
     {
@@ -2302,6 +2261,14 @@
       else if (status === "cancelled") setChip($("#outputState"), "idle", "Dibatalkan");
       window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
     }
+    if (options.kind === "tsd" || options.kind === "tsd_capture") {
+      if (state.tsdTimer) {
+        window.clearInterval(state.tsdTimer);
+        state.tsdTimer = null;
+      }
+      window.setTimeout(function () { $("#tsdRun").hidden = true; }, 900);
+      if (status === "done") inspectTsd();
+    }
     if (status === "error") {
       var message = (snapshot && snapshot.error) || "Pekerjaan gagal.";
       addLog(message, "error");
@@ -2468,6 +2435,7 @@
     loadOutputs();
     loadInstances();
     loadWorkspaces();
+    loadTsdState();
   }
 
   // -- ekstraksi metadata -------------------------------------------------
@@ -2706,6 +2674,13 @@
     return select ? select.value : "";
   }
 
+  function setSelectValue(id, value) {
+    var select = $("#" + id);
+    if (!select) return;
+    select.value = String(value == null ? "" : value);
+    refreshCombo(select);
+  }
+
   function getSelectItem(id) {
     var select = $("#" + id);
     if (!select) return null;
@@ -2760,6 +2735,7 @@
       });
       setSelectOptions("modelWorkspace", options, "Pilih workspace model…");
       setSelectOptions("reportWorkspace", options, "Pilih workspace report…");
+      setSelectOptions("shotWorkspace", options, "Pilih workspace…");
       $("#workspaceHint").textContent = data.hint ||
         "Ketik nama workspace untuk memfilter, atau buka daftar.";
       return data;
@@ -2960,6 +2936,376 @@
     });
   }
 
+  // -- Generate TSD -------------------------------------------------------
+  function tsdPayload() {
+    return {
+      report_workbook: $("#reportWorkbook").value.trim(),
+      model_workbook: $("#modelWorkbook").value.trim(),
+      template_path: $("#template").value.trim(),
+      manual_path: state.tsdManualCustom ? $("#contextJson").value.trim() : "",
+      out_dir: $("#tsdOutFolder").value.trim(),
+      out_name: $("#tsdFileName").value.trim(),
+      report_name: $("#reportName").value.trim(),
+      report_id: getSelectValue("shotReport"),
+      generated_at: $("#docDate").value,
+      draft: $("#tsdDraft").checked,
+      expand_all: $("#tsdExpandAll").checked,
+      screenshots: $("#shotEnabled").checked,
+      workspace_id: getSelectValue("shotWorkspace"),
+      rls_username: $("#shotRlsUser").value.trim(),
+      rls_roles: $("#shotRlsRoles").value.trim(),
+      shot_scope: getSelectValue("shotScope") || "both",
+      shot_scale: Number(getSelectValue("shotScale") || 1),
+      shot_mobile: $("#shotMobile").checked,
+      include_decorative: $("#shotDecorative").checked,
+      auto_install_browser: $("#shotAutoInstall").checked,
+      debug: $("#shotDebug").checked,
+      manual: state.tsdManual || {}
+    };
+  }
+
+  function markChecklist(chipId, textId, label, ok, okText, idleText) {
+    var chip = $("#" + chipId);
+    if (!chip) return;
+    chip.className = "chip " + (ok ? "chip-ok" : "chip-idle");
+    chip.innerHTML = '<span class="dot"></span>' + label;
+    var text = $("#" + textId);
+    if (text) text.textContent = ok ? okText : idleText;
+  }
+
+  function renderTsdState(data) {
+    state.tsd = data;
+    var form = data.form || {};
+    var status = data.status || {};
+    var paths = data.paths || {};
+    $("#tsdOutFolder").value = paths.out_dir || form.out_dir || "";
+    $("#tsdFileName").placeholder = paths.suggested_name
+      ? "Otomatis: " + paths.suggested_name
+      : "Otomatis dari nama report";
+
+    if (!state.tsdLoaded) {
+      $("#reportWorkbook").value = form.report_workbook || "";
+      $("#modelWorkbook").value = form.model_workbook || "";
+      $("#template").value = form.template_path || "";
+      $("#reportName").value = form.report_name || "";
+      $("#docDate").value = form.generated_at || "";
+      $("#tsdDraft").checked = Boolean(form.draft);
+      $("#tsdExpandAll").checked = Boolean(form.expand_all);
+      $("#shotEnabled").checked = Boolean(form.screenshots);
+      $("#shotRlsUser").value = form.rls_username || "";
+      $("#shotRlsRoles").value = form.rls_roles || "";
+      setSelectValue("shotScope", form.shot_scope || "both");
+      setSelectValue("shotScale", String(form.shot_scale || 1));
+      $("#shotMobile").checked = form.shot_mobile !== false;
+      $("#shotDecorative").checked = Boolean(form.include_decorative);
+      $("#shotAutoInstall").checked = form.auto_install_browser !== false;
+      state.tsdManualCustom = Boolean(form.manual_path) &&
+        String(form.manual_path) !== String(paths.manual_path);
+      $("#contextJson").value = paths.manual_path || "";
+      state.tsdLoaded = true;
+    } else if (!state.tsdManualCustom) {
+      $("#contextJson").value = paths.manual_path || "";
+    }
+
+    $("#reportWorkbookStatus").textContent =
+      (status.report && status.report.text) || "Belum dipilih";
+    $("#modelWorkbookStatus").textContent =
+      (status.model && status.model.text) || "Tidak dipakai";
+    $("#tsdOutputState").textContent =
+      (status.output && status.output.text) || "Belum ada dokumen TSD.";
+
+    var cache = status.cache || {};
+    $("#shotCacheStatus").textContent = cache.exists
+      ? cache.summary
+      : "Belum ada cache; akan diambil saat generate.";
+    $("#shotCachePath").textContent = cache.path || paths.assets_dir || "";
+    $("#clearShotCache").disabled = !cache.exists;
+    setChip(
+      $("#shotChip"),
+      $("#shotEnabled").checked ? "ok" : "idle",
+      $("#shotEnabled").checked ? "Aktif" : "Nonaktif"
+    );
+
+    var checklist = data.checklist || {};
+    markChecklist(
+      "checkReport", "checkReportText", "Workbook report",
+      Boolean(checklist.report), "tersedia", "belum dipilih"
+    );
+    markChecklist(
+      "checkModel", "checkModelText", "Workbook model",
+      Boolean(checklist.model), "tersedia", "opsional"
+    );
+    markChecklist(
+      "checkTemplate", "checkTemplateText", "Template",
+      Boolean(checklist.template), "ditemukan", "tidak ditemukan"
+    );
+    markChecklist(
+      "checkContext", "checkContextText", "Konteks manual",
+      Boolean(checklist.manual), "tersedia", "opsional"
+    );
+
+    var output = status.output || {};
+    if (output.exists) {
+      state.tsdOutputPath = paths.out_file || output.path || state.tsdOutputPath;
+      $("#tsdPreviewEmpty").hidden = true;
+      $("#tsdPreview").hidden = false;
+      $("#openTsdFile").disabled = false;
+      if (!state.tsdLastResult) {
+        $("#tsdTodoNote").textContent =
+          "Dokumen terakhir tersedia. Jalankan Generate TSD untuk memperbarui statistik.";
+      }
+    } else if (!state.tsdLastResult) {
+      $("#tsdPreviewEmpty").hidden = false;
+      $("#tsdPreview").hidden = true;
+      $("#openTsdFile").disabled = true;
+      state.tsdOutputPath = paths.out_file || "";
+    }
+  }
+
+  function loadTsdState() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/tsd/state").then(function (data) {
+      renderTsdState(data);
+      return data;
+    }).catch(function (error) {
+      addLog("Status TSD tidak bisa dibaca: " + error.message, "warn");
+    });
+  }
+
+  function inspectTsd() {
+    if (!apiReady()) return Promise.resolve(null);
+    return api().post("/api/tsd/state", tsdPayload()).then(function (data) {
+      renderTsdState(data);
+      return data;
+    }).catch(reportError);
+  }
+
+  function scheduleTsdInspect() {
+    if (state.tsdInspectTimer) window.clearTimeout(state.tsdInspectTimer);
+    state.tsdInspectTimer = window.setTimeout(function () {
+      state.tsdInspectTimer = null;
+      inspectTsd();
+    }, 300);
+  }
+
+  function startTsdProgress(label) {
+    $("#tsdRun").hidden = false;
+    $("#tsdBar").style.width = "8%";
+    $("#tsdRunPct").textContent = "";
+    $("#tsdRunLabel").textContent = label || "Menyiapkan dokumen…";
+    var progress = 8;
+    if (state.tsdTimer) window.clearInterval(state.tsdTimer);
+    state.tsdTimer = window.setInterval(function () {
+      progress = Math.min(92, progress + (progress < 50 ? 6 : 2));
+      $("#tsdBar").style.width = progress + "%";
+      $("#tsdRunPct").textContent = progress + "%";
+    }, 800);
+  }
+
+  function renderTsdResult(result) {
+    state.tsdLastResult = result;
+    if (result.state) renderTsdState(result.state);
+    var pages = result.pages || 0;
+    var visuals = result.visuals || 0;
+    var todos = result.todos || 0;
+    $("#tsdStatSections").textContent = "6";
+    $("#tsdStatPages").textContent = pages;
+    $("#tsdStatVisuals").textContent = visuals;
+    $("#tsdStatTables").textContent = result.tables == null ? "—" : result.tables;
+    $("#tsdStatMeasures").textContent = result.measures == null ? "—" : result.measures;
+    $("#tsdStatTodos").textContent = todos;
+    $("#tsdTodoNote").innerHTML = todos
+      ? (todos + " field ditandai <strong>TODO</strong> karena kosong di konteks manual.")
+      : "Tidak ada field TODO pada dokumen ini.";
+    var hasShots = Boolean(result.screenshot_root);
+    $("#tsdShotRow").hidden = !hasShots;
+    if (hasShots) {
+      $("#tsdShotVal").textContent =
+        (result.screenshot_pages || 0) + " page · " +
+        (result.screenshot_visuals || 0) + " visual · " +
+        (result.screenshot_mobile || 0) + " mobile";
+    }
+    state.tsdOutputPath = result.output || state.tsdOutputPath;
+    $("#tsdPreviewEmpty").hidden = true;
+    $("#tsdPreview").hidden = false;
+    $("#openTsdFile").disabled = false;
+    $("#tsdBar").style.width = "100%";
+    $("#tsdRunPct").textContent = "100%";
+    toast("TSD dibuat: " + pages + " halaman / " + visuals + " visual");
+  }
+
+  function runTsd() {
+    if (!apiReady()) return;
+    if (state.jobId) {
+      toast("Pekerjaan lain masih berjalan");
+      return;
+    }
+    startTsdProgress("Menyiapkan dokumen TSD…");
+    startJob({
+      kind: "tsd",
+      path: "/api/tsd/run",
+      body: tsdPayload(),
+      label: "Generate TSD",
+      button: $("#runTsd"),
+      onDone: function (snapshot) {
+        renderTsdResult(snapshot.result || {});
+      }
+    });
+  }
+
+  function loadTsdReports() {
+    var workspaceId = getSelectValue("shotWorkspace");
+    if (!workspaceId || !apiReady()) {
+      setSelectOptions("shotReport", [], "Pilih report…");
+      return Promise.resolve();
+    }
+    return api().get(
+      "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
+      "/contents?datasets=false&reports=true"
+    ).then(function (data) {
+      state.tsdReports = data.reports || [];
+      setSelectOptions("shotReport", state.tsdReports.map(function (item) {
+        return { value: item.id, label: item.label, data: item };
+      }), "Pilih report…");
+      return data;
+    }).catch(reportError);
+  }
+
+  function captureTsdScreenshots() {
+    if (!apiReady()) return;
+    if (!$("#shotEnabled").checked) {
+      toast("Centang 'Ambil screenshot' dulu");
+      return;
+    }
+    if (!getSelectValue("shotWorkspace") || !getSelectValue("shotReport")) {
+      toast("Pilih workspace dan report untuk screenshot");
+      return;
+    }
+    startTsdProgress("Mengambil screenshot report…");
+    startJob({
+      kind: "tsd_capture",
+      path: "/api/tsd/capture",
+      body: tsdPayload(),
+      label: "Ambil screenshot report",
+      button: $("#captureScreenshots"),
+      onDone: function (snapshot) {
+        var result = snapshot.result || {};
+        toast(
+          "Screenshot: " + (result.pages || 0) + " page / " +
+          (result.visuals || 0) + " visual"
+        );
+        inspectTsd();
+      }
+    });
+  }
+
+  function clearTsdCache() {
+    if (!apiReady()) return;
+    if (!window.confirm("Hapus cache screenshot TSD untuk report ini?")) return;
+    api().post("/api/tsd/cache/clear", tsdPayload()).then(function (data) {
+      if (data.state) renderTsdState(data.state);
+      toast(data.removed ? "Cache screenshot dihapus" : "Cache belum ada");
+    }).catch(reportError);
+  }
+
+  function openTsdDocument() {
+    var path = state.tsdOutputPath ||
+      (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
+    if (!path) {
+      toast("Belum ada dokumen TSD");
+      return;
+    }
+    window.open(
+      "/api/tsd/preview?path=" + encodeURIComponent(path),
+      "_blank",
+      "noopener"
+    );
+  }
+
+  function openTsdFolder() {
+    var path = state.tsdOutputPath ||
+      (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
+    var folder = path ? parentDir(path) : $("#tsdOutFolder").value.trim();
+    if (!folder) {
+      toast("Folder output belum ditentukan");
+      return;
+    }
+    api().post("/api/files/open", { path: folder, mode: "open" }).catch(reportError);
+  }
+
+  function loadTsdManual(quiet) {
+    if (!apiReady()) return Promise.resolve(null);
+    var path = tsdManualPath();
+    return api().get("/api/tsd/manual?path=" + encodeURIComponent(path)).then(function (data) {
+      state.tsdManual = data.data || {};
+      $("#contextJson").value = data.path || path;
+      state.tsdManualCustom = true;
+      $("#contextStatus").textContent = data.exists
+        ? "Sidecar dimuat."
+        : "Sidecar belum ada; isi baru akan dibuat saat menyimpan.";
+      if (!quiet) toast(data.exists ? "Konteks manual dimuat" : "Sidecar belum ada");
+      scheduleTsdInspect();
+      return data;
+    }).catch(reportError);
+  }
+
+  function saveTsdManualFile(data, quiet) {
+    if (!apiReady()) return Promise.resolve(null);
+    var path = tsdManualPath();
+    return api().put("/api/tsd/manual", {
+      path: path,
+      data: data || {}
+    }).then(function (result) {
+      state.tsdManual = result.data || {};
+      state.tsdManualCustom = true;
+      $("#contextJson").value = result.path || path;
+      $("#contextStatus").textContent = "Sidecar disimpan.";
+      if (!quiet) toast("Konteks manual disimpan");
+      scheduleTsdInspect();
+      return result;
+    }).catch(reportError);
+  }
+
+  function tsdManualPath() {
+    var value = $("#contextJson").value.trim();
+    if (value) return value;
+    return (state.tsd && state.tsd.paths && state.tsd.paths.manual_path) || "";
+  }
+
+  function openJsonDialog() {
+    if (!apiReady()) return;
+    loadTsdManual(true).then(function () {
+      $("#jsonDialogPath").textContent = tsdManualPath();
+      $("#jsonEditor").value = JSON.stringify(state.tsdManual || {}, null, 2);
+      $("#jsonStatus").textContent = "JSON harus berupa objek. Simpan menulis sidecar di path di atas.";
+      $("#jsonDialog").showModal();
+      $("#jsonEditor").focus();
+    });
+  }
+
+  function saveJsonDialog() {
+    var text = $("#jsonEditor").value.trim();
+    var data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        $("#jsonStatus").textContent = "JSON tidak valid: " + error.message;
+        return;
+      }
+    }
+    if (data === null || typeof data !== "object" || Array.isArray(data)) {
+      $("#jsonStatus").textContent = "Isi JSON harus objek (bukan array/null).";
+      return;
+    }
+    saveTsdManualFile(data, true).then(function (result) {
+      if (result) {
+        $("#jsonDialog").close();
+        toast("Konteks manual disimpan");
+      }
+    });
+  }
+
   function init() {
     initComboEvents();
     enhanceAllSelects();
@@ -3069,7 +3415,7 @@
     });
 
     $("#runExtract").addEventListener("click", runExtraction);
-    $("#runTsd").addEventListener("click", function () { pendingFeature("Generate TSD"); });
+    $("#runTsd").addEventListener("click", runTsd);
 
     $("#goTsd").addEventListener("click", function () { showView("tsd"); });
     $("#sideToTsd").addEventListener("click", function () { showView("tsd"); });
@@ -3078,8 +3424,8 @@
     $("#openReport").addEventListener("click", function () { openOutput("report"); });
     $("#openModel").addEventListener("click", function () { openOutput("model"); });
     $("#openFolder").addEventListener("click", function () { revealOutputFolder(); });
-    $("#openTsd").addEventListener("click", function () { pendingFeature("Pratinjau TSD"); });
-    $("#previewOpenTsd").addEventListener("click", function () { pendingFeature("Pratinjau TSD"); });
+    $("#openTsd").addEventListener("click", openTsdDocument);
+    $("#previewOpenTsd").addEventListener("click", openTsdDocument);
     $("#pickFolder").addEventListener("click", function () {
       openFolderPicker($("#outFolder").value, function (folder) {
         savePreference("extraction", { out_dir: folder }).then(function () {
@@ -3089,27 +3435,96 @@
       });
     });
 
-    $("#loadContext").addEventListener("click", function () { pendingFeature("Konteks manual TSD"); });
-    $("#saveContext").addEventListener("click", function () { pendingFeature("Konteks manual TSD"); });
-    $("#editContext").addEventListener("click", function () { pendingFeature("Editor JSON TSD"); });
+    $("#loadContext").addEventListener("click", function () { loadTsdManual(false); });
+    $("#saveContext").addEventListener("click", function () {
+      saveTsdManualFile(state.tsdManual || {}, false);
+    });
+    $("#editContext").addEventListener("click", openJsonDialog);
 
-    $("#pickReportWorkbook").addEventListener("click", function () { pendingFeature("Pemilihan report workbook TSD"); });
-    $("#pickModelWorkbook").addEventListener("click", function () { pendingFeature("Pemilihan model workbook TSD"); });
-    $("#pickTemplate").addEventListener("click", function () { pendingFeature("Pemilihan template TSD"); });
-    $("#pickContext").addEventListener("click", function () { pendingFeature("Pemilihan file JSON konteks"); });
-    $("#captureScreenshots").addEventListener("click", function () { pendingFeature("Ambil screenshot report"); });
-    $("#clearShotCache").addEventListener("click", function () { pendingFeature("Hapus cache screenshot"); });
-    $("#chooseTsdFolder").addEventListener("click", function () { pendingFeature("Pemilihan folder output TSD"); });
-    $("#openTsdFile").addEventListener("click", function () { pendingFeature("Buka HTML TSD"); });
-    $("#openTsdFolder").addEventListener("click", function () { pendingFeature("Buka folder TSD"); });
-    $("#reloadShotWorkspace").addEventListener("click", function () { pendingFeature("Muat ulang workspace screenshot"); });
-    $("#reloadShotReport").addEventListener("click", function () { pendingFeature("Muat ulang report screenshot"); });
+    $("#pickReportWorkbook").addEventListener("click", function () {
+      openFilePicker(parentDir($("#reportWorkbook").value), ".xlsx", function (chosen) {
+        $("#reportWorkbook").value = chosen;
+        inspectTsd();
+      });
+    });
+    $("#pickModelWorkbook").addEventListener("click", function () {
+      openFilePicker(parentDir($("#modelWorkbook").value), ".xlsx", function (chosen) {
+        $("#modelWorkbook").value = chosen;
+        inspectTsd();
+      });
+    });
+    $("#pickTemplate").addEventListener("click", function () {
+      openFilePicker(parentDir($("#template").value), ".html", function (chosen) {
+        $("#template").value = chosen;
+        inspectTsd();
+      });
+    });
+    $("#pickContext").addEventListener("click", function () {
+      openFilePicker(parentDir($("#contextJson").value), ".json", function (chosen) {
+        $("#contextJson").value = chosen;
+        state.tsdManualCustom = true;
+        loadTsdManual(false);
+      });
+    });
+    $("#captureScreenshots").addEventListener("click", captureTsdScreenshots);
+    $("#clearShotCache").addEventListener("click", clearTsdCache);
+    $("#chooseTsdFolder").addEventListener("click", function () {
+      openFolderPicker($("#tsdOutFolder").value, function (folder) {
+        $("#tsdOutFolder").value = folder;
+        inspectTsd();
+      });
+    });
+    $("#openTsdFile").addEventListener("click", openTsdDocument);
+    $("#openTsdFolder").addEventListener("click", openTsdFolder);
+    $("#reloadShotWorkspace").addEventListener("click", function () {
+      loadWorkspaces().then(function () { toast("Katalog workspace dimuat"); });
+    });
+    $("#reloadShotReport").addEventListener("click", function () {
+      if (!getSelectValue("shotWorkspace")) {
+        toast("Pilih workspace screenshot lebih dulu");
+        return;
+      }
+      loadTsdReports().then(function () { toast("Daftar report dimuat"); });
+    });
     $("#shotEnabled").addEventListener("change", function (event) {
       setChip(
         $("#shotChip"),
         event.target.checked ? "ok" : "idle",
         event.target.checked ? "Aktif" : "Nonaktif"
       );
+      scheduleTsdInspect();
+    });
+
+    $("#shotWorkspace").addEventListener("change", function () {
+      setSelectOptions("shotReport", [], "Pilih report…");
+      loadTsdReports().then(function () { scheduleTsdInspect(); });
+    });
+    $("#shotReport").addEventListener("change", function () {
+      scheduleTsdInspect();
+    });
+
+    [
+      ["#reportName", "change"],
+      ["#tsdFileName", "change"],
+      ["#docDate", "change"],
+      ["#tsdDraft", "change"],
+      ["#tsdExpandAll", "change"],
+      ["#shotScope", "change"],
+      ["#shotScale", "change"],
+      ["#shotMobile", "change"],
+      ["#shotDecorative", "change"],
+      ["#shotAutoInstall", "change"],
+      ["#shotDebug", "change"]
+    ].forEach(function (pair) {
+      var field = $(pair[0]);
+      if (field) field.addEventListener(pair[1], scheduleTsdInspect);
+    });
+
+    $("#closeJsonDialog").addEventListener("click", function () { $("#jsonDialog").close(); });
+    $("#cancelJsonDialog").addEventListener("click", function () { $("#jsonDialog").close(); });
+    $("#saveJsonDialog").addEventListener("click", saveJsonDialog);
+    $("#jsonDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#jsonDialog").close();
     });
 
     $("#runAnalyze").addEventListener("click", function () { pendingFeature("Analisa semantic model"); });
