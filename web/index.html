@@ -125,7 +125,11 @@
                     <p class="helper" id="workspaceHint"></p>
                     <div class="form-row">
                       <label for="xmlaEndpoint">Endpoint XMLA</label>
-                      <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace model">
+                      <div class="input-with-info">
+                        <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace model" aria-describedby="xmlaEndpointHelp">
+                        <button class="info-tip" type="button" aria-label="Penjelasan Endpoint XMLA" data-tooltip="Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog.">!</button>
+                        <span class="sr-only" id="xmlaEndpointHelp">Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog.</span>
+                      </div>
                     </div>
                     <div class="form-row">
                       <label for="catalog">Catalog</label>
@@ -501,9 +505,10 @@
             <div>
               <div class="view-eyebrow">Alur kerja · audit</div>
               <h1 class="view-title" id="titleAnalisa" tabindex="-1">Analisa semantic model</h1>
-              <p class="view-sub">Inventaris kolom, measure, relasi, report, DAX, dan M query beserta status pemakaiannya. Mode baca-saja.</p>
+              <p class="view-sub">Ukur ukuran kolom dan pemakaiannya di report Power BI, lalu lihat verdict pemakaian. Mode baca-saja.</p>
             </div>
             <div class="view-actions">
+              <button class="btn" id="stopAnalyze" type="button" hidden="">Hentikan</button>
               <button class="btn btn-primary" id="runAnalyze" type="button">Analisa</button>
             </div>
           </div>
@@ -538,13 +543,13 @@
                         <option>Finance Model</option>
                       </select>
                     </div>
-                    <button class="btn btn-sm" type="button">Pengaturan…</button>
+                    <button class="btn btn-sm" type="button" id="openSettingsFromAnalysis">Pengaturan…</button>
                   </div>
                 </div>
               </div>
               <div class="check-row">
-                <label class="check"><input type="checkbox" checked=""> Sertakan report dari workspace lain (admin API)</label>
-                <label class="check"><input type="checkbox"> Sertakan My Workspace (personal)</label>
+                <label class="check"><input type="checkbox" id="includeOther" checked=""> Sertakan report dari workspace lain (admin API)</label>
+                <label class="check"><input type="checkbox" id="includePersonal"> Sertakan My Workspace (personal)</label>
               </div>
             </div>
           </div>
@@ -584,12 +589,10 @@
 
           <div class="panel panel--analysis-results">
             <div class="tabs tabs--analysis" id="analyzeTabs" role="tablist" aria-label="Hasil analisa semantic model">
-              <button role="tab" id="tab-all" data-analyze-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0" disabled="">Semua hasil<span class="tab-count" id="tabCountAll"></span></button>
-              <button role="tab" id="tab-tables" data-analyze-tab="tables" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Tables<span class="tab-count" id="tabCountTables"></span></button>
-              <button role="tab" id="tab-relationships" data-analyze-tab="relationships" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Relationships<span class="tab-count" id="tabCountRelationships"></span></button>
-              <button role="tab" id="tab-report" data-analyze-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Report results<span class="tab-count" id="tabCountReport"></span></button>
-              <button role="tab" id="tab-dax" data-analyze-tab="dax" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">DAX expressions<span class="tab-count" id="tabCountDax"></span></button>
-              <button role="tab" id="tab-m" data-analyze-tab="m" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">M queries<span class="tab-count" id="tabCountM"></span></button>
+              <button role="tab" id="tab-all" data-analysis-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0">Semua<span class="tab-count" id="tabCountAll"></span></button>
+              <button role="tab" id="tab-columns" data-analysis-tab="columns" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Kolom<span class="tab-count" id="tabCountColumns"></span></button>
+              <button role="tab" id="tab-measures" data-analysis-tab="measures" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Measure<span class="tab-count" id="tabCountMeasures"></span></button>
+              <button role="tab" id="tab-report" data-analysis-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Report<span class="tab-count" id="tabCountReport"></span></button>
             </div>
             <div role="tabpanel" id="analyzePanel" aria-labelledby="tab-all">
               <div class="table-tools">
@@ -602,6 +605,8 @@
                   <div class="select">
                     <select id="typeAnalyze">
                       <option value="all">Semua tipe</option>
+                      <option value="columns">Kolom</option>
+                      <option value="measures">Measure</option>
                     </select>
                   </div>
                 </label>

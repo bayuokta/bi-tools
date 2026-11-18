@@ -58,6 +58,13 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   Playwright) dengan cache `TSD_assets` dan tombol hapus cache.
 - Ringkasan `run_tsd` kini juga mengembalikan jumlah tabel dan measure sehingga
   halaman TSD bisa menampilkan statistik tanpa membaca ulang workbook.
+- Halaman **Analisa Semantic Model** web tersambung: picker workspace/dataset,
+  opsi report lintas workspace/personal, analisa XMLA + pemakaian report dengan
+  stop, snapshot SQLite otomatis, kartu ringkasan, tab Semua/Kolom/Measure/Report,
+  pencarian/filter/sort/expand, detail pemakaian + referensi model, tautan report,
+  dan ekspor XLSX.
+- Teks bantuan Endpoint XMLA dipindahkan menjadi tooltip ikon `!` di kanan field;
+  baris workspace model tidak lagi menampilkan hint statis.
 - Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
   job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
 

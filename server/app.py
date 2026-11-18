@@ -12,7 +12,16 @@ from fastapi.staticfiles import StaticFiles
 from core.errors import ExtractionError
 from core.version import APP_NAME, __version__
 
-from .api import catalog, files, jobs, metadata, settings, system, tsd
+from .api import (
+    analysis,
+    catalog,
+    files,
+    jobs,
+    metadata,
+    settings,
+    system,
+    tsd,
+)
 from .config import web_dir
 from .jobs import JobManager, JobNotFound
 from .security import LocalGuard
@@ -24,6 +33,7 @@ ROUTERS = (
     catalog.router,
     metadata.router,
     tsd.router,
+    analysis.router,
     files.router,
     jobs.router,
 )

@@ -206,6 +206,10 @@ class WebLayerTests(unittest.TestCase):
             "runTsd",
             "openTsdDocument",
             "saveJsonDialog",
+            "analysisLoad",
+            "analysisRender",
+            "analysisRun",
+            "analysisExport",
             "startJob",
         ):
             self.assertEqual(
@@ -221,6 +225,12 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("flex:0 0 auto", css)
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         self.assertIn('item.value !== ""', js)
+
+    def test_web_endpoint_help_is_a_tooltip_icon(self) -> None:
+        text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('class="info-tip"', text)
+        self.assertIn('data-tooltip="Endpoint XMLA diturunkan', text)
+        self.assertIn('id="xmlaEndpointHelp"', text)
 
     def test_web_tsd_design_has_screenshot_panel(self) -> None:
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

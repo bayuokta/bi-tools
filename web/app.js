@@ -78,6 +78,13 @@
     tsdOutputPath: "",
     tsdTimer: null,
     tsdInspectTimer: null,
+    analysis: null,
+    analysisTab: "all",
+    analysisSort: "default",
+    analysisSortDesc: false,
+    analysisOpen: {},
+    analysisSettings: {},
+    analysisRunning: false,
     instances: [],
     workspaces: [],
     reports: [],
@@ -2261,6 +2268,11 @@
       else if (status === "cancelled") setChip($("#outputState"), "idle", "Dibatalkan");
       window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
     }
+    if (options.kind === "analysis") {
+      state.analysisRunning = false;
+      $("#stopAnalyze").hidden = true;
+      $("#runAnalyze").disabled = false;
+    }
     if (options.kind === "tsd" || options.kind === "tsd_capture") {
       if (state.tsdTimer) {
         window.clearInterval(state.tsdTimer);
@@ -2436,6 +2448,7 @@
     loadInstances();
     loadWorkspaces();
     loadTsdState();
+    analysisLoad();
   }
 
   // -- ekstraksi metadata -------------------------------------------------
@@ -2761,7 +2774,7 @@
         return { value: item.name, label: item.name, data: item };
       }), "Pilih dataset…");
       $("#workspaceHint").textContent = state.datasets.length
-        ? "Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog."
+        ? ""
         : "Workspace model ini tidak punya dataset yang bisa dibaca.";
       return data;
     }).catch(function (error) {
@@ -3309,6 +3322,493 @@
     });
   }
 
+  // -- Analisa Semantic Model --------------------------------------------
+  function analysisPayload() {
+    return {
+      workspace_id: getSelectValue("wsSelect"),
+      dataset_id: getSelectValue("modelSelect"),
+      include_other_workspaces: $("#includeOther").checked,
+      include_personal: $("#includePersonal").checked
+    };
+  }
+
+  function analysisFmtBytes(bytes) {
+    var value = Number(bytes || 0);
+    if (!value) return "0 B";
+    var mb = value / 1048576;
+    if (mb >= 1024) return (mb / 1024).toFixed(2) + " GB";
+    if (mb >= 1) return mb.toFixed(1) + " MB";
+    return (value / 1024).toFixed(0) + " KB";
+  }
+
+  function analysisStatusChip(status) {
+    var map = {
+      "Tidak dipakai": "chip-danger",
+      "Perlu dicek": "chip-warn",
+      "Dipakai": "chip-ok",
+      "Wajib dipertahankan": "chip-accent"
+    };
+    return '<span class="chip ' + (map[status] || "chip-idle") +
+      '"><span class="dot"></span>' + escapeHtml(status || "-") + "</span>";
+  }
+
+  function analysisReportUrl(workspaceId, reportId) {
+    if (!workspaceId || !reportId) return "";
+    return "https://app.powerbi.com/groups/" + encodeURIComponent(workspaceId) +
+      "/reports/" + encodeURIComponent(reportId);
+  }
+
+  function analysisApplyPrefs(settings) {
+    state.analysisSettings = settings || {};
+    var objectFilter = settings.object_filter || "all";
+    setSelectValue("typeAnalyze", objectFilter);
+    $("#unusedOnly").checked = Boolean(settings.unused_only);
+    $("#includeOther").checked = settings.include_other_workspaces !== false;
+    $("#includePersonal").checked = Boolean(settings.include_personal);
+    state.analysisSort = settings.sort_column || "default";
+    state.analysisSortDesc = Boolean(settings.sort_desc);
+  }
+
+  function analysisSavePrefs() {
+    if (!apiReady()) return Promise.resolve(null);
+    return api().post("/api/analysis/preferences", {
+      object_filter: getSelectValue("typeAnalyze") || "all",
+      unused_only: $("#unusedOnly").checked,
+      include_other_workspaces: $("#includeOther").checked,
+      include_personal: $("#includePersonal").checked,
+      sort_column: state.analysisSort,
+      sort_desc: state.analysisSortDesc
+    }).then(function (data) {
+      state.analysisSettings = data;
+      return data;
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  function analysisLoad() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/analysis/state").then(function (data) {
+      var options = (data.workspaces || []).map(function (item) {
+        return { value: item.id, label: item.label, data: item };
+      });
+      setSelectOptions("wsSelect", options, "Pilih workspace…");
+      analysisApplyPrefs(data.settings || {});
+      var missing = data.credentials_missing || [];
+      setChip(
+        $("#spStatus"),
+        missing.length ? "warn" : "ok",
+        missing.length ? "Kredensial belum lengkap" : "Service principal siap"
+      );
+      $("#modelSelect") && setSelectOptions("modelSelect", [], "Pilih semantic model…");
+      analysisRender();
+      return data;
+    }).catch(function (error) {
+      addLog("Katalog analisa tidak bisa dibaca: " + error.message, "warn");
+    });
+  }
+
+  function analysisLoadDatasets() {
+    var workspaceId = getSelectValue("wsSelect");
+    state.analysis = null;
+    if (!workspaceId || !apiReady()) {
+      setSelectOptions("modelSelect", [], "Pilih semantic model…");
+      analysisRender();
+      return Promise.resolve();
+    }
+    setSelectOptions("modelSelect", [], "Memuat dataset…");
+    $("#analyzeSummary").textContent = "Memuat semantic model…";
+    return api().get(
+      "/api/analysis/workspaces/" + encodeURIComponent(workspaceId) + "/datasets"
+    ).then(function (data) {
+      setSelectOptions("modelSelect", (data.datasets || []).map(function (item) {
+        return { value: item.id, label: item.name, data: item };
+      }), "Pilih semantic model…");
+      $("#analyzeSummary").textContent = "Pilih semantic model untuk dianalisa.";
+      analysisRender();
+      return data;
+    }).catch(function (error) {
+      setSelectOptions("modelSelect", [], "Pilih semantic model…");
+      $("#analyzeSummary").textContent = error.message;
+      reportError(error);
+    });
+  }
+
+  function analysisLoadSnapshot() {
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId || !apiReady()) {
+      state.analysis = null;
+      analysisRender();
+      return Promise.resolve();
+    }
+    $("#analyzeSummary").textContent = "Memuat hasil analisa tersimpan…";
+    return api().get(
+      "/api/analysis/snapshot?dataset_id=" + encodeURIComponent(datasetId)
+    ).then(function (data) {
+      if (data.result) {
+        var stamp = String(data.result.analyzed_at || "")
+          .replace("T", " ").slice(0, 16);
+        analysisApply(data.result, "Hasil tersimpan " + (stamp || "-") + ".");
+      } else {
+        state.analysis = null;
+        analysisRender();
+      }
+      return data;
+    }).catch(reportError);
+  }
+
+  function analysisApply(result, note) {
+    state.analysis = result;
+    state.analysisNote = note || "";
+    state.analysisOpen = {};
+    var totals = result.totals || {};
+    $("#metricSize").textContent = analysisFmtBytes(totals.model_bytes);
+    var sizeNote =
+      "data " + analysisFmtBytes(totals.data_bytes) +
+      " · hierarki " + analysisFmtBytes(totals.hierarchy_bytes) +
+      " · dictionary " + analysisFmtBytes(totals.dictionary_bytes);
+    $("#metricSizeNote").textContent = sizeNote;
+    $("#metricSizeNote").title = sizeNote;
+    $("#metricColumns").textContent = (totals.columns || 0);
+    $("#metricColumnsNote").textContent = "kolom pada model";
+    $("#metricMeasures").textContent = (totals.measures || 0);
+    $("#metricMeasuresNote").textContent = "measure pada model";
+    $("#metricUnusedColumns").textContent = (totals.unused_columns || 0);
+    var pct = totals.model_bytes
+      ? Math.round((totals.unused_bytes || 0) / totals.model_bytes * 100)
+      : 0;
+    var unusedNote = analysisFmtBytes(totals.unused_bytes) + " · " + pct + "% dataset";
+    $("#metricUnusedColumnsNote").textContent = unusedNote;
+    $("#metricUnusedColumnsNote").title = unusedNote;
+    $("#metricUnusedMeasures").textContent = (totals.unused_measures || 0);
+    $("#metricUnusedMeasuresNote").textContent = "tidak direferensikan";
+    $("#metricReport").textContent =
+      (totals.reports_scanned || 0) + "/" + (totals.reports || 0);
+    $("#metricReportNote").textContent = result.coverage_complete
+      ? "cakupan lengkap"
+      : "cakupan belum lengkap";
+    $("#metricReportNote").title = result.coverage || "";
+    setChip(
+      $("#spStatus"),
+      result.coverage_complete ? "ok" : "warn",
+      result.coverage_complete ? "Cakupan lengkap" : "Cakupan belum lengkap"
+    );
+    analysisRender();
+  }
+
+  function analysisRows() {
+    var result = state.analysis;
+    if (!result) return [];
+    var tab = state.analysisTab;
+    var rows = [];
+    if (tab === "all" || tab === "columns") {
+      (result.columns || []).forEach(function (row) {
+        rows.push(Object.assign({}, row, { kind: "column" }));
+      });
+    }
+    if (tab === "all" || tab === "measures") {
+      (result.measures || []).forEach(function (row) {
+        rows.push(Object.assign({}, row, { kind: "measure" }));
+      });
+    }
+    var type = getSelectValue("typeAnalyze") || "all";
+    var unusedOnly = $("#unusedOnly").checked;
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    rows = rows.filter(function (row) {
+      if (type === "columns" && row.kind !== "column") return false;
+      if (type === "measures" && row.kind !== "measure") return false;
+      if (unusedOnly && row.status !== "Tidak dipakai") return false;
+      if (!query) return true;
+      return [row.name, row.table, row.data_type, row.status, row.reason]
+        .join(" ").toLowerCase().indexOf(query) !== -1;
+    });
+    var key = state.analysisSort;
+    if (key && key !== "default") {
+      var desc = state.analysisSortDesc;
+      var statusOrder = {
+        "Tidak dipakai": 0,
+        "Perlu dicek": 1,
+        "Dipakai": 2,
+        "Wajib dipertahankan": 3
+      };
+      rows.sort(function (left, right) {
+        var a = left[key];
+        var b = right[key];
+        if (key === "size") { a = left.size_bytes || 0; b = right.size_bytes || 0; }
+        else if (key === "uses") { a = left.uses || 0; b = right.uses || 0; }
+        else if (key === "status") {
+          a = statusOrder[left.status] == null ? 99 : statusOrder[left.status];
+          b = statusOrder[right.status] == null ? 99 : statusOrder[right.status];
+        } else if (key === "has_error") {
+          a = left.has_error ? 1 : 0;
+          b = right.has_error ? 1 : 0;
+        } else {
+          a = String(a == null ? "" : a).toLowerCase();
+          b = String(b == null ? "" : b).toLowerCase();
+        }
+        if (a < b) return desc ? 1 : -1;
+        if (a > b) return desc ? -1 : 1;
+        return 0;
+      });
+    }
+    return rows;
+  }
+
+  function analysisHeaders() {
+    var columns = [
+      ["Nama", "name", ""],
+      ["Tipe", "type", ""],
+      ["Tabel", "table", ""],
+      ["Sumber", "source", ""],
+      ["Tipe data", "data_type", ""],
+      ["Ukuran", "size", "num"],
+      ["Status", "status", ""],
+      ["# dipakai", "uses", "num"],
+      ["Format string", "format_string", ""],
+      ["Error", "has_error", ""],
+      ["Display folder", "display_folder", ""]
+    ];
+    return "<tr>" + columns.map(function (item) {
+      var active = state.analysisSort === item[1];
+      var arrow = active ? (state.analysisSortDesc ? " \u25bc" : " \u25b2") : "";
+      return '<th scope="col" data-analysis-sort="' + item[1] + '"' +
+        (item[2] ? ' class="' + item[2] + '"' : "") + ">" +
+        item[0] + arrow + "</th>";
+    }).join("") + "</tr>";
+  }
+
+  function analysisDetailRows(row, id) {
+    var html = "";
+    if (row.reason) {
+      html += '<tr class="detail-row"><td colspan="11">' + escapeHtml(row.reason) + "</td></tr>";
+    }
+    if (row.expression) {
+      html += '<tr class="code-row"><td colspan="11"><pre>' + escapeHtml(row.expression) + "</pre></td></tr>";
+    }
+    (row.children || []).forEach(function (group) {
+      html += '<tr class="group-row"><td colspan="11">' +
+        escapeHtml(group.label) + " (" + (group.count || 0) + ")</td></tr>";
+      if (group.kind === "usage") {
+        (group.reports || []).forEach(function (report) {
+          var url = report.url || analysisReportUrl(report.workspace_id, report.report_id);
+          var name = escapeHtml(report.report_name || "(report)");
+          html += '<tr class="analysis-sub"><td colspan="11">' +
+            '<span class="analysis-mark">Report</span> ' +
+            (url ? '<a class="analysis-link" href="' + escapeHtml(url) +
+              '" target="_blank" rel="noopener">' + name + "</a>" : name) +
+            ' <span class="helper">' + (report.points || []).length + " titik</span></td></tr>";
+          (report.points || []).forEach(function (point) {
+            var parts = [];
+            if (point.page_name) parts.push(escapeHtml(point.page_name));
+            if (point.visual_title) parts.push(escapeHtml(point.visual_title));
+            if (point.aggregation) parts.push(escapeHtml(point.aggregation));
+            html += '<tr class="analysis-sub"><td colspan="11">' +
+              '<span class="analysis-mark">' + escapeHtml(point.usage_label) + "</span> " +
+              (parts.length ? parts.join(" \u00b7 ") : "\u2014") +
+              (point.is_hidden ? ' <span class="chip chip-idle">hidden</span>' : "") +
+              "</td></tr>";
+          });
+        });
+      } else {
+        (group.refs || []).forEach(function (ref) {
+          html += '<tr class="analysis-sub"><td colspan="11">' +
+            '<span class="analysis-mark">' + escapeHtml(ref.kind) + "</span> " +
+            escapeHtml(ref.object) +
+            (ref.detail ? ' <span class="helper">' + escapeHtml(ref.detail) + "</span>" : "") +
+            "</td></tr>";
+        });
+      }
+    });
+    return html;
+  }
+
+  function analysisRender() {
+    var result = state.analysis;
+    var table = $("#analyzeTableWrap");
+    var empty = $("#analyzeEmpty");
+    $("#exportXlsx").disabled = !result;
+    $("#tabCountAll").textContent = result ? String((result.totals.columns || 0) + (result.totals.measures || 0)) : "";
+    $("#tabCountColumns").textContent = result ? String(result.totals.columns || 0) : "";
+    $("#tabCountMeasures").textContent = result ? String(result.totals.measures || 0) : "";
+    $("#tabCountReport").textContent = result ? String(result.totals.reports || 0) : "";
+    $$("#analyzeTabs [role='tab']").forEach(function (tab) {
+      var active = tab.getAttribute("data-analysis-tab") === state.analysisTab;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.tabIndex = active ? 0 : -1;
+    });
+    if (!result) {
+      table.hidden = true;
+      empty.hidden = false;
+      $("#analyzeSummary").textContent = "Belum dianalisis";
+      $("#analyzeEmptyTitle").textContent = "Belum ada hasil analisa";
+      $("#analyzeEmptyText").textContent =
+        "Pilih workspace dan semantic model, lalu tekan Analisa. Hasil muncul di sini tanpa mengubah model.";
+      $("#analyzeFromEmpty").hidden = false;
+      return;
+    }
+    if (state.analysisTab === "report") {
+      analysisRenderReports(result);
+      return;
+    }
+    var rows = analysisRows();
+    $("#analyzeHead").innerHTML = analysisHeaders();
+    var html = "";
+    rows.forEach(function (row, index) {
+      var id = row.kind + ":" + index;
+      var open = Boolean(state.analysisOpen[id]);
+      var expandable = (row.children || []).length > 0 || row.reason || row.expression;
+      var cells = [
+        '<div class="name-cell">' +
+          (expandable
+            ? '<button type="button" class="row-toggle" data-analysis-toggle="' + id +
+              '" aria-expanded="' + (open ? "true" : "false") + '">' + CHEVRON + "</button>"
+            : '<span class="row-toggle" aria-hidden="true"></span>') +
+          '<span class="name-text" title="' + escapeHtml(row.name) + '">' +
+          escapeHtml(row.name) + "</span></div>",
+        escapeHtml(row.type),
+        escapeHtml(row.table),
+        escapeHtml(row.source || "Model"),
+        escapeHtml(row.data_type),
+        escapeHtml(row.size || "-"),
+        analysisStatusChip(row.status),
+        String(row.uses == null ? 0 : row.uses),
+        escapeHtml(row.format_string || "-"),
+        row.has_error ? "Ya" : "Tidak",
+        escapeHtml(row.display_folder || "-")
+      ];
+      html += '<tr data-analysis-row="' + id + '"' +
+        (row.status === "Tidak dipakai" ? ' class="row-unused"' : "") + ">" +
+        cells.map(function (cell, cellIndex) {
+          var numeric = cellIndex === 5 || cellIndex === 7;
+          return "<td" + (numeric ? ' class="num"' : "") + ">" + cell + "</td>";
+        }).join("") + "</tr>";
+      if (open) html += analysisDetailRows(row, id);
+    });
+    if (!html) {
+      table.hidden = true;
+      empty.hidden = false;
+      $("#analyzeEmptyTitle").textContent = "Tidak ada item yang cocok";
+      $("#analyzeEmptyText").textContent = "Ubah kata kunci atau filter untuk melihat item lain.";
+      $("#analyzeFromEmpty").hidden = true;
+    } else {
+      $("#analyzeBody").innerHTML = html;
+      table.hidden = false;
+      empty.hidden = true;
+    }
+    var unused = rows.filter(function (row) {
+      return row.status === "Tidak dipakai";
+    }).length;
+    $("#analyzeSummary").textContent =
+      (state.analysisNote ? state.analysisNote + " " : "") +
+      rows.length + " item \u00b7 " + unused + " tidak dipakai \u00b7 " +
+      (result.coverage || "");
+  }
+
+  function analysisRenderReports(result) {
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var reports = (result.reports || []).filter(function (report) {
+      if (!query) return true;
+      return [report.report_name, report.workspace_name, report.status, report.message]
+        .join(" ").toLowerCase().indexOf(query) !== -1;
+    });
+    $("#analyzeHead").innerHTML =
+      "<tr><th>Report</th><th>Workspace</th><th>Format</th><th>Status</th>" +
+      "<th>Modified</th><th>Pesan</th></tr>";
+    $("#analyzeBody").innerHTML = reports.map(function (report) {
+      var url = analysisReportUrl(report.workspace_id, report.report_id);
+      var name = escapeHtml(report.report_name || report.report_id || "(report)");
+      var status = report.status === "ok"
+        ? '<span class="chip chip-ok"><span class="dot"></span>ok</span>'
+        : '<span class="chip chip-warn"><span class="dot"></span>' +
+          escapeHtml(report.status || "-") + "</span>";
+      return "<tr>" +
+        "<td>" + (url ? '<a class="analysis-link" href="' + escapeHtml(url) +
+          '" target="_blank" rel="noopener">' + name + "</a>" : name) + "</td>" +
+        "<td>" + escapeHtml(report.workspace_name || "-") + "</td>" +
+        "<td>" + escapeHtml(report.format || "-") + "</td>" +
+        "<td>" + status + "</td>" +
+        "<td>" + escapeHtml((report.modified_at || "").replace("T", " ").slice(0, 16)) + "</td>" +
+        "<td>" + escapeHtml(report.message || "-") + "</td></tr>";
+    }).join("");
+    if (!reports.length) {
+      $("#analyzeTableWrap").hidden = true;
+      $("#analyzeEmpty").hidden = false;
+      $("#analyzeEmptyTitle").textContent = "Tidak ada report";
+      $("#analyzeEmptyText").textContent = "Tidak ada report yang cocok dengan filter.";
+      $("#analyzeFromEmpty").hidden = true;
+      return;
+    }
+    $("#analyzeTableWrap").hidden = false;
+    $("#analyzeEmpty").hidden = true;
+    $("#analyzeSummary").textContent =
+      reports.length + " report \u00b7 " + (result.coverage || "");
+  }
+
+  function analysisSetTab(name) {
+    if (!["all", "columns", "measures", "report"].includes(name)) return;
+    state.analysisTab = name;
+    analysisRender();
+  }
+
+  function analysisSetSort(key) {
+    if (!key) return;
+    if (key === state.analysisSort) {
+      state.analysisSortDesc = !state.analysisSortDesc;
+    } else {
+      state.analysisSort = key;
+      state.analysisSortDesc = ["size", "uses", "has_error"].includes(key);
+    }
+    analysisSavePrefs();
+    analysisRender();
+  }
+
+  function analysisRun() {
+    if (!apiReady()) return;
+    if (state.jobId) {
+      toast("Pekerjaan lain masih berjalan");
+      return;
+    }
+    if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
+      toast("Pilih workspace dan semantic model lebih dulu");
+      return;
+    }
+    state.analysisRunning = true;
+    $("#stopAnalyze").hidden = false;
+    startJob({
+      kind: "analysis",
+      path: "/api/analysis/run",
+      body: analysisPayload(),
+      label: "Analisa Semantic Model",
+      button: $("#runAnalyze"),
+      onDone: function (snapshot) {
+        state.analysisRunning = false;
+        $("#stopAnalyze").hidden = true;
+        if (snapshot.result) analysisApply(snapshot.result);
+      }
+    });
+  }
+
+  function analysisStop() {
+    if (!state.jobId || !apiReady()) return;
+    api().post("/api/jobs/" + encodeURIComponent(state.jobId) + "/cancel", {})
+      .then(function () { toast("Permintaan berhenti dikirim"); })
+      .catch(reportError);
+  }
+
+  function analysisExport() {
+    if (!apiReady() || !getSelectValue("modelSelect")) {
+      toast("Pilih semantic model lebih dulu");
+      return;
+    }
+    api().post("/api/analysis/export", {
+      dataset_id: getSelectValue("modelSelect")
+    }).then(function (data) {
+      toast("Ekspor: " + data.path);
+      api().post("/api/files/open", { path: data.path, mode: "open" })
+        .catch(function () {});
+    }).catch(reportError);
+  }
+
   function init() {
     initComboEvents();
     enhanceAllSelects();
@@ -3407,8 +3907,7 @@
     $("#catalog").addEventListener("change", function () {
       var item = getSelectItem("catalog");
       if (item && item.data) {
-        $("#workspaceHint").textContent =
-          "Catalog " + item.data.name + " dipakai dari workspace model ini.";
+        $("#workspaceHint").textContent = "";
       }
     });
 
@@ -3530,46 +4029,58 @@
       if (event.target === event.currentTarget) $("#jsonDialog").close();
     });
 
-    $("#runAnalyze").addEventListener("click", function () { pendingFeature("Analisa semantic model"); });
-    $("#analyzeFromEmpty").addEventListener("click", function () { pendingFeature("Analisa semantic model"); });
+    $("#runAnalyze").addEventListener("click", analysisRun);
+    $("#analyzeFromEmpty").addEventListener("click", analysisRun);
+    $("#stopAnalyze").addEventListener("click", analysisStop);
     $("#reloadWsAnalisa").addEventListener("click", function () {
-      addLog("Daftar workspace untuk analisa dimuat ulang.", "info");
-      toast("Workspace dimuat ulang");
+      analysisLoad().then(function () { toast("Katalog workspace dimuat"); });
     });
+    $("#openSettingsFromAnalysis").addEventListener("click", function () {
+      window.openSettingsTab ? window.openSettingsTab() : showView("pengaturan");
+    });
+    $("#wsSelect").addEventListener("change", function () {
+      analysisLoadDatasets();
+    });
+    $("#modelSelect").addEventListener("change", function () {
+      analysisLoadSnapshot();
+    });
+    $("#includeOther").addEventListener("change", analysisSavePrefs);
+    $("#includePersonal").addEventListener("change", analysisSavePrefs);
 
     $("#searchAnalyze").addEventListener("input", function () {
-      if (state.analyzed) renderAnalysis();
+      if (state.analysis) analysisRender();
     });
-    $("#typeAnalyze").addEventListener("change", function (event) {
-      state.typeFilter = event.target.value;
-      if (state.analyzed) renderAnalysis();
+    $("#typeAnalyze").addEventListener("change", function () {
+      analysisSavePrefs();
+      if (state.analysis) analysisRender();
     });
-    $("#unusedOnly").addEventListener("change", function (event) {
-      state.unusedOnly = event.target.checked;
-      if (state.analyzed) renderAnalysis();
+    $("#unusedOnly").addEventListener("change", function () {
+      analysisSavePrefs();
+      if (state.analysis) analysisRender();
     });
     $("#expandRows").addEventListener("click", function () {
-      if (!state.analyzed) {
+      if (!state.analysis) {
         toast("Jalankan analisa lebih dulu");
         return;
       }
-      state.openGroups = {};
-      groupIdsFor(state.analyzeTab).forEach(function (id) { state.openGroups[id] = true; });
-      renderAnalysis();
+      state.analysisOpen = {};
+      if (state.analysisTab === "report") return;
+      analysisRows().forEach(function (row, index) {
+        if ((row.children || []).length || row.reason || row.expression) {
+          state.analysisOpen[row.kind + ":" + index] = true;
+        }
+      });
+      analysisRender();
     });
     $("#collapseRows").addEventListener("click", function () {
-      if (!state.analyzed) {
-        toast("Jalankan analisa lebih dulu");
-        return;
-      }
-      state.openGroups = {};
-      renderAnalysis();
+      state.analysisOpen = {};
+      analysisRender();
     });
-    $("#exportXlsx").addEventListener("click", function () { pendingFeature("Ekspor analisa"); });
+    $("#exportXlsx").addEventListener("click", analysisExport);
 
     $$("#analyzeTabs [role='tab']").forEach(function (tab) {
       tab.addEventListener("click", function () {
-        setAnalysisTab(tab.dataset.analyzeTab);
+        analysisSetTab(tab.getAttribute("data-analysis-tab"));
       });
     });
     $("#relViewSwitch").addEventListener("click", function (event) {
@@ -3621,43 +4132,39 @@
       var next = $("#relGraphSide [data-rel-pair='" + key + "']");
       if (next) next.focus();
     });
-    $("#analyzeTabs").addEventListener("keydown", function (event) {
-      var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
-      if (keys.indexOf(event.key) === -1) return;
-      var tabs = $$("#analyzeTabs [role='tab']:not([disabled])");
-      if (!tabs.length) return;
-      var index = tabs.indexOf(document.activeElement);
-      if (index === -1) index = 0;
-      event.preventDefault();
-      if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
-      if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
-      if (event.key === "Home") index = 0;
-      if (event.key === "End") index = tabs.length - 1;
-      tabs[index].focus();
-      setAnalysisTab(tabs[index].dataset.analyzeTab);
-    });
 
+    $("#analyzeHead").addEventListener("click", function (event) {
+      var header = event.target.closest("[data-analysis-sort]");
+      if (!header) return;
+      analysisSetSort(header.getAttribute("data-analysis-sort"));
+    });
     $("#analyzeBody").addEventListener("click", function (event) {
-      var toggle = event.target.closest("[data-group]");
-      if (toggle) {
-        event.preventDefault();
-        var key = toggle.getAttribute("data-group");
-        state.openGroups[key] = !state.openGroups[key];
-        renderAnalysis();
-        return;
-      }
-      var row = event.target.closest("tr[data-id]");
-      if (!row) return;
-      $$("tr.selected", $("#analyzeBody")).forEach(function (item) { item.classList.remove("selected"); });
-      row.classList.add("selected");
+      var toggle = event.target.closest("[data-analysis-toggle]");
+      if (!toggle) return;
+      event.preventDefault();
+      var key = toggle.getAttribute("data-analysis-toggle");
+      state.analysisOpen[key] = !state.analysisOpen[key];
+      analysisRender();
     });
     $("#analyzeBody").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
-      var row = event.target.closest("tr[data-id]");
-      if (!row) return;
+      var toggle = event.target.closest("[data-analysis-toggle]");
+      if (!toggle) return;
       event.preventDefault();
-      $$("tr.selected", $("#analyzeBody")).forEach(function (item) { item.classList.remove("selected"); });
-      row.classList.add("selected");
+      toggle.click();
+    });
+    $("#analyzeTabs").addEventListener("keydown", function (event) {
+      var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+      if (keys.indexOf(event.key) === -1) return;
+      event.preventDefault();
+      var tabs = $$("#analyzeTabs [role='tab']");
+      var index = tabs.indexOf(document.activeElement);
+      if (event.key === "ArrowRight") index = (index + 1 + tabs.length) % tabs.length;
+      else if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") index = 0;
+      else index = tabs.length - 1;
+      tabs[index].focus();
+      analysisSetTab(tabs[index].getAttribute("data-analysis-tab"));
     });
 
     $("#dirUpstream").addEventListener("click", function () {
