@@ -7,9 +7,9 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-18 - Rilis 0.4.0
 
-### Antarmuka web lokal (0.4.0)
+### Antarmuka web lokal
 
 - Antarmuka PySide6 diganti server web lokal: `BI Tools.exe` menjalankan FastAPI +
   uvicorn di `127.0.0.1` (port bebas, default 8765), menulis penanda
@@ -26,8 +26,7 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Halaman Pengaturan web sudah tersambung: kredensial, RLS default, path database,
   mode sinkronisasi, full scan/personal workspace, sinkronisasi katalog, scan
   lineage, tes token Fabric/Power BI, tema, dan pemilih folder/berkas sisi server.
-- `web\` (HTML/CSS/JS tanpa build step) disalin ke samping exe; spec kini juga
-  membangun `BI Tools (classic).exe` sebagai fallback PySide6 sampai paritas.
+- `web\` (HTML/CSS/JS tanpa build step) disalin ke samping exe.
 - Halaman Ekstraksi web tersambung penuh: sumber Service/Desktop, cakupan
   report/model, file `.pbix` lewat penjelajah server, instance Desktop, workspace
   + dataset/report dari katalog SQLite lalu REST, endpoint XMLA turunan, job
@@ -72,6 +71,22 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   CSV ke `outputs\Lineage_<nama>.csv`.
 - Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
   job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
+
+### Finalisasi 0.4.0
+
+- GUI PySide6 dihapus: paket `app\` beserta 10 berkas uji GUI, `tests\test_app_settings.py`,
+  `tests\test_app_tabs.py`, dan tes view model. `requirements.txt` tidak lagi
+  memuat PySide6, dan `tests\test_architecture.py` menjaga agar `app\`/PySide6
+  tidak kembali.
+- Paket kini hanya dua executable: `BI Tools.exe` (server web, console) dan
+  `bi-tools-cli.exe` (console). `BI Tools (classic).exe` dihapus dari spec,
+  `packaging\build.ps1`, dan `.github\workflows\release.yml`, sehingga paket
+  dan installer lebih kecil.
+- `README.md` dan `AGENTS.md` ditulis ulang untuk alur web: struktur `server\`,
+  `web\`, dua executable, dan tanpa instruksi `python -m app`/QSettings.
+- `packaging\make_icon.py` tetap tersedia sebagai skrip dev-only untuk
+  meregenerasi ikon (PySide6 tidak dipakai saat build/runtime).
+- Suite menjadi 585 tes (576 lulus, 9 skip) tanpa PySide6.
 
 ## 2026-11-18 - Perbaikan 0.3.2
 

@@ -1,8 +1,8 @@
 """Kunci preferensi yang dipakai server web.
 
-Nilai kunci sengaja sama dengan ``app/settings.py`` supaya migrasi dari
-QSettings 0.3.x tidak perlu pemetaan tambahan. Setelah PySide6 dilepas,
-modul ini menjadi satu-satunya sumber kunci.
+Nama kunci sengaja sama dengan GUI 0.3.x supaya migrasi dari QSettings tidak
+perlu pemetaan tambahan. Sejak 0.4.0 modul ini menjadi satu-satunya sumber
+kunci preferensi web.
 """
 
 from __future__ import annotations

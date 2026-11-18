@@ -1,9 +1,9 @@
 """Lokasi aplikasi dan folder runtime (skrip maupun executable).
 
-Saat dijalankan sebagai skrip (``python -m app``) folder aplikasi adalah root
-repo, sehingga perilaku lama tidak berubah. Saat dibungkus menjadi executable,
-folder aplikasi adalah folder tempat ``.exe`` berada, jadi ``outputs\\`` dan
-``data\\`` ikut pindah bersama aplikasi.
+Saat dijalankan sebagai skrip (``python -m server`` atau perintah CLI) folder
+aplikasi adalah root repo, sehingga perilaku lama tidak berubah. Saat dibungkus
+menjadi executable, folder aplikasi adalah folder tempat ``.exe`` berada, jadi
+``outputs\\`` dan ``data\\`` ikut pindah bersama aplikasi.
 
 Folder aplikasi bisa saja tidak bisa ditulis (mis. dipasang di
 ``C:\\Program Files``). Dalam kasus itu :func:`outputs_dir` dan :func:`data_dir`

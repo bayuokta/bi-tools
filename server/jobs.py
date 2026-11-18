@@ -1,8 +1,8 @@
 """Antrean pekerjaan server dengan log live.
 
 Pekerjaan ``core`` berjalan sinkron dan memakai callback ``log``. Server web
-menjalankannya di satu thread pekerja (satu pekerjaan pada satu waktu, sama
-seperti ``JobRunner`` GUI) lalu menyiarkan baris log ke browser lewat SSE.
+menjalankannya di satu thread pekerja (satu pekerjaan pada satu waktu) lalu
+menyiarkan baris log ke browser lewat SSE.
 Setiap job menyimpan riwayat log di memori supaya refresh halaman atau
 koneksi SSE yang terputus tidak kehilangan progres.
 """

@@ -1,8 +1,7 @@
 """Presenter tab Pengaturan untuk web (tanpa Qt).
 
-Logika di sini adalah port dari ``app/viewmodels/settings.py``: status
-kredensial, path database, mode sinkronisasi, dan dua pekerjaan panjang
-(sinkronisasi katalog workspace dan scan lineage).
+Modul ini menangani status kredensial, path database, mode sinkronisasi, dan
+dua pekerjaan panjang (sinkronisasi katalog workspace dan scan lineage).
 """
 
 from __future__ import annotations

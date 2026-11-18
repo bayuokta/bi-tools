@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ("core", "cli", "app", "server")
+SOURCES = ("core", "cli", "server")
 
 
 def source_files() -> list[Path]:
@@ -77,81 +77,14 @@ class LayerGuardTests(unittest.TestCase):
             )
 
 
-class PresentationBoundaryTests(unittest.TestCase):
-    def test_core_has_no_qt(self) -> None:
-        hits = matching_in(
-            files_under("core"), r"^\s*(import PySide6|from PySide6\b)"
-        )
-        self.assertEqual(hits, [], "core harus bebas Qt agar bisa dipakai CLI")
+class BoundaryTests(unittest.TestCase):
+    def test_qt_is_gone(self) -> None:
+        hits = matching(r"^\s*(import PySide6|from PySide6\b)")
+        self.assertEqual(hits, [], "PySide6 sudah dihapus dari 0.4.0")
 
-    def test_worker_instantiated_only_in_job_runner(self) -> None:
-        self.assertEqual(
-            matching_in(files_under("app"), r"^\s*worker = ExtractionWorker\("),
-            ["app/job_runner.py"],
-        )
+    def test_app_package_is_gone(self) -> None:
+        self.assertFalse((ROOT / "app").exists(), "app/ sudah dihapus setelah paritas web")
 
-    def test_qthread_subclass_only_in_worker(self) -> None:
-        self.assertEqual(
-            matching_in(files_under("app"), r"^\s*class \w+\(QThread\)"),
-            ["app/worker.py"],
-        )
-
-    def test_cli_does_not_import_app(self) -> None:
-        hits = matching_in(files_under("cli"), r"^\s*(import app\b|from app\b)")
-        self.assertEqual(hits, [], "CLI harus berdiri di atas core, bukan GUI")
-
-    def test_viewmodels_have_no_widgets(self) -> None:
-        viewmodels = [
-            path
-            for path in source_files()
-            if "viewmodels" in path.relative_to(ROOT).parts
-        ]
-        self.assertTrue(viewmodels, "folder app/viewmodels belum ada")
-        hits = matching_in(
-            viewmodels,
-            r"^\s*(import PySide6\.QtWidgets|from PySide6\.QtWidgets\b)",
-        )
-        self.assertEqual(hits, [], "view model tidak boleh menyentuh widget")
-
-    def test_metadata_views_do_not_call_use_cases(self) -> None:
-        targets = [
-            ROOT / "app" / "local_tab.py",
-            ROOT / "app" / "service_tab.py",
-            ROOT / "app" / "extraction_base.py",
-        ]
-        hits = matching_in(targets, r"^\s*from core\.(jobs|report|model)\b")
-        self.assertEqual(hits, [], "view metadata hanya boleh lewat view model")
-
-    def test_tsd_view_does_not_call_use_cases(self) -> None:
-        target = [ROOT / "app" / "tsd_tab.py"]
-        hits = matching_in(
-            target,
-            r"\b(run_tsd|build_context|render_tsd|write_tsd|write_manual"
-            r"|load_screenshot_set|capture_report|cache_dir)\s*\(",
-        )
-        self.assertEqual(hits, [], "view TSD hanya boleh lewat TsdViewModel")
-
-    def test_lineage_view_does_not_touch_storage(self) -> None:
-        target = [ROOT / "app" / "lineage_tab.py"]
-        hits = matching_in(
-            target,
-            r"^\s*(import sqlite3|from core\.lineage_(store|service|export|scan)\b)",
-        )
-        self.assertEqual(hits, [], "view lineage hanya boleh lewat LineageViewModel")
-
-    def test_settings_view_has_no_core_imports(self) -> None:
-        target = [ROOT / "app" / "settings_tab.py"]
-        hits = matching_in(target, r"^\s*(import core\b|from core\b)")
-        self.assertEqual(hits, [], "view pengaturan hanya boleh lewat SettingsViewModel")
-
-    def test_no_hardcoded_pbix_default(self) -> None:
-        hits = matching(r"DEFAULT_PBIX|DRAGON_PBIX_SOURCE|stale_copy_warning")
-        self.assertEqual(
-            hits, [], "path .pbix wajib eksplisit; jangan ada default/env di kode"
-        )
-
-
-class WebLayerTests(unittest.TestCase):
     def test_core_has_no_web_framework(self) -> None:
         hits = matching_in(
             files_under("core"),
@@ -173,6 +106,20 @@ class WebLayerTests(unittest.TestCase):
         hits = matching_in(files_under("cli"), r"^\s*(import server\b|from server\b)")
         self.assertEqual(hits, [], "CLI tidak boleh menyeret server web")
 
+    def test_server_does_not_use_requests(self) -> None:
+        hits = matching_in(
+            files_under("server"), r"^\s*(import requests|from requests\b)"
+        )
+        self.assertEqual(hits, [], "HTTP REST tetap lewat core.api.transport")
+
+    def test_no_hardcoded_pbix_default(self) -> None:
+        hits = matching(r"DEFAULT_PBIX|DRAGON_PBIX_SOURCE|stale_copy_warning")
+        self.assertEqual(
+            hits, [], "path .pbix wajib eksplisit; jangan ada default/env di kode"
+        )
+
+
+class WebLayerTests(unittest.TestCase):
     def test_web_folder_has_no_python(self) -> None:
         files = [path for path in (ROOT / "web").rglob("*.py")]
         self.assertEqual(files, [], "web/ hanya aset statis, bukan kode server")
@@ -250,12 +197,6 @@ class WebLayerTests(unittest.TestCase):
             'class="shot-cache"',
         ):
             self.assertIn(marker, text, f"desain TSD kehilangan {marker}")
-
-    def test_server_does_not_use_requests(self) -> None:
-        hits = matching_in(
-            files_under("server"), r"^\s*(import requests|from requests\b)"
-        )
-        self.assertEqual(hits, [], "HTTP REST tetap lewat core.api.transport")
 
 
 if __name__ == "__main__":

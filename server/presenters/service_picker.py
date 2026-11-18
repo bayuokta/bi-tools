@@ -1,4 +1,4 @@
-"""Picker workspace/report untuk API web (port dari ``app/viewmodels``).
+"""Picker workspace/report untuk API web.
 
 Katalog workspace dibaca dari SQLite hasil sinkronisasi; daftar dataset/report
 diambil per workspace lewat Power BI REST saat workspace dipilih.

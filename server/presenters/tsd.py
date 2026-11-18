@@ -1,4 +1,4 @@
-"""Presenter Generate TSD untuk web (port dari ``app/viewmodels/tsd.py``)."""
+"""Presenter Generate TSD untuk web."""
 
 from __future__ import annotations
 

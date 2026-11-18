@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Spec PyInstaller: paket onedir berisi server web, GUI klasik, dan CLI.
+"""Spec PyInstaller: satu paket onedir berisi server web dan CLI.
 
-Tiga executable dibangun dari satu kumpulan dependensi:
+Dua executable dibangun dari satu kumpulan dependensi:
 
-- ``BI Tools.exe``         -> server web lokal (console), entry ``server/__main__.py``
-- ``BI Tools (classic).exe`` -> GUI PySide6 sementara, entry ``app/__main__.py``
-- ``bi-tools-cli.exe``     -> CLI (console), entry ``cli/__main__.py``
+- ``BI Tools.exe``      -> server web lokal (console), entry ``server/__main__.py``
+- ``bi-tools-cli.exe``  -> CLI (console), entry ``cli/__main__.py``
 
 Mode **onedir** dipakai dengan sengaja. ``core/paths.py`` menentukan folder
 aplikasi dari folder ``.exe``, dan ``core/pbix.py``/``core/tsd.py``/
@@ -106,7 +105,16 @@ hiddenimports = [
 datas = [*playwright_datas, *pythonnet_datas]
 binaries = [*playwright_binaries, *pythonnet_binaries]
 
-excludes = ["tkinter", "pytest", "IPython", "matplotlib", "notebook", "tests"]
+excludes = [
+    "tkinter",
+    "PySide6",
+    "shiboken6",
+    "pytest",
+    "IPython",
+    "matplotlib",
+    "notebook",
+    "tests",
+]
 
 common = dict(
     pathex=[str(ROOT)],
@@ -125,17 +133,12 @@ web_analysis = Analysis(
     [str(ROOT / "server" / "__main__.py")],
     **common,
 )
-gui_analysis = Analysis(
-    [str(ROOT / "app" / "__main__.py")],
-    **common,
-)
 cli_analysis = Analysis(
     [str(ROOT / "cli" / "__main__.py")],
     **common,
 )
 
 web_pyz = PYZ(web_analysis.pure)
-gui_pyz = PYZ(gui_analysis.pure)
 cli_pyz = PYZ(cli_analysis.pure)
 
 web_exe = EXE(
@@ -149,26 +152,6 @@ web_exe = EXE(
     strip=False,
     upx=False,
     console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=str(ICON_PATH),
-    version=_version_file(),
-)
-
-gui_exe = EXE(
-    gui_pyz,
-    gui_analysis.scripts,
-    [],
-    exclude_binaries=True,
-    name=f"{APP_NAME} (classic)",
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -202,9 +185,6 @@ collected = COLLECT(
     web_exe,
     web_analysis.binaries,
     web_analysis.datas,
-    gui_exe,
-    gui_analysis.binaries,
-    gui_analysis.datas,
     cli_exe,
     cli_analysis.binaries,
     cli_analysis.datas,

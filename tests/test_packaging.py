@@ -111,14 +111,14 @@ class CliDispatcherTests(unittest.TestCase):
 
 
 class PackagingAssetsTests(unittest.TestCase):
-    def test_spec_builds_web_gui_and_cli(self) -> None:
+    def test_spec_builds_web_and_cli(self) -> None:
         text = (PACKAGING / "bi_tools.spec").read_text(encoding="utf-8")
         compile(text, "bi_tools.spec", "exec")
         self.assertIn('name=APP_NAME', text)
-        self.assertIn('f"{APP_NAME} (classic)"', text)
         self.assertIn('name="bi-tools-cli"', text)
-        self.assertIn("console=False", text)
-        self.assertIn("console=True", text)
+        self.assertNotIn("classic", text)
+        self.assertNotIn("PySide6", text.split("excludes")[0])
+        self.assertEqual(text.count("console=True"), 2)
         self.assertIn('collect_all("playwright")', text)
         self.assertIn('collect_submodules("server")', text)
         self.assertIn('collect_submodules("uvicorn")', text)

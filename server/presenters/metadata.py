@@ -1,8 +1,8 @@
-"""Presenter ekstraksi metadata untuk web (port dari view model GUI).
+"""Presenter ekstraksi metadata untuk web.
 
 Alur: validasi sumber di request HTTP (agar kesalahan sederhana dijawab 400),
 lalu jalankan ``core.jobs.run_metadata_job`` di thread job dengan log live.
-Pemetaan argumen memakai DTO ``core.requests`` supaya GUI/CLI/web tidak
+Pemetaan argumen memakai DTO ``core.requests`` supaya web/CLI tidak
 menyusun kwargs sendiri.
 """
 

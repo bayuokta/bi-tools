@@ -1,6 +1,6 @@
 # Tooling Metadata Power BI — Report, Model, TSD, Lineage
 
-Ekspor metadata report (dari file `.pbix`) dan semantic model (via XMLA) ke Excel, plus lineage item Power BI Service (scan REST API ke SQLite). Antarmuka utama berupa **web lokal** (server Python di `127.0.0.1` yang dibuka di browser), ditambah perintah baris. GUI PySide6 lama masih tersedia sebagai `BI Tools (classic).exe` selama masa transisi. Repo ini terpisah dari project Power BI (PBIP) yang diekstrak.
+Ekspor metadata report (dari file `.pbix`) dan semantic model (via XMLA) ke Excel, analisa pemakaian kolom/measure, dokumen TSD, dan lineage Power BI Service. Antarmuka berupa **web lokal** (server Python di `127.0.0.1` yang dibuka di browser), ditambah perintah baris. PySide6 sudah dihapus di 0.4.0. Repo ini terpisah dari project Power BI (PBIP) yang diekstrak.
 
 ## Struktur
 
@@ -10,7 +10,7 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   report.py                     ekstraksi report -> Report_Metadata.xlsx
   model.py                      ekstraksi model via XMLA -> Semantic_Model_Metadata.xlsx
   jobs.py                       orkestrasi report + job gabungan (deteksi jenis .pbix)
-  requests.py                   objek permintaan GUI/CLI (cakupan, GUID, CaptureOptions)
+  requests.py                   objek permintaan web/CLI (cakupan, GUID, CaptureOptions)
   tsd.py                        konteks TSD dari workbook + render HTML (template Confluence) + nama output bawaan
   pbi_capture\                  screenshot page/visual/mobile Power BI Service (embed token + RLS + Playwright)
     runner.py                   CaptureOptions, capture_report, load_or_capture (cache)
@@ -30,7 +30,7 @@ hints.py                    hint posisi absolut visual (dari workbook report) un
   lineage_api.py                client Power BI REST API (Scanner admin, paging admin, dataset/report per workspace)
   lineage_transform.py          transform hasil scan -> node, edge, datasource
   lineage_store.py              schema SQLite lineage + katalog workspace, pencarian, traversal, diagnostik
-  lineage_service.py            akses baca read-only untuk GUI/CLI (ringkasan, cari, lineage, ekspor, workspace)
+  lineage_service.py            akses baca read-only untuk web/CLI (ringkasan, cari, lineage, ekspor, workspace)
   lineage_layout.py             tata letak kanvas lineage (root, upstream kiri, downstream kanan)
   lineage_scan.py               orkestrasi scan + riwayat scan_run
   catalog_sync.py               sinkronisasi daftar workspace ke SQLite + riwayat workspace_sync_run
@@ -44,41 +44,17 @@ hints.py                    hint posisi absolut visual (dari workbook report) un
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
 cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py
   __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/install-browser)
-app\                            GUI PySide6 klasik (python -m app; dipertahankan sampai paritas web)
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
   app.py                        pabrik aplikasi, rute API, aset web, penjaga token
   runtime.py                    satu instance, pilih port, token, buka browser, shutdown
   security.py                   middleware token cookie + validasi Host/Origin
   jobs.py                       antrean satu job + log live (SSE) + pembatalan
-  settings_store.py             preferensi JSON + migrasi sekali dari QSettings (registry)
-  settings.py                   kunci preferensi (sumber baru setelah PySide6 dilepas)
-  presenters\                   port view model tanpa Qt (settings, formatting)
-  api\                          system, settings, catalog, files, jobs
+  settings_store.py             preferensi JSON + migrasi sekali dari registry QSettings 0.3.x
+  settings.py                   kunci preferensi web
+  presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, lineage
+  api\                          system, settings, catalog, metadata, tsd, analysis, lineage, files, jobs
 web\                            aset statis: index.html, styles.css, app.js, api.js (tanpa build step)
-  main_window.py                tab, log, progress, JobRunner
-  job_runner.py                 JobRunner: satu tempat menjalankan worker + sinyal status
-  formatting.py                 format status file/kredensial/durasi
-  forms.py                      TsdForm: pemetaan formulir TSD <-> QSettings
-  viewmodels\                   view model per layar (tanpa QtWidgets)
-    metadata.py                 Local/Service: cakupan, sumber, instance, workspace/dataset/report, kredensial, submit
-    service_picker.py           katalog workspace + label/pemuatan report bersama Service dan TSD
-    tsd.py                      formulir TSD, path, cache, picker workspace/report, render/capture
-    lineage.py                  database, pencarian, tree/graph, ekspor
-    analysis.py                 analisa kolom: katalog, semantic model, cakupan report, progres, ekspor
-    settings.py                 kredensial, RLS, path, katalog workspace (mode/sync/status), tes koneksi
-  tabs.py                       tab Metadata & TSD: wadah sub-tab Local, Service, Generate TSD
-  extraction_base.py            view pasif bersama sub-tab ekstraksi (cakupan, semantic model, output)
-  local_tab.py                  sub-tab Local: file .pbix + deteksi jenis sumber
-  service_tab.py                sub-tab Power BI Service: picker workspace + dataset/report, endpoint XMLA turunan
-  tsd_tab.py                    sub-tab Generate TSD (view pasif, picker workspace/report screenshot)
-  analysis_tab.py               tab Analisa Semantic Model (view pasif)
-  lineage_tab.py                tab Lineage (view pasif)
-  lineage_graph.py              kanvas visual lineage (QGraphicsView)
-  lineage_style.py              warna dan badge tipe node lineage
-  settings_tab.py               tab Pengaturan (view pasif; sub-tab Kredensial dan Katalog & Database)
-  settings_store.py             AppSettings: satu pemilik QSettings + sinyal perubahan
-  settings.py                   kunci QSettings bersama
 templates\tsd.template.html     template TSD gaya Confluence (salinan repo template-tsd)
 tests\                          uji angka acuan, TSD, lineage, dan penanganan error
 libs\Microsoft.AnalysisServices.AdomdClient.dll   dependency ADOMD (v19.84.1.0)
@@ -103,7 +79,7 @@ requirements.txt
 
 - Windows + Power BI Desktop (hanya untuk ekstraksi model via XMLA).
 - Python 3.11 dengan `pip install -r requirements.txt`.
-- Path `.pbix` selalu disebut eksplisit (`--report` di GUI/CLI, `--pbix` di `verify_reference.py`); tidak ada file bawaan. Salin ulang dari project setiap kali report berubah.
+- Path `.pbix` selalu disebut eksplisit (`--report` di CLI/web, `--pbix` di `verify_reference.py`); tidak ada file bawaan. Salin ulang dari project setiap kali report berubah.
 - Untuk scan lineage: akses jaringan ke `login.microsoftonline.com` dan `api.powerbi.com`, serta service principal yang terdaftar di Microsoft Entra.
 - Untuk screenshot TSD dari Power BI Service: `pip install playwright` lalu `python -m playwright install chromium` (sekali per mesin), akses **Build** ke dataset report, dan role RLS bila dataset memakainya. Di aplikasi terpaket, Chromium diunduh otomatis pada capture pertama (dapat dimatikan), atau manual dengan `bi-tools-cli install-browser`.
 
@@ -141,65 +117,6 @@ python -m server --no-browser --port 8800
   - Cari item (kata kunci, workspace, tipe) dari `data\bi_tools.db`; hasil pertama langsung dibuka. Database belum ada → pencarian dinonaktifkan dan diarahkan ke **Sinkronisasi data** di Pengaturan.
   - Kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan, dengan panah tipe relasi. Tombol **Upstream/Downstream** meredupkan sisi lain; **Kedalaman** 1–15; klik node menampilkan detail (owner, modified, endorsement, datasource, node ID), klik dua kali menjadikannya akar. Tautan **Buka report** tersedia untuk node Report.
   - **Export CSV** menulis `Lineage_<nama>.csv` ke `outputs\` (UTF-8 BOM, header Inggris) dan membuka filenya. Tidak ada scan dari tab ini; scan tetap dijalankan dari Pengaturan.
-
-## GUI
-
-```powershell
-python -m app
-```
-
-- Tab **Metadata & TSD** berisi tiga sub-tab: **Local**, **Power BI Service**, dan **Generate TSD**. Kedua sub-tab ekstraksi memakai grup **Cakupan ekstraksi**, **Semantic model**, dan **Output** yang sama.
-- Sub-tab **Local** memilih `.pbix`; aplikasi mendeteksi jenis sumber secara otomatis:
-  - `Model lokal (Import/DirectQuery)` — ada `DataModel` di dalam `.pbix`; report dan model bisa diekstrak.
-  - `Live connection (thin report)` — tidak ada `DataModel` dan ada koneksi `pbiServiceLive`; hanya report yang bisa diekstrak.
-  - Grup **Semantic model** hanya berisi instance Power BI Desktop (tanpa endpoint/catalog). Urutan section: **Cakupan ekstraksi → Semantic model → Sumber report → Output**.
-- Sub-tab **Power BI Service** dipakai untuk report dari service:
-  - **Workspace dipilih dari katalog SQLite** (hasil *Sinkronisasi workspace* di tab Pengaturan); combo bisa difilter dengan mengetik. **Endpoint XMLA diturunkan otomatis** dari nama workspace dan ditampilkan read-only, jadi tidak ada lagi input endpoint manual.
-  - Setelah workspace dipilih, aplikasi memuat **dataset** (untuk catalog) dan **report** workspace itu lewat REST API. Daftar dimuat hanya untuk cakupan yang relevan: dataset saat cakupan menyertakan model, report saat menyertakan report.
-  - Memilih report otomatis mengisi **Catalog** dari dataset report tersebut. Bila datasetnya berada di workspace lain, muncul peringatan dan catalog dibiarkan kosong. Report `PaginatedReport` (RDL) ditolak karena ekstraksi membutuhkan PBIR.
-  - Pilihan workspace/report hanya berlaku per sesi: keduanya kosong saat aplikasi dibuka. Tidak ada lagi input URL/ID manual; seluruh sumber dipilih dari combo.
-  - Login Fabric API memakai **service principal** (kredensial yang sama dengan tab Lineage dan screenshot). Token hanya disimpan di memori, tidak ditulis ke disk. Bila kredensial belum lengkap, sub-tab ini menampilkan satu dialog peringatan saat dibuka (sekali per sesi) dengan tombol **Buka Pengaturan**; pengisiannya tetap di tab **Pengaturan**.
-  - Grup **Semantic model** berisi **Workspace**, **Endpoint XMLA** (read-only), dan **Catalog** (combo dataset). Urutan section sama dengan Local: **Cakupan ekstraksi → Semantic model → Sumber report → Output**.
-  - Mendukung ketiga cakupan. Report diambil lewat Fabric API; semantic model diekstrak lewat endpoint XMLA workspace + catalog nama model (XMLA Read harus aktif, token dipasang otomatis).
-  - Untuk `Report + semantic model`, kolom usage report dihitung dari definition report yang sama (tanpa file `.pbix`). Untuk `Semantic model saja` tidak ada usage report karena tidak ada report yang dipilih.
-  - Bila katalog workspace masih kosong, sub-tab menampilkan tautan **Buka Pengaturan** untuk menjalankan sinkronisasi.
-- **Cakupan** menentukan file yang dibuat: `Report + semantic model` (default), `Report saja`, atau `Semantic model saja`.
-  - `Report saja` tidak memerlukan Power BI Desktop. Bila `Semantic_Model_Metadata.xlsx` sudah ada di folder output (atau `outputs\`), report tetap divalidasi dengan workbook itu; bila tidak ada, semua field berstatus `TIDAK DIVALIDASI`. Tidak ada opsi untuk mematikan validasi di GUI.
-  - `Semantic model saja` hanya menulis `Semantic_Model_Metadata.xlsx` dan tidak menyentuh `Report_Metadata.xlsx`. Cakupan ini tidak tersedia untuk live connection.
-  - Pilihan cakupan disimpan per sub-tab di QSettings (`extraction/scope_local` dan `extraction/scope_service`); nilai lama `extraction/scope` dipakai sekali saat kunci baru belum ada.
-- Untuk model lokal, pilih instance Power BI Desktop. Power BI Desktop harus terbuka. Combo instance dan tombol **Muat ulang** aktif sejak aplikasi dibuka selama cakupan menyertakan model (tidak menunggu file `.pbix` dipilih); input model baru dinonaktifkan bila file yang dipilih adalah live connection. Pembacaan instance hanya dipakai sub-tab Local.
-- Semua ringkasan hasil (jumlah halaman, visual, field, measure, dan file output) tampil di log bagian bawah. Tidak ada panel Ringkasan terpisah.
-- Ekstraksi berjalan di thread terpisah, sehingga jendela tetap responsif. Tombol **Buka report**, **Buka model**, dan **Buka folder** tersedia di grup Output.
-- Bila ekstraksi model gagal (mis. Desktop belum terbuka), report tetap dibuat tanpa validasi model dan penyebabnya dicatat di log.
-
-- Sub-tab **Generate TSD** membuat dokumen TSD (HTML gaya Confluence) dari `Report_Metadata.xlsx` dan, bila ada, `Semantic_Model_Metadata.xlsx`.
-  - Tombol **Buat TSD...** di grup Output kedua sub-tab ekstraksi berpindah ke sub-tab ini dan mengarahkan ke folder hasil ekstraksi terakhir.
-  - Form hanya memuat **Nama report** (di grup Opsi render), opsi render, screenshot, dan output. Isi **Dokumen** (workspace, folder, subjudul, prepared for, navigation menu), **Penandatangan**, dan **Narasi** disimpan di sidecar JSON yang dibuat otomatis; tombol **Edit JSON...** membuka seluruh override.
-  - Mode **draft** menandai field kosong sebagai `TODO`; mode final menyembunyikannya. Panel expand tertutup secara default; centang **Buka semua panel expand** untuk membuka semuanya.
-  - Status workbook menampilkan waktu modifikasi agar metadata usang terlihat sebelum generate.
-  - Grup **Screenshot Report (Power BI Service)**: centang aktifkan, pilih **Workspace** dan **Report** dari katalog (sama seperti sub-tab Power BI Service; daftar report dimuat per workspace lewat worker, label memuat 8 karakter ID karena nama report bisa sama), lalu atur RLS username/roles, cakupan, skala, dan **Sertakan layout mobile** (default aktif). Centang **Unduh Chromium otomatis bila belum ada** (default aktif) agar capture pertama mengunduh browser sendiri. Tombol **Ambil screenshot** menjalankan capture di worker (bisa diawasi di log); **Hapus cache** mengosongkan `TSD_assets\<nama report>_<id8>`. Kredensial memakai service principal dari tab **Pengaturan**; RLS yang kosong memakai nilai default di tab itu. Slicer panel filter yang tersembunyi dicoba dimunculkan lewat bookmark report (nama tidak dipakai; yang dinilai munculnya elemen DOM). Screenshot mobile hanya dibuat untuk halaman yang punya phone layout; bila tidak ada, 2.2.7.2 diberi catatan otomatis.
-  - Centang **Sertakan shape/image/tombol** bila objek dekoratif juga ingin muncul sebagai baris visual; default hanya slicer + visual data.
-  - Generate memakai cache screenshot bila sesuai. Bila cache belum ada, capture dijalankan lebih dulu dalam job yang sama; generate ulang tidak menunggu capture selama cache masih cocok.
-  - Generate berjalan di thread worker; **Buka HTML** membuka hasil di browser.
-
-- Tab **Pengaturan** adalah satu-satunya tempat mengisi kredensial dan menjalankan sinkronisasi data. Tab ini dipecah menjadi dua sub-tab: **Kredensial** (koneksi service principal + tes koneksi + RLS default) dan **Katalog & Database** (path `data\bi_tools.db` + Sinkronisasi data). Sub-tab terakhir yang dipakai diingat antar sesi.
-  - **Kredensial**: isi **Tenant ID**, **Client ID**, dan **Client Secret** service principal, lalu **Simpan kredensial**; tombol **Tes koneksi** mengambil token Fabric dan Power BI lewat worker. Di sini juga disimpan **RLS default** (username/roles). Kredensial dipakai Fabric API, Power BI REST, embed/Scanner, XMLA, dan lineage sekaligus.
-  - **Katalog & Database**: grup **Path** menyimpan lokasi `data\bi_tools.db`. Grup **Sinkronisasi data** memakai database yang sudah disimpan dan kredensial dari sub-tab Kredensial, dengan **Mode** bersama (otomatis/admin/member):
-    - **Sinkronisasi katalog workspace** menarik daftar workspace (1-2 request) untuk picker di sub-tab **Power BI Service** dan **Generate TSD**. Mode otomatis memakai Admin API bila service principal berperan Fabric administrator, jika tidak jatuh ke endpoint member.
-    - **Scan lineage** menjalankan Scanner API untuk node, edge, dan datasource yang dipakai tab **Lineage**. Mode `Otomatis` mencoba admin lalu fallback member; centang **Full scan lineage** mengabaikan timestamp incremental (tidak mengubah hasil mode member). Centang **Sertakan My Workspace (personal)** agar report dan dataset di My Workspace ikut terlihat di tab Lineage; opsi ini hanya berlaku mode admin, dan aktivasi pertama memaksa full scan.
-    - Status menunjukkan jumlah workspace siap dipilih, sync katalog terakhir, dan scan lineage terakhir. Kedua aksi berjalan di worker; hasil scan langsung terlihat saat tab Lineage dibuka.
-  - Database default `<folder aplikasi>\data\bi_tools.db` (fallback `%LOCALAPPDATA%\BI Tools\data` bila folder aplikasi read-only); path dapat diganti dan disimpan di grup Path. File lama `lineage.db` di root tidak dibaca otomatis — pindahkan manual ke `data\bi_tools.db` bila Anda memperbarui dari versi sebelumnya.
-  - Kunci lama `lineage/*` dimigrasi otomatis sekali ke `auth/*` (dan `paths/lineage_db`); nilai baru tidak ditimpa.
-  - Secret tersimpan sebagai teks biasa di QSettings (registry Windows) dan tab menampilkan peringatan. Token tetap hanya di memori proses.
-  - Tab lain tidak punya formulir kredensial. Sub-tab **Power BI Service** memakai dialog peringatan sekali per sesi; sub-tab **Generate TSD** menampilkan tombol **Buka Pengaturan** hanya saat katalog kosong.
-
-- Tab **Lineage** menampilkan item Power BI Service dari `data\bi_tools.db`: cari item, lihat tree **Upstream**/**Downstream**, detail datasource, dan export CSV. Data diisi lewat **Sinkronisasi data** di tab Pengaturan; tab ini tidak punya pengaturan database atau tombol scan.
-  - Bila database belum ada, kolom pencarian dinonaktifkan dan status mengarahkan ke **Sinkronisasi data** di tab Pengaturan. Klik tab Lineage setelah sinkronisasi untuk memuat status dan hasil terbaru.
-  - Pilih baris hasil pencarian untuk menjadikannya root; klik dua kali node di tree untuk memilih root baru. Tombol arah membaca ulang tree pada kedalaman yang dipilih.
-  - **Export CSV...** menulis lineage root saat ini (UTF-8 dengan BOM) ke file CSV.
-  - **Visual lineage...** membuka jendela kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan. Kartu diberi warna per tipe, garis diberi panah sesuai arah data, dan tipe relasi dapat ditampilkan lewat centang **Label relasi**. Drag untuk menggeser, `Ctrl+wheel` atau tombol **Zoom +/-** untuk memperbesar, **Fit** untuk memuat seluruh graph. Klik dua kali kartu untuk menjadikannya root baru; kanvas ikut diperbarui saat root, arah, atau kedalaman berubah. Tampilan dibatasi 300 node terdekat dari root, dan jumlah yang tidak ditampilkan dicatat pada status.
-
-- Tab **Analisa Semantic Model** menjawab "kolom ini masih dipakai atau aman dihapus?" dengan menggabungkan ukuran kolom VertiPaq dan pemakaian di seluruh report yang memakai dataset. Pilih **Workspace** dan **Semantic model** dari katalog, lalu **Analisa**. Lihat bagian [Analisa Semantic Model](#analisa-semantic-model) untuk rincian angka, status, dan batasannya.
 
 ## Perintah baris
 
@@ -264,7 +181,7 @@ python extract_tsd.py --screenshots --workspace-id <ws> --report-id <id> --no-au
 
 - Sumber data: `Report_Metadata.xlsx` (wajib) dan `Semantic_Model_Metadata.xlsx` (opsional). Tanpa workbook model, bagian model memakai empty state dan tidak ada data karangan.
 - Konteks manual disimpan sebagai sidecar JSON (default `<nama output>.json`) berisi **override saja**, sehingga generate ulang tidak menghapus tulisan manual. Override per halaman/visual memakai `page_id`/`visual_id`. Override `field_details`/`interactions` juga bisa ditambahkan di bawah visual bila perlu mengoreksi hasil ekstraksi.
-- Field **Dokumen** (workspace, folder, subjudul, prepared for, navigation menu), **Penandatangan** (author/authorizer), dan **Narasi** (overview/insight) diisi lewat sidecar JSON — tombol **Edit JSON...** atau file `<nama output>.json` (kunci `document.*` dan `report.*`). Formulir GUI hanya memuat **Nama report** (di grup Opsi render), opsi render, screenshot, dan output, sehingga isian JSON tidak pernah tertimpa nilai kosong saat Generate.
+- Field **Dokumen** (workspace, folder, subjudul, prepared for, navigation menu), **Penandatangan** (author/authorizer), dan **Narasi** (overview/insight) diisi lewat sidecar JSON — tombol **Edit JSON...** atau file `<nama output>.json` (kunci `document.*` dan `report.*`). Formulir web hanya memuat **Nama report** (di grup Opsi render), opsi render, screenshot, dan output, sehingga isian JSON tidak pernah tertimpa nilai kosong saat Generate.
 - Nama file TSD bawaan untuk report dari Power BI Service memakai akhiran 8 karakter report ID: `TSD_<nama report>_<id8>.html` (sidecar JSON memakai basename yang sama). Ini mencegah dua report bernama sama saling menimpa HTML/sidecar. Local `.pbix` tetap `TSD_<nama report>.html`, dan nama output yang Anda ketik sendiri tidak diubah.
 - `--draft` (default) menandai field kosong sebagai `TODO`; `--final` menyembunyikannya. `--expand-all` membuka semua panel expand.
 - Kolom **Custom Column Logic** hanya terisi untuk calculated column (formula DAX) dan kolom buatan Power Query (`Table.AddColumn`, duplikat kolom, gabungan kolom, agregasi `Table.Group`). Kolom yang hanya di-rename atau di-expand dari sumber dibiarkan kosong.
@@ -280,10 +197,10 @@ python extract_tsd.py --screenshots --workspace-id <ws> --report-id <id> --no-au
 - Kolom **Interaction** memakai tabel **Source | Target | Type** dari `03_Interactions`; visual tanpa interaksi keluar tetap menampilkan `N/A`.
 - Output berupa satu file HTML mandiri (CSS inline, tanpa JavaScript, line ending CRLF) yang siap ditempel ke Confluence.
 - Screenshot page/visual di 2.2.7.1 dan mobile layout di 2.2.7.2 diambil otomatis dari Power BI Service dengan `--screenshots` (workspace/report ID + kredensial `TENANT_ID`/`CLIENT_ID`/`CLIENT_SECRET`, identitas RLS `RLS_USERNAME`/`RLS_ROLES`). Data mengikuti role RLS yang dipilih. Mobile layout hanya diambil untuk halaman yang punya phone layout; matikan dengan `--no-mobile-screenshots`. Halaman tanpa phone layout tidak dibuatkan gambar dan 2.2.7.2 menampilkan catatan.
-- Objek dekoratif (`shape`, `image`, `textbox`, `actionButton`, `basicShape`, `pageNavigator`, `bookmarkNavigator`) tidak dibuatkan baris visual sendiri karena tetap terlihat di screenshot halaman. Slicer tetap tampil. Untuk report contoh hasilnya 101 baris visual (dari 137 baris `08_Visual_Summary`). Gunakan `--include-decorative-visuals` (CLI) atau centang **Sertakan shape/image/tombol** (GUI) bila ingin semua baris.
+- Objek dekoratif (`shape`, `image`, `textbox`, `actionButton`, `basicShape`, `pageNavigator`, `bookmarkNavigator`) tidak dibuatkan baris visual sendiri karena tetap terlihat di screenshot halaman. Slicer tetap tampil. Untuk report contoh hasilnya 101 baris visual (dari 137 baris `08_Visual_Summary`). Gunakan `--include-decorative-visuals` (CLI) atau centang **Sertakan shape/image/tombol** (web) bila ingin semua baris.
 - Capture memakai embed token + Chromium headless (Playwright): page/visual dienumerasi lewat embedded client, lalu di-screenshot per page dan per visual. Bila Chromium belum ada, capture pertama mengunduh otomatis (sekitar 150 MB) lewat driver Playwright; matikan dengan `--no-auto-install-browser`. Mobile layout memakai embed kedua dengan `layoutType=MobilePortrait`; viewport mengikuti `page.mobileSize` (fallback 375x667). Viewport desktop mengikuti ukuran halaman terbesar dari `01_Pages` agar tidak ada letterbox putih. Hasil disimpan di `TSD_assets\<nama report>_<8 karakter report ID>\` (`manifest.json`, `capture.json`, `pages\`, `visuals\`, `mobile\`, PNG) dan di-inline ke HTML sebagai `data:image/png;base64` supaya dokumen tetap satu file. Tipe dekoratif tidak ikut disimpan sebagai PNG.
 - Pairing visual ke elemen DOM memakai **hint posisi absolut** dari `08_Visual_Summary.position_x_abs`/`position_y_abs` (posisi visual + seluruh group induk, diisi saat ekstraksi report). Offset canvas diestimasi dari hint yang ukurannya cocok, jadi slicer/matrix di dalam group tetap terpasang walau layout embed memakai koordinat relatif. Bila workbook belum punya kolom itu (hasil ekstraksi lama), capture memakai pencocokan label/ukuran dengan batas posisi dan fallback **ukuran unik**; tidak ada fallback urutan baca, dan elemen berlabel/dekoratif tidak dipinjam.
-- Capture dari GUI/CLI ikut mengecualikan objek dekoratif secara default (sama dengan filter TSD); centang **Sertakan shape/image/tombol** atau `--include-decorative-visuals` untuk menyertakannya.
+- Capture web/CLI ikut mengecualikan objek dekoratif secara default (sama dengan filter TSD); centang **Sertakan shape/image/tombol** atau `--include-decorative-visuals` untuk menyertakannya.
 - Generate ulang memakai cache selama workspace/report/cakupan sama. Cache lama dari versi pairing sebelumnya otomatis dianggap tidak cocok (`captureVersion`, kini 5 karena pairing memakai hint posisi absolut), jadi capture ulang berjalan sekali setelah upgrade. `--refresh-screenshots` memaksa capture baru. `--screenshot-scope pages|visuals|both` mengatur isi dan `--screenshot-scale 1|2` resolusi (default 1 agar file ringkas). `--no-mobile-screenshots` mematikan capture mobile.
 - Slicer di panel filter yang tersembunyi dicoba dibuka lewat bookmark report: bookmark dijalankan satu per satu (nama tidak dipakai), lalu dicek apakah elemen DOM visual yang hilang muncul. State report disimpan sebelum percobaan dan dipulihkan setelahnya. Matikan dengan `--no-reveal-bookmarks`. Bookmark yang berhasil dicatat di `capture.json`.
 - Generate ulang memakai cache selama workspace/report/cakupan sama. Cache lama dari versi pairing sebelumnya otomatis dianggap tidak cocok (`captureVersion`, kini 5 karena pairing memakai hint posisi absolut), jadi capture ulang berjalan sekali setelah upgrade. `--refresh-screenshots` memaksa capture baru. `--screenshot-scope pages|visuals|both` mengatur isi dan `--screenshot-scale 1|2` resolusi (default 1 agar file ringkas). `--no-mobile-screenshots` mematikan capture mobile.
@@ -383,7 +300,7 @@ Pemakaian dibaca dari definisi report, **bukan** dari nama field saja:
 
 Hasil disimpan di `data\bi_tools.db` (`usage_report`, `usage_field`, `usage_column`, `usage_measure`, `usage_model_ref`, `usage_unresolved`, `usage_scan_run`) sehingga analisa ulang hanya mengunduh report yang `modifiedDateTime`-nya berubah. Tabel yang sama dipakai untuk **snapshot**: saat tab dibuka kembali, ukuran kolom + daftar measure + hasil pemakaian terakhir langsung ditampilkan tanpa memanggil XMLA; klik **Analisa** untuk menyegarkan.
 
-Di GUI, combo **Kolom + measure / Kolom saja / Measure saja** (disimpan di `analysis/object_filter`) mengatur objek yang tampil; pencarian juga mencocokkan nama measure, tabel, display folder, dan potongan DAX. Klik judul kolom untuk mengurutkan (Size/Uses turun lebih dulu, Status menurut peringkat `Tidak dipakai` → `Perlu dicek` → `Dipakai` → `Wajib dipertahankan`); klik lagi membalik arah. Klik kanan header → **Reset urutan** untuk kembali ke urutan bawaan. Urutan disimpan di `analysis/sort_column`/`analysis/sort_desc`.
+Di web, combo **Kolom + measure / Kolom saja / Measure saja** (disimpan di `analysis/object_filter`) mengatur objek yang tampil; pencarian juga mencocokkan nama measure, tabel, display folder, dan potongan DAX. Klik judul kolom untuk mengurutkan (Size/Uses turun lebih dulu, Status menurut peringkat `Tidak dipakai` → `Perlu dicek` → `Dipakai` → `Wajib dipertahankan`); klik lagi membalik arah. Klik kanan header → **Reset urutan** untuk kembali ke urutan bawaan. Urutan disimpan di `analysis/sort_column`/`analysis/sort_desc`.
 
 ### Status kolom & measure
 
@@ -432,12 +349,12 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset denga
 
 ## Paket dan rilis
 
-Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (server web lokal + browser), `BI Tools (classic).exe` (GUI PySide6 selama transisi), dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
+Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (server web lokal + browser) dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
 
 Rilis otomatis berjalan di GitHub Actions setiap tag `vX.Y.Z`:
 
 1. ubah `core\version.py` (`__version__`) dan `CHANGELOG.md`;
-2. commit, lalu `git tag -a v0.2.0 -m "BI Tools 0.2.0"`;
+2. commit, lalu `git tag -a v<versi> -m "BI Tools <versi>"`;
 3. `git push origin main --tags`.
 
 `.github\workflows\release.yml` menjalankan uji, membangun paket, lalu menerbitkan rilis dengan tiga aset:
@@ -514,14 +431,14 @@ $env:RUN_LIVE_TESTS = "1"; python -m unittest discover -s tests -t .
 - Untuk live connection, metadata model tidak tersedia di file. Ekstraksi report berjalan dengan validasi dilewati atau memakai workbook model yang sudah ada (`TIDAK DIVALIDASI` bila tidak ada), dan hanya `Report_Metadata.xlsx` yang dibuat.
 - Report dari Power BI Service diambil lewat `POST /v1/workspaces/{workspaceId}/reports/{reportId}/getDefinition` (Fabric API, long running operation). Part `InlineBase64` ditulis ke folder temporary sebagai PBIR sebelum diekstrak; `StaticResources` tidak dipakai.
 - Report service harus memakai format PBIR. Report PBIR-Legacy (satu file `report.json`) tidak bisa diekstrak; simpan ulang report sebagai PBIR di Power BI Desktop lalu publish lagi.
-- Semantic model dari service diekstrak lewat XMLA. Di GUI sub-tab Service selalu memakai endpoint workspace + catalog; pemanggil CLI/`core\jobs.py` juga menerima instance Power BI Desktop (port + catalog). Jika cakupan menyertakan report, definition report service dipakai sebagai sumber kolom usage model tanpa perlu file `.pbix`.
+- Semantic model dari service diekstrak lewat XMLA. Halaman Ekstraksi Service selalu memakai endpoint workspace + catalog; pemanggil CLI/`core\jobs.py` juga menerima instance Power BI Desktop (port + catalog). Jika cakupan menyertakan report, definition report service dipakai sebagai sumber kolom usage model tanpa perlu file `.pbix`.
 - Token hanya disimpan di memori proses. Satu service principal dipakai untuk Fabric API (`https://api.fabric.microsoft.com/.default`), Power BI REST, dan XMLA (`https://analysis.windows.net/powerbi/api/.default`); token Power BI yang sama dipakai embed/Scanner/ADOMD. Token disegarkan 2 menit sebelum kedaluwarsa, termasuk lewat `OnAccessTokenExpired` pada koneksi ADOMD.
-- Folder output default `outputs\` di samping aplikasi (folder executable saat dipaket, root repo saat `python -m app`); dapat diubah dan nilainya tersimpan. Folder tidak lagi mengikuti folder `.pbix`. Bila folder aplikasi tidak bisa ditulis (mis. `C:\Program Files`), hasil pindah ke `%LOCALAPPDATA%\BI Tools\outputs`.
-- Sesi GUI selalu mulai bersih: pilihan workspace/report Service, workspace/report TSD, workspace/dataset Analisa, dan instance Desktop dikosongkan tiap aplikasi dibuka. Kredensial, RLS, path database, cakupan ekstraksi, filter/sort, tab aktif, dan opsi render TSD tetap tersimpan.
+- Folder output default `outputs\` di samping aplikasi (folder executable saat dipaket, root repo saat dijalankan sebagai skrip); dapat diubah dan nilainya tersimpan. Folder tidak lagi mengikuti folder `.pbix`. Bila folder aplikasi tidak bisa ditulis (mis. `C:\Program Files`), hasil pindah ke `%LOCALAPPDATA%\BI Tools\outputs`.
+- Sesi web selalu mulai bersih: pilihan workspace/report Service, workspace/report TSD, workspace/dataset Analisa, dan instance Desktop dikosongkan tiap aplikasi dibuka. Kredensial, RLS, path database, cakupan ekstraksi, filter/sort, tab aktif, dan opsi render TSD tetap tersimpan.
 - Untuk paket executable: `templates\tsd.template.html` dan `libs\` harus berada di samping exe (diatur `packaging\bi_tools.spec`); `outputs\` dan `data\` dibuat saat runtime, jangan di-bundle. Lihat [Paket dan rilis](#paket-dan-rilis).
 - `Report_Metadata.xlsx` dan `Semantic_Model_Metadata.xlsx` adalah file biner hasil generate; setiap regenerasi menghasilkan diff biner.
 - `data\bi_tools.db`, `outputs\`, file `*.db` lain, dan `.env` di-ignore git. Jangan meng-commit database lineage atau secret.
-- Credential GUI disimpan di QSettings (`HKCU\Software\BITools\Metadata`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi oleh `AppSettings` saat GUI dibuka. Setelan dari organisasi lama (`2W-Dragon`/`BI Tools`) disalin sekali ke organisasi baru (`settings/org_migrated_v2`) tanpa menimpa nilai yang sudah ada; setelah migrasi terverifikasi, kunci lama boleh dihapus manual:
+- Credential web disimpan di `data\settings.json` (dulu QSettings `HKCU\Software\BITools\Metadata`, kunci `auth/*`) sebagai teks biasa; CLI memakai environment/`.env`. Aplikasi tidak pernah menulis kredensial ke database lineage. Kunci lama `lineage/*` dan `paths/*` dimigrasi sekali oleh `server\settings_store.SettingsStore` saat server pertama kali membaca preferensi. Setelan dari organisasi lama (`2W-Dragon`/`BI Tools`) disalin sekali ke organisasi baru (`settings/org_migrated_v2`) tanpa menimpa nilai yang sudah ada; setelah migrasi terverifikasi, kunci lama boleh dihapus manual:
   ```powershell
   Remove-Item 'HKCU:\Software\2W-Dragon' -Recurse
   ```

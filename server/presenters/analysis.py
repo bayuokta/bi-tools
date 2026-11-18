@@ -1,6 +1,6 @@
 """Presenter Analisa Semantic Model untuk web.
 
-Port ringkas dari ``app/viewmodels/analysis.py``: daftar workspace dari katalog,
+Alurnya: daftar workspace dari katalog,
 daftar dataset per workspace, analisa via ``usage_service.analyze_dataset``,
 snapshot SQLite tanpa XMLA, dan ekspor XLSX.
 """

@@ -1,4 +1,4 @@
-"""Identitas dan versi aplikasi: satu sumber untuk GUI, CLI, dan packaging.
+"""Identitas dan versi aplikasi: satu sumber untuk web, CLI, dan packaging.
 
 ``__version__`` adalah satu-satunya tempat nomor versi ditulis. Spec PyInstaller
 memakainya untuk version resource ``.exe``, skrip Inno Setup menerimanya lewat

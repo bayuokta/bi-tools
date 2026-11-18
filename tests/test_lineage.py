@@ -1,4 +1,4 @@
-"""Uji modul lineage: transform, SQLite, REST client, scan, CSV, CLI, dan GUI."""
+"""Uji modul lineage: transform, SQLite, REST client, scan, CSV, dan CLI."""
 
 from __future__ import annotations
 
@@ -13,16 +13,6 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-try:
-    from PySide6.QtCore import QSettings, Qt
-    from PySide6.QtWidgets import QApplication
-except Exception:  # noqa: BLE001 - PySide6 opsional untuk uji core
-    GUI_AVAILABLE = False
-else:
-    GUI_AVAILABLE = True
 
 from cli.lineage import main as cli_main
 from core.errors import ExtractionError
@@ -1210,143 +1200,6 @@ class CliTest(unittest.TestCase):
 
         code, _, _ = self.run_cli(["--db", str(self.db)])
         self.assertEqual(code, 2)
-
-
-@unittest.skipUnless(GUI_AVAILABLE, "PySide6 tidak tersedia")
-class GuiTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
-
-    def setUp(self) -> None:
-        from app.lineage_tab import LineageTab
-        from app.settings_store import AppSettings
-
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.db = Path(self._tmp.name) / "lineage.db"
-        seed_database(self.db)
-        self.settings = AppSettings(
-            QSettings(
-                str(Path(self._tmp.name) / "settings.ini"),
-                QSettings.Format.IniFormat,
-            )
-        )
-        self.settings.set_lineage_db(self.db)
-        self.window = FakeWindow()
-        self.tab = LineageTab(self.window, settings=self.settings)
-        self.addCleanup(self.tab.close)
-
-    def test_search_loads_root_and_directions(self) -> None:
-        self.assertTrue(self.tab.search_button.isEnabled())
-
-        self.tab.query.setText("Sales Report")
-        self.tab.run_search()
-        self.assertEqual(self.tab.results.rowCount(), 1)
-        self.assertEqual(self.tab.vm.root["node_id"], "rep-1")
-        self.assertEqual(self.tab.tree.topLevelItemCount(), 1)
-        self.assertIn("1 item downstream", self.tab.lineage_status.text())
-
-        self.tab.upstream_button.click()
-        self.assertEqual(self.tab.vm.direction, "upstream")
-        self.assertEqual(len(self.tab.vm.result["nodes"]), 4)
-        self.assertIn("4 item upstream", self.tab.lineage_status.text())
-
-        self.tab.downstream_button.click()
-        self.assertEqual(self.tab.vm.direction, "downstream")
-        self.assertEqual(len(self.tab.vm.result["nodes"]), 1)
-
-        root_item = self.tab.tree.topLevelItem(0)
-        child = root_item.child(0)
-        self.assertIsNotNone(child)
-        node = child.data(0, Qt.ItemDataRole.UserRole)
-        self.assertEqual(node["node_id"], "dash-1")
-        self.tab._open_tree_node(child, 0)
-        self.assertEqual(self.tab.vm.root["node_id"], "dash-1")
-
-    def test_visual_window_refreshes_and_drills_down(self) -> None:
-        self.tab.query.setText("Sales Report")
-        self.tab.run_search()
-        self.assertTrue(self.tab.visual_button.isEnabled())
-
-        self.tab._open_visual()
-        window = self.tab._graph_window
-        assert window is not None
-        self.addCleanup(window.close)
-        self.assertTrue(window.isVisible())
-        self.assertEqual(len(window._nodes), 6)
-        self.assertIn("6 node", window.status.text())
-        self.assertIn("4 upstream", window.status.text())
-        self.assertIn("Sales Report", window.windowTitle())
-
-        before = window._graph
-        self.tab.upstream_button.click()
-        self.assertIs(window._graph, before)
-
-        window._nodes["dash-1"].double_clicked.emit("dash-1")
-        self.app.processEvents()
-        self.assertEqual(self.tab.vm.root["node_id"], "dash-1")
-        self.assertIsNotNone(window._graph)
-        self.assertEqual(window._graph.root.node_id, "dash-1")
-
-        self.tab.set_busy(True)
-        self.assertFalse(self.tab.visual_button.isEnabled())
-        window._nodes["rep-1"].double_clicked.emit("rep-1")
-        self.app.processEvents()
-        self.assertEqual(self.tab.vm.root["node_id"], "dash-1")
-        self.tab.set_busy(False)
-        self.assertTrue(self.tab.visual_button.isEnabled())
-
-    def test_missing_database_disables_search(self) -> None:
-        from app.lineage_tab import LineageTab
-        from app.settings_store import AppSettings
-
-        settings = AppSettings(
-            QSettings(
-                str(Path(self._tmp.name) / "lain.ini"),
-                QSettings.Format.IniFormat,
-            )
-        )
-        settings.set_lineage_db(Path(self._tmp.name) / "tidak-ada.db")
-        tab = LineageTab(self.window, settings=settings)
-        self.addCleanup(tab.close)
-
-        self.assertFalse(tab.search_button.isEnabled())
-        self.assertIn("Sinkronisasi data", tab.search_status.text())
-
-    def test_busy_state_and_empty_search(self) -> None:
-        self.tab.set_busy(True)
-        self.assertFalse(self.tab.search_button.isEnabled())
-        self.tab.set_busy(False)
-        self.assertTrue(self.tab.search_button.isEnabled())
-
-        self.tab.query.setText("tidak-ada")
-        self.tab.run_search()
-        self.assertEqual(self.tab.results.rowCount(), 0)
-        self.assertIsNone(self.tab.vm.root)
-        self.assertEqual(self.tab.search_status.text(), "Tidak ada hasil.")
-
-        self.tab.query.setText("")
-        self.tab.run_search()
-        self.assertIn("Isi kata kunci", self.tab.search_status.text())
-
-
-class FakeWindow:
-    def __init__(self) -> None:
-        self.messages: list[str] = []
-        self.jobs: list[str] = []
-
-    def log(self, message: str) -> None:
-        self.messages.append(message)
-
-    def open_settings_tab(self) -> None:
-        self.messages.append("settings")
-
-    def is_busy(self) -> bool:
-        return False
-
-    def start_job(self, title: str, job, on_success) -> None:
-        self.jobs.append(title)
 
 
 if __name__ == "__main__":
