@@ -184,6 +184,25 @@ class WebLayerTests(unittest.TestCase):
         api = (ROOT / "web" / "api.js").read_text(encoding="utf-8")
         self.assertIn("window.BIToolsApi", api)
 
+    def test_web_helpers_are_defined_once(self) -> None:
+        # Duplikat deklarasi pernah menutupi helper (parentDir) tanpa error
+        # sintaks; setiap helper inti harus tepat satu deklarasi.
+        text = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        for name in (
+            "parentDir",
+            "browseRow",
+            "openFilePicker",
+            "openFolderPicker",
+            "buildMetadataPayload",
+            "runExtraction",
+            "startJob",
+        ):
+            self.assertEqual(
+                text.count(f"function {name}("),
+                1,
+                f"helper {name} harus dideklarasikan tepat satu kali",
+            )
+
     def test_server_does_not_use_requests(self) -> None:
         hits = matching_in(
             files_under("server"), r"^\s*(import requests|from requests\b)"

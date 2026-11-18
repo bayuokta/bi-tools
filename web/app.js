@@ -3180,7 +3180,7 @@
       if (!state.partitionBusy) renderPartitions();
     });
     $("#exportPartitions").addEventListener("click", function () {
-      toast("Mockup: export CSV partisi disiapkan");
+      pendingFeature("Ekspor CSV partisi");
     });
     $("#partitionWorkspace").addEventListener("change", function () {
       addLog("Workspace partisi diubah.", "info");
