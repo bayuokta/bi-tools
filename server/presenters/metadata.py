@@ -167,8 +167,19 @@ def workspaces_payload(store: SettingsStore) -> dict[str, Any]:
     }
 
 
-def contents_payload(store: SettingsStore, workspace_id: str) -> dict[str, Any]:
-    """Dataset + report satu workspace, plus endpoint XMLA turunannya."""
+def contents_payload(
+    store: SettingsStore,
+    workspace_id: str,
+    *,
+    datasets: bool = True,
+    reports: bool = True,
+) -> dict[str, Any]:
+    """Dataset dan/atau report satu workspace, plus endpoint XMLA turunannya.
+
+    Workspace model dan workspace report bisa berbeda, jadi pemanggil hanya
+    meminta daftar yang dibutuhkan: satu panggilan untuk dataset, satu panggilan
+    lain untuk report. Ini juga menghindari 401 dari endpoint yang tidak dipakai.
+    """
     workspace = str(workspace_id or "").strip()
     if not workspace:
         raise ExtractionError("Workspace belum dipilih.")
@@ -185,7 +196,9 @@ def contents_payload(store: SettingsStore, workspace_id: str) -> dict[str, Any]:
         raise ExtractionError("Nama workspace kosong; tidak bisa membuat endpoint XMLA.")
     _options, duplicates, _hint = workspace_picklist(database)
     endpoint = workspace_endpoint("myorg", option.name, option.workspace_id, disambiguate=option.name in duplicates)
-    payload = workspace_contents(principal, workspace, datasets=True, reports=True)
+    payload = workspace_contents(
+        principal, workspace, datasets=bool(datasets), reports=bool(reports)
+    )
 
     datasets = [
         {
@@ -281,26 +294,41 @@ def _local_request(
 def _service_request(
     store: SettingsStore, payload: Mapping[str, Any], scope: str, out_dir: Path
 ) -> ServiceMetadataRequest:
-    workspace_id = str(payload.get("workspace_id") or "").strip()
+    wants_report, wants_model = split_scope(scope)
+    legacy_workspace = str(payload.get("workspace_id") or "").strip()
+    legacy_name = str(payload.get("workspace_name") or "").strip()
+    model_workspace = (
+        str(payload.get("model_workspace_id") or "").strip() or legacy_workspace
+    )
+    model_name = (
+        str(payload.get("model_workspace_name") or "").strip() or legacy_name
+    )
+    report_workspace = (
+        str(payload.get("report_workspace_id") or "").strip() or legacy_workspace
+    )
     report_id = str(payload.get("report_id") or "").strip()
     endpoint = str(payload.get("endpoint") or "").strip()
-    if not endpoint:
-        name = str(payload.get("workspace_name") or "").strip()
-        if name:
-            endpoint = workspace_endpoint(
-                "myorg",
-                name,
-                str(payload.get("workspace_id") or "").strip(),
-            )
+    if not endpoint and model_name:
+        endpoint = workspace_endpoint("myorg", model_name, model_workspace)
     report_type = str(payload.get("report_type") or "")
-    if split_scope(scope)[0] and report_type == "PaginatedReport":
+    if wants_report and report_type == "PaginatedReport":
         raise ExtractionError(
             "Report paginated (RDL) tidak didukung; pilih report Power BI biasa."
         )
     catalog = str(payload.get("catalog") or "").strip()
+    if wants_model:
+        if not model_workspace or not model_name:
+            raise ExtractionError(
+                "Pilih workspace semantic model lebih dulu (boleh sama atau "
+                "berbeda dengan workspace report)."
+            )
+        if not catalog:
+            raise ExtractionError(
+                "Pilih catalog (dataset) semantic model di workspace model."
+            )
     request = ServiceMetadataRequest(
         out_dir=out_dir,
-        workspace_id=workspace_id,
+        workspace_id=report_workspace,
         report_id=report_id,
         endpoint=endpoint,
         catalog=catalog,

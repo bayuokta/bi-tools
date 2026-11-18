@@ -32,6 +32,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   report/model, file `.pbix` lewat penjelajah server, instance Desktop, workspace
   + dataset/report dari katalog SQLite lalu REST, endpoint XMLA turunan, job
   dengan log live, serta kartu output dan ringkasan halaman/tabel/kolom/measure.
+- Combo workspace, catalog, dan report bisa diketik untuk memfilter. Workspace
+  **model** dan workspace **report** dipilih terpisah, sehingga report dari
+  workspace lain tidak lagi mengikat atau mengubah Catalog; endpoint XMLA selalu
+  diturunkan dari workspace model.
 - Input divalidasi sebelum job (`400`): `.pbix` hilang/tanpa PBIR/tanpa model
   lokal, instance Desktop belum dipilih, report paginated, atau kredensial
   service principal belum lengkap. Kesalahan Fabric/XMLA tetap dilaporkan di

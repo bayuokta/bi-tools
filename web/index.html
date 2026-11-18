@@ -113,36 +113,47 @@
                   </div>
 
                   <div id="paneService">
+                    <div class="form-section-label">Semantic model</div>
                     <div class="form-row">
-                      <label for="serviceWorkspace">Workspace</label>
-                      <div class="select">
-                        <select id="serviceWorkspace">
-                          <option value="">Memuat katalog…</option>
-                        </select>
+                      <label for="modelWorkspaceInput">Workspace model</label>
+                      <div class="combo" id="modelWorkspaceCombo">
+                        <input class="input mono combo-input" id="modelWorkspaceInput" type="text" autocomplete="off" placeholder="Ketik untuk memfilter workspace…" role="combobox" aria-expanded="false" aria-autocomplete="list">
+                        <button class="combo-toggle" type="button" aria-label="Buka daftar workspace model">▾</button>
+                        <div class="combo-pop" hidden=""><div class="combo-list" role="listbox" aria-label="Workspace model"></div></div>
                       </div>
-                      <button class="btn btn-sm" type="button" id="reloadWorkspaces">Muat ulang daftar</button>
+                      <button class="btn btn-sm" type="button" id="reloadWorkspaces">Muat ulang</button>
                     </div>
                     <p class="helper" id="workspaceHint"></p>
                     <div class="form-row">
                       <label for="xmlaEndpoint">Endpoint XMLA</label>
-                      <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace">
+                      <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace model">
                     </div>
                     <div class="form-row">
-                      <label for="catalog">Catalog</label>
-                      <div class="select">
-                        <select id="catalog">
-                          <option value="">Pilih dataset…</option>
-                        </select>
+                      <label for="catalogInput">Catalog</label>
+                      <div class="combo" id="catalogCombo">
+                        <input class="input mono combo-input" id="catalogInput" type="text" autocomplete="off" placeholder="Ketik untuk memfilter dataset…" role="combobox" aria-expanded="false" aria-autocomplete="list">
+                        <button class="combo-toggle" type="button" aria-label="Buka daftar dataset">▾</button>
+                        <div class="combo-pop" hidden=""><div class="combo-list" role="listbox" aria-label="Dataset semantic model"></div></div>
                       </div>
                     </div>
+
+                    <div class="form-section-label">Report</div>
                     <div class="form-row">
-                      <label for="serviceReport">Report</label>
-                      <div class="select">
-                        <select id="serviceReport">
-                          <option value="">Pilih report…</option>
-                        </select>
+                      <label for="reportWorkspaceInput">Workspace report</label>
+                      <div class="combo" id="reportWorkspaceCombo">
+                        <input class="input mono combo-input" id="reportWorkspaceInput" type="text" autocomplete="off" placeholder="Ketik untuk memfilter workspace…" role="combobox" aria-expanded="false" aria-autocomplete="list">
+                        <button class="combo-toggle" type="button" aria-label="Buka daftar workspace report">▾</button>
+                        <div class="combo-pop" hidden=""><div class="combo-list" role="listbox" aria-label="Workspace report"></div></div>
                       </div>
-                      <button class="btn btn-sm" type="button" id="reloadReport">Muat ulang dataset</button>
+                      <button class="btn btn-sm" type="button" id="reloadReport">Muat ulang</button>
+                    </div>
+                    <div class="form-row">
+                      <label for="serviceReportInput">Report</label>
+                      <div class="combo" id="reportCombo">
+                        <input class="input mono combo-input" id="serviceReportInput" type="text" autocomplete="off" placeholder="Ketik untuk memfilter report…" role="combobox" aria-expanded="false" aria-autocomplete="list">
+                        <button class="combo-toggle" type="button" aria-label="Buka daftar report">▾</button>
+                        <div class="combo-pop" hidden=""><div class="combo-list" role="listbox" aria-label="Report"></div></div>
+                      </div>
                     </div>
                     <p class="helper" id="reportHint"></p>
                   </div>

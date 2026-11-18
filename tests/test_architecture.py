@@ -195,6 +195,9 @@ class WebLayerTests(unittest.TestCase):
             "openFolderPicker",
             "buildMetadataPayload",
             "runExtraction",
+            "setupCombo",
+            "loadModelContents",
+            "loadReportContents",
             "startJob",
         ):
             self.assertEqual(

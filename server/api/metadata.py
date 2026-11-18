@@ -24,6 +24,10 @@ class RunIn(BaseModel):
     catalog: str = ""
     workspace_id: str = ""
     workspace_name: str = ""
+    model_workspace_id: str = ""
+    model_workspace_name: str = ""
+    report_workspace_id: str = ""
+    report_workspace_name: str = ""
     report_id: str = ""
     report_name: str = ""
     report_type: str = ""
@@ -48,8 +52,18 @@ def workspaces(request: Request) -> dict[str, Any]:
 
 
 @router.get("/workspaces/{workspace_id}/contents")
-def contents(workspace_id: str, request: Request) -> dict[str, Any]:
-    return presenter.contents_payload(settings_of(request), workspace_id)
+def contents(
+    workspace_id: str,
+    request: Request,
+    datasets: bool = True,
+    reports: bool = True,
+) -> dict[str, Any]:
+    return presenter.contents_payload(
+        settings_of(request),
+        workspace_id,
+        datasets=datasets,
+        reports=reports,
+    )
 
 
 @router.post("/run", status_code=202)

@@ -743,3 +743,34 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{ transition:
 .browse-empty{ padding:14px; color:var(--text-3); font-size:12.5px; text-align:center; }
 .row-inline > .btn{ flex:0 0 auto; }
 
+/* Combo yang bisa diketik (workspace, dataset, report) */
+.form-section-label{
+  margin:16px 0 6px; font-size:10.5px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--text-3);
+}
+.panel-body > .form-section-label:first-child{ margin-top:0; }
+.combo{ position:relative; display:flex; align-items:center; min-width:0; }
+.combo .combo-input{ width:100%; padding-right:30px; }
+.combo-toggle{
+  position:absolute; right:3px; top:3px; width:26px; height:26px;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:var(--r-sm); background:transparent;
+  color:var(--text-3); font-size:11px; cursor:pointer;
+}
+.combo-toggle:hover{ background:var(--surface-2); color:var(--text); }
+.combo-pop{
+  position:absolute; z-index:40; top:calc(100% + 4px); left:0; right:0;
+  max-height:250px; overflow:auto; padding:4px;
+  border:1px solid var(--border-strong); border-radius:var(--r-md);
+  background:var(--surface); box-shadow:0 12px 28px rgba(0,0,0,.38);
+}
+.combo-item{
+  padding:7px 8px; border-radius:var(--r-sm); cursor:pointer;
+  font-size:12.5px; color:var(--text); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.combo-item:hover{ background:var(--surface-2); }
+.combo-item.is-active{ background:var(--accent-soft); color:var(--accent-text); }
+.combo-item[aria-selected="true"]{ font-weight:600; }
+.combo-empty{ padding:12px 8px; color:var(--text-3); font-size:12px; text-align:center; }
+

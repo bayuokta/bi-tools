@@ -2468,12 +2468,162 @@
   }
 
   // -- ekstraksi metadata -------------------------------------------------
-  function findById(items, id) {
-    var wanted = String(id || "");
-    for (var index = 0; index < (items || []).length; index += 1) {
-      if (String(items[index].id) === wanted) return items[index];
+  var combos = {};
+
+  function setupCombo(id, onChange) {
+    var root = $("#" + id);
+    if (!root) return null;
+    var input = $(".combo-input", root);
+    var toggle = $(".combo-toggle", root);
+    var pop = $(".combo-pop", root);
+    var list = $(".combo-list", root);
+    if (!input || !pop || !list) return null;
+    var combo = {
+      id: id, root: root, input: input, toggle: toggle, pop: pop, list: list,
+      options: [], visible: [], value: "", active: -1, onChange: onChange || null
+    };
+    combos[id] = combo;
+
+    input.addEventListener("input", function () {
+      combo.value = "";
+      input.dataset.value = "";
+      combo.active = -1;
+      renderCombo(combo, input.value);
+      openCombo(combo);
+      if (combo.onChange) combo.onChange(null);
+    });
+    input.addEventListener("focus", function () {
+      renderCombo(combo, "");
+      openCombo(combo);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (combo.pop.hidden) {
+          renderCombo(combo, "");
+          openCombo(combo);
+        }
+        moveCombo(combo, event.key === "ArrowDown" ? 1 : -1);
+      } else if (event.key === "Enter") {
+        if (!combo.pop.hidden && combo.active >= 0) {
+          event.preventDefault();
+          chooseCombo(combo, combo.visible[combo.active]);
+        }
+      } else if (event.key === "Escape") {
+        closeCombo(combo);
+        input.blur();
+      }
+    });
+    input.addEventListener("blur", function () {
+      window.setTimeout(function () {
+        closeCombo(combo);
+        if (combo.value) return;
+        var typed = input.value.trim().toLowerCase();
+        if (!typed) return;
+        var match = combo.options.filter(function (item) {
+          return item.label.toLowerCase() === typed;
+        })[0];
+        if (match) chooseCombo(combo, match);
+        else input.value = "";
+      }, 120);
+    });
+    if (toggle) {
+      toggle.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+        if (combo.pop.hidden) {
+          renderCombo(combo, "");
+          openCombo(combo);
+          input.focus();
+        } else {
+          closeCombo(combo);
+          input.blur();
+        }
+      });
+    }
+    document.addEventListener("click", function (event) {
+      if (!root.contains(event.target)) closeCombo(combo);
+    });
+    return combo;
+  }
+
+  function openCombo(combo) {
+    combo.pop.hidden = false;
+    combo.input.setAttribute("aria-expanded", "true");
+  }
+
+  function closeCombo(combo) {
+    combo.pop.hidden = true;
+    combo.input.setAttribute("aria-expanded", "false");
+  }
+
+  function renderCombo(combo, query) {
+    var text = String(query || "").trim().toLowerCase();
+    combo.visible = combo.options.filter(function (item) {
+      return !text || item.label.toLowerCase().indexOf(text) !== -1;
+    }).slice(0, 200);
+    if (combo.active >= combo.visible.length) combo.active = combo.visible.length - 1;
+    var html = combo.visible.map(function (item, index) {
+      return '<div class="combo-item' + (index === combo.active ? " is-active" : "") +
+        '" role="option" data-value="' + escapeHtml(item.value) +
+        '" aria-selected="' + (String(item.value) === String(combo.value) ? "true" : "false") + '">' +
+        escapeHtml(item.label) + "</div>";
+    }).join("");
+    if (!html) html = '<div class="combo-empty">Tidak ada item yang cocok.</div>';
+    combo.list.innerHTML = html;
+    $$(".combo-item", combo.list).forEach(function (node) {
+      node.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+        chooseCombo(combo, itemByValue(combo, node.dataset.value));
+      });
+    });
+  }
+
+  function itemByValue(combo, value) {
+    for (var index = 0; index < combo.options.length; index += 1) {
+      if (String(combo.options[index].value) === String(value)) return combo.options[index];
     }
     return null;
+  }
+
+  function moveCombo(combo, delta) {
+    if (!combo.visible.length) return;
+    combo.active = (combo.active + delta + combo.visible.length) % combo.visible.length;
+    renderCombo(combo, "");
+    var active = $(".combo-item.is-active", combo.list);
+    if (active) active.scrollIntoView({ block: "nearest" });
+  }
+
+  function chooseCombo(combo, item) {
+    if (!item) return;
+    combo.value = item.value;
+    combo.input.value = item.label;
+    combo.input.dataset.value = item.value;
+    closeCombo(combo);
+    if (combo.onChange) combo.onChange(item);
+  }
+
+  function setComboOptions(id, options) {
+    var combo = combos[id];
+    if (!combo) return;
+    combo.options = (options || []).map(function (item) {
+      return { value: item.value, label: item.label, data: item.data };
+    });
+    combo.visible = combo.options.slice();
+    if (combo.value && !itemByValue(combo, combo.value)) {
+      combo.value = "";
+      combo.input.value = "";
+      combo.input.dataset.value = "";
+    }
+    renderCombo(combo, "");
+  }
+
+  function getComboValue(id) {
+    return combos[id] ? combos[id].value : "";
+  }
+
+  function getComboItem(id) {
+    var combo = combos[id];
+    return combo ? itemByValue(combo, combo.value) : null;
   }
 
   function loadInstances() {
@@ -2516,50 +2666,57 @@
     if (!apiReady()) return Promise.resolve();
     return api().get("/api/metadata/workspaces").then(function (data) {
       state.workspaces = data.workspaces || [];
-      var select = $("#serviceWorkspace");
-      var html = ['<option value="">' +
-        (state.workspaces.length ? "Pilih workspace…" : "Belum ada katalog") +
-        "</option>"];
-      state.workspaces.forEach(function (item) {
-        html.push('<option value="' + escapeHtml(item.id) + '">' +
-          escapeHtml(item.label) + "</option>");
+      var options = state.workspaces.map(function (item) {
+        return { value: item.id, label: item.label, data: item };
       });
-      select.innerHTML = html.join("");
-      $("#workspaceHint").textContent = data.hint || "";
+      setComboOptions("modelWorkspaceCombo", options);
+      setComboOptions("reportWorkspaceCombo", options);
+      $("#workspaceHint").textContent = data.hint ||
+        "Ketik nama workspace untuk memfilter, atau buka daftar.";
       return data;
     }).catch(function (error) {
       addLog("Katalog workspace tidak bisa dibaca: " + error.message, "error");
     });
   }
 
-  function loadWorkspaceContents() {
-    var workspaceId = $("#serviceWorkspace").value;
+  function loadModelContents() {
+    var workspaceId = getComboValue("modelWorkspaceCombo");
     if (!workspaceId || !apiReady()) return Promise.resolve();
-    $("#reportHint").textContent = "Memuat dataset dan report…";
+    $("#workspaceHint").textContent = "Memuat dataset workspace model…";
     return api().get(
-      "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) + "/contents"
+      "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
+      "/contents?datasets=true&reports=false"
     ).then(function (data) {
       state.datasets = data.datasets || [];
+      $("#xmlaEndpoint").value = (data.workspace && data.workspace.endpoint) || "";
+      setComboOptions("catalogCombo", state.datasets.map(function (item) {
+        return { value: item.name, label: item.name, data: item };
+      }));
+      $("#workspaceHint").textContent = state.datasets.length
+        ? "Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog."
+        : "Workspace model ini tidak punya dataset yang bisa dibaca.";
+      return data;
+    }).catch(function (error) {
+      $("#workspaceHint").textContent = error.message;
+      addLog(error.message, "error");
+    });
+  }
+
+  function loadReportContents() {
+    var workspaceId = getComboValue("reportWorkspaceCombo");
+    if (!workspaceId || !apiReady()) return Promise.resolve();
+    $("#reportHint").textContent = "Memuat report workspace…";
+    return api().get(
+      "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
+      "/contents?datasets=false&reports=true"
+    ).then(function (data) {
       state.reports = data.reports || [];
-      state.endpoint = (data.workspace && data.workspace.endpoint) || "";
-      $("#xmlaEndpoint").value = state.endpoint;
-      var datasetHtml = ['<option value="">Pilih dataset…</option>'];
-      state.datasets.forEach(function (item) {
-        datasetHtml.push('<option value="' + escapeHtml(item.name) +
-          '" data-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + "</option>");
-      });
-      $("#catalog").innerHTML = datasetHtml.join("");
-      var reportHtml = ['<option value="">Pilih report…</option>'];
-      state.reports.forEach(function (item) {
-        reportHtml.push('<option value="' + escapeHtml(item.id) +
-          '" data-type="' + escapeHtml(item.report_type) +
-          '" data-dataset="' + escapeHtml(item.dataset_id) + '">' +
-          escapeHtml(item.label) + "</option>");
-      });
-      $("#serviceReport").innerHTML = reportHtml.join("");
+      setComboOptions("reportCombo", state.reports.map(function (item) {
+        return { value: item.id, label: item.label, data: item };
+      }));
       $("#reportHint").textContent = state.reports.length
         ? "Report paginated (RDL) ditandai dan tidak bisa diekstrak."
-        : "Workspace ini tidak punya report yang bisa diekstrak.";
+        : "Workspace report ini tidak punya report yang bisa diekstrak.";
       return data;
     }).catch(function (error) {
       $("#reportHint").textContent = error.message;
@@ -2568,16 +2725,24 @@
   }
 
   function applyReportDefaults(report) {
-    $("#reportHint").textContent = report.is_paginated
-      ? "Report paginated (RDL) tidak didukung; pilih report Power BI biasa."
-      : "";
-    if (!report.dataset_id) return;
-    var select = $("#catalog");
-    for (var index = 0; index < select.options.length; index += 1) {
-      if (select.options[index].dataset.id === report.dataset_id) {
-        select.selectedIndex = index;
-        return;
-      }
+    if (report.is_paginated) {
+      $("#reportHint").textContent =
+        "Report paginated (RDL) tidak didukung; pilih report Power BI biasa.";
+      return;
+    }
+    var dataset = null;
+    state.datasets.forEach(function (item) {
+      if (String(item.id) === String(report.dataset_id)) dataset = item;
+    });
+    if (dataset) {
+      $("#reportHint").textContent =
+        "Report memakai dataset " + dataset.name +
+        ". Catalog model dipilih terpisah dan boleh berbeda workspace.";
+    } else if (report.dataset_id) {
+      $("#reportHint").textContent =
+        "Report memakai dataset di workspace lain; pilih catalog model secara terpisah.";
+    } else {
+      $("#reportHint").textContent = "";
     }
   }
 
@@ -2612,17 +2777,25 @@
       out_dir: $("#outFolder").value.trim()
     };
     if (payload.source === "service") {
-      var workspace = findById(state.workspaces, $("#serviceWorkspace").value);
-      var report = findById(state.reports, $("#serviceReport").value);
-      payload.workspace_id = $("#serviceWorkspace").value;
-      payload.workspace_name = workspace ? workspace.name : "";
+      var modelItem = getComboItem("modelWorkspaceCombo");
+      var reportWorkspace = getComboItem("reportWorkspaceCombo");
+      var reportItem = getComboItem("reportCombo");
+      var report = reportItem ? reportItem.data : null;
+      payload.model_workspace_id = getComboValue("modelWorkspaceCombo");
+      payload.model_workspace_name = modelItem ? modelItem.data.name : "";
+      payload.report_workspace_id = getComboValue("reportWorkspaceCombo");
+      payload.report_workspace_name = reportWorkspace
+        ? reportWorkspace.data.name
+        : "";
       payload.endpoint = $("#xmlaEndpoint").value.trim();
-      payload.report_id = $("#serviceReport").value;
+      payload.report_id = getComboValue("reportCombo");
       payload.report_name = report ? report.name : "";
       payload.report_type = report ? report.report_type : "";
       payload.dataset_id = report ? report.dataset_id : "";
-      payload.catalog = $("#catalog").value;
+      payload.catalog = getComboValue("catalogCombo");
       payload.dataset_name = payload.catalog;
+      payload.workspace_id = payload.report_workspace_id;
+      payload.workspace_name = payload.report_workspace_name;
     } else {
       var instance = null;
       var chosen = $("#desktopInstance").value;
@@ -2746,11 +2919,19 @@
     });
 
     $("#reloadWorkspaces").addEventListener("click", function () {
-      loadWorkspaces().then(function () { toast("Katalog workspace dimuat"); });
+      loadWorkspaces().then(function () {
+        if (getComboValue("modelWorkspaceCombo")) loadModelContents();
+        if (getComboValue("reportWorkspaceCombo")) loadReportContents();
+        toast("Katalog workspace dimuat");
+      });
     });
 
     $("#reloadReport").addEventListener("click", function () {
-      loadWorkspaceContents().then(function () { toast("Dataset dan report dimuat"); });
+      if (!getComboValue("reportWorkspaceCombo")) {
+        toast("Pilih workspace report lebih dulu");
+        return;
+      }
+      loadReportContents().then(function () { toast("Daftar report dimuat"); });
     });
 
     $("#pickPbix").addEventListener("click", function () {
@@ -2764,19 +2945,33 @@
       renderModelAvailability();
     });
 
-    $("#serviceWorkspace").addEventListener("change", function () {
-      state.datasets = [];
-      state.reports = [];
-      $("#xmlaEndpoint").value = "";
-      $("#serviceReport").innerHTML = '<option value="">Pilih report…</option>';
-      $("#catalog").innerHTML = '<option value="">Pilih dataset…</option>';
-      $("#reportHint").textContent = "";
-      loadWorkspaceContents();
+    setupCombo("modelWorkspaceCombo", function (item) {
+      if (!item) {
+        $("#xmlaEndpoint").value = "";
+        setComboOptions("catalogCombo", []);
+        $("#workspaceHint").textContent = "";
+        return;
+      }
+      loadModelContents();
     });
 
-    $("#serviceReport").addEventListener("change", function () {
-      var report = findById(state.reports, $("#serviceReport").value);
-      if (report) applyReportDefaults(report);
+    setupCombo("reportWorkspaceCombo", function (item) {
+      if (!item) {
+        setComboOptions("reportCombo", []);
+        $("#reportHint").textContent = "";
+        return;
+      }
+      loadReportContents();
+    });
+
+    setupCombo("catalogCombo", function (item) {
+      if (item && item.data) {
+        $("#workspaceHint").textContent =
+          "Catalog " + item.data.name + " dipakai dari workspace model ini.";
+      }
+    });
+    setupCombo("reportCombo", function (item) {
+      if (item && item.data) applyReportDefaults(item.data);
     });
 
     $("#runExtract").addEventListener("click", runExtraction);

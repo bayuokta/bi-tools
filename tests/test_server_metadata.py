@@ -135,6 +135,16 @@ class MetadataPresenterTests(unittest.TestCase):
         self.assertTrue(payload["reports"][1]["is_paginated"])
         self.assertIn("[Paginated]", payload["reports"][1]["label"])
 
+    def test_contents_can_limit_kinds(self) -> None:
+        option = WorkspaceOption(WORKSPACE, "Contoh")
+        with patch.object(presenter, "workspace_detail", return_value=option), patch.object(
+            presenter, "workspace_contents", return_value={}
+        ) as loader:
+            presenter.contents_payload(self.store, WORKSPACE, datasets=True, reports=False)
+        loader.assert_called_once_with(
+            self.store.principal(), WORKSPACE, datasets=True, reports=False
+        )
+
     def test_build_request_local(self) -> None:
         with patch.object(presenter, "detect_pbix_source", side_effect=fake_info):
             request = presenter.build_request(
@@ -223,6 +233,53 @@ class MetadataPresenterTests(unittest.TestCase):
                 },
             )
         self.assertIn("Kredensial", str(ctx.exception))
+
+    def test_build_request_service_separate_report_workspace(self) -> None:
+        report_workspace = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+        request = presenter.build_request(
+            self.store,
+            {
+                "source": "service",
+                "scope": "both",
+                "model_workspace_id": WORKSPACE,
+                "model_workspace_name": "Workspace Model",
+                "report_workspace_id": report_workspace,
+                "report_workspace_name": "Workspace Report",
+                "report_id": REPORT,
+                "catalog": "Model DS",
+            },
+        )
+        self.assertEqual(request.workspace_id, report_workspace)
+        self.assertIn("Workspace%20Model", request.endpoint)
+        self.assertEqual(request.catalog, "Model DS")
+
+    def test_build_request_service_report_only_without_model_workspace(self) -> None:
+        request = presenter.build_request(
+            self.store,
+            {
+                "source": "service",
+                "scope": "report",
+                "report_workspace_id": WORKSPACE,
+                "report_workspace_name": "Contoh",
+                "report_id": REPORT,
+            },
+        )
+        self.assertTrue(request.extract_report)
+        self.assertFalse(request.extract_model)
+        self.assertEqual(request.endpoint, "")
+
+    def test_build_request_service_model_requires_catalog(self) -> None:
+        with self.assertRaises(ExtractionError) as ctx:
+            presenter.build_request(
+                self.store,
+                {
+                    "source": "service",
+                    "scope": "model",
+                    "model_workspace_id": WORKSPACE,
+                    "model_workspace_name": "Contoh",
+                },
+            )
+        self.assertIn("catalog", str(ctx.exception))
 
     def test_run_job_local_passes_kwargs(self) -> None:
         result = SimpleNamespace(
