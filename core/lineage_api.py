@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 from uuid import UUID
 
@@ -29,6 +29,42 @@ def _silent(message: str) -> None:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+
+
+def safe_modified_since(hours: int = 2) -> str:
+    """Timestamp lampau yang aman untuk parameter ``modifiedSince``.
+
+    API menolak nilai di masa depan (jam mesin yang sedikit maju sudah cukup)
+    dan nilai lebih tua dari 30 hari. Jendela resminya 30 menit s.d. 30 hari.
+    """
+    moment = datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours)))
+    return moment.strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+
+
+def clamp_modified_since(
+    value: str | None,
+    *,
+    max_days: int = 29,
+    min_minutes: int = 31,
+) -> str | None:
+    """Batasi watermark ke jendela yang diterima ``admin/workspaces/modified``.
+
+    Watermark dari scan sebelumnya bisa terlalu baru (< 30 menit) atau terlalu
+    lama (> 30 hari); keduanya dijawab HTTP 400 "The date should be in the last
+    30 days.". ``None`` (timestamp rusak) berarti pemanggil sebaiknya full scan.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(str(value)[:19], "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return None
+    now = datetime.now(timezone.utc)
+    lower = now - timedelta(days=max_days)
+    upper = now - timedelta(minutes=min_minutes)
+    return min(max(parsed, lower), upper).strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
 
 
 # Nama lama dipertahankan agar pemanggil yang menangkap error ini tetap jalan;
@@ -147,7 +183,7 @@ class PowerBILineageClient:
                 "admin/workspaces/modified",
                 params={
                     "excludePersonalWorkspaces": "True",
-                    "modifiedSince": now_iso(),
+                    "modifiedSince": safe_modified_since(),
                 },
             )
         except LineageApiError as exc:

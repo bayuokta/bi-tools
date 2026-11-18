@@ -167,6 +167,7 @@ class CaptureRequestTests(unittest.TestCase):
             refresh=True,
             reveal_bookmarks=False,
             mobile=False,
+            auto_install_browser=False,
             hints_workbook=workbook,
         )
         options = request.to_options()
@@ -179,6 +180,7 @@ class CaptureRequestTests(unittest.TestCase):
         self.assertTrue(options.refresh)
         self.assertFalse(options.reveal_bookmarks)
         self.assertFalse(options.mobile)
+        self.assertFalse(options.auto_install_browser)
         self.assertEqual(options.hints_workbook, workbook)
         # Objek dekoratif dilewati secara default agar capture = filter TSD.
         self.assertIn("shape", options.exclude_visual_types)

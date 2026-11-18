@@ -61,6 +61,7 @@ class CaptureOptions:
     reveal_bookmarks: bool = True
     mobile: bool = True
     hints_workbook: Path | None = None
+    auto_install_browser: bool = True
 
     def __post_init__(self) -> None:
         self.workspace_id = str(self.workspace_id or "").strip()
@@ -90,6 +91,7 @@ class CaptureOptions:
         self.exclude_visual_types = tuple(self.exclude_visual_types or ())
         self.reveal_bookmarks = bool(self.reveal_bookmarks)
         self.mobile = bool(self.mobile)
+        self.auto_install_browser = bool(self.auto_install_browser)
         if self.hints_workbook is not None:
             self.hints_workbook = Path(self.hints_workbook)
 
@@ -137,6 +139,7 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
         settle_ms=options.settle_ms,
         debug_dir=str(root / "_debug"),
         log=log,
+        auto_install=options.auto_install_browser,
     )
 
     want_pages = _wants_pages(options.scope)
@@ -206,6 +209,7 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
             settle_ms=options.settle_ms,
             debug_dir=str(root / "_debug"),
             layout_type=2,
+            auto_install=options.auto_install_browser,
             log=log,
         )
         try:

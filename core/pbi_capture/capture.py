@@ -35,6 +35,8 @@ except ImportError as _exc:  # pragma: no cover - tergantung environment
 
 from ..errors import ExtractionError
 
+from .browsers import install_chromium, missing_browser
+
 Log = Callable[[str], None]
 
 
@@ -605,6 +607,7 @@ class ReportCapturer:
         settle_ms: int = 800,
         debug_dir: str | None = None,
         layout_type: int = 0,
+        auto_install: bool = True,
         log: Log = _silent,
     ) -> None:
         if sync_playwright is None:
@@ -624,6 +627,7 @@ class ReportCapturer:
         self.settle_ms = settle_ms
         self.debug_dir = debug_dir
         self.layout_type = int(layout_type)
+        self.auto_install = bool(auto_install)
         self._log = log
 
         self._server: ThreadingHTTPServer | None = None
@@ -665,7 +669,7 @@ class ReportCapturer:
 
         try:
             self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=self.headless)
+            self._browser = self._launch_browser()
         except Exception as exc:  # noqa: BLE001 - pesan Playwright
             self.close()
             raise CaptureError(
@@ -701,6 +705,21 @@ class ReportCapturer:
         self._page.wait_for_timeout(self.settle_ms)
         self._log("Report siap di-capture.")
         return self
+
+    def _launch_browser(self):
+        """Launch Chromium; unduh sekali bila browser belum ada."""
+        try:
+            return self._pw.chromium.launch(headless=self.headless)
+        except Exception as exc:  # noqa: BLE001 - pesan Playwright
+            if not (self.auto_install and missing_browser(exc)):
+                raise
+            self._log(
+                "Chromium belum tersedia; mengunduh otomatis sekali "
+                "(sekitar 150 MB) ..."
+            )
+            install_chromium(self._log)
+            self._log("Chromium terpasang; mengulang launch.")
+            return self._pw.chromium.launch(headless=self.headless)
 
     def close(self) -> None:
         def _stop_server() -> None:

@@ -237,6 +237,15 @@ class TsdTab(QWidget):
             "Default: objek dekoratif tetap terlihat di screenshot halaman, "
             "tetapi tidak dibuatkan baris visual sendiri."
         )
+        self.auto_install_browser = QCheckBox(
+            "Unduh Chromium otomatis bila belum ada (sekitar 150 MB)"
+        )
+        self.auto_install_browser.setChecked(form.auto_install_browser)
+        self.auto_install_browser.setToolTip(
+            "Capture pertama akan mengunduh Chromium lewat driver Playwright "
+            "bila belum terpasang. Matikan bila unduhan harus dikelola sendiri "
+            "(mis. di balik proxy ketat)."
+        )
         self.shot_status = QLabel()
         self.shot_status.setWordWrap(True)
         self.shot_status.setTextInteractionFlags(
@@ -266,6 +275,7 @@ class TsdTab(QWidget):
         shots_form.addRow("", self.shot_mobile)
         shots_form.addRow("", self.shot_headed)
         shots_form.addRow("", self.include_decorative)
+        shots_form.addRow("", self.auto_install_browser)
         shots_form.addRow("Cache:", self.shot_status)
         shots_form.addRow("", shot_buttons_widget)
         shots_box = QGroupBox("Screenshot Report (Power BI Service)")
@@ -358,6 +368,9 @@ class TsdTab(QWidget):
         self.include_decorative.toggled.connect(
             lambda checked: self.vm.apply(include_decorative=checked)
         )
+        self.auto_install_browser.toggled.connect(
+            lambda checked: self.vm.apply(auto_install_browser=checked)
+        )
         self.draft.toggled.connect(lambda checked: self.vm.apply(draft=checked))
         self.expand_all.toggled.connect(
             lambda checked: self.vm.apply(expand_all=checked)
@@ -415,6 +428,7 @@ class TsdTab(QWidget):
             self.shot_mobile,
             self.shot_headed,
             self.include_decorative,
+            self.auto_install_browser,
             self.out_dir,
             self.out_name,
         ):

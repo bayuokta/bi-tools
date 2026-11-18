@@ -40,6 +40,7 @@ SETTINGS_TSD_SHOT_SCOPE_KEY = "tsd/screenshot_scope"
 SETTINGS_TSD_SHOT_SCALE_KEY = "tsd/screenshot_scale"
 SETTINGS_TSD_SHOT_MOBILE_KEY = "tsd/screenshot_mobile"
 SETTINGS_TSD_DECORATIVE_KEY = "tsd/include_decorative"
+SETTINGS_TSD_AUTO_INSTALL_KEY = "tsd/auto_install_browser"
 
 LINEAGE_DB_KEY = "lineage/db_path"
 LINEAGE_TENANT_KEY = "lineage/tenant_id"

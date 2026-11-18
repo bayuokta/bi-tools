@@ -38,7 +38,7 @@ Perintah:
   tsd              dokumen TSD (HTML) dari workbook metadata
   lineage          scan, pencarian, dan lineage Power BI
   analyze          ukuran kolom + pemakaian di report
-  install-browser  unduh Chromium untuk screenshot TSD
+  install-browser  unduh Chromium untuk screenshot TSD (default: install chromium)
 
 Opsi umum:
   -h, --help       tampilkan bantuan ini
@@ -50,8 +50,12 @@ Bantuan per perintah:
 
 
 def install_browser(argv: Sequence[str] | None = None) -> int:
-    """Unduh Chromium lewat driver Playwright bawaan aplikasi."""
-    args = list(argv or ())
+    """Unduh Chromium lewat driver Playwright bawaan aplikasi.
+
+    Tanpa argumen berarti ``install chromium`` (kebutuhan screenshot TSD).
+    Argumen lain diteruskan apa adanya ke CLI Playwright.
+    """
+    args = list(argv or ()) or ["install", "chromium"]
     try:
         from playwright.__main__ import main as playwright_main
     except Exception as exc:  # noqa: BLE001 - pesan instalasi, bukan traceback
@@ -64,7 +68,7 @@ def install_browser(argv: Sequence[str] | None = None) -> int:
         return 1
 
     original = sys.argv
-    sys.argv = ["bi-tools-cli install-browser", *args]
+    sys.argv = ["playwright", *args]
     try:
         playwright_main()
     except SystemExit as exc:  # playwright memanggil sys.exit(returncode)

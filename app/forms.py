@@ -15,6 +15,7 @@ from core.pbi_capture.assets import SCOPES as SHOT_SCOPES
 from core.report import MODEL_WORKBOOK_NAME, OUT_FILE
 
 from .settings import (
+    SETTINGS_TSD_AUTO_INSTALL_KEY,
     SETTINGS_TSD_DECORATIVE_KEY,
     SETTINGS_TSD_DRAFT_KEY,
     SETTINGS_TSD_EXPAND_KEY,
@@ -71,6 +72,7 @@ class TsdForm:
     shot_scale: float = 1.0
     shot_mobile: bool = True
     include_decorative: bool = False
+    auto_install_browser: bool = True
 
     @classmethod
     def load(cls, settings: AppSettings) -> "TsdForm":
@@ -107,6 +109,9 @@ class TsdForm:
             include_decorative=settings.value(
                 SETTINGS_TSD_DECORATIVE_KEY, False, type=bool
             ),
+            auto_install_browser=settings.value(
+                SETTINGS_TSD_AUTO_INSTALL_KEY, True, type=bool
+            ),
         )
 
     def save(self, settings: AppSettings) -> None:
@@ -126,6 +131,9 @@ class TsdForm:
         settings.set_value(SETTINGS_TSD_SHOT_MOBILE_KEY, bool(self.shot_mobile))
         settings.set_value(
             SETTINGS_TSD_DECORATIVE_KEY, bool(self.include_decorative)
+        )
+        settings.set_value(
+            SETTINGS_TSD_AUTO_INSTALL_KEY, bool(self.auto_install_browser)
         )
 
     def save_selection(self, settings: AppSettings) -> None:

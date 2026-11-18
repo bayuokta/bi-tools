@@ -132,6 +132,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     service.add_argument(
+        "--no-auto-install-browser",
+        action="store_true",
+        help=(
+            "Jangan unduh Chromium otomatis bila belum ada. Default: capture "
+            "mengunduh lewat driver Playwright pada percobaan pertama."
+        ),
+    )
+    service.add_argument(
         "--headed",
         action="store_true",
         help="Tampilkan jendela browser saat capture (debug).",
@@ -204,6 +212,7 @@ def _capture_options(args: argparse.Namespace) -> CaptureOptions | None:
         reveal_bookmarks=not args.no_reveal_bookmarks,
         mobile=not args.no_mobile_screenshots,
         include_decorative=args.include_decorative_visuals,
+        auto_install_browser=not args.no_auto_install_browser,
         hints_workbook=Path(args.report).resolve() if args.report else OUT_FILE,
     )
     return request.to_options(tokens)

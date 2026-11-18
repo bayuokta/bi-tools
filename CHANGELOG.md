@@ -7,6 +7,23 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-18 - Perbaikan 0.3.1
+
+- Sinkronisasi katalog/scan lineage mode otomatis gagal HTTP 400
+  "The date should be in the last 30 days." bila jam mesin sedikit maju:
+  `probe_admin()` mengirim `modifiedSince` waktu sekarang. Sekarang probe
+  memakai `safe_modified_since()` (2 jam ke belakang) dan watermark scan
+  di-clamp ke jendela API (29 hari s.d. 31 menit); timestamp rusak memicu
+  full scan. Penyebabnya terbukti live: `+10 menit` dan `-40 hari` sama-sama
+  ditolak, sedangkan `-10`/`-31` menit diterima.
+- `bi-tools-cli install-browser` tanpa argumen kini menjalankan
+  `install chromium` (sebelumnya hanya mencetak bantuan Playwright).
+- Capture screenshot TSD mengunduh Chromium otomatis pada percobaan pertama
+  bila browser belum ada (sekitar 150 MB, lewat driver Playwright), lalu
+  mengulang launch. Dapat dimatikan lewat checkbox GUI, `CaptureOptions`, atau
+  `--no-auto-install-browser`; pesan kegagalan tetap menyebut
+  `bi-tools-cli install-browser`.
+
 ## 2026-11-17 - Rilis 0.3.0
 
 - Lineage: opsi **Sertakan My Workspace (personal)** (checkbox di Pengaturan,

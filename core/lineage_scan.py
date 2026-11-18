@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from .auth import ServicePrincipal
 from .errors import ExtractionError
-from .lineage_api import PowerBILineageClient, now_iso
+from .lineage_api import PowerBILineageClient, clamp_modified_since, now_iso
 from .lineage_store import (
     active_counts,
     close_quietly,
@@ -86,7 +86,7 @@ def _run_admin_scan(
         # watermark-nya tidak boleh dipakai: aktifkan opsi ini = full scan dulu.
         watermark_sql += " AND include_personal = 1"
     last_scan = conn.execute(watermark_sql).fetchone()[0]
-    modified_since = None if (full or not last_scan) else last_scan
+    modified_since = None if (full or not last_scan) else clamp_modified_since(last_scan)
     scan_mode = "incremental" if modified_since else "full"
 
     workspace_ids = client.modified_workspaces(

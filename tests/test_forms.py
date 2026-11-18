@@ -42,6 +42,7 @@ class TsdFormTests(unittest.TestCase):
         self.assertFalse(form.screenshots)
         self.assertEqual((form.shot_scope, form.shot_scale), ("both", 1.0))
         self.assertTrue(form.shot_mobile)
+        self.assertTrue(form.auto_install_browser)
 
     def test_empty_rls_falls_back_to_settings_default(self) -> None:
         self.settings.set_rls("default@user", "HO,Region")
@@ -56,6 +57,7 @@ class TsdFormTests(unittest.TestCase):
         form.shot_scope = "visuals"
         form.shot_scale = 2.0
         form.shot_mobile = False
+        form.auto_install_browser = False
         form.draft = False
         form.save(self.settings)
 
@@ -66,6 +68,7 @@ class TsdFormTests(unittest.TestCase):
         )
         self.assertEqual((again.shot_scope, again.shot_scale), ("visuals", 2.0))
         self.assertFalse(again.shot_mobile)
+        self.assertFalse(again.auto_install_browser)
         self.assertFalse(again.draft)
         self.assertEqual(self.settings.rls(), ("default@user", ("HO",)))
 

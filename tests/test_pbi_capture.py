@@ -10,6 +10,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
@@ -836,6 +837,19 @@ class CaptureReportTests(unittest.TestCase):
             self.assertTrue(result.mobile_enabled)
             self.assertEqual(result.scope, "both")
 
+    def test_auto_install_flag_is_forwarded_to_capturer(self) -> None:
+        FakeCapturer.instances.clear()
+        with tempfile.TemporaryDirectory() as tmp:
+            options = self._options(Path(tmp) / "shots")
+            options.auto_install_browser = False
+            with patch(
+                "core.pbi_capture.runner.EmbedTokenProvider", FakeProvider
+            ), patch("core.pbi_capture.runner.ReportCapturer", FakeCapturer):
+                capture_report(options)
+        self.assertTrue(FakeCapturer.instances)
+        for instance in FakeCapturer.instances:
+            self.assertFalse(instance.kwargs["auto_install"])
+
     def test_mobile_capture_can_be_disabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "shots"
@@ -960,6 +974,72 @@ class MissingBrowserTests(unittest.TestCase):
         message = str(ctx.exception)
         self.assertIn("install-browser", message)
         self.assertIn("playwright install chromium", message)
+
+    def _capturer_for_launch(self, auto_install: bool, error: str):
+        capturer = ReportCapturer.__new__(ReportCapturer)
+        capturer.auto_install = auto_install
+        capturer.headless = True
+        lines: list[str] = []
+        attempts: list[int] = []
+        capturer._log = lines.append
+
+        class Chromium:
+            def launch(self, headless: bool = True):
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise RuntimeError(error)
+                return "browser"
+
+        capturer._pw = SimpleNamespace(chromium=Chromium())
+        return capturer, lines, attempts
+
+    def test_auto_install_downloads_and_retries_once(self) -> None:
+        capturer, lines, attempts = self._capturer_for_launch(
+            True, "Executable doesn't exist at chrome.exe"
+        )
+        with patch("core.pbi_capture.capture.install_chromium") as install:
+            self.assertEqual(capturer._launch_browser(), "browser")
+        install.assert_called_once()
+        self.assertEqual(len(attempts), 2)
+        self.assertTrue(any("mengunduh otomatis" in line.lower() for line in lines))
+
+    def test_auto_install_can_be_disabled(self) -> None:
+        capturer, _lines, attempts = self._capturer_for_launch(
+            False, "Executable doesn't exist at chrome.exe"
+        )
+        with patch("core.pbi_capture.capture.install_chromium") as install:
+            with self.assertRaises(RuntimeError):
+                capturer._launch_browser()
+        install.assert_not_called()
+        self.assertEqual(len(attempts), 1)
+
+    def test_other_launch_errors_do_not_install(self) -> None:
+        capturer, _lines, _attempts = self._capturer_for_launch(
+            True, "Target page, context or browser has been closed"
+        )
+        with patch("core.pbi_capture.capture.install_chromium") as install:
+            with self.assertRaises(RuntimeError):
+                capturer._launch_browser()
+        install.assert_not_called()
+
+    def test_missing_browser_detection(self) -> None:
+        from core.pbi_capture.browsers import missing_browser
+
+        self.assertTrue(
+            missing_browser(RuntimeError("Executable doesn't exist at chrome.exe"))
+        )
+        self.assertTrue(missing_browser(RuntimeError("run playwright install")))
+        self.assertFalse(missing_browser(RuntimeError("Target page crashed")))
+
+    def test_auto_install_defaults_to_true(self) -> None:
+        options = CaptureOptions(workspace_id=WORKSPACE, report_id=REPORT)
+        self.assertTrue(options.auto_install_browser)
+        disabled = CaptureOptions(
+            workspace_id=WORKSPACE,
+            report_id=REPORT,
+            auto_install_browser=False,
+        )
+        self.assertFalse(disabled.auto_install_browser)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,7 +26,7 @@ else:
 
 from cli.lineage import main as cli_main
 from core.errors import ExtractionError
-from core.lineage_api import LineageApiError, PowerBILineageClient
+from core.lineage_api import LineageApiError, PowerBILineageClient, clamp_modified_since
 from core.auth import ServicePrincipal
 from core.lineage_export import CSV_FIELDS, write_lineage_csv
 from core.lineage_layout import build_graph
@@ -47,6 +48,16 @@ from core.lineage_transform import transform
 from core.pbix import ROOT
 
 SETTINGS = ServicePrincipal.from_values("tenant", "client", "secret")
+
+
+def utc_stamp(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+
+
+def parse_stamp(value: str) -> datetime:
+    return datetime.strptime(value[:19], "%Y-%m-%dT%H:%M:%S").replace(
+        tzinfo=timezone.utc
+    )
 
 
 def sample_scan() -> dict:
@@ -612,6 +623,33 @@ class ApiTest(unittest.TestCase):
             session.calls[1][2]["params"], {"excludePersonalWorkspaces": "False"}
         )
 
+    def test_probe_admin_uses_past_date(self) -> None:
+        # modifiedSince di masa depan (jam mesin maju) dijawab HTTP 400
+        # "The date should be in the last 30 days." oleh Power BI.
+        session = FakeSession([FakeResponse(200, [])])
+        client, _ = client_with(session)
+        self.assertTrue(client.probe_admin())
+        modified = parse_stamp(session.calls[0][2]["params"]["modifiedSince"])
+        now = datetime.now(timezone.utc)
+        self.assertLessEqual(modified, now - timedelta(minutes=30))
+        self.assertGreaterEqual(modified, now - timedelta(days=30))
+
+    def test_clamp_modified_since_keeps_api_window(self) -> None:
+        now = datetime.now(timezone.utc)
+        too_new = utc_stamp(now - timedelta(minutes=1))
+        too_old = utc_stamp(now - timedelta(days=45))
+
+        self.assertLessEqual(
+            parse_stamp(clamp_modified_since(too_new)),
+            now - timedelta(minutes=30),
+        )
+        self.assertGreaterEqual(
+            parse_stamp(clamp_modified_since(too_old)),
+            now - timedelta(days=30),
+        )
+        self.assertIsNone(clamp_modified_since("bukan tanggal"))
+        self.assertIsNone(clamp_modified_since(None))
+
     def test_scan_polls_until_succeeded(self) -> None:
         # Scanner API menjawab POST dengan 202 Accepted + body job; 202 harus
         # diterima, bukan dianggap kegagalan seperti sebelumnya.
@@ -841,7 +879,10 @@ class ScanTest(unittest.TestCase):
         second = FakeLineageClient(scan_prefix="second")
         second_result = self.run_scan(second, mode="admin")
         self.assertEqual(second_result.mode, "admin")
-        self.assertEqual(second.modified_since, [first_result.started_at])
+        # Scan pertama baru saja selesai: watermark di-clamp ke jendela API
+        # (minimal 30 menit ke belakang), bukan dipakai apa adanya.
+        self.assertNotEqual(second.modified_since, [first_result.started_at])
+        self.assert_recent_watermark(second.modified_since[0])
         self.assertEqual(self.scan_rows()[-1]["mode"], "incremental")
 
         forced = FakeLineageClient(scan_prefix="forced")
@@ -862,18 +903,88 @@ class ScanTest(unittest.TestCase):
         second = FakeLineageClient(scan_prefix="second")
         self.run_scan(second, mode="admin", include_personal=True)
         self.assertEqual(second.personal_flags, [True])
-        self.assertEqual(second.modified_since, [result.started_at])
+        self.assert_recent_watermark(second.modified_since[0])
         self.assertEqual(self.scan_rows()[-1]["mode"], "incremental")
 
     def test_scan_without_personal_reuses_latest_watermark(self) -> None:
         with_personal = FakeLineageClient(scan_prefix="personal")
-        first_result = self.run_scan(with_personal, mode="admin", include_personal=True)
+        self.run_scan(with_personal, mode="admin", include_personal=True)
 
         plain = FakeLineageClient(scan_prefix="plain")
         self.run_scan(plain, mode="admin")
         self.assertEqual(plain.personal_flags, [False])
-        self.assertEqual(plain.modified_since, [first_result.started_at])
+        self.assert_recent_watermark(plain.modified_since[0])
         self.assertEqual(self.scan_rows()[-1]["include_personal"], 0)
+
+    def test_watermark_older_than_window_is_clamped(self) -> None:
+        result = self.run_scan(
+            FakeLineageClient(scan_prefix="old"), mode="admin"
+        )
+        self.set_started_at(
+            result.scan_id,
+            utc_stamp(datetime.now(timezone.utc) - timedelta(days=45)),
+        )
+
+        client = FakeLineageClient(scan_prefix="next")
+        second = self.run_scan(client, mode="admin")
+        value = parse_stamp(client.modified_since[0])
+        now = datetime.now(timezone.utc)
+        self.assertGreaterEqual(value, now - timedelta(days=30))
+        self.assertLessEqual(value, now - timedelta(minutes=30))
+        self.assertEqual(self.scan_mode(second.scan_id), "incremental")
+
+    def test_watermark_in_the_future_is_clamped(self) -> None:
+        result = self.run_scan(
+            FakeLineageClient(scan_prefix="future"), mode="admin"
+        )
+        self.set_started_at(
+            result.scan_id,
+            utc_stamp(datetime.now(timezone.utc) + timedelta(days=2)),
+        )
+
+        client = FakeLineageClient(scan_prefix="next")
+        second = self.run_scan(client, mode="admin")
+        self.assert_recent_watermark(client.modified_since[0])
+        self.assertEqual(self.scan_mode(second.scan_id), "incremental")
+
+    def test_broken_watermark_falls_back_to_full_scan(self) -> None:
+        result = self.run_scan(
+            FakeLineageClient(scan_prefix="broken"), mode="admin"
+        )
+        self.set_started_at(result.scan_id, "bukan tanggal")
+
+        client = FakeLineageClient(scan_prefix="next")
+        second = self.run_scan(client, mode="admin")
+        self.assertEqual(client.modified_since, [None])
+        self.assertEqual(self.scan_mode(second.scan_id), "full")
+
+    def assert_recent_watermark(self, value: str | None) -> None:
+        self.assertIsNotNone(value)
+        now = datetime.now(timezone.utc)
+        parsed = parse_stamp(str(value))
+        self.assertLessEqual(parsed, now - timedelta(minutes=30))
+        self.assertGreaterEqual(parsed, now - timedelta(minutes=35))
+
+    def set_started_at(self, scan_id: str, value: str) -> None:
+        conn = connect(self.db)
+        try:
+            conn.execute(
+                "UPDATE scan_run SET started_at=? WHERE scan_id=?",
+                (value, scan_id),
+            )
+            conn.commit()
+        finally:
+            close_quietly(conn)
+
+    def scan_mode(self, scan_id: str) -> str:
+        conn = connect(self.db)
+        try:
+            row = conn.execute(
+                "SELECT mode FROM scan_run WHERE scan_id=?", (scan_id,)
+            ).fetchone()
+            return str(row[0]) if row else ""
+        finally:
+            close_quietly(conn)
 
     def test_member_scan_explains_personal_is_not_possible(self) -> None:
         lines: list[str] = []

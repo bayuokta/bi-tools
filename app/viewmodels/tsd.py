@@ -516,6 +516,7 @@ class TsdViewModel(QObject):
             output_root=self.assets_dir,
             refresh=refresh,
             include_decorative=bool(self._form.include_decorative),
+            auto_install_browser=bool(self._form.auto_install_browser),
             hints_workbook=Path(workbook).expanduser() if workbook else None,
         )
 

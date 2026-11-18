@@ -229,6 +229,7 @@ class CaptureRequest:
     mobile: bool = True
     include_decorative: bool = False
     hints_workbook: Path | None = None
+    auto_install_browser: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "workspace_id", (self.workspace_id or "").strip())
@@ -269,6 +270,7 @@ class CaptureRequest:
             mobile=self.mobile,
             exclude_visual_types=exclude,
             hints_workbook=self.hints_workbook,
+            auto_install_browser=self.auto_install_browser,
         )
 
 
