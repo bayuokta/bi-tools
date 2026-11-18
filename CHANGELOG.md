@@ -38,6 +38,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   **report** dipilih terpisah, sehingga report dari workspace lain tidak lagi
   mengikat atau mengubah Catalog; endpoint XMLA selalu diturunkan dari workspace
   model.
+- Perbaikan combo: daftar 800+ workspace tidak lagi dipaksa flexbox menyusut
+  (teks terpotong di baris pertama), baris placeholder tidak ikut daftar, dan
+  posisi scroll daftar direset setiap kali dropdown dibuka.
 - Desain halaman **Ekstraksi metadata** dan **Generate TSD** disamakan dengan
   mockup terbaru: label workspace model/report, panel **Sumber metadata**,
   **Konteks manual**, **Opsi render**, **Screenshot (Power BI Service)** dengan

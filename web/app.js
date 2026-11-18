@@ -2472,7 +2472,8 @@
     var options = Array.prototype.map.call(select.options, function (option) {
       return { value: option.value, label: option.textContent, disabled: option.disabled };
     }).filter(function (item) {
-      return !item.disabled && (!q || item.label.toLowerCase().indexOf(q) !== -1);
+      return !item.disabled && item.value !== "" &&
+        (!q || item.label.toLowerCase().indexOf(q) !== -1);
     });
     comboState.options = options;
     comboState.active = -1;
@@ -2486,6 +2487,7 @@
         '" aria-selected="' + (item.value === selectedValue ? "true" : "false") + '">' +
         escapeHtml(item.label) + "</button>";
     }).join("");
+    $("#comboList").scrollTop = 0;
     $("#comboEmpty").hidden = options.length > 0;
     if (selectedIndex >= 0) setComboActive(selectedIndex, false);
   }
@@ -2536,6 +2538,7 @@
     trigger.setAttribute("aria-expanded", "true");
     $("#comboSearch").value = "";
     buildComboList("");
+    $("#comboList").scrollTop = 0;
     positionCombo();
     $("#comboSearch").focus();
   }

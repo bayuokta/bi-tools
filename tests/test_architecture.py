@@ -214,6 +214,14 @@ class WebLayerTests(unittest.TestCase):
                 f"helper {name} harus dideklarasikan tepat satu kali",
             )
 
+    def test_web_combo_options_do_not_shrink(self) -> None:
+        # Daftar 800+ opsi pernah dipaksa flexbox menyusut sampai teks
+        # terpotong; opsi harus flex:none dan placeholder tidak ikut daftar.
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn("flex:0 0 auto", css)
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('item.value !== ""', js)
+
     def test_web_tsd_design_has_screenshot_panel(self) -> None:
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for marker in (
