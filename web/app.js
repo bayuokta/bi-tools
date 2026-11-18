@@ -2560,7 +2560,7 @@
     var text = String(query || "").trim().toLowerCase();
     combo.visible = combo.options.filter(function (item) {
       return !text || item.label.toLowerCase().indexOf(text) !== -1;
-    }).slice(0, 200);
+    });
     if (combo.active >= combo.visible.length) combo.active = combo.visible.length - 1;
     var html = combo.visible.map(function (item, index) {
       return '<div class="combo-item' + (index === combo.active ? " is-active" : "") +
