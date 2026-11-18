@@ -19,7 +19,7 @@ core\                           logika ekstraksi, tanpa UI atau terminal
     capture.py                  Playwright: enumerasi page/visual, screenshot desktop + mobile layout, pairing hint posisi absolut + label/ukuran + ukuran unik + reveal bookmark
     cache.py                    simpan/muat TSD_assets (manifest.json, capture.json)
     assets.py                   ScreenshotSet, penamaan file, data URI, daftar objek dekoratif
-hints.py                    hint posisi absolut visual (dari workbook report) untuk pairing capture
+    hints.py                    hint posisi absolut visual (dari workbook report) untuk pairing capture
     credentials.py              identitas RLS (username + roles) dari env/.env
   auth.py                       kredensial service principal + token Fabric/Power BI (satu login)
   api\
