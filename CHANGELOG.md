@@ -7,6 +7,30 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Antarmuka web lokal (0.4.0)
+
+- Antarmuka PySide6 diganti server web lokal: `BI Tools.exe` menjalankan FastAPI +
+  uvicorn di `127.0.0.1` (port bebas, default 8765), menulis penanda
+  `data\server.json`, lalu membuka browser dengan tautan sesi bertoken. Hanya satu
+  instance; peluncuran kedua membuka server yang sudah berjalan.
+- Akses dijaga token acak per proses (cookie `HttpOnly`, `SameSite=Strict`),
+  validasi `Host`/`Origin`, tanpa bind ke `0.0.0.0` dan tanpa CORS. `client_secret`
+  tidak pernah dikirim balik ke browser (hanya `has_secret`).
+- Pekerjaan panjang memakai satu antrean job + log live SSE; refresh halaman tidak
+  memutus pekerjaan, dan job yang gagal/dibatalkan dilaporkan di konsol halaman.
+- Preferensi pindah dari QSettings ke `data\settings.json` dengan migrasi sekali
+  dari registry (termasuk `lineage/*` → `auth/*`/`paths/*`); pilihan sesi tetap
+  dikosongkan setiap server dimulai.
+- Halaman Pengaturan web sudah tersambung: kredensial, RLS default, path database,
+  mode sinkronisasi, full scan/personal workspace, sinkronisasi katalog, scan
+  lineage, tes token Fabric/Power BI, tema, dan pemilih folder/berkas sisi server.
+- `web\` (HTML/CSS/JS tanpa build step) disalin ke samping exe; spec kini juga
+  membangun `BI Tools (classic).exe` sebagai fallback PySide6 sampai paritas.
+- Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
+  job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
+
 ## 2026-11-18 - Perbaikan 0.3.2
 
 - Auto-unduh Chromium 0.3.1 mengunduh ke `%LOCALAPPDATA%\ms-playwright` tetapi

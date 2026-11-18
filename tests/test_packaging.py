@@ -111,15 +111,18 @@ class CliDispatcherTests(unittest.TestCase):
 
 
 class PackagingAssetsTests(unittest.TestCase):
-    def test_spec_builds_two_executables(self) -> None:
+    def test_spec_builds_web_gui_and_cli(self) -> None:
         text = (PACKAGING / "bi_tools.spec").read_text(encoding="utf-8")
         compile(text, "bi_tools.spec", "exec")
         self.assertIn('name=APP_NAME', text)
+        self.assertIn('f"{APP_NAME} (classic)"', text)
         self.assertIn('name="bi-tools-cli"', text)
         self.assertIn("console=False", text)
         self.assertIn("console=True", text)
-        self.assertIn("collect_all(\"playwright\")", text)
-        for asset in ("templates", "libs"):
+        self.assertIn('collect_all("playwright")', text)
+        self.assertIn('collect_submodules("server")', text)
+        self.assertIn('collect_submodules("uvicorn")', text)
+        for asset in ("templates", "libs", "web"):
             self.assertIn(asset, text)
         self.assertIn("COLLECT(", text)
 

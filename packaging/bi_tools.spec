@@ -1,18 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Spec PyInstaller: paket onedir berisi GUI dan CLI dalam satu folder.
+"""Spec PyInstaller: paket onedir berisi server web, GUI klasik, dan CLI.
 
-Dua executable dibangun dari satu kumpulan dependensi:
+Tiga executable dibangun dari satu kumpulan dependensi:
 
-- ``BI Tools.exe``    -> GUI (windowed), entry ``app/__main__.py``
-- ``bi-tools-cli.exe`` -> CLI (console), entry ``cli/__main__.py``
+- ``BI Tools.exe``         -> server web lokal (console), entry ``server/__main__.py``
+- ``BI Tools (classic).exe`` -> GUI PySide6 sementara, entry ``app/__main__.py``
+- ``bi-tools-cli.exe``     -> CLI (console), entry ``cli/__main__.py``
 
 Mode **onedir** dipakai dengan sengaja. ``core/paths.py`` menentukan folder
 aplikasi dari folder ``.exe``, dan ``core/pbix.py``/``core/tsd.py``/
 ``core/xmla_client.py`` mencari ``templates/`` serta ``libs/`` **di samping
-exe**, bukan di ``sys._MEIPASS``. Karena itu kedua folder itu disalin ke akar
-folder hasil setelah COLLECT (bukan lewat ``datas`` yang masuk ke
-``_internal``). Mode onefile akan memutus pencarian itu; jangan diubah tanpa
-menyesuaikan ``core/paths.py``.
+exe**, bukan di ``sys._MEIPASS``. Aset ``web/`` juga dicari lewat
+``core/paths.APP_DIR``. Karena itu ketiga folder itu disalin ke akar folder
+hasil setelah COLLECT (bukan lewat ``datas`` yang masuk ke ``_internal``).
+Mode onefile akan memutus pencarian itu; jangan diubah tanpa menyesuaikan
+``core/paths.py``.
 
 Jalankan lewat ``packaging/build.ps1`` atau:
 
@@ -23,7 +25,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - disediakan PyInstaller
 sys.path.insert(0, str(ROOT))
@@ -31,7 +33,7 @@ sys.path.insert(0, str(ROOT))
 from core.version import APP_NAME, __version__, version_tuple  # noqa: E402
 
 ICON_PATH = ROOT / "packaging" / "bi-tools.ico"
-ASSET_DIRS = ("templates", "libs")
+ASSET_DIRS = ("templates", "libs", "web")
 
 for asset in ASSET_DIRS:
     if not (ROOT / asset).is_dir():
@@ -94,6 +96,10 @@ hiddenimports = [
     "cli.tsd",
     "cli.lineage",
     "cli.analysis",
+    # Server memuat app FastAPI secara malas di runtime.run().
+    *collect_submodules("server"),
+    # uvicorn memilih implementasi loop/protokol saat runtime.
+    *collect_submodules("uvicorn"),
     *playwright_hidden,
     *pythonnet_hidden,
 ]
@@ -115,6 +121,10 @@ common = dict(
     optimize=0,
 )
 
+web_analysis = Analysis(
+    [str(ROOT / "server" / "__main__.py")],
+    **common,
+)
 gui_analysis = Analysis(
     [str(ROOT / "app" / "__main__.py")],
     **common,
@@ -124,15 +134,36 @@ cli_analysis = Analysis(
     **common,
 )
 
+web_pyz = PYZ(web_analysis.pure)
 gui_pyz = PYZ(gui_analysis.pure)
 cli_pyz = PYZ(cli_analysis.pure)
+
+web_exe = EXE(
+    web_pyz,
+    web_analysis.scripts,
+    [],
+    exclude_binaries=True,
+    name=APP_NAME,
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=str(ICON_PATH),
+    version=_version_file(),
+)
 
 gui_exe = EXE(
     gui_pyz,
     gui_analysis.scripts,
     [],
     exclude_binaries=True,
-    name=APP_NAME,
+    name=f"{APP_NAME} (classic)",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -168,6 +199,9 @@ cli_exe = EXE(
 )
 
 collected = COLLECT(
+    web_exe,
+    web_analysis.binaries,
+    web_analysis.datas,
     gui_exe,
     gui_analysis.binaries,
     gui_analysis.datas,
@@ -180,7 +214,7 @@ collected = COLLECT(
     name=APP_NAME,
 )
 
-# templates/ dan libs/ harus berada di samping exe (lihat docstring di atas).
+# templates/, libs/, dan web/ harus berada di samping exe (lihat docstring).
 target_root = Path(DISTPATH) / APP_NAME  # noqa: F821 - disediakan PyInstaller
 for asset in ASSET_DIRS:
     shutil.copytree(ROOT / asset, target_root / asset, dirs_exist_ok=True)

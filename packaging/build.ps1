@@ -71,7 +71,7 @@ Invoke-Step "PyInstaller (spec onedir)" {
 }
 
 $appDir = Join-Path $RepoRoot "dist\BI Tools"
-foreach ($required in @("BI Tools.exe", "bi-tools-cli.exe", "templates\tsd.template.html", "libs")) {
+foreach ($required in @("BI Tools.exe", "bi-tools-cli.exe", "web\index.html", "web\app.js", "templates\tsd.template.html", "libs")) {
     if (-not (Test-Path (Join-Path $appDir $required))) {
         throw "Hasil build tidak lengkap: dist\BI Tools\$required"
     }

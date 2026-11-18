@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ("core", "cli", "app")
+SOURCES = ("core", "cli", "app", "server")
 
 
 def source_files() -> list[Path]:
@@ -149,6 +149,46 @@ class PresentationBoundaryTests(unittest.TestCase):
         self.assertEqual(
             hits, [], "path .pbix wajib eksplisit; jangan ada default/env di kode"
         )
+
+
+class WebLayerTests(unittest.TestCase):
+    def test_core_has_no_web_framework(self) -> None:
+        hits = matching_in(
+            files_under("core"),
+            r"^\s*(import fastapi|import uvicorn|from fastapi\b|from uvicorn\b)",
+        )
+        self.assertEqual(hits, [], "core harus bebas framework web agar bisa dipakai CLI")
+
+    def test_server_has_no_qt(self) -> None:
+        hits = matching_in(
+            files_under("server"), r"^\s*(import PySide6|from PySide6\b)"
+        )
+        self.assertEqual(hits, [], "server web tidak boleh bergantung pada PySide6")
+
+    def test_server_does_not_import_gui(self) -> None:
+        hits = matching_in(files_under("server"), r"^\s*(import app\b|from app\b)")
+        self.assertEqual(hits, [], "server harus berdiri di atas core, bukan GUI")
+
+    def test_cli_does_not_import_server(self) -> None:
+        hits = matching_in(files_under("cli"), r"^\s*(import server\b|from server\b)")
+        self.assertEqual(hits, [], "CLI tidak boleh menyeret server web")
+
+    def test_web_folder_has_no_python(self) -> None:
+        files = [path for path in (ROOT / "web").rglob("*.py")]
+        self.assertEqual(files, [], "web/ hanya aset statis, bukan kode server")
+
+    def test_web_entry_loads_api_client(self) -> None:
+        text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('src="api.js"', text)
+        self.assertIn('src="app.js"', text)
+        api = (ROOT / "web" / "api.js").read_text(encoding="utf-8")
+        self.assertIn("window.BIToolsApi", api)
+
+    def test_server_does_not_use_requests(self) -> None:
+        hits = matching_in(
+            files_under("server"), r"^\s*(import requests|from requests\b)"
+        )
+        self.assertEqual(hits, [], "HTTP REST tetap lewat core.api.transport")
 
 
 if __name__ == "__main__":

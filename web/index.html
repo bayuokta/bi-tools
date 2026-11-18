@@ -1,0 +1,1055 @@
+<!doctype html>
+<html lang="id" data-theme="dark"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BI Tools — Metadata Power BI</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-window">
+
+  <div class="app-body">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <span class="logo" aria-hidden="true">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 15l4-5 3 3 5-7"></path></svg>
+        </span>
+        <div class="text">
+          <div class="side-brand-name">Metadata Tools</div>
+          <div class="side-brand-sub">Power BI · <span id="brandVersion">memuat…</span></div>
+        </div>
+      </div>
+      <nav class="side-nav" aria-label="Bagian aplikasi">
+        <div class="nav-label">Alat</div>
+        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Ekstraksi">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
+          <span class="label">Ekstraksi Metadata</span>
+        </button>
+        <button class="nav-item" type="button" data-view="tsd" title="Generate TSD">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
+          <span class="label">Generate TSD</span>
+        </button>
+        <button class="nav-item" type="button" data-view="analisa" title="Analisa model">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+          <span class="label">Analisa model</span>
+        </button>
+        <button class="nav-item" type="button" data-view="lineage" title="Lineage">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
+          <span class="label">Lineage</span>
+        </button>
+        <div class="nav-label">Sistem</div>
+        <button class="nav-item" type="button" data-view="pengaturan" title="Pengaturan">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h4M12 17h8"></path><circle cx="15" cy="7" r="2.2"></circle><circle cx="9" cy="17" r="2.2"></circle></svg>
+          <span class="label">Pengaturan</span>
+        </button>
+      </nav>
+      <div class="side-foot">
+        <div class="side-meta" id="appVersion">Versi …</div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="view-scroll" id="viewScroll">
+
+        <section class="view" id="view-ekstraksi" aria-labelledby="titleEkstraksi">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Alur kerja · langkah 1</div>
+              <h1 class="view-title" id="titleEkstraksi" tabindex="-1">Ekstraksi metadata</h1>
+              <p class="view-sub">Tarik definisi report dan semantic model ke workbook Excel, lalu lanjutkan ke Generate TSD.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="runExtract" type="button">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
+                Jalankan ekstraksi
+              </button>
+            </div>
+          </div>
+
+          <div class="layout-split">
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Sumber &amp; cakupan</span>
+                  <div class="spacer"></div>
+                  <div class="segmented" role="group" aria-label="Sumber metadata">
+                    <button type="button" id="srcBtnService" aria-pressed="true">Service</button>
+                    <button type="button" id="srcBtnDesktop" aria-pressed="false">Desktop</button>
+                  </div>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="scope">Cakupan ekstraksi</label>
+                    <div class="select">
+                      <select id="scope">
+                        <option value="both">Report + semantic model</option>
+                        <option value="model">Semantic model saja</option>
+                        <option value="report">Report saja</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div id="paneDesktop" hidden="">
+                    <div class="form-row">
+                      <label for="desktopInstance">Instance Desktop</label>
+                      <div class="select">
+                        <select id="desktopInstance">
+                          <option>Tidak ada instance terbuka</option>
+                          <option>PBIDesktop · Sales Performance.pbix</option>
+                        </select>
+                      </div>
+                      <button class="btn btn-sm" type="button" id="reloadDesktop">
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>
+                        Muat ulang
+                      </button>
+                    </div>
+                    <p class="helper">Buka file .pbix/.pbip lebih dulu; daftar instance diperbarui setelah Muat ulang.</p>
+                  </div>
+
+                  <div id="paneService">
+                    <div class="form-row">
+                      <label for="serviceWorkspace">Workspace</label>
+                      <div class="select">
+                        <select id="serviceWorkspace">
+                          <option>Sales Analytics</option>
+                          <option>Finance APAC</option>
+                          <option>Data Platform</option>
+                        </select>
+                      </div>
+                      <button class="btn btn-sm" type="button" id="reloadWorkspaces">Muat ulang daftar</button>
+                    </div>
+                    <div class="form-row">
+                      <label for="xmlaEndpoint">Endpoint XMLA</label>
+                      <input class="input mono" id="xmlaEndpoint" type="text" value="powerbi://api.powerbi.com/v1.0/myorg/Sales Analytics" readonly="">
+                    </div>
+                    <div class="form-row">
+                      <label for="catalog">Catalog</label>
+                      <div class="select">
+                        <select id="catalog">
+                          <option>Sales Model (APAC)</option>
+                          <option>Finance Model</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label for="serviceReport">Report</label>
+                      <div class="select">
+                        <select id="serviceReport">
+                          <option>Sales Performance</option>
+                          <option>Revenue Overview</option>
+                        </select>
+                      </div>
+                      <button class="btn btn-sm" type="button" id="reloadReport">Muat ulang dataset</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Output</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-idle" id="outputState"><span class="dot"></span>Belum dijalankan</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="outFolder">Folder tujuan</label>
+                    <input class="input mono" id="outFolder" type="text" readonly="" placeholder="Folder output metadata">
+                    <button class="btn btn-sm" type="button" id="pickFolder">Pilih…</button>
+                  </div>
+                  <div class="file-list">
+                    <div class="file-row">
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
+                      <div>
+                        <div class="file-name">Report_Metadata.xlsx</div>
+                        <div class="file-meta" id="metaReport">Belum dibuat</div>
+                      </div>
+                      <button class="btn btn-sm" id="openReport" type="button" disabled="">Buka</button>
+                    </div>
+                    <div class="file-row">
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
+                      <div>
+                        <div class="file-name">Semantic_Model_Metadata.xlsx</div>
+                        <div class="file-meta" id="metaModel">Belum dibuat</div>
+                      </div>
+                      <button class="btn btn-sm" id="openModel" type="button" disabled="">Buka</button>
+                    </div>
+                    <div class="file-row">
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 14l-1.5 1.5L9 17M12 14l1.5 1.5L12 17"></path></svg></span>
+                      <div>
+                        <div class="file-name">TSD_Report.html</div>
+                        <div class="file-meta" id="metaTsd">Belum dibuat</div>
+                      </div>
+                      <button class="btn btn-sm" id="openTsd" type="button" disabled="">Buka</button>
+                    </div>
+                  </div>
+                  <div class="row-actions">
+                    <button class="btn btn-sm" id="openFolder" type="button" disabled="">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>
+                      Buka folder
+                    </button>
+                    <button class="btn btn-sm" id="goTsd" type="button">Buat TSD dari hasil</button>
+                    <span class="helper">Generate TSD memakai workbook di atas.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="run-card" id="extractRun" hidden="">
+                <div class="run-label"><span id="extractRunLabel">Menyiapkan ekstraksi…</span><span id="extractRunPct">0%</span></div>
+                <div class="progress"><i id="extractBar"></i></div>
+              </div>
+
+              <div class="panel" id="extractDone" hidden="">
+                <div class="panel-body" style="flex-direction:row;align-items:center;gap:12px">
+                  <span class="empty-icon" style="color:var(--ok);border-color:var(--ok-soft);background:var(--ok-soft)" aria-hidden="true">
+                    <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                  </span>
+                  <div>
+                    <div style="font-weight:600">Ekstraksi selesai</div>
+                    <div class="helper" id="extractDoneText">Workbook tersimpan di folder tujuan.</div>
+                  </div>
+                  <div style="margin-left:auto">
+                    <button class="btn btn-sm btn-primary" id="doneToTsd" type="button">Lanjut ke Generate TSD</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Katalog &amp; sinkronisasi</span></div>
+                <div class="panel-body">
+                  <div class="stat-list">
+                    <div class="stat-row"><span class="stat-key">Katalog lokal</span><span class="stat-val" id="catalogCount">-</span></div>
+                    <div class="stat-row"><span class="stat-key">Sinkron terakhir</span><span class="stat-val" id="catalogSync">-</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Ringkasan hasil</span></div>
+                <div class="panel-body">
+                  <div class="empty" id="summaryEmpty" style="padding:10px 4px">
+                    <span class="empty-icon" aria-hidden="true">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+                    </span>
+                    <div class="empty-title">Belum ada hasil</div>
+                    <p class="empty-text">Jalankan ekstraksi untuk melihat jumlah tabel, kolom, dan measure.</p>
+                  </div>
+                  <div class="stat-list" id="summaryBody" hidden="">
+                    <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val" id="sumTables">0</span></div>
+                    <div class="stat-row"><span class="stat-key">Kolom</span><span class="stat-val" id="sumColumns">0</span></div>
+                    <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val" id="sumMeasures">0</span></div>
+                    <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val" id="sumPages">0</span></div>
+                    <div class="stat-row"><span class="stat-key">Relasi</span><span class="stat-val" id="sumRelations">0</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Langkah berikutnya</span></div>
+                <div class="panel-body">
+                  <p class="helper" style="font-size:12.5px">Setelah kedua workbook siap, render dokumen TSD memakai template dan konteks manual.</p>
+                  <button class="btn" id="sideToTsd" type="button">Buka Generate TSD</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-tsd" aria-labelledby="titleTsd" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Alur kerja · langkah 2</div>
+              <h1 class="view-title" id="titleTsd" tabindex="-1">Generate TSD</h1>
+              <p class="view-sub">Gabungkan workbook metadata, template, dan konteks manual menjadi dokumen TSD siap kirim.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="runTsd" type="button">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path></svg>
+                Generate TSD
+              </button>
+            </div>
+          </div>
+
+          <div class="layout-split">
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Sumber metadata</span></div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="reportWorkbook">Report workbook</label>
+                    <input class="input mono" id="reportWorkbook" type="text" value="D:/Development/Python/bi-tools-new/Report_Metadata.xlsx" readonly="">
+                    <button class="btn btn-sm" type="button">Pilih…</button>
+                  </div>
+                  <p class="helper form-note">Report_Metadata.xlsx · 16 Nov 2026 13:26</p>
+                  <div class="form-row">
+                    <label for="modelWorkbook">Model workbook</label>
+                    <input class="input mono" id="modelWorkbook" type="text" value="D:/Development/Python/bi-tools-new/Semantic_Model_Metadata.xlsx" readonly="">
+                    <button class="btn btn-sm" type="button">Pilih…</button>
+                  </div>
+                  <p class="helper form-note">Semantic_Model_Metadata.xlsx · 16 Nov 2026 13:26</p>
+                  <div class="form-row">
+                    <label for="template">Template</label>
+                    <input class="input mono" id="template" type="text" value="templates/tsd.template.html" readonly="">
+                    <button class="btn btn-sm" type="button">Pilih…</button>
+                  </div>
+                  <p class="helper form-note">Versi template dari repo template-tsd.</p>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Konteks manual</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-idle">Opsional</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="contextJson">File JSON</label>
+                    <input class="input mono" id="contextJson" type="text" value="TSD_Report.json" readonly="">
+                    <button class="btn btn-sm" type="button">Pilih…</button>
+                  </div>
+                  <div class="row-actions">
+                    <button class="btn btn-sm" id="loadContext" type="button">Muat</button>
+                    <button class="btn btn-sm" id="saveContext" type="button">Simpan</button>
+                    <button class="btn btn-sm" id="editContext" type="button">Edit JSON…</button>
+                    <span class="helper">Belum dibuat · otomatis memakai nama output.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Opsi render</span></div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="reportName">Nama report</label>
+                    <input class="input" id="reportName" type="text" value="Ringkasan eksekutif — Sales Performance">
+                  </div>
+                  <div class="form-row">
+                    <label for="docDate">Tanggal dokumen</label>
+                    <input class="input" id="docDate" type="date" value="2026-11-17">
+                  </div>
+                  <div class="check-row" style="padding-left:160px">
+                    <label class="check"><input type="checkbox" checked=""> Mode draft (field kosong menjadi TODO)</label>
+                    <label class="check"><input type="checkbox"> Buka semua panel expand</label>
+                  </div>
+                  <div class="form-row">
+                    <label>Screenshot report</label>
+                    <label class="check"><input type="checkbox"> Ambil screenshot dari Power BI Service</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="run-card" id="tsdRun" hidden="">
+                <div class="run-label"><span id="tsdRunLabel">Menyiapkan dokumen…</span><span id="tsdRunPct">0%</span></div>
+                <div class="progress"><i id="tsdBar"></i></div>
+              </div>
+            </div>
+
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Pratinjau dokumen</span></div>
+                <div class="panel-body">
+                  <div class="empty" id="tsdPreviewEmpty" style="padding:12px 4px">
+                    <span class="empty-icon" aria-hidden="true">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
+                    </span>
+                    <div class="empty-title">Belum digenerate</div>
+                    <p class="empty-text">Dokumen TSD dibuat dari workbook di samping.</p>
+                  </div>
+                  <div id="tsdPreview" hidden="">
+                    <div class="stat-list">
+                      <div class="stat-row"><span class="stat-key">Bagian</span><span class="stat-val">6</span></div>
+                      <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val">4</span></div>
+                      <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val">12</span></div>
+                      <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val">42</span></div>
+                      <div class="stat-row"><span class="stat-key">TODO tersisa</span><span class="stat-val">7</span></div>
+                    </div>
+                    <div class="note" style="margin-top:12px">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <span>7 field ditandai <strong>TODO</strong> karena kosong di konteks manual.</span>
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="previewOpenTsd" type="button" style="margin-top:12px">Buka dokumen</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Checklist</span></div>
+                <div class="panel-body" style="gap:9px">
+                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Workbook report</span><span class="helper">tersedia</span></div>
+                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Workbook model</span><span class="helper">tersedia</span></div>
+                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Template</span><span class="helper">ditemukan</span></div>
+                  <div class="row-inline"><span class="chip chip-idle"><span class="dot"></span>Konteks manual</span><span class="helper">opsional</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-analisa" aria-labelledby="titleAnalisa" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Alur kerja · audit</div>
+              <h1 class="view-title" id="titleAnalisa" tabindex="-1">Analisa semantic model</h1>
+              <p class="view-sub">Inventaris kolom, measure, relasi, report, DAX, dan M query beserta status pemakaiannya. Mode baca-saja.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="runAnalyze" type="button">Analisa</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Sumber &amp; opsi</span>
+              <div class="spacer"></div>
+              <span class="chip chip-ok" id="spStatus"><span class="dot"></span>Service principal siap</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="wsSelect">Workspace</label>
+                  <div class="row-inline">
+                    <div class="select">
+                      <select id="wsSelect">
+                        <option>Sales Analytics</option>
+                        <option>Finance APAC</option>
+                        <option>Data Platform</option>
+                      </select>
+                    </div>
+                    <button class="btn btn-sm" type="button" id="reloadWsAnalisa">Muat ulang</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="modelSelect">Semantic model</label>
+                  <div class="row-inline">
+                    <div class="select">
+                      <select id="modelSelect">
+                        <option>Sales Model (APAC)</option>
+                        <option>Finance Model</option>
+                      </select>
+                    </div>
+                    <button class="btn btn-sm" type="button">Pengaturan…</button>
+                  </div>
+                </div>
+              </div>
+              <div class="check-row">
+                <label class="check"><input type="checkbox" checked=""> Sertakan report dari workspace lain (admin API)</label>
+                <label class="check"><input type="checkbox"> Sertakan My Workspace (personal)</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="metric-strip" id="analyzeMetrics" aria-label="Ringkasan analisa semantic model">
+            <div class="metric-card">
+              <span class="metric-label">Ukuran dataset</span>
+              <span class="metric-value" id="metricSize">—</span>
+              <span class="metric-note" id="metricSizeNote">Belum dianalisis</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Total kolom</span>
+              <span class="metric-value" id="metricColumns">—</span>
+              <span class="metric-note" id="metricColumnsNote">Termasuk kolom tersembunyi</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Total measure</span>
+              <span class="metric-value" id="metricMeasures">—</span>
+              <span class="metric-note" id="metricMeasuresNote">Ekspresi DAX di model</span>
+            </div>
+            <div class="metric-card is-warn">
+              <span class="metric-label">Kolom tidak dipakai</span>
+              <span class="metric-value" id="metricUnusedColumns">—</span>
+              <span class="metric-note" id="metricUnusedColumnsNote">Tanpa referensi visual atau measure</span>
+            </div>
+            <div class="metric-card is-warn">
+              <span class="metric-label">Measure tidak dipakai</span>
+              <span class="metric-value" id="metricUnusedMeasures">—</span>
+              <span class="metric-note" id="metricUnusedMeasuresNote">Tidak direferensikan</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Report &amp; halaman</span>
+              <span class="metric-value" id="metricReport">—</span>
+              <span class="metric-note" id="metricReportNote">Visual, halaman, dan filter</span>
+            </div>
+          </div>
+
+          <div class="panel panel--analysis-results">
+            <div class="tabs tabs--analysis" id="analyzeTabs" role="tablist" aria-label="Hasil analisa semantic model">
+              <button role="tab" id="tab-all" data-analyze-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0" disabled="">Semua hasil<span class="tab-count" id="tabCountAll"></span></button>
+              <button role="tab" id="tab-tables" data-analyze-tab="tables" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Tables<span class="tab-count" id="tabCountTables"></span></button>
+              <button role="tab" id="tab-relationships" data-analyze-tab="relationships" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Relationships<span class="tab-count" id="tabCountRelationships"></span></button>
+              <button role="tab" id="tab-report" data-analyze-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">Report results<span class="tab-count" id="tabCountReport"></span></button>
+              <button role="tab" id="tab-dax" data-analyze-tab="dax" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">DAX expressions<span class="tab-count" id="tabCountDax"></span></button>
+              <button role="tab" id="tab-m" data-analyze-tab="m" aria-controls="analyzePanel" aria-selected="false" tabindex="-1" disabled="">M queries<span class="tab-count" id="tabCountM"></span></button>
+            </div>
+            <div role="tabpanel" id="analyzePanel" aria-labelledby="tab-all">
+              <div class="table-tools">
+                <label class="tool-field search">
+                  <span>Cari item</span>
+                  <input class="input" id="searchAnalyze" type="search" placeholder="Nama kolom, measure, atau tabel">
+                </label>
+                <label class="tool-field" id="toolTypeWrap">
+                  <span>Tipe</span>
+                  <div class="select">
+                    <select id="typeAnalyze">
+                      <option value="all">Semua tipe</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="check" id="toolUnusedWrap" style="margin-bottom:6px"><input type="checkbox" id="unusedOnly"> Hanya tidak dipakai</label>
+                <div class="tool-actions">
+                  <div class="segmented" id="relViewSwitch" role="group" aria-label="Tampilan relasi" hidden="">
+                    <button type="button" data-rel-view="table" aria-pressed="false">Tabel</button>
+                    <button type="button" data-rel-view="graph" aria-pressed="true">Graph</button>
+                  </div>
+                  <button class="btn btn-sm" id="expandRows" type="button">Expand</button>
+                  <button class="btn btn-sm" id="collapseRows" type="button">Collapse</button>
+                  <button class="btn btn-sm" id="exportXlsx" type="button">Export XLSX</button>
+                </div>
+              </div>
+              <div class="table-scroll" id="analyzeTableWrap" hidden="">
+                <table class="data" id="analyzeTable">
+                  <thead id="analyzeHead"></thead>
+                  <tbody id="analyzeBody"></tbody>
+                </table>
+              </div>
+              <div class="rel-graph" id="relGraph" hidden="">
+                <div class="rel-graph-main">
+                  <div class="graph-wrap rel-graph-canvas">
+                    <svg id="relGraphSvg" viewBox="0 0 760 500" role="group" aria-label="Grafik relasi antar tabel">
+                      <defs>
+                        <marker id="relArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                          <path class="edge-arrow" d="M0 0L8 4L0 8z"></path>
+                        </marker>
+                        <marker id="relArrowActive" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                          <path class="rel-arrow-accent" d="M0 0L8 4L0 8z"></path>
+                        </marker>
+                      </defs>
+                      <g id="relGraphLayer"></g>
+                    </svg>
+                  </div>
+                  <aside class="rel-graph-side" id="relGraphSide" aria-live="polite"></aside>
+                </div>
+                <div class="rel-legend">
+                  <span class="rel-legend-item"><i class="rel-swatch"></i>Relasi aktif</span>
+                  <span class="rel-legend-item"><i class="rel-swatch is-inactive"></i>Tidak aktif</span>
+                  <span class="rel-legend-item"><i class="rel-swatch is-selected"></i>Terhubung ke pilihan</span>
+                  <span class="helper">Klik tabel atau garis untuk melihat detail relasi.</span>
+                </div>
+              </div>
+              <div class="empty" id="analyzeEmpty">
+                <span class="empty-icon" aria-hidden="true">
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+                </span>
+                <div class="empty-title" id="analyzeEmptyTitle">Belum ada hasil analisa</div>
+                <p class="empty-text" id="analyzeEmptyText">Pilih workspace dan semantic model, lalu tekan Analisa. Hasil muncul di sini tanpa mengubah model.</p>
+                <button class="btn btn-sm" id="analyzeFromEmpty" type="button">Analisa sekarang</button>
+              </div>
+              <div class="panel-foot" style="justify-content:space-between">
+                <span class="helper" id="analyzeSummary">Belum dianalisis</span>
+                <span class="helper">Mode baca-saja · tidak ada perubahan ke model</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-lineage" aria-labelledby="titleLineage" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Alur kerja · penelusuran</div>
+              <h1 class="view-title" id="titleLineage" tabindex="-1">Lineage</h1>
+              <p class="view-sub">Telusuri asal dan dampak sebuah item: report, semantic model, tabel, measure, sampai dataflow.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn" id="exportCsv" type="button">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"></path><path d="M8 10l4 4 4-4"></path><path d="M5 19h14"></path></svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="layout-split layout-split--lineage" id="lineageLayout">
+            <div class="od-stack lineage-side" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Pencarian item</span></div>
+                <div class="panel-body">
+                  <div class="field">
+                    <label for="lineageSearch">Kata kunci</label>
+                    <div class="row-inline">
+                      <input class="input" id="lineageSearch" type="search" value="sales">
+                      <button class="btn btn-sm" id="lineageSearchBtn" type="button">Cari</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="lineageWorkspace">Workspace</label>
+                    <input class="input" id="lineageWorkspace" type="text" placeholder="Semua workspace">
+                  </div>
+                  <div class="field">
+                    <label for="lineageType">Tipe</label>
+                    <div class="select">
+                      <select id="lineageType">
+                        <option value="all">Semua tipe</option>
+                        <option>Report</option>
+                        <option>Semantic model</option>
+                        <option>Tabel</option>
+                        <option>Measure</option>
+                        <option>Dataflow</option>
+                        <option>Database</option>
+                        <option>App</option>
+                        <option>Dashboard</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="result-list" id="lineageResults"></div>
+                  <p class="helper" id="lineageCount">6 item</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Lineage</span>
+                  <span class="chip chip-idle" id="lineageRootChip"><span class="dot"></span>Akar: Sales Performance</span>
+                  <div class="spacer"></div>
+                  <div class="segmented" role="group" aria-label="Arah lineage">
+                    <button type="button" id="dirUpstream" aria-pressed="true">Upstream</button>
+                    <button type="button" id="dirDownstream" aria-pressed="false">Downstream</button>
+                  </div>
+                </div>
+                <div class="lineage-tools">
+                  <div class="depth">
+                    <span class="helper">Kedalaman</span>
+                    <button class="btn btn-sm btn-icon" id="depthMinus" type="button" aria-label="Kurangi kedalaman">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
+                    </button>
+                    <span class="depth-val" id="depthVal">3 level</span>
+                    <button class="btn btn-sm btn-icon" id="depthPlus" type="button" aria-label="Tambah kedalaman">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+                    </button>
+                  </div>
+                  <div class="spacer"></div>
+                  <button class="btn btn-sm" id="visualLineage" type="button" aria-pressed="false">Visual lineage</button>
+                </div>
+                <div class="graph-wrap">
+                  <svg id="lineageSvg" viewBox="0 0 780 280" role="group" aria-label="Grafik lineage item terpilih">
+                    <defs>
+                      <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                        <path class="edge-arrow" d="M0 0L8 4L0 8z"></path>
+                      </marker>
+                    </defs>
+                    <g id="lineageLayer"></g>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Detail</span>
+                  <div class="spacer"></div>
+                  <span class="helper">Klik node pada grafik untuk melihat detail</span>
+                </div>
+                <div class="panel-body" id="lineageDetail"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-partisi" aria-labelledby="titlePartisi" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Alat · diagnostik</div>
+              <h1 class="view-title" id="titlePartisi" tabindex="-1">Partisi semantic model</h1>
+              <p class="view-sub">Periksa partisi tabel dari Power BI Service tanpa membuka SSMS: jumlah baris, rentang, status, dan waktu proses terakhir.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="processSelectedPartitions" type="button" disabled="">Proses terpilih</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Sumber &amp; tabel</span>
+              <div class="spacer"></div>
+              <span class="chip chip-idle" id="partitionSourceChip"><span class="dot"></span>Power BI Service</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="partitionWorkspace">Workspace</label>
+                  <div class="select">
+                    <select id="partitionWorkspace">
+                      <option>Sales Analytics</option>
+                      <option>Finance APAC</option>
+                      <option>Data Platform</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="partitionModel">Semantic model</label>
+                  <div class="select">
+                    <select id="partitionModel">
+                      <option>Sales Model (APAC)</option>
+                      <option>Finance Model</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="partitionTable">Tabel</label>
+                <div class="row-inline">
+                  <div class="select" style="flex:1">
+                    <select id="partitionTable">
+                      <option>Fact Sales</option>
+                      <option>Fact Budget</option>
+                      <option>Stock Level</option>
+                      <option>Fact Returns</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-sm" id="loadPartitions" type="button">Muat partisi</button>
+                </div>
+              </div>
+              <p class="helper">Metadata partisi dibaca langsung dari model. Tabel tidak berubah sampai Anda menjalankan proses pada partisi.</p>
+            </div>
+          </div>
+
+          <div class="metric-strip metric-strip--four" aria-label="Ringkasan partisi">
+            <div class="metric-card">
+              <span class="metric-label">Jumlah partisi</span>
+              <span class="metric-value" id="partitionCount">—</span>
+              <span class="metric-note" id="partitionCountNote">Di tabel aktif</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Total baris</span>
+              <span class="metric-value" id="partitionRows">—</span>
+              <span class="metric-note" id="partitionRowsNote">Seluruh partisi</span>
+            </div>
+            <div class="metric-card is-warn">
+              <span class="metric-label">Belum diproses</span>
+              <span class="metric-value" id="partitionUnprocessed">—</span>
+              <span class="metric-note">Tidak memiliki waktu proses</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Partisi kosong</span>
+              <span class="metric-value" id="partitionEmpty">—</span>
+              <span class="metric-note">0 baris</span>
+            </div>
+          </div>
+
+          <div class="layout-split layout-split--partition">
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title" id="partitionListTitle">Partisi · Fact Sales</span>
+                <div class="spacer"></div>
+                <span class="chip chip-idle" id="partitionCountChip">8 partisi</span>
+              </div>
+              <div class="table-tools">
+                <label class="tool-field search">
+                  <span>Cari partisi</span>
+                  <input class="input" id="partitionSearch" type="search" placeholder="Nama partisi">
+                </label>
+                <label class="tool-field">
+                  <span>Status</span>
+                  <div class="select">
+                    <select id="partitionFilter">
+                      <option value="all">Semua status</option>
+                      <option value="processed">Diproses</option>
+                      <option value="unprocessed">Belum diproses</option>
+                      <option value="empty">Kosong</option>
+                    </select>
+                  </div>
+                </label>
+                <div class="tool-actions">
+                  <button class="btn btn-sm" id="reloadPartitions" type="button">Muat ulang</button>
+                  <button class="btn btn-sm" id="exportPartitions" type="button">Export CSV</button>
+                </div>
+              </div>
+              <div class="run-card partition-run" id="partitionRun" hidden="">
+                <div class="run-label"><span id="partitionRunLabel">Memproses partisi…</span><span id="partitionRunPct">0%</span></div>
+                <div class="progress"><i id="partitionBar"></i></div>
+              </div>
+              <div class="table-scroll" id="partitionTableWrap">
+                <table class="data data--partitions">
+                  <thead id="partitionHead"></thead>
+                  <tbody id="partitionBody"></tbody>
+                </table>
+              </div>
+              <div class="empty" id="partitionEmpty" hidden="">
+                <div class="empty-title">Tidak ada partisi yang cocok</div>
+                <p class="empty-text">Ubah nama atau filter status untuk melihat partisi lain.</p>
+              </div>
+              <div class="panel-foot" style="justify-content:space-between">
+                <span class="helper" id="partitionSelectionSummary">0 dipilih</span>
+                <span class="helper">Mode baca-saja · proses memerlukan izin XMLA</span>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Detail partisi</span></div>
+              <div class="panel-body" id="partitionDetail"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-pengaturan" aria-labelledby="titlePengaturan" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow">Sistem</div>
+              <h1 class="view-title" id="titlePengaturan" tabindex="-1">Pengaturan</h1>
+              <p class="view-sub">Kredensial, katalog lokal, dan tampilan aplikasi.</p>
+            </div>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Bagian pengaturan">
+            <button role="tab" id="tab-kredensial" data-tab="kredensial" aria-controls="set-kredensial" aria-selected="true">Kredensial</button>
+            <button role="tab" id="tab-katalog" data-tab="katalog" aria-controls="set-katalog" aria-selected="false">Katalog database</button>
+            <button role="tab" id="tab-tampilan" data-tab="tampilan" aria-controls="set-tampilan" aria-selected="false">Tampilan</button>
+          </div>
+
+          <div id="set-kredensial" role="tabpanel" aria-labelledby="tab-kredensial" class="od-stack" style="--od-gap:16px">
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Service principal</span>
+                <div class="spacer"></div>
+                <span class="chip chip-idle" id="credChip"><span class="dot"></span>Belum diisi</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <label for="tenantId">Tenant ID</label>
+                  <input class="input mono" id="tenantId" type="text" autocomplete="off" placeholder="GUID tenant Microsoft Entra">
+                </div>
+                <div class="form-row">
+                  <label for="clientId">Client ID</label>
+                  <input class="input mono" id="clientId" type="text" autocomplete="off" placeholder="GUID aplikasi (client ID)">
+                </div>
+                <div class="form-row">
+                  <label for="clientSecret">Client secret</label>
+                  <input class="input mono" id="clientSecret" type="password" autocomplete="new-password" placeholder="Kosongkan bila tidak diubah">
+                </div>
+                <div class="form-row">
+                  <label for="rlsUsername">RLS default</label>
+                  <input class="input mono" id="rlsUsername" type="text" autocomplete="off" placeholder="Username RLS (opsional)">
+                </div>
+                <div class="form-row">
+                  <label for="rlsRoles">Role RLS</label>
+                  <input class="input mono" id="rlsRoles" type="text" autocomplete="off" placeholder="HO,Region">
+                </div>
+              </div>
+              <div class="panel-foot">
+                <button class="btn" id="testConn" type="button">Uji koneksi</button>
+                <button class="btn btn-primary" id="saveCreds" type="button">Simpan</button>
+                <span class="helper" id="connResult">Belum diuji pada sesi ini.</span>
+              </div>
+            </div>
+            <div class="note">
+              <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+              <span>Kredensial hanya dipakai untuk memanggil admin API dan XMLA. Client secret disimpan sebagai teks biasa di berkas preferensi lokal; token hanya di memori proses.</span>
+            </div>
+          </div>
+
+          <div id="set-katalog" role="tabpanel" aria-labelledby="tab-katalog" class="od-stack" style="--od-gap:16px" hidden="">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Path &amp; penyimpanan</span></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <label for="dbPath">Database</label>
+                  <input class="input mono" id="dbPath" type="text" autocomplete="off" placeholder="Folder database SQLite">
+                  <div class="row-inline">
+                    <button class="btn btn-sm" type="button" id="pickDb">Pilih…</button>
+                    <button class="btn btn-sm btn-primary" type="button" id="saveDb">Simpan</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Sinkronisasi data</span>
+                <div class="spacer"></div>
+                <span class="chip chip-ok" id="syncChip"><span class="dot"></span>Tersinkron</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <label for="syncMode">Mode</label>
+                  <div class="select">
+                    <select id="syncMode">
+                      <option value="auto">Otomatis (admin, lalu member)</option>
+                      <option value="admin">Admin (seluruh tenant)</option>
+                      <option value="member">Hanya member</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="check-row" style="padding-left:160px">
+                  <label class="check"><input type="checkbox" id="fullScan"> Full scan lineage (abaikan timestamp inkremental)</label>
+                  <label class="check"><input type="checkbox" id="includePersonal"> Sertakan My Workspace (personal)</label>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn-primary" id="syncCatalog" type="button">Sinkronisasi katalog workspace</button>
+                  <button class="btn" id="scanLineage" type="button">Scan lineage</button>
+                </div>
+                <p class="helper" id="syncStatus">Memuat status katalog…</p>
+                <div class="note">
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                  <span>Kedua aksi memakai database di atas dan kredensial pada sub-tab Kredensial. Mode admin dipakai bersama; Full scan hanya mengubah cara scan lineage memilih workspace.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="set-tampilan" role="tabpanel" aria-labelledby="tab-tampilan" class="od-stack" style="--od-gap:16px" hidden="">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Tema</span></div>
+              <div class="panel-body">
+                <div class="theme-grid" role="radiogroup" aria-label="Tema tampilan">
+                  <button class="theme-card" type="button" role="radio" data-theme="dark" aria-checked="true">
+                    <span class="theme-swatch">
+                      <span class="swatch-side"></span>
+                      <span class="swatch-body">
+                        <span class="swatch-line accent"></span>
+                        <span class="swatch-line"></span>
+                        <span class="swatch-line short"></span>
+                      </span>
+                    </span>
+                    <span class="theme-card-row">
+                      <span class="theme-card-name">Gelap</span>
+                      <span class="theme-check" aria-hidden="true">
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                      </span>
+                    </span>
+                    <span class="helper">Untuk sesi panjang di ruang redup.</span>
+                  </button>
+                  <button class="theme-card" type="button" role="radio" data-theme="light" aria-checked="false">
+                    <span class="theme-swatch is-light">
+                      <span class="swatch-side"></span>
+                      <span class="swatch-body">
+                        <span class="swatch-line accent"></span>
+                        <span class="swatch-line"></span>
+                        <span class="swatch-line short"></span>
+                      </span>
+                    </span>
+                    <span class="theme-card-row">
+                      <span class="theme-card-name">Terang</span>
+                      <span class="theme-check" aria-hidden="true">
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                      </span>
+                    </span>
+                    <span class="helper">Untuk ruang terang dan presentasi.</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Server lokal</span></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <label for="serverUrl">Alamat</label>
+                  <input class="input mono" id="serverUrl" type="text" readonly="" value="">
+                  <button class="btn btn-sm" type="button" id="copyServerUrl">Salin</button>
+                </div>
+                <p class="helper" id="serverMeta">Server hanya mendengarkan 127.0.0.1.</p>
+                <div class="row-actions">
+                  <button class="btn btn-sm" type="button" id="shutdownServer">Hentikan server</button>
+                  <span class="helper">Menutup jendela konsol juga menghentikan server.</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Antarmuka</span></div>
+              <div class="panel-body">
+                <label class="check"><input type="checkbox" id="motionToggle" checked=""> Aktifkan animasi antarmuka</label>
+                <label class="check"><input type="checkbox" id="showConsole" checked=""> Tampilkan console log saat proses berjalan</label>
+                <p class="helper">Pilihan tema tersimpan antar sesi.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="console console--dock" id="consoleDock" role="region" aria-label="Log konsol sesi">
+        <div class="console-head">
+          <button class="console-toggle" id="consoleToggle" type="button" aria-expanded="false" aria-controls="consoleBody">
+            <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            <span class="console-title">Log konsol</span>
+            <span class="chip chip-idle" id="consoleCount" hidden="">0</span>
+            <span class="console-preview" id="consolePreview">Belum ada aktivitas pada sesi ini.</span>
+          </button>
+          <button class="btn btn-ghost btn-sm" id="clearLog" type="button">Bersihkan</button>
+        </div>
+        <div class="console-body" id="consoleBody" hidden="">
+          <pre id="consoleLog" tabindex="0" aria-label="Isi log konsol"></pre>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<dialog class="dialog" id="partitionDialog" aria-labelledby="partitionDialogTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="partitionDialogTitle">Proses partisi</h2>
+      <p class="helper" id="partitionDialogSub">Pilih partisi yang akan diproses.</p>
+    </div>
+    <button class="dialog-close" id="closePartitionDialog" type="button" aria-label="Tutup dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <div class="field">
+      <label for="partitionMode">Mode proses</label>
+      <div class="select">
+        <select id="partitionMode">
+          <option value="default">Process Default</option>
+          <option value="full">Process Full</option>
+          <option value="data">Process Data</option>
+          <option value="clear">Process Clear</option>
+          <option value="add">Process Add</option>
+        </select>
+      </div>
+    </div>
+    <p class="helper" id="partitionModeHelp">Memproses partisi yang belum diproses dan memperbarui dependensi.</p>
+    <div class="partition-checklist" id="partitionChecklist"></div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="cancelPartitionProcess" type="button">Batal</button>
+    <button class="btn btn-primary" id="runPartitionProcess" type="button">Proses</button>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="folderDialog" aria-labelledby="folderDialogTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="folderDialogTitle">Pilih folder</h2>
+      <p class="helper" id="folderDialogPath">Memuat…</p>
+    </div>
+    <button class="dialog-close" id="closeFolderDialog" type="button" aria-label="Tutup dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <div class="field">
+      <label for="folderPathInput">Path</label>
+      <div class="row-inline">
+        <input class="input mono" id="folderPathInput" type="text" autocomplete="off" placeholder="Ketik path lalu Enter">
+        <button class="btn btn-sm" type="button" id="folderGo">Buka</button>
+      </div>
+    </div>
+    <div class="browse-list" id="folderList" role="listbox" aria-label="Isi folder"></div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="cancelFolder" type="button">Batal</button>
+    <button class="btn btn-primary" id="chooseFolder" type="button">Pilih folder ini</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+  <span id="toastText"></span>
+</div>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+
+
+</body></html>

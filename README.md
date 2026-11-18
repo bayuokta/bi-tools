@@ -1,6 +1,6 @@
 # Tooling Metadata Power BI — Report, Model, TSD, Lineage
 
-Ekspor metadata report (dari file `.pbix`) dan semantic model (via XMLA) ke Excel, plus lineage item Power BI Service (scan REST API ke SQLite). Tersedia sebagai GUI (PySide6) dan perintah baris. Repo ini terpisah dari project Power BI (PBIP) yang diekstrak.
+Ekspor metadata report (dari file `.pbix`) dan semantic model (via XMLA) ke Excel, plus lineage item Power BI Service (scan REST API ke SQLite). Antarmuka utama berupa **web lokal** (server Python di `127.0.0.1` yang dibuka di browser), ditambah perintah baris. GUI PySide6 lama masih tersedia sebagai `BI Tools (classic).exe` selama masa transisi. Repo ini terpisah dari project Power BI (PBIP) yang diekstrak.
 
 ## Struktur
 
@@ -44,7 +44,18 @@ hints.py                    hint posisi absolut visual (dari workbook report) un
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
 cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py
   __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/install-browser)
-app\                            GUI PySide6 (python -m app)
+app\                            GUI PySide6 klasik (python -m app; dipertahankan sampai paritas web)
+server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
+  __main__.py                   python -m server [--port] [--no-browser]
+  app.py                        pabrik aplikasi, rute API, aset web, penjaga token
+  runtime.py                    satu instance, pilih port, token, buka browser, shutdown
+  security.py                   middleware token cookie + validasi Host/Origin
+  jobs.py                       antrean satu job + log live (SSE) + pembatalan
+  settings_store.py             preferensi JSON + migrasi sekali dari QSettings (registry)
+  settings.py                   kunci preferensi (sumber baru setelah PySide6 dilepas)
+  presenters\                   port view model tanpa Qt (settings, formatting)
+  api\                          system, settings, catalog, files, jobs
+web\                            aset statis: index.html, styles.css, app.js, api.js (tanpa build step)
   main_window.py                tab, log, progress, JobRunner
   job_runner.py                 JobRunner: satu tempat menjalankan worker + sinyal status
   formatting.py                 format status file/kredensial/durasi
@@ -95,6 +106,20 @@ requirements.txt
 - Path `.pbix` selalu disebut eksplisit (`--report` di GUI/CLI, `--pbix` di `verify_reference.py`); tidak ada file bawaan. Salin ulang dari project setiap kali report berubah.
 - Untuk scan lineage: akses jaringan ke `login.microsoftonline.com` dan `api.powerbi.com`, serta service principal yang terdaftar di Microsoft Entra.
 - Untuk screenshot TSD dari Power BI Service: `pip install playwright` lalu `python -m playwright install chromium` (sekali per mesin), akses **Build** ke dataset report, dan role RLS bila dataset memakainya. Di aplikasi terpaket, Chromium diunduh otomatis pada capture pertama (dapat dimatikan), atau manual dengan `bi-tools-cli install-browser`.
+
+## Antarmuka web lokal
+
+```powershell
+python -m server                       # menjalankan server + membuka browser
+python -m server --no-browser --port 8800
+```
+
+- Server hanya mendengarkan `127.0.0.1`, memilih port bebas (default 8765), lalu membuka `http://127.0.0.1:<port>/?t=<token>`. Token hanya dipakai sekali untuk memasang cookie `HttpOnly`; permintaan API tanpa cookie ditolak, dan `Host`/`Origin` divalidasi. Menutup jendela konsol atau menekan **Hentikan server** di Pengaturan mengakhiri proses.
+- Hanya satu server berjalan. Menjalankan aplikasi lagi akan membuka tautan server yang sudah ada, bukan membuat proses kedua.
+- Pekerjaan panjang berjalan di thread server dengan log live (SSE); refresh halaman tidak memutus pekerjaan.
+- Berkas dan folder dipilih lewat penjelajah di halaman (server yang membaca disk lokal), bukan dialog native browser.
+- Preferensi disimpan di `data\settings.json` (fallback `%LOCALAPPDATA%\BI Tools\data`). Saat pertama dijalankan, nilai QSettings 0.3.x dimigrasikan sekali (termasuk `lineage/*` → `auth/*`/`paths/*`); nilai baru tidak ditimpa. Pilihan sesi (workspace/report/dataset/instance) tetap dikosongkan setiap server dimulai.
+- Status pengembangan 0.4.0: Pengaturan (kredensial, RLS, path database, mode sinkronisasi, sinkronisasi katalog, scan lineage, tema) dan pemilih folder sudah tersambung. Halaman Ekstraksi, Generate TSD, Analisa, dan Lineage masih memakai data contoh sampai tahap berikutnya; gunakan `BI Tools (classic).exe` atau `python -m app` untuk pekerjaan penuh.
 
 ## GUI
 
@@ -386,7 +411,7 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset denga
 
 ## Paket dan rilis
 
-Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (GUI) dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
+Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (server web lokal + browser), `BI Tools (classic).exe` (GUI PySide6 selama transisi), dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
 
 Rilis otomatis berjalan di GitHub Actions setiap tag `vX.Y.Z`:
 
@@ -419,7 +444,7 @@ Hasil: `dist\BI Tools\` (folder aplikasi), `dist\BITools-<versi>-portable.zip`, 
 
 Catatan paket:
 
-- Paket memakai mode **onedir**. `templates\` dan `libs\` (ADOMD) disalin ke samping exe karena `core\paths.py` mencari aset di folder aplikasi, bukan di `sys._MEIPASS`; mode onefile akan memutus pencarian itu.
+- Paket memakai mode **onedir**. `templates\`, `libs\` (ADOMD), dan `web\` disalin ke samping exe karena `core\paths.py` mencari aset di folder aplikasi, bukan di `sys._MEIPASS`; mode onefile akan memutus pencarian itu.
 - Installer memasang per pengguna (`%LOCALAPPDATA%\Programs\BI Tools`) sehingga tidak perlu UAC. Opsi "all users" tetap tersedia; dalam kasus itu `outputs\` dan `data\` otomatis pindah ke `%LOCALAPPDATA%\BI Tools`.
 - Uninstaller tidak menghapus `outputs\` dan `data\`.
 - Screenshot TSD butuh Chromium (±150 MB) dan tidak ikut dibundel. Capture pertama mengunduhnya otomatis ke `%LOCALAPPDATA%\ms-playwright` (bertahan saat aplikasi di-upgrade); installer juga menyediakan task opsional, dan kapan saja bisa diulang dengan `bi-tools-cli install-browser` (tanpa argumen = `install chromium`).
