@@ -85,6 +85,11 @@
     analysisOpen: {},
     analysisSettings: {},
     analysisRunning: false,
+    lineageData: null,
+    lineageGraph: null,
+    lineageNodesLive: {},
+    lineageHasDb: false,
+    lineageSearchTimer: null,
     instances: [],
     workspaces: [],
     reports: [],
@@ -163,9 +168,8 @@
     $("#viewScroll").scrollTop = 0;
     var heading = $("#view-" + name + " .view-title");
     if (heading) heading.focus({ preventScroll: true });
-    if (name === "lineage") {
-      renderLineage();
-      renderResults();
+    if (name === "lineage" && state.lineageHasDb && !state.lineageData) {
+      lineageLoadState();
     }
   }
 
@@ -2449,6 +2453,7 @@
     loadWorkspaces();
     loadTsdState();
     analysisLoad();
+    lineageLoadState();
   }
 
   // -- ekstraksi metadata -------------------------------------------------
@@ -3809,6 +3814,337 @@
     }).catch(reportError);
   }
 
+  // -- Lineage ------------------------------------------------------------
+  function lineageLoadState() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/lineage/state").then(function (data) {
+      state.lineageHasDb = Boolean(data.readable);
+      state.depth = Number(data.depth || 3);
+      state.direction = data.direction || "upstream";
+      var types = [{ value: "", label: "Semua tipe" }].concat(
+        (data.node_types || []).map(function (item) {
+          return { value: item, label: item };
+        })
+      );
+      setSelectOptions("lineageType", types, null);
+      $("#lineageSearch").value = "";
+      $("#lineageSearch").disabled = !data.readable;
+      $("#lineageSearchBtn").disabled = !data.readable;
+      $("#lineageWorkspace").disabled = !data.readable;
+      $("#lineageType").disabled = !data.readable;
+      $("#depthVal").textContent = state.depth + " level";
+      $("#depthMinus").disabled = true;
+      $("#depthPlus").disabled = false;
+      $("#dirUpstream").setAttribute("aria-pressed", String(state.direction === "upstream"));
+      $("#dirDownstream").setAttribute("aria-pressed", String(state.direction === "downstream"));
+      if (!data.readable) {
+        $("#lineageResults").innerHTML =
+          '<div class="empty" style="padding:18px 8px"><div class="empty-title">Database belum siap</div>' +
+          '<p class="empty-text">' + escapeHtml(data.status || "") + "</p></div>";
+        $("#lineageCount").textContent = "";
+        $("#lineageRootChip").innerHTML = '<span class="dot"></span>Belum ada akar';
+        $("#lineageDetail").innerHTML =
+          '<p class="helper">' + escapeHtml(data.status || "") + "</p>";
+        $("#exportCsv").disabled = true;
+        return data;
+      }
+      $("#lineageResults").innerHTML =
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Belum ada pencarian</div>' +
+        '<p class="empty-text">Cari nama report, semantic model, tabel, atau measure.</p></div>';
+      $("#lineageCount").textContent =
+        (data.items || 0) + " item \u00b7 " + (data.workspaces || 0) + " workspace";
+      $("#lineageRootChip").innerHTML = '<span class="dot"></span>Belum ada akar';
+      $("#lineageDetail").innerHTML =
+        '<p class="helper">Pilih hasil pencarian untuk melihat lineage.</p>';
+      $("#exportCsv").disabled = true;
+      return data;
+    }).catch(function (error) {
+      addLog("Status lineage tidak bisa dibaca: " + error.message, "warn");
+    });
+  }
+
+  function lineageSearch() {
+    if (!apiReady()) return Promise.resolve();
+    if (!state.lineageHasDb) {
+      toast("Database lineage belum siap; jalankan Sinkronisasi data");
+      return Promise.resolve();
+    }
+    var query = $("#lineageSearch").value.trim();
+    var workspace = $("#lineageWorkspace").value.trim();
+    var type = getSelectValue("lineageType") || "";
+    if (!query && !workspace && !type) {
+      toast("Isi kata kunci atau filter terlebih dahulu");
+      return Promise.resolve();
+    }
+    return api().get(
+      "/api/lineage/search?q=" + encodeURIComponent(query) +
+      "&workspace=" + encodeURIComponent(workspace) +
+      "&type=" + encodeURIComponent(type) +
+      "&limit=100"
+    ).then(function (data) {
+      lineageRenderResults(data.results || []);
+      $("#lineageCount").textContent = data.message || "";
+      if ((data.results || []).length) {
+        var first = data.results[0];
+        lineageOpen(String(first.node_id || first.id || ""));
+      }
+      return data;
+    }).catch(reportError);
+  }
+
+  function lineageRenderResults(rows) {
+    var box = $("#lineageResults");
+    if (!rows.length) {
+      box.innerHTML =
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada item</div>' +
+        '<p class="empty-text">Ubah kata kunci atau filter workspace.</p></div>';
+      $("#lineageCount").textContent = "0 hasil";
+      return;
+    }
+    box.innerHTML = rows.map(function (item) {
+      var id = String(item.node_id || item.id || "");
+      var name = item.name || id;
+      var workspace = item.workspace_name || "";
+      var type = item.node_type || "";
+      return '<button class="result-item" type="button" data-id="' + escapeHtml(id) +
+        '" aria-pressed="' + (id === state.rootId ? "true" : "false") + '">' +
+        '<span class="result-name">' + escapeHtml(name) + "</span>" +
+        '<span class="result-meta">' + escapeHtml(workspace) + "</span>" +
+        '<span class="result-type chip chip-idle">' + escapeHtml(type) + "</span></button>";
+    }).join("");
+    $("#lineageCount").textContent = rows.length + " hasil";
+  }
+
+  function lineageOpen(nodeId) {
+    if (!nodeId || !apiReady()) return Promise.resolve();
+    return api().get(
+      "/api/lineage/node/" + encodeURIComponent(nodeId) +
+      "?direction=" + encodeURIComponent(state.direction) +
+      "&depth=" + encodeURIComponent(state.depth)
+    ).then(function (data) {
+      state.lineageData = data;
+      state.lineageGraph = data.graph || null;
+      state.rootId = String((data.node && data.node.node_id) || nodeId);
+      state.selectedId = state.rootId;
+      state.lineageNodesLive = {};
+      ((data.graph && data.graph.nodes) || []).forEach(function (node) {
+        state.lineageNodesLive[node.id] = node;
+      });
+      lineageRenderGraph();
+      lineageRenderDetail(data.node || {});
+      $("#lineageRootChip").innerHTML =
+        '<span class="dot"></span>Akar: ' + escapeHtml((data.node && data.node.name) || nodeId);
+      $("#lineageRootChip").title =
+        "Upstream " + (data.upstream_count || 0) + " item \u00b7 downstream " +
+        (data.downstream_count || 0) + " item" +
+        (data.truncated ? " \u00b7 " + data.truncated + " node dipotong" : "");
+      $("#depthVal").textContent = state.depth + " level";
+      $("#depthMinus").disabled = state.depth <= 1;
+      $("#depthPlus").disabled = state.depth >= 15;
+      $("#exportCsv").disabled = false;
+      $$("#lineageResults .result-item").forEach(function (item) {
+        item.setAttribute("aria-pressed", String(item.dataset.id === state.rootId));
+      });
+      return data;
+    }).catch(reportError);
+  }
+
+  function lineageRenderGraph() {
+    var graph = state.lineageGraph;
+    var svg = $("#lineageSvg");
+    if (!graph || !(graph.nodes || []).length) {
+      $("#lineageLayer").innerHTML = "";
+      svg.setAttribute("viewBox", "0 0 780 280");
+      return;
+    }
+    var nodes = graph.nodes;
+    var columns = nodes.map(function (node) { return Number(node.column || 0); });
+    var rows = nodes.map(function (node) { return Number(node.row || 0); });
+    var minCol = Math.min.apply(null, columns);
+    var maxCol = Math.max.apply(null, columns);
+    var minRow = Math.min.apply(null, rows);
+    var maxRow = Math.max.apply(null, rows);
+    var nodeW = 168;
+    var nodeH = 54;
+    var colGap = 74;
+    var rowGap = 38;
+    var positions = {};
+    nodes.forEach(function (node) {
+      positions[node.id] = {
+        x: 40 + (Number(node.column || 0) - minCol) * (nodeW + colGap),
+        y: 34 + (Number(node.row || 0) - minRow) * (nodeH + rowGap)
+      };
+    });
+    var width = Math.max(780, 80 + (maxCol - minCol) * (nodeW + colGap) + nodeW);
+    var height = Math.max(280, 68 + (maxRow - minRow) * (nodeH + rowGap) + nodeH);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    var edges = "";
+    (graph.edges || []).forEach(function (edge) {
+      var from = positions[edge.source];
+      var to = positions[edge.target];
+      if (!from || !to) return;
+      var x1 = from.x + nodeW / 2;
+      var y1 = from.y + nodeH / 2;
+      var x2 = to.x + nodeW / 2;
+      var y2 = to.y + nodeH / 2;
+      var selected = edge.source === state.selectedId || edge.target === state.selectedId;
+      edges += '<path class="edge' + (selected ? " is-selected" : "") +
+        '" d="M' + x1 + " " + y1 + "L" + x2 + " " + y2 +
+        '" marker-end="url(#arrow)"><title>' + escapeHtml(edge.type || "") + "</title></path>";
+    });
+    var markup = "";
+    nodes.forEach(function (node) {
+      var pos = positions[node.id];
+      var name = String(node.name || node.id);
+      var type = String(node.type || "");
+      var workspace = String(node.workspace || "");
+      var label = name.length > 23 ? name.slice(0, 22) + "\u2026" : name;
+      var typeLabel = type.length > 24 ? type.slice(0, 23) + "\u2026" : type;
+      var workspaceLabel = workspace.length > 24
+        ? workspace.slice(0, 23) + "\u2026"
+        : workspace;
+      var selected = node.id === state.selectedId ? " sel" : "";
+      var muted = node.side && node.side !== "root" && node.side !== state.direction
+        ? " is-muted" : "";
+      markup += '<g class="node lineage-node' + muted + '" tabindex="0" role="button" data-id="' +
+        escapeHtml(node.id) + '" aria-label="' + escapeHtml(name) + ", " +
+        escapeHtml(type) + '">' +
+        "<title>" + escapeHtml(name) + " \u00b7 " + escapeHtml(type) +
+        (workspace ? " \u00b7 " + escapeHtml(workspace) : "") + "</title>" +
+        '<rect class="node-box' + selected + '" x="' + pos.x + '" y="' + pos.y +
+        '" width="' + nodeW + '" height="' + nodeH + '" rx="6"></rect>' +
+        '<text class="node-type" x="' + (pos.x + 11) + '" y="' + (pos.y + 16) + '">' +
+        escapeHtml(typeLabel) + "</text>" +
+        '<text class="node-name" x="' + (pos.x + 11) + '" y="' + (pos.y + 33) + '">' +
+        escapeHtml(label) + "</text>" +
+        (workspaceLabel
+          ? '<text class="rel-node-meta" x="' + (pos.x + 11) + '" y="' +
+            (pos.y + 47) + '">' + escapeHtml(workspaceLabel) + "</text>"
+          : "") +
+        "</g>";
+    });
+    $("#lineageLayer").innerHTML = edges + markup;
+  }
+
+  function lineageRenderDetail(node) {
+    var selected = state.lineageNodesLive[state.selectedId] || {};
+    var payload = selected.payload || node || {};
+    var name = payload.name || node.name || "(tanpa nama)";
+    var type = payload.node_type || selected.type || node.node_type || "";
+    var workspace = payload.workspace_name || selected.workspace || node.workspace_name || "";
+    var neighbours = [];
+    var byId = state.lineageNodesLive;
+    ((state.lineageGraph && state.lineageGraph.edges) || []).forEach(function (edge) {
+      if (edge.source === state.selectedId && byId[edge.target]) {
+        neighbours.push(byId[edge.target]);
+      } else if (edge.target === state.selectedId && byId[edge.source]) {
+        neighbours.push(byId[edge.source]);
+      }
+    });
+    var rows = [];
+    function add(label, value) {
+      if (value === undefined || value === null || value === "") return;
+      rows.push("<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(String(value)) + "</dd>");
+    }
+    add("Tipe", type);
+    add("Workspace", workspace);
+    add("Pemilik", payload.owner);
+    var modified = String(payload.last_modified_at || "").replace("T", " ").slice(0, 16);
+    add("Diubah", modified);
+    add("Endorsement", payload.endorsement && payload.endorsement !== "None" ? payload.endorsement : "");
+    add("Sensitivitas", payload.sensitivity_label);
+    add("Kedalaman", payload.depth);
+    add("Relasi", payload.edge_type);
+    add("Tipe sumber", payload.datasource_type);
+    add("Server", payload.server);
+    add("Database", payload.database_name);
+    add("Path/URL", payload.path_or_url);
+    add("Node ID", payload.node_id || state.selectedId);
+    if (payload.is_active === 0 || payload.is_active === false) {
+      add("Status", "nonaktif (tidak terlihat pada scan terakhir)");
+    }
+    var chips = neighbours.length
+      ? neighbours.map(function (item) {
+          return '<button class="chip chip-idle analysis-link" type="button" data-lineage-node="' +
+            escapeHtml(item.id) + '">' + escapeHtml(item.name || item.id) + "</button>";
+        }).join(" ")
+      : '<span class="helper">Tidak ada relasi langsung.</span>';
+    var url = "";
+    if ((type || "").toLowerCase().indexOf("report") !== -1 && payload.workspace_id) {
+      var reportId = payload.report_id || payload.node_id || "";
+      var match = String(reportId).match(/[0-9a-f]{8}-[0-9a-f-]{27}/i);
+      if (match) {
+        url = "https://app.powerbi.com/groups/" + encodeURIComponent(payload.workspace_id) +
+          "/reports/" + encodeURIComponent(match[0]);
+      }
+    }
+    $("#lineageDetail").innerHTML =
+      '<div class="detail-head"><div><div class="detail-name">' + escapeHtml(name) + "</div>" +
+      '<div class="helper">' + escapeHtml(type) + (workspace ? " \u00b7 " + escapeHtml(workspace) : "") +
+      "</div></div>" +
+      (url ? '<a class="btn btn-sm" href="' + escapeHtml(url) +
+        '" target="_blank" rel="noopener">Buka report</a>' : "") +
+      (state.selectedId !== state.rootId
+        ? '<button class="btn btn-sm" type="button" id="makeRoot">Jadikan akar</button>'
+        : "") + "</div>" +
+      '<dl class="kv">' + rows.join("") + "</dl>" +
+      '<div class="dep-chips">' + chips + "</div>";
+    var makeRoot = $("#makeRoot");
+    if (makeRoot) {
+      makeRoot.addEventListener("click", function () {
+        lineageOpen(state.selectedId);
+        toast("Akar lineage diperbarui");
+      });
+    }
+    $$("#lineageDetail [data-lineage-node]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        lineageSelectNode(button.getAttribute("data-lineage-node"));
+      });
+    });
+  }
+
+  function lineageSelectNode(nodeId) {
+    if (!state.lineageNodesLive[nodeId]) return;
+    state.selectedId = nodeId;
+    lineageRenderGraph();
+    lineageRenderDetail(state.lineageNodesLive[nodeId].payload || {});
+  }
+
+  function lineageSetDirection(direction) {
+    var value = direction === "downstream" ? "downstream" : "upstream";
+    if (value === state.direction) return;
+    state.direction = value;
+    $("#dirUpstream").setAttribute("aria-pressed", String(value === "upstream"));
+    $("#dirDownstream").setAttribute("aria-pressed", String(value === "downstream"));
+    if (state.rootId) lineageOpen(state.rootId);
+  }
+
+  function lineageSetDepth(delta) {
+    var value = Math.max(1, Math.min(15, state.depth + delta));
+    if (value === state.depth) return;
+    state.depth = value;
+    $("#depthVal").textContent = state.depth + " level";
+    $("#depthMinus").disabled = state.depth <= 1;
+    $("#depthPlus").disabled = state.depth >= 15;
+    if (state.rootId) lineageOpen(state.rootId);
+  }
+
+  function lineageExport() {
+    if (!state.rootId) {
+      toast("Pilih node lineage lebih dulu");
+      return;
+    }
+    api().post("/api/lineage/export", {
+      node_id: state.rootId,
+      direction: state.direction,
+      depth: state.depth
+    }).then(function (data) {
+      toast("CSV: " + data.path);
+      api().post("/api/files/open", { path: data.path, mode: "open" })
+        .catch(function () {});
+    }).catch(reportError);
+  }
+
   function init() {
     initComboEvents();
     enhanceAllSelects();
@@ -4168,24 +4504,16 @@
     });
 
     $("#dirUpstream").addEventListener("click", function () {
-      state.direction = "upstream";
-      $("#dirUpstream").setAttribute("aria-pressed", "true");
-      $("#dirDownstream").setAttribute("aria-pressed", "false");
-      renderLineage();
+      lineageSetDirection("upstream");
     });
     $("#dirDownstream").addEventListener("click", function () {
-      state.direction = "downstream";
-      $("#dirUpstream").setAttribute("aria-pressed", "false");
-      $("#dirDownstream").setAttribute("aria-pressed", "true");
-      renderLineage();
+      lineageSetDirection("downstream");
     });
     $("#depthMinus").addEventListener("click", function () {
-      state.depth = Math.max(1, state.depth - 1);
-      renderLineage();
+      lineageSetDepth(-1);
     });
     $("#depthPlus").addEventListener("click", function () {
-      state.depth = Math.min(3, state.depth + 1);
-      renderLineage();
+      lineageSetDepth(1);
     });
     $("#visualLineage").addEventListener("click", function () {
       state.visual = !state.visual;
@@ -4193,34 +4521,52 @@
       $("#visualLineage").setAttribute("aria-pressed", String(state.visual));
       toast(state.visual ? "Mode visual lineage aktif" : "Mode visual lineage nonaktif");
     });
-    $("#exportCsv").addEventListener("click", function () { pendingFeature("Ekspor lineage"); });
+    $("#exportCsv").addEventListener("click", lineageExport);
 
-    $("#lineageSearchBtn").addEventListener("click", function () {
-      renderResults();
-      addLog("Pencarian lineage: " + ($("#lineageSearch").value || "(kosong)"), "info");
+    $("#lineageSearchBtn").addEventListener("click", lineageSearch);
+    $("#lineageSearch").addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        lineageSearch();
+      }
     });
-    $("#lineageSearch").addEventListener("input", renderResults);
-    $("#lineageWorkspace").addEventListener("input", renderResults);
-    $("#lineageType").addEventListener("change", renderResults);
+    $("#lineageSearch").addEventListener("input", function () {
+      if (state.lineageSearchTimer) window.clearTimeout(state.lineageSearchTimer);
+      state.lineageSearchTimer = window.setTimeout(function () {
+        state.lineageSearchTimer = null;
+        lineageSearch();
+      }, 450);
+    });
+    $("#lineageWorkspace").addEventListener("input", function () {
+      if (state.lineageSearchTimer) window.clearTimeout(state.lineageSearchTimer);
+      state.lineageSearchTimer = window.setTimeout(function () {
+        state.lineageSearchTimer = null;
+        lineageSearch();
+      }, 450);
+    });
+    $("#lineageType").addEventListener("change", lineageSearch);
     $("#lineageResults").addEventListener("click", function (event) {
       var item = event.target.closest(".result-item");
       if (!item) return;
-      state.rootId = item.dataset.id;
-      state.selectedId = item.dataset.id;
-      renderLineage();
-      renderResults();
-      addLog("Item lineage dipilih: " + lineageNodes[state.rootId].name, "info");
+      lineageOpen(item.dataset.id);
     });
     $("#lineageLayer").addEventListener("click", function (event) {
       var node = event.target.closest(".node");
-      if (node) selectNode(node.dataset.id);
+      if (!node) return;
+      lineageSelectNode(node.dataset.id);
+    });
+    $("#lineageLayer").addEventListener("dblclick", function (event) {
+      var node = event.target.closest(".node");
+      if (!node) return;
+      lineageOpen(node.dataset.id);
+      toast("Akar lineage diperbarui");
     });
     $("#lineageLayer").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
       var node = event.target.closest(".node");
       if (!node) return;
       event.preventDefault();
-      selectNode(node.dataset.id);
+      lineageSelectNode(node.dataset.id);
     });
 
     $$("#view-pengaturan .tabs [role='tab']").forEach(function (tab) {
@@ -4517,8 +4863,6 @@
     });
 
     renderLog();
-    renderResults();
-    renderLineage();
     renderAnalysis();
     renderPartitions();
   }

@@ -17,6 +17,7 @@ from .api import (
     catalog,
     files,
     jobs,
+    lineage,
     metadata,
     settings,
     system,
@@ -34,6 +35,7 @@ ROUTERS = (
     metadata.router,
     tsd.router,
     analysis.router,
+    lineage.router,
     files.router,
     jobs.router,
 )

@@ -838,6 +838,8 @@ tr.analysis-sub:hover td{ background:var(--row-hover); }
   letter-spacing:.02em; white-space:nowrap;
 }
 .analysis-link{ color:var(--accent-text); text-decoration:none; }
+.lineage-node.is-muted{ opacity:.42; }
+.lineage-node.is-muted:hover{ opacity:.75; }
 .analysis-link:hover{ text-decoration:underline; }
 .sr-only{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;

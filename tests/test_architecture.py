@@ -210,6 +210,11 @@ class WebLayerTests(unittest.TestCase):
             "analysisRender",
             "analysisRun",
             "analysisExport",
+            "lineageLoadState",
+            "lineageSearch",
+            "lineageOpen",
+            "lineageRenderGraph",
+            "lineageExport",
             "startJob",
         ):
             self.assertEqual(

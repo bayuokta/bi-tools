@@ -65,6 +65,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dan ekspor XLSX.
 - Teks bantuan Endpoint XMLA dipindahkan menjadi tooltip ikon `!` di kanan field;
   baris workspace model tidak lagi menampilkan hint statis.
+- Halaman **Lineage** web tersambung: pencarian di SQLite read-only, pembukaan
+  hasil pertama, kanvas dua arah (upstream/root/downstream) dari
+  `graph_for`/`build_graph`, peredupan sisi sesuai arah, kedalaman 1–15, detail
+  node + datasource, jadikan akar lewat klik dua kali, tautan report, dan ekspor
+  CSV ke `outputs\Lineage_<nama>.csv`.
 - Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
   job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
 
