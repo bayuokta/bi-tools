@@ -91,6 +91,12 @@
 
                   <div id="paneDesktop" hidden="">
                     <div class="form-row">
+                      <label for="pbixPath">File .pbix</label>
+                      <input class="input mono" id="pbixPath" type="text" readonly="" placeholder="Pilih file .pbix sumber">
+                      <button class="btn btn-sm" type="button" id="pickPbix">Pilih…</button>
+                    </div>
+                    <p class="helper" id="pbixKind">Pilih file .pbix sumber.</p>
+                    <div class="form-row">
                       <label for="desktopInstance">Instance Desktop</label>
                       <div class="select">
                         <select id="desktopInstance">
@@ -99,11 +105,11 @@
                         </select>
                       </div>
                       <button class="btn btn-sm" type="button" id="reloadDesktop">
-                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 -2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>
                         Muat ulang
                       </button>
                     </div>
-                    <p class="helper">Buka file .pbix/.pbip lebih dulu; daftar instance diperbarui setelah Muat ulang.</p>
+                    <p class="helper" id="instanceHint">Buka file .pbix/.pbip lebih dulu; daftar instance diperbarui setelah Muat ulang.</p>
                   </div>
 
                   <div id="paneService">
@@ -111,23 +117,21 @@
                       <label for="serviceWorkspace">Workspace</label>
                       <div class="select">
                         <select id="serviceWorkspace">
-                          <option>Sales Analytics</option>
-                          <option>Finance APAC</option>
-                          <option>Data Platform</option>
+                          <option value="">Memuat katalog…</option>
                         </select>
                       </div>
                       <button class="btn btn-sm" type="button" id="reloadWorkspaces">Muat ulang daftar</button>
                     </div>
+                    <p class="helper" id="workspaceHint"></p>
                     <div class="form-row">
                       <label for="xmlaEndpoint">Endpoint XMLA</label>
-                      <input class="input mono" id="xmlaEndpoint" type="text" value="powerbi://api.powerbi.com/v1.0/myorg/Sales Analytics" readonly="">
+                      <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace">
                     </div>
                     <div class="form-row">
                       <label for="catalog">Catalog</label>
                       <div class="select">
                         <select id="catalog">
-                          <option>Sales Model (APAC)</option>
-                          <option>Finance Model</option>
+                          <option value="">Pilih dataset…</option>
                         </select>
                       </div>
                     </div>
@@ -135,12 +139,12 @@
                       <label for="serviceReport">Report</label>
                       <div class="select">
                         <select id="serviceReport">
-                          <option>Sales Performance</option>
-                          <option>Revenue Overview</option>
+                          <option value="">Pilih report…</option>
                         </select>
                       </div>
                       <button class="btn btn-sm" type="button" id="reloadReport">Muat ulang dataset</button>
                     </div>
+                    <p class="helper" id="reportHint"></p>
                   </div>
                 </div>
               </div>

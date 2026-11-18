@@ -119,7 +119,12 @@ python -m server --no-browser --port 8800
 - Pekerjaan panjang berjalan di thread server dengan log live (SSE); refresh halaman tidak memutus pekerjaan.
 - Berkas dan folder dipilih lewat penjelajah di halaman (server yang membaca disk lokal), bukan dialog native browser.
 - Preferensi disimpan di `data\settings.json` (fallback `%LOCALAPPDATA%\BI Tools\data`). Saat pertama dijalankan, nilai QSettings 0.3.x dimigrasikan sekali (termasuk `lineage/*` → `auth/*`/`paths/*`); nilai baru tidak ditimpa. Pilihan sesi (workspace/report/dataset/instance) tetap dikosongkan setiap server dimulai.
-- Status pengembangan 0.4.0: Pengaturan (kredensial, RLS, path database, mode sinkronisasi, sinkronisasi katalog, scan lineage, tema) dan pemilih folder sudah tersambung. Halaman Ekstraksi, Generate TSD, Analisa, dan Lineage masih memakai data contoh sampai tahap berikutnya; gunakan `BI Tools (classic).exe` atau `python -m app` untuk pekerjaan penuh.
+- Status pengembangan 0.4.0: **Ekstraksi metadata** dan **Pengaturan** sudah tersambung penuh — sumber Service/Desktop, cakupan, pemilih `.pbix`/folder, instance Desktop, workspace + dataset/report dari katalog, job dengan log live, kartu output, serta ringkasan halaman/tabel/kolom/measure. Halaman Generate TSD, Analisa, dan Lineage masih memakai data contoh sampai tahap berikutnya; gunakan `BI Tools (classic).exe` atau `python -m app` untuk pekerjaan tersebut.
+- **Ekstraksi dari web**:
+  - **Service**: pilih workspace dari katalog (hasil sinkronisasi), lalu dataset dan report. Endpoint XMLA diturunkan dari nama workspace; memilih report otomatis mengisi Catalog dari `datasetId`. Report PBIR-Legacy (satu `report.json`) ditolak dengan pesan agar disimpan ulang sebagai PBIR; report paginated (RDL) ditandai dan tidak diekstrak.
+  - **Desktop**: pilih file `.pbix` lewat penjelajah (bukan dialog browser). Jenis sumber dideteksi otomatis; live connection hanya mengekstrak report. Instance Power BI Desktop dipilih otomatis hanya bila tepat satu terbuka; cakupan report saja tidak memerlukan instance.
+  - Cakupan `Report + semantic model`, `Report saja`, atau `Semantic model saja` disimpan per sumber. Cakupan model memerlukan instance Desktop (lokal) atau endpoint + catalog (Service).
+  - Tombol **Jalankan ekstraksi** memulai job; log live muncul di konsol, kartu output menampilkan waktu/ukuran berkas, dan ringkasan menampilkan halaman/tabel/kolom/measure. File dibuka di aplikasi default lewat tombol **Buka**.
 
 ## GUI
 

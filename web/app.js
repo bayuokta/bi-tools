@@ -69,7 +69,17 @@
     pickDir: "",
     pickCallback: null,
     formDirty: false,
-    secretDirty: false
+    secretDirty: false,
+    instances: [],
+    workspaces: [],
+    reports: [],
+    datasets: [],
+    pbix: null,
+    endpoint: "",
+    extractTimer: null,
+    pickKind: "dir",
+    pickExt: "",
+    pickFile: null
   };
 
 
@@ -193,84 +203,6 @@
       var scopes = state.settings.extraction;
       $("#scope").value = source === "service" ? scopes.scope_service : scopes.scope_local;
     }
-  }
-
-  function runExtraction() {
-    if (state.running) return;
-    state.running = true;
-    $("#runExtract").disabled = true;
-    $("#extractDone").hidden = true;
-    $("#extractRun").hidden = false;
-    $("#extractBar").style.width = "0%";
-    $("#extractRunPct").textContent = "0%";
-    $("#extractRunLabel").textContent = "Menyiapkan ekstraksi…";
-    $("#outputState").className = "chip chip-warn";
-    $("#outputState").innerHTML = '<span class="dot"></span>Berjalan';
-    setConsole(true);
-    var service = state.source === "service";
-    var workspace = service ? ($("#serviceWorkspace").value || "Sales Analytics") : "";
-    var catalog = service ? ($("#catalog").value || "Sales Model (APAC)") : "";
-    var report = service ? ($("#serviceReport").value || "Sales Performance") : "Sales Performance";
-    addLog(service
-      ? "=== Membaca semantic model dari Power BI Service ==="
-      : "=== Membaca instance Power BI Desktop ===", "info");
-
-    var steps = service ? [
-      { pct: 14, label: "Menghubungkan ke Power BI Service…", log: "Workspace: " + workspace + " · endpoint XMLA aktif." },
-      { pct: 34, label: "Membaca semantic model…", log: "Semantic model: " + catalog },
-      { pct: 56, label: "Mengekstrak tabel dan measure…", log: "12 tabel · 128 kolom · 42 measure · 14 relasi" },
-      { pct: 74, label: "Membaca halaman report…", log: "4 halaman report dibaca dari " + report + "." },
-      { pct: 90, label: "Menulis workbook Excel…", log: "Report_Metadata.xlsx dan Semantic_Model_Metadata.xlsx ditulis." },
-      { pct: 100, label: "Selesai", log: "Ekstraksi selesai dalam 4,1 detik." }
-    ] : [
-      { pct: 14, label: "Menghubungkan ke instance…", log: "Instance ditemukan: Sales Performance.pbix" },
-      { pct: 34, label: "Membaca semantic model…", log: "Semantic model: Sales Model (APAC)" },
-      { pct: 56, label: "Mengekstrak tabel dan measure…", log: "12 tabel · 128 kolom · 42 measure · 14 relasi" },
-      { pct: 74, label: "Membaca halaman report…", log: "4 halaman report dibaca dari Sales Performance." },
-      { pct: 90, label: "Menulis workbook Excel…", log: "Report_Metadata.xlsx dan Semantic_Model_Metadata.xlsx ditulis." },
-      { pct: 100, label: "Selesai", log: "Ekstraksi selesai dalam 3,8 detik." }
-    ];
-
-    var index = 0;
-    var timer = window.setInterval(function () {
-      if (index >= steps.length) {
-        window.clearInterval(timer);
-        finishExtraction();
-        return;
-      }
-      var step = steps[index];
-      index += 1;
-      $("#extractBar").style.width = step.pct + "%";
-      $("#extractRunPct").textContent = step.pct + "%";
-      $("#extractRunLabel").textContent = step.label;
-      addLog(step.log, "info");
-    }, 560);
-  }
-
-  function finishExtraction() {
-    state.running = false;
-    state.extractReady = true;
-    var time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-    $("#runExtract").disabled = false;
-    $("#extractRun").hidden = true;
-    $("#outputState").className = "chip chip-ok";
-    $("#outputState").innerHTML = '<span class="dot"></span>Workbook siap';
-    $("#metaReport").textContent = "Siap · " + time + " · 84 KB";
-    $("#metaModel").textContent = "Siap · " + time + " · 132 KB";
-    $("#openReport").disabled = false;
-    $("#openModel").disabled = false;
-    $("#openFolder").disabled = false;
-    $("#summaryEmpty").hidden = true;
-    $("#summaryBody").hidden = false;
-    $("#sumTables").textContent = "12";
-    $("#sumColumns").textContent = "128";
-    $("#sumMeasures").textContent = "42";
-    $("#sumPages").textContent = "4";
-    $("#sumRelations").textContent = "14";
-    $("#extractDone").hidden = false;
-    $("#extractDoneText").textContent = "12 tabel · 128 kolom · 42 measure · 4 halaman. Workbook tersimpan di folder tujuan.";
-    addLog("Selesai. 2 workbook diperbarui.", "ok");
-    toast("Ekstraksi selesai");
   }
 
   function runTsd() {
@@ -2358,6 +2290,15 @@
 
   function finishJob(options, snapshot) {
     var status = (snapshot && snapshot.status) || "done";
+    if (state.extractTimer) {
+      window.clearInterval(state.extractTimer);
+      state.extractTimer = null;
+    }
+    if (options.kind === "metadata") {
+      if (status === "error") setChip($("#outputState"), "error", "Gagal");
+      else if (status === "cancelled") setChip($("#outputState"), "idle", "Dibatalkan");
+      window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
+    }
     if (status === "error") {
       var message = (snapshot && snapshot.error) || "Pekerjaan gagal.";
       addLog(message, "error");
@@ -2429,7 +2370,8 @@
       });
     }).catch(function (error) {
       if (options.button) options.button.disabled = false;
-      reportError(error);
+      var message = reportError(error);
+      finishJob(options, { status: "error", error: message });
     });
   }
 
@@ -2439,8 +2381,10 @@
     return index > 1 ? text.slice(0, index) : "";
   }
 
-  function browseRow(name, target, isDir) {
-    return '<button class="browse-item" type="button" role="option" data-path="' + escapeHtml(target) + '">' +
+  function browseRow(name, target, isDir, selected) {
+    return '<button class="browse-item' + (selected ? " is-selected" : "") +
+      '" type="button" role="option" data-path="' + escapeHtml(target) +
+      '" data-dir="' + (isDir ? "1" : "0") + '">' +
       '<span class="name">' + escapeHtml(name) + "</span>" +
       '<span class="helper">' + (isDir ? "folder" : "berkas") + "</span></button>";
   }
@@ -2449,29 +2393,61 @@
     state.pickDir = data.path || "";
     $("#folderDialogPath").textContent = data.path || "Pilih drive";
     $("#folderPathInput").value = data.path || "";
-    $("#chooseFolder").disabled = !state.pickDir;
+    var choosingFile = state.pickKind === "file";
+    $("#chooseFolder").textContent = choosingFile ? "Pilih berkas ini" : "Pilih folder ini";
+    $("#chooseFolder").disabled = choosingFile ? !state.pickFile : !state.pickDir;
+    $("#folderDialogTitle").textContent = choosingFile
+      ? "Pilih berkas " + (state.pickExt || "")
+      : "Pilih folder";
     var html = "";
-    if (data.parent) html += browseRow("..", data.parent, true);
+    if (data.parent) html += browseRow("..", data.parent, true, false);
     html += (data.entries || []).map(function (entry) {
-      return browseRow(entry.name, entry.path, entry.is_dir);
+      var selected = !entry.is_dir && state.pickFile === entry.path;
+      return browseRow(entry.name, entry.path, entry.is_dir, selected);
     }).join("");
     if (!html) html = '<div class="browse-empty">Folder kosong.</div>';
     var list = $("#folderList");
     list.innerHTML = html;
     $$(".browse-item", list).forEach(function (button) {
       button.addEventListener("click", function () {
-        browseFolder(button.dataset.path);
+        if (button.dataset.dir === "1") {
+          state.pickFile = null;
+          browseFolder(button.dataset.path);
+          return;
+        }
+        state.pickFile = button.dataset.path;
+        $$(".browse-item", list).forEach(function (item) {
+          item.classList.remove("is-selected");
+        });
+        button.classList.add("is-selected");
+        $("#chooseFolder").disabled = false;
       });
     });
   }
 
   function browseFolder(target) {
     if (!apiReady()) return;
-    api().get("/api/files/browse?kind=dir&path=" + encodeURIComponent(target || "")).then(renderBrowse)
-      .catch(reportError);
+    api().get(
+      "/api/files/browse?kind=" + encodeURIComponent(state.pickKind) +
+      "&ext=" + encodeURIComponent(state.pickExt) +
+      "&path=" + encodeURIComponent(target || "")
+    ).then(renderBrowse).catch(reportError);
   }
 
   function openFolderPicker(start, onChoose) {
+    state.pickKind = "dir";
+    state.pickExt = "";
+    state.pickFile = null;
+    state.pickCallback = onChoose || null;
+    state.pickDir = "";
+    if (!$("#folderDialog").open) $("#folderDialog").showModal();
+    browseFolder(start || "");
+  }
+
+  function openFilePicker(start, ext, onChoose) {
+    state.pickKind = "file";
+    state.pickExt = ext || "";
+    state.pickFile = null;
     state.pickCallback = onChoose || null;
     state.pickDir = "";
     if (!$("#folderDialog").open) $("#folderDialog").showModal();
@@ -2487,6 +2463,239 @@
     loadSettings();
     loadCatalogStatus();
     loadOutputs();
+    loadInstances();
+    loadWorkspaces();
+  }
+
+  // -- ekstraksi metadata -------------------------------------------------
+  function findById(items, id) {
+    var wanted = String(id || "");
+    for (var index = 0; index < (items || []).length; index += 1) {
+      if (String(items[index].id) === wanted) return items[index];
+    }
+    return null;
+  }
+
+  function loadInstances() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/metadata/instances").then(function (data) {
+      state.instances = data.instances || [];
+      var select = $("#desktopInstance");
+      var html = ['<option value="">' +
+        (state.instances.length ? "Pilih instance…" : "Tidak ada instance terbuka") +
+        "</option>"];
+      state.instances.forEach(function (item) {
+        html.push('<option value="' + item.port + '">' + escapeHtml(item.label) + "</option>");
+      });
+      select.innerHTML = html.join("");
+      if (state.instances.length === 1) select.value = String(state.instances[0].port);
+      $("#instanceHint").textContent = data.hint || "";
+      renderModelAvailability();
+      return data;
+    }).catch(function (error) {
+      addLog("Instance Desktop tidak bisa dibaca: " + error.message, "warn");
+    });
+  }
+
+  function renderModelAvailability() {
+    var scope = $("#scope").value;
+    var supportsModel = !state.pbix || state.pbix.has_local_model;
+    var needed = scope !== "report" && supportsModel;
+    $("#desktopInstance").disabled = !needed;
+    $("#reloadDesktop").disabled = !needed;
+    if (scope === "report") {
+      $("#instanceHint").textContent = "Cakupan report saja: instance Power BI Desktop tidak dipakai.";
+    } else if (state.pbix && !state.pbix.has_local_model) {
+      $("#instanceHint").textContent = "File ini live connection; instance Power BI Desktop tidak dipakai.";
+    } else if (!state.instances.length) {
+      $("#instanceHint").textContent = "Tidak ada instance Power BI Desktop terbuka. Buka file .pbix lalu Muat ulang.";
+    }
+  }
+
+  function loadWorkspaces() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/metadata/workspaces").then(function (data) {
+      state.workspaces = data.workspaces || [];
+      var select = $("#serviceWorkspace");
+      var html = ['<option value="">' +
+        (state.workspaces.length ? "Pilih workspace…" : "Belum ada katalog") +
+        "</option>"];
+      state.workspaces.forEach(function (item) {
+        html.push('<option value="' + escapeHtml(item.id) + '">' +
+          escapeHtml(item.label) + "</option>");
+      });
+      select.innerHTML = html.join("");
+      $("#workspaceHint").textContent = data.hint || "";
+      return data;
+    }).catch(function (error) {
+      addLog("Katalog workspace tidak bisa dibaca: " + error.message, "error");
+    });
+  }
+
+  function loadWorkspaceContents() {
+    var workspaceId = $("#serviceWorkspace").value;
+    if (!workspaceId || !apiReady()) return Promise.resolve();
+    $("#reportHint").textContent = "Memuat dataset dan report…";
+    return api().get(
+      "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) + "/contents"
+    ).then(function (data) {
+      state.datasets = data.datasets || [];
+      state.reports = data.reports || [];
+      state.endpoint = (data.workspace && data.workspace.endpoint) || "";
+      $("#xmlaEndpoint").value = state.endpoint;
+      var datasetHtml = ['<option value="">Pilih dataset…</option>'];
+      state.datasets.forEach(function (item) {
+        datasetHtml.push('<option value="' + escapeHtml(item.name) +
+          '" data-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + "</option>");
+      });
+      $("#catalog").innerHTML = datasetHtml.join("");
+      var reportHtml = ['<option value="">Pilih report…</option>'];
+      state.reports.forEach(function (item) {
+        reportHtml.push('<option value="' + escapeHtml(item.id) +
+          '" data-type="' + escapeHtml(item.report_type) +
+          '" data-dataset="' + escapeHtml(item.dataset_id) + '">' +
+          escapeHtml(item.label) + "</option>");
+      });
+      $("#serviceReport").innerHTML = reportHtml.join("");
+      $("#reportHint").textContent = state.reports.length
+        ? "Report paginated (RDL) ditandai dan tidak bisa diekstrak."
+        : "Workspace ini tidak punya report yang bisa diekstrak.";
+      return data;
+    }).catch(function (error) {
+      $("#reportHint").textContent = error.message;
+      addLog(error.message, "error");
+    });
+  }
+
+  function applyReportDefaults(report) {
+    $("#reportHint").textContent = report.is_paginated
+      ? "Report paginated (RDL) tidak didukung; pilih report Power BI biasa."
+      : "";
+    if (!report.dataset_id) return;
+    var select = $("#catalog");
+    for (var index = 0; index < select.options.length; index += 1) {
+      if (select.options[index].dataset.id === report.dataset_id) {
+        select.selectedIndex = index;
+        return;
+      }
+    }
+  }
+
+  function refreshPbix() {
+    var path = $("#pbixPath").value.trim();
+    if (!apiReady()) return;
+    if (!path) {
+      state.pbix = null;
+      $("#pbixKind").textContent = "Pilih file .pbix sumber.";
+      $("#pbixKind").title = "";
+      renderModelAvailability();
+      return;
+    }
+    $("#pbixKind").textContent = "Membaca file…";
+    api().get("/api/metadata/pbix?path=" + encodeURIComponent(path)).then(function (data) {
+      state.pbix = data;
+      $("#pbixKind").textContent = data.label;
+      $("#pbixKind").title = data.detail || "";
+      $("#pbixPath").title = data.path || "";
+      renderModelAvailability();
+    }).catch(function (error) {
+      state.pbix = null;
+      $("#pbixKind").textContent = error.message;
+      renderModelAvailability();
+    });
+  }
+
+  function buildMetadataPayload() {
+    var payload = {
+      source: state.source === "service" ? "service" : "local",
+      scope: $("#scope").value,
+      out_dir: $("#outFolder").value.trim()
+    };
+    if (payload.source === "service") {
+      var workspace = findById(state.workspaces, $("#serviceWorkspace").value);
+      var report = findById(state.reports, $("#serviceReport").value);
+      payload.workspace_id = $("#serviceWorkspace").value;
+      payload.workspace_name = workspace ? workspace.name : "";
+      payload.endpoint = $("#xmlaEndpoint").value.trim();
+      payload.report_id = $("#serviceReport").value;
+      payload.report_name = report ? report.name : "";
+      payload.report_type = report ? report.report_type : "";
+      payload.dataset_id = report ? report.dataset_id : "";
+      payload.catalog = $("#catalog").value;
+      payload.dataset_name = payload.catalog;
+    } else {
+      var instance = null;
+      var chosen = $("#desktopInstance").value;
+      state.instances.forEach(function (item) {
+        if (String(item.port) === chosen) instance = item;
+      });
+      payload.pbix = $("#pbixPath").value.trim();
+      payload.port = instance ? instance.port : null;
+      payload.catalog = instance ? instance.catalog : "";
+    }
+    return payload;
+  }
+
+  function renderExtractResult(result) {
+    var report = result.report || null;
+    var model = result.model || null;
+    if (!report && !model) {
+      setChip($("#outputState"), "idle", "Tidak ada hasil");
+      return;
+    }
+    setChip($("#outputState"), "ok", "Selesai");
+    $("#extractDone").hidden = false;
+    var notes = [];
+    if (report) notes.push((report.pages || 0) + " halaman");
+    if (model) notes.push((model.tables || 0) + " tabel");
+    $("#extractDoneText").textContent = notes.join(" · ") ||
+      "Workbook tersimpan di folder tujuan.";
+    $("#summaryEmpty").hidden = true;
+    $("#summaryBody").hidden = false;
+    $("#sumTables").textContent = model ? model.tables : "—";
+    $("#sumColumns").textContent = model
+      ? model.columns
+      : (report ? report.columns : "—");
+    $("#sumMeasures").textContent = model
+      ? model.measures
+      : (report ? report.measures : "—");
+    $("#sumPages").textContent = report ? report.pages : "—";
+    $("#sumRelations").textContent = model ? model.relationships : "—";
+    if (result.model_error) addLog("Catatan: " + result.model_error, "warn");
+  }
+
+  function runExtraction() {
+    if (!apiReady()) return;
+    if (state.jobId) {
+      toast("Pekerjaan lain masih berjalan");
+      return;
+    }
+    var payload = buildMetadataPayload();
+    $("#extractDone").hidden = true;
+    $("#extractRun").hidden = false;
+    $("#extractBar").style.width = "6%";
+    $("#extractRunPct").textContent = "";
+    $("#extractRunLabel").textContent = "Menyiapkan ekstraksi…";
+    setChip($("#outputState"), "warn", "Berjalan");
+    var progress = 6;
+    state.extractTimer = window.setInterval(function () {
+      progress = Math.min(92, progress + (progress < 50 ? 6 : 2));
+      $("#extractBar").style.width = progress + "%";
+      $("#extractRunPct").textContent = progress + "%";
+    }, 800);
+    startJob({
+      kind: "metadata",
+      path: "/api/metadata/run",
+      body: payload,
+      label: "Ekstraksi metadata",
+      button: $("#runExtract"),
+      onDone: function (snapshot) {
+        $("#extractBar").style.width = "100%";
+        $("#extractRunPct").textContent = "100%";
+        renderExtractResult(snapshot.result || {});
+        loadOutputs();
+      }
+    });
   }
 
   function init() {
@@ -2533,22 +2742,44 @@
     $("#srcBtnService").addEventListener("click", function () { setSource("service"); });
 
     $("#reloadDesktop").addEventListener("click", function () {
-      $("#desktopInstance").selectedIndex = 1;
-      addLog("Instance ditemukan: Sales Performance.pbix", "ok");
-      toast("Instance Desktop dimuat ulang");
+      loadInstances().then(function () { toast("Daftar instance diperbarui"); });
     });
 
     $("#reloadWorkspaces").addEventListener("click", function () {
-      addLog("Daftar workspace dimuat ulang: 3 workspace.", "info");
-      toast("Daftar workspace diperbarui");
+      loadWorkspaces().then(function () { toast("Katalog workspace dimuat"); });
     });
 
     $("#reloadReport").addEventListener("click", function () {
-      addLog("Dataset report dimuat ulang.", "info");
-      toast("Dataset report diperbarui");
+      loadWorkspaceContents().then(function () { toast("Dataset dan report dimuat"); });
     });
 
-    $("#runExtract").addEventListener("click", function () { pendingFeature("Ekstraksi metadata"); });
+    $("#pickPbix").addEventListener("click", function () {
+      openFilePicker(parentDir($("#pbixPath").value), ".pbix", function (chosen) {
+        $("#pbixPath").value = chosen;
+        refreshPbix();
+      });
+    });
+
+    $("#desktopInstance").addEventListener("change", function () {
+      renderModelAvailability();
+    });
+
+    $("#serviceWorkspace").addEventListener("change", function () {
+      state.datasets = [];
+      state.reports = [];
+      $("#xmlaEndpoint").value = "";
+      $("#serviceReport").innerHTML = '<option value="">Pilih report…</option>';
+      $("#catalog").innerHTML = '<option value="">Pilih dataset…</option>';
+      $("#reportHint").textContent = "";
+      loadWorkspaceContents();
+    });
+
+    $("#serviceReport").addEventListener("change", function () {
+      var report = findById(state.reports, $("#serviceReport").value);
+      if (report) applyReportDefaults(report);
+    });
+
+    $("#runExtract").addEventListener("click", runExtraction);
     $("#runTsd").addEventListener("click", function () { pendingFeature("Generate TSD"); });
 
     $("#goTsd").addEventListener("click", function () { showView("tsd"); });
@@ -2876,6 +3107,7 @@
       savePreference("ui", { show_console: event.target.checked });
     });
     $("#scope").addEventListener("change", function (event) {
+      renderModelAvailability();
       var payload = {};
       if (state.source === "service") payload.scope_service = event.target.value;
       else payload.scope_local = event.target.value;
@@ -2911,10 +3143,10 @@
     $("#closeFolderDialog").addEventListener("click", function () { $("#folderDialog").close(); });
     $("#cancelFolder").addEventListener("click", function () { $("#folderDialog").close(); });
     $("#chooseFolder").addEventListener("click", function () {
-      var path = state.pickDir;
+      var choice = state.pickKind === "file" ? state.pickFile : state.pickDir;
       var callback = state.pickCallback;
       $("#folderDialog").close();
-      if (callback && path) callback(path);
+      if (callback && choice) callback(choice);
     });
     $("#folderGo").addEventListener("click", function () {
       browseFolder($("#folderPathInput").value);

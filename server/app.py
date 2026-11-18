@@ -12,13 +12,20 @@ from fastapi.staticfiles import StaticFiles
 from core.errors import ExtractionError
 from core.version import APP_NAME, __version__
 
-from .api import catalog, files, jobs, settings, system
+from .api import catalog, files, jobs, metadata, settings, system
 from .config import web_dir
 from .jobs import JobManager, JobNotFound
 from .security import LocalGuard
 from .settings_store import SettingsError, SettingsStore
 
-ROUTERS = (system.router, settings.router, catalog.router, files.router, jobs.router)
+ROUTERS = (
+    system.router,
+    settings.router,
+    catalog.router,
+    metadata.router,
+    files.router,
+    jobs.router,
+)
 
 
 def create_app(

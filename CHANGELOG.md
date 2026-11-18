@@ -28,6 +28,16 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   lineage, tes token Fabric/Power BI, tema, dan pemilih folder/berkas sisi server.
 - `web\` (HTML/CSS/JS tanpa build step) disalin ke samping exe; spec kini juga
   membangun `BI Tools (classic).exe` sebagai fallback PySide6 sampai paritas.
+- Halaman Ekstraksi web tersambung penuh: sumber Service/Desktop, cakupan
+  report/model, file `.pbix` lewat penjelajah server, instance Desktop, workspace
+  + dataset/report dari katalog SQLite lalu REST, endpoint XMLA turunan, job
+  dengan log live, serta kartu output dan ringkasan halaman/tabel/kolom/measure.
+- Input divalidasi sebelum job (`400`): `.pbix` hilang/tanpa PBIR/tanpa model
+  lokal, instance Desktop belum dipilih, report paginated, atau kredensial
+  service principal belum lengkap. Kesalahan Fabric/XMLA tetap dilaporkan di
+  log job.
+- Uji baru: presenter/endpoint metadata (instance, deteksi `.pbix`, workspace
+  contents, validasi request, pemetaan kwargs lokal/service, ringkasan hasil).
 - Uji baru: preferensi/migrasi, penjaga token/Host/Origin, endpoint API, antrean
   job/SSE, runtime (state, port, mutex), dan penjaga arsitektur web.
 

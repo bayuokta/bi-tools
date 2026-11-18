@@ -737,6 +737,7 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{ transition:
   font:inherit; cursor:pointer;
 }
 .browse-item:hover{ background:var(--surface-2); }
+.browse-item.is-selected{ background:var(--accent-soft); color:var(--accent-text); }
 .browse-item:focus-visible{ outline:2px solid var(--accent-text); outline-offset:-2px; }
 .browse-item .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .browse-empty{ padding:14px; color:var(--text-3); font-size:12.5px; text-align:center; }
