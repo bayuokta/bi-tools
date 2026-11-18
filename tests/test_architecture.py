@@ -206,6 +206,20 @@ class WebLayerTests(unittest.TestCase):
                 f"helper {name} harus dideklarasikan tepat satu kali",
             )
 
+    def test_web_tsd_design_has_screenshot_panel(self) -> None:
+        text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        for marker in (
+            'id="captureScreenshots"',
+            'id="clearShotCache"',
+            'id="shotCachePath"',
+            'id="tsdOutFolder"',
+            'id="tsdPreview"',
+            'id="reportWorkbook"',
+            'id="contextJson"',
+            'class="shot-cache"',
+        ):
+            self.assertIn(marker, text, f"desain TSD kehilangan {marker}")
+
     def test_server_does_not_use_requests(self) -> None:
         hits = matching_in(
             files_under("server"), r"^\s*(import requests|from requests\b)"

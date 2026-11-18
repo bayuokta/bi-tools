@@ -2999,6 +2999,25 @@
     $("#saveContext").addEventListener("click", function () { pendingFeature("Konteks manual TSD"); });
     $("#editContext").addEventListener("click", function () { pendingFeature("Editor JSON TSD"); });
 
+    $("#pickReportWorkbook").addEventListener("click", function () { pendingFeature("Pemilihan report workbook TSD"); });
+    $("#pickModelWorkbook").addEventListener("click", function () { pendingFeature("Pemilihan model workbook TSD"); });
+    $("#pickTemplate").addEventListener("click", function () { pendingFeature("Pemilihan template TSD"); });
+    $("#pickContext").addEventListener("click", function () { pendingFeature("Pemilihan file JSON konteks"); });
+    $("#captureScreenshots").addEventListener("click", function () { pendingFeature("Ambil screenshot report"); });
+    $("#clearShotCache").addEventListener("click", function () { pendingFeature("Hapus cache screenshot"); });
+    $("#chooseTsdFolder").addEventListener("click", function () { pendingFeature("Pemilihan folder output TSD"); });
+    $("#openTsdFile").addEventListener("click", function () { pendingFeature("Buka HTML TSD"); });
+    $("#openTsdFolder").addEventListener("click", function () { pendingFeature("Buka folder TSD"); });
+    $("#reloadShotWorkspace").addEventListener("click", function () { pendingFeature("Muat ulang workspace screenshot"); });
+    $("#reloadShotReport").addEventListener("click", function () { pendingFeature("Muat ulang report screenshot"); });
+    $("#shotEnabled").addEventListener("change", function (event) {
+      setChip(
+        $("#shotChip"),
+        event.target.checked ? "ok" : "idle",
+        event.target.checked ? "Aktif" : "Nonaktif"
+      );
+    });
+
     $("#runAnalyze").addEventListener("click", function () { pendingFeature("Analisa semantic model"); });
     $("#analyzeFromEmpty").addEventListener("click", function () { pendingFeature("Analisa semantic model"); });
     $("#reloadWsAnalisa").addEventListener("click", function () {

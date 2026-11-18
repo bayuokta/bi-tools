@@ -113,7 +113,6 @@
                   </div>
 
                   <div id="paneService">
-                    <div class="form-section-label">Semantic model</div>
                     <div class="form-row">
                       <label for="modelWorkspaceInput">Workspace model</label>
                       <div class="combo" id="modelWorkspaceCombo">
@@ -136,8 +135,6 @@
                         <div class="combo-pop" hidden=""><div class="combo-list" role="listbox" aria-label="Dataset semantic model"></div></div>
                       </div>
                     </div>
-
-                    <div class="form-section-label">Report</div>
                     <div class="form-row">
                       <label for="reportWorkspaceInput">Workspace report</label>
                       <div class="combo" id="reportWorkspaceCombo">
@@ -294,20 +291,20 @@
                 <div class="panel-body">
                   <div class="form-row">
                     <label for="reportWorkbook">Report workbook</label>
-                    <input class="input mono" id="reportWorkbook" type="text" value="D:/Development/Python/bi-tools-new/Report_Metadata.xlsx" readonly="">
-                    <button class="btn btn-sm" type="button">Pilih…</button>
+                    <input class="input mono" id="reportWorkbook" type="text" readonly="" placeholder="Pilih Report_Metadata.xlsx">
+                    <button class="btn btn-sm" type="button" id="pickReportWorkbook">Pilih…</button>
                   </div>
-                  <p class="helper form-note">Report_Metadata.xlsx · 16 Nov 2026 13:26</p>
+                  <p class="helper form-note" id="reportWorkbookStatus">Belum ada workbook dipilih.</p>
                   <div class="form-row">
                     <label for="modelWorkbook">Model workbook</label>
-                    <input class="input mono" id="modelWorkbook" type="text" value="D:/Development/Python/bi-tools-new/Semantic_Model_Metadata.xlsx" readonly="">
-                    <button class="btn btn-sm" type="button">Pilih…</button>
+                    <input class="input mono" id="modelWorkbook" type="text" readonly="" placeholder="Pilih Semantic_Model_Metadata.xlsx (opsional)">
+                    <button class="btn btn-sm" type="button" id="pickModelWorkbook">Pilih…</button>
                   </div>
-                  <p class="helper form-note">Semantic_Model_Metadata.xlsx · 16 Nov 2026 13:26</p>
+                  <p class="helper form-note" id="modelWorkbookStatus">Bagian model memakai empty state bila kosong.</p>
                   <div class="form-row">
                     <label for="template">Template</label>
                     <input class="input mono" id="template" type="text" value="templates/tsd.template.html" readonly="">
-                    <button class="btn btn-sm" type="button">Pilih…</button>
+                    <button class="btn btn-sm" type="button" id="pickTemplate">Pilih…</button>
                   </div>
                   <p class="helper form-note">Versi template dari repo template-tsd.</p>
                 </div>
@@ -322,14 +319,14 @@
                 <div class="panel-body">
                   <div class="form-row">
                     <label for="contextJson">File JSON</label>
-                    <input class="input mono" id="contextJson" type="text" value="TSD_Report.json" readonly="">
-                    <button class="btn btn-sm" type="button">Pilih…</button>
+                    <input class="input mono" id="contextJson" type="text" readonly="" placeholder="TSD_<nama report>.json (otomatis)">
+                    <button class="btn btn-sm" type="button" id="pickContext">Pilih…</button>
                   </div>
                   <div class="row-actions">
                     <button class="btn btn-sm" id="loadContext" type="button">Muat</button>
                     <button class="btn btn-sm" id="saveContext" type="button">Simpan</button>
                     <button class="btn btn-sm" id="editContext" type="button">Edit JSON…</button>
-                    <span class="helper">Belum dibuat · otomatis memakai nama output.</span>
+                    <span class="helper" id="contextStatus">Belum dibuat · otomatis memakai nama output.</span>
                   </div>
                 </div>
               </div>
@@ -339,19 +336,113 @@
                 <div class="panel-body">
                   <div class="form-row">
                     <label for="reportName">Nama report</label>
-                    <input class="input" id="reportName" type="text" value="Ringkasan eksekutif — Sales Performance">
+                    <input class="input" id="reportName" type="text" placeholder="Nama report untuk judul dokumen">
                   </div>
                   <div class="form-row">
                     <label for="docDate">Tanggal dokumen</label>
-                    <input class="input" id="docDate" type="date" value="2026-11-17">
+                    <input class="input" id="docDate" type="date">
                   </div>
                   <div class="check-row" style="padding-left:160px">
-                    <label class="check"><input type="checkbox" checked=""> Mode draft (field kosong menjadi TODO)</label>
-                    <label class="check"><input type="checkbox"> Buka semua panel expand</label>
+                    <label class="check"><input type="checkbox" id="tsdDraft" checked=""> Mode draft (field kosong menjadi TODO)</label>
+                    <label class="check"><input type="checkbox" id="tsdExpandAll"> Buka semua panel expand</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">Screenshot (Power BI Service)</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-ok" id="shotChip"><span class="dot"></span>Aktif</span>
+                </div>
+                <div class="panel-body">
+                  <label class="check"><input type="checkbox" id="shotEnabled" checked> Ambil screenshot page, visual, mobile dari Power BI Service</label>
+                  <div class="form-row">
+                    <label for="shotWorkspace">Workspace</label>
+                    <div class="select">
+                      <select id="shotWorkspace">
+                        <option value="">Pilih workspace…</option>
+                      </select>
+                    </div>
+                    <button class="btn btn-sm" id="reloadShotWorkspace" type="button">Muat ulang daftar</button>
                   </div>
                   <div class="form-row">
-                    <label>Screenshot report</label>
-                    <label class="check"><input type="checkbox"> Ambil screenshot dari Power BI Service</label>
+                    <label for="shotReport">Report</label>
+                    <div class="select">
+                      <select id="shotReport">
+                        <option value="">Pilih report…</option>
+                      </select>
+                    </div>
+                    <button class="btn btn-sm" id="reloadShotReport" type="button">Muat ulang report</button>
+                  </div>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label for="shotRlsUser">RLS username</label>
+                      <input class="input mono" id="shotRlsUser" type="text" placeholder="Memakai RLS default di Pengaturan">
+                    </div>
+                    <div class="field">
+                      <label for="shotRlsRoles">RLS roles</label>
+                      <input class="input mono" id="shotRlsRoles" type="text" placeholder="HO,Region">
+                    </div>
+                  </div>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label for="shotScope">Cakupan</label>
+                      <div class="select">
+                        <select id="shotScope">
+                          <option>Page saja</option>
+                          <option>Page + visual</option>
+                          <option>Semua halaman</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="shotScale">Skala</label>
+                      <div class="select">
+                        <select id="shotScale">
+                          <option>1x (standar)</option>
+                          <option selected>2x (lebih tajam)</option>
+                          <option>3x (maksimal)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="check-row" style="flex-direction:column;gap:9px;align-items:flex-start">
+                    <label class="check"><input type="checkbox" id="shotMobile" checked> Sertakan layout mobile di 2.2.7.2 (bila report punya phone layout)</label>
+                    <label class="check"><input type="checkbox" id="shotDebug"> Tampilkan browser saat capture (debug)</label>
+                    <label class="check"><input type="checkbox" id="shotDecorative"> Sertakan shape/image/tombol sebagai baris visual</label>
+                    <label class="check"><input type="checkbox" id="shotAutoInstall" checked> Unduh Chromium otomatis bila belum ada (sekitar 150 MB)</label>
+                  </div>
+                  <div class="shot-cache">
+                    <div>
+                      <div class="shot-cache-title">Cache</div>
+                      <p class="helper" id="shotCacheStatus">Belum ada cache; akan diambil saat generate.</p>
+                      <div class="shot-cache-path" id="shotCachePath">TSD_assets\&lt;nama report&gt;_&lt;id8&gt;</div>
+                    </div>
+                    <div class="row-actions">
+                      <button class="btn btn-sm" id="captureScreenshots" type="button">Ambil screenshot</button>
+                      <button class="btn btn-sm" id="clearShotCache" type="button" disabled>Hapus cache</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Output</span></div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="tsdOutFolder">Folder</label>
+                    <input class="input mono" id="tsdOutFolder" type="text" readonly="" placeholder="Folder output TSD">
+                    <button class="btn btn-sm" id="chooseTsdFolder" type="button">Pilih…</button>
+                  </div>
+                  <div class="form-row">
+                    <label for="tsdFileName">Nama file</label>
+                    <input class="input mono" id="tsdFileName" type="text" placeholder="Otomatis dari nama report">
+                  </div>
+                  <p class="helper" id="tsdOutputState">Belum ada dokumen TSD.</p>
+                  <div class="row-actions">
+                    <button class="btn btn-sm" id="openTsdFile" type="button" disabled>Buka HTML</button>
+                    <button class="btn btn-sm" id="openTsdFolder" type="button">Buka folder</button>
                   </div>
                 </div>
               </div>
@@ -380,6 +471,7 @@
                       <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val">12</span></div>
                       <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val">42</span></div>
                       <div class="stat-row"><span class="stat-key">TODO tersisa</span><span class="stat-val">7</span></div>
+                      <div class="stat-row" id="tsdShotRow" hidden><span class="stat-key">Screenshot Service</span><span class="stat-val" id="tsdShotVal">—</span></div>
                     </div>
                     <div class="note" style="margin-top:12px">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
@@ -393,10 +485,10 @@
               <div class="panel">
                 <div class="panel-head"><span class="panel-title">Checklist</span></div>
                 <div class="panel-body" style="gap:9px">
-                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Workbook report</span><span class="helper">tersedia</span></div>
-                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Workbook model</span><span class="helper">tersedia</span></div>
-                  <div class="row-inline"><span class="chip chip-ok"><span class="dot"></span>Template</span><span class="helper">ditemukan</span></div>
-                  <div class="row-inline"><span class="chip chip-idle"><span class="dot"></span>Konteks manual</span><span class="helper">opsional</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkReport"><span class="dot"></span>Workbook report</span><span class="helper" id="checkReportText">belum dipilih</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkModel"><span class="dot"></span>Workbook model</span><span class="helper" id="checkModelText">opsional</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkTemplate"><span class="dot"></span>Template</span><span class="helper" id="checkTemplateText">diperiksa saat generate</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkContext"><span class="dot"></span>Konteks manual</span><span class="helper">opsional</span></div>
                 </div>
               </div>
             </div>

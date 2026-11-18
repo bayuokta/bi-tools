@@ -774,3 +774,21 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{ transition:
 .combo-item[aria-selected="true"]{ font-weight:600; }
 .combo-empty{ padding:12px 8px; color:var(--text-3); font-size:12px; text-align:center; }
 
+/* Cache screenshot TSD */
+.shot-cache{
+  display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
+  gap:10px 16px; padding:10px 12px;
+  border:1px solid var(--border); border-radius:var(--r-md);
+  background:var(--surface-2);
+}
+.shot-cache-title{
+  font-size:10.5px; font-weight:600; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--text-3);
+}
+.shot-cache .helper{ margin:3px 0 0; max-width:62ch; }
+.shot-cache-path{
+  margin-top:5px; font-family:var(--font-mono); font-size:11px;
+  color:var(--text-2); overflow-wrap:anywhere;
+}
+.shot-cache .row-actions{ margin-left:auto; }
+

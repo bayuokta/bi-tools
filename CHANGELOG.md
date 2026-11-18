@@ -36,6 +36,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   **model** dan workspace **report** dipilih terpisah, sehingga report dari
   workspace lain tidak lagi mengikat atau mengubah Catalog; endpoint XMLA selalu
   diturunkan dari workspace model.
+- Desain halaman **Ekstraksi metadata** dan **Generate TSD** disamakan dengan
+  mockup terbaru: label workspace model/report, panel **Sumber metadata**,
+  **Konteks manual**, **Opsi render**, **Screenshot (Power BI Service)** dengan
+  cache, **Output** TSD, pratinjau dokumen, dan checklist. Fungsi TSD menyusul
+  di M3; tombolnya menampilkan pesan tahap berikutnya.
 - Input divalidasi sebelum job (`400`): `.pbix` hilang/tanpa PBIR/tanpa model
   lokal, instance Desktop belum dipilih, report paginated, atau kredensial
   service principal belum lengkap. Kesalahan Fabric/XMLA tetap dilaporkan di
