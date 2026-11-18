@@ -32,10 +32,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   report/model, file `.pbix` lewat penjelajah server, instance Desktop, workspace
   + dataset/report dari katalog SQLite lalu REST, endpoint XMLA turunan, job
   dengan log live, serta kartu output dan ringkasan halaman/tabel/kolom/measure.
-- Combo workspace, catalog, dan report bisa diketik untuk memfilter. Workspace
-  **model** dan workspace **report** dipilih terpisah, sehingga report dari
-  workspace lain tidak lagi mengikat atau mengubah Catalog; endpoint XMLA selalu
-  diturunkan dari workspace model.
+- Combo workspace, catalog, dan report memakai komponen desain prototype
+  (tombol select-like + popup pencarian bersama); semua `<select>` di halaman
+  ikut di-enhance kecuali di dalam dialog. Workspace **model** dan workspace
+  **report** dipilih terpisah, sehingga report dari workspace lain tidak lagi
+  mengikat atau mengubah Catalog; endpoint XMLA selalu diturunkan dari workspace
+  model.
 - Desain halaman **Ekstraksi metadata** dan **Generate TSD** disamakan dengan
   mockup terbaru: label workspace model/report, panel **Sumber metadata**,
   **Konteks manual**, **Opsi render**, **Screenshot (Power BI Service)** dengan

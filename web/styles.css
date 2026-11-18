@@ -744,37 +744,42 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{ transition:
 .row-inline > .btn{ flex:0 0 auto; }
 
 /* Combo yang bisa diketik (workspace, dataset, report) */
-.form-section-label{
-  margin:16px 0 6px; font-size:10.5px; font-weight:700;
-  letter-spacing:.09em; text-transform:uppercase; color:var(--text-3);
+.combo-host::after{ display:none; }
+.combo-native{ display:none; }
+.combo-button{
+  position:relative; display:flex; align-items:center; width:100%; height:32px; padding:0 30px 0 10px;
+  background:var(--input-bg); border:1px solid var(--border-strong); border-radius:var(--r-md);
+  color:var(--text); font-size:13px; text-align:left; cursor:pointer;
+  transition:border-color var(--dur) ease, box-shadow var(--dur) ease;
 }
-.panel-body > .form-section-label:first-child{ margin-top:0; }
-.combo{ position:relative; display:flex; align-items:center; min-width:0; }
-.combo .combo-input{ width:100%; padding-right:30px; }
-.combo-toggle{
-  position:absolute; right:3px; top:3px; width:26px; height:26px;
-  display:flex; align-items:center; justify-content:center;
-  border:0; border-radius:var(--r-sm); background:transparent;
-  color:var(--text-3); font-size:11px; cursor:pointer;
+.combo-label{ flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.combo-button::after{
+  content:""; position:absolute; right:12px; top:50%; width:6px; height:6px;
+  border-right:1.5px solid var(--text-3); border-bottom:1.5px solid var(--text-3);
+  transform:translateY(-70%) rotate(45deg); pointer-events:none;
+  transition:transform var(--dur) ease;
 }
-.combo-toggle:hover{ background:var(--surface-2); color:var(--text); }
-.combo-pop{
-  position:absolute; z-index:40; top:calc(100% + 4px); left:0; right:0;
-  max-height:250px; overflow:auto; padding:4px;
-  border:1px solid var(--border-strong); border-radius:var(--r-md);
-  background:var(--surface); box-shadow:0 12px 28px rgba(0,0,0,.38);
-}
-.combo-item{
-  padding:7px 8px; border-radius:var(--r-sm); cursor:pointer;
-  font-size:12.5px; color:var(--text); white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis;
-}
-.combo-item:hover{ background:var(--surface-2); }
-.combo-item.is-active{ background:var(--accent-soft); color:var(--accent-text); }
-.combo-item[aria-selected="true"]{ font-weight:600; }
-.combo-empty{ padding:12px 8px; color:var(--text-3); font-size:12px; text-align:center; }
+.combo-button:hover{ border-color:var(--text-3); }
+.combo-button:focus-visible{ outline:2px solid var(--accent-text); outline-offset:1px; }
+.combo-button[aria-expanded="true"]::after{ transform:translateY(-30%) rotate(225deg); }
 
-/* Cache screenshot TSD */
+.combo-popup{
+  position:fixed; z-index:120; display:flex; flex-direction:column; gap:6px; padding:6px;
+  max-width:calc(100vw - 24px); background:var(--surface); border:1px solid var(--border-strong);
+  border-radius:var(--r-md); box-shadow:var(--shadow);
+}
+.combo-popup[hidden]{ display:none !important; }
+.combo-search{ height:30px; font-size:12.5px; }
+.combo-list{ display:flex; flex-direction:column; gap:1px; max-height:220px; overflow:auto; }
+.combo-option{
+  display:block; width:100%; padding:7px 9px; border:0; border-radius:var(--r-sm);
+  background:transparent; color:var(--text-2); font-size:12.5px; text-align:left; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.combo-option:hover, .combo-option.is-active{ background:var(--surface-2); color:var(--text); }
+.combo-option[aria-selected="true"]{ color:var(--text); font-weight:600; }
+.combo-empty{ padding:10px 8px; font-size:12px; text-align:center; color:var(--text-3); }
+
 .shot-cache{
   display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
   gap:10px 16px; padding:10px 12px;

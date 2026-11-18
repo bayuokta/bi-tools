@@ -182,6 +182,11 @@ class ZoneIdentifierTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.dll = Path(self._tmp.name) / "Python.Runtime.dll"
         self.dll.write_bytes(b"MZ-bukan-assembly-asli")
+        # Uji lain bisa memuat .NET lebih dulu (mis. daftar instance Desktop);
+        # cache _ADOMD harus kosong agar skenario gagal-muat benar-benar diuji.
+        cache = patch("core.xmla_client._ADOMD", None)
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def mark(self) -> None:
         with open(f"{self.dll}:Zone.Identifier", "w", encoding="ascii") as handle:

@@ -401,7 +401,8 @@ class MetadataEndpointTests(unittest.TestCase):
         self.assertEqual(response.json()["workspaces"], [])
 
     def test_instances_endpoint(self) -> None:
-        response = self.client.get("/api/metadata/instances")
+        with patch.object(presenter, "list_instances", return_value=[]):
+            response = self.client.get("/api/metadata/instances")
         self.assertEqual(response.status_code, 200)
         self.assertIn("instances", response.json())
 

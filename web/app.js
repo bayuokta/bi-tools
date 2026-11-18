@@ -202,6 +202,7 @@
     if (state.settings) {
       var scopes = state.settings.extraction;
       $("#scope").value = source === "service" ? scopes.scope_service : scopes.scope_local;
+      refreshCombo($("#scope"));
     }
   }
 
@@ -770,6 +771,7 @@
       return '<option value="' + escapeHtml(pair[0]) + '">' + escapeHtml(pair[1]) + "</option>";
     }).join("");
     select.value = "all";
+    refreshCombo(select);
   }
 
   function setAnalysisTab(name) {
@@ -2225,6 +2227,7 @@
     );
     $("#connResult").textContent = data.auth.status;
     $("#syncMode").value = data.catalog.mode;
+    refreshCombo($("#syncMode"));
     $("#includePersonal").checked = data.catalog.include_personal;
     $("#showConsole").checked = data.ui.show_console;
     if (data.ui.theme !== state.theme) applyTheme(data.ui.theme, false);
@@ -2468,162 +2471,247 @@
   }
 
   // -- ekstraksi metadata -------------------------------------------------
-  var combos = {};
+  var comboState = { select: null, trigger: null, options: [], active: -1 };
+  var selectData = {};
 
-  function setupCombo(id, onChange) {
-    var root = $("#" + id);
-    if (!root) return null;
-    var input = $(".combo-input", root);
-    var toggle = $(".combo-toggle", root);
-    var pop = $(".combo-pop", root);
-    var list = $(".combo-list", root);
-    if (!input || !pop || !list) return null;
-    var combo = {
-      id: id, root: root, input: input, toggle: toggle, pop: pop, list: list,
-      options: [], visible: [], value: "", active: -1, onChange: onChange || null
-    };
-    combos[id] = combo;
+  function comboLabelText(select) {
+    var option = select.options[select.selectedIndex];
+    return option ? option.textContent : "";
+  }
 
-    input.addEventListener("input", function () {
-      combo.value = "";
-      input.dataset.value = "";
-      combo.active = -1;
-      renderCombo(combo, input.value);
-      openCombo(combo);
-      if (combo.onChange) combo.onChange(null);
+  function refreshCombo(select) {
+    if (!select || !select.dataset.comboReady) return;
+    var host = select.closest(".select");
+    if (!host) return;
+    var button = host.querySelector(".combo-button");
+    if (!button) return;
+    var label = button.querySelector(".combo-label");
+    var text = comboLabelText(select);
+    if (label) label.textContent = text || "Pilih…";
+    button.title = text;
+    var fieldLabel = select.id ? document.querySelector('label[for="' + select.id + '"]') : null;
+    button.setAttribute(
+      "aria-label",
+      (fieldLabel ? fieldLabel.textContent.trim() + ": " : "") + (text || "Pilih")
+    );
+    if (comboState.select === select) buildComboList($("#comboSearch").value);
+  }
+
+  function buildComboList(query) {
+    var select = comboState.select;
+    if (!select) return;
+    var q = (query || "").trim().toLowerCase();
+    var options = Array.prototype.map.call(select.options, function (option) {
+      return { value: option.value, label: option.textContent, disabled: option.disabled };
+    }).filter(function (item) {
+      return !item.disabled && (!q || item.label.toLowerCase().indexOf(q) !== -1);
     });
-    input.addEventListener("focus", function () {
-      renderCombo(combo, "");
-      openCombo(combo);
+    comboState.options = options;
+    comboState.active = -1;
+    var selectedValue = select.value;
+    var selectedIndex = -1;
+    options.forEach(function (item, index) {
+      if (item.value === selectedValue) selectedIndex = index;
     });
-    input.addEventListener("keydown", function (event) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    $("#comboList").innerHTML = options.map(function (item, index) {
+      return '<button type="button" class="combo-option" role="option" tabindex="-1" data-index="' + index +
+        '" aria-selected="' + (item.value === selectedValue ? "true" : "false") + '">' +
+        escapeHtml(item.label) + "</button>";
+    }).join("");
+    $("#comboEmpty").hidden = options.length > 0;
+    if (selectedIndex >= 0) setComboActive(selectedIndex, false);
+  }
+
+  function setComboActive(index, scroll) {
+    if (!comboState.options.length) {
+      comboState.active = -1;
+      return;
+    }
+    if (index < 0) index = comboState.options.length - 1;
+    if (index >= comboState.options.length) index = 0;
+    comboState.active = index;
+    $$(".combo-option", $("#comboList")).forEach(function (option, i) {
+      option.classList.toggle("is-active", i === index);
+    });
+    var active = $(".combo-option.is-active", $("#comboList"));
+    if (active && scroll) active.scrollIntoView({ block: "nearest" });
+  }
+
+  function positionCombo() {
+    if (!comboState.select || !comboState.trigger) return;
+    var popup = $("#comboPopup");
+    if (popup.hidden) return;
+    var rect = comboState.trigger.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      closeCombo();
+      return;
+    }
+    var width = Math.min(Math.max(rect.width, 220), window.innerWidth - 24);
+    popup.style.width = width + "px";
+    popup.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) + "px";
+    var height = popup.offsetHeight;
+    var top = rect.bottom + 6;
+    if (top + height > window.innerHeight - 12 && rect.top - height - 6 > 8) {
+      top = rect.top - height - 6;
+    }
+    popup.style.top = Math.max(8, top) + "px";
+  }
+
+  function openCombo(select, trigger) {
+    if (comboState.trigger && comboState.trigger !== trigger) {
+      comboState.trigger.setAttribute("aria-expanded", "false");
+    }
+    comboState.select = select;
+    comboState.trigger = trigger;
+    var popup = $("#comboPopup");
+    popup.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    $("#comboSearch").value = "";
+    buildComboList("");
+    positionCombo();
+    $("#comboSearch").focus();
+  }
+
+  function closeCombo(focusTrigger) {
+    var popup = $("#comboPopup");
+    if (popup.hidden) return;
+    popup.hidden = true;
+    var trigger = comboState.trigger;
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+    comboState.select = null;
+    comboState.trigger = null;
+    comboState.options = [];
+    comboState.active = -1;
+    if (focusTrigger && trigger && document.contains(trigger)) trigger.focus();
+  }
+
+  function chooseComboOption(index) {
+    var item = comboState.options[index];
+    if (!item || !comboState.select) return;
+    var select = comboState.select;
+    var trigger = comboState.trigger;
+    select.value = item.value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    refreshCombo(select);
+    closeCombo(false);
+    if (trigger && document.contains(trigger)) trigger.focus();
+  }
+
+  function enhanceSelect(select) {
+    if (!select || select.dataset.comboReady || select.closest("dialog")) return;
+    var host = select.closest(".select");
+    if (!host) return;
+    select.dataset.comboReady = "1";
+    select.classList.add("combo-native");
+    select.setAttribute("tabindex", "-1");
+    host.classList.add("combo-host");
+    var trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "combo-button";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-controls", "comboPopup");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.innerHTML = '<span class="combo-label"></span>';
+    host.insertBefore(trigger, select);
+    trigger.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (comboState.select === select && !$("#comboPopup").hidden) closeCombo();
+      else openCombo(select, trigger);
+    });
+    var label = select.id ? document.querySelector('label[for="' + select.id + '"]') : null;
+    if (label) {
+      label.addEventListener("click", function (event) {
         event.preventDefault();
-        if (combo.pop.hidden) {
-          renderCombo(combo, "");
-          openCombo(combo);
-        }
-        moveCombo(combo, event.key === "ArrowDown" ? 1 : -1);
+        event.stopPropagation();
+        trigger.focus();
+        trigger.click();
+      });
+    }
+    select.addEventListener("change", function () { refreshCombo(select); });
+    refreshCombo(select);
+  }
+
+  function enhanceAllSelects(root) {
+    $$("select", root || document).forEach(enhanceSelect);
+  }
+
+  function initComboEvents() {
+    $("#comboSearch").addEventListener("input", function () {
+      buildComboList(this.value);
+    });
+    $("#comboSearch").addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setComboActive(comboState.active < 0 ? 0 : comboState.active + 1, true);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setComboActive(
+          comboState.active <= 0 ? comboState.options.length - 1 : comboState.active - 1,
+          true
+        );
       } else if (event.key === "Enter") {
-        if (!combo.pop.hidden && combo.active >= 0) {
-          event.preventDefault();
-          chooseCombo(combo, combo.visible[combo.active]);
-        }
+        event.preventDefault();
+        chooseComboOption(comboState.active >= 0 ? comboState.active : 0);
       } else if (event.key === "Escape") {
-        closeCombo(combo);
-        input.blur();
+        event.preventDefault();
+        closeCombo(true);
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        closeCombo(true);
       }
     });
-    input.addEventListener("blur", function () {
-      window.setTimeout(function () {
-        closeCombo(combo);
-        if (combo.value) return;
-        var typed = input.value.trim().toLowerCase();
-        if (!typed) return;
-        var match = combo.options.filter(function (item) {
-          return item.label.toLowerCase() === typed;
-        })[0];
-        if (match) chooseCombo(combo, match);
-        else input.value = "";
-      }, 120);
+    $("#comboList").addEventListener("click", function (event) {
+      var option = event.target.closest(".combo-option");
+      if (!option) return;
+      chooseComboOption(Number(option.getAttribute("data-index")));
     });
-    if (toggle) {
-      toggle.addEventListener("mousedown", function (event) {
-        event.preventDefault();
-        if (combo.pop.hidden) {
-          renderCombo(combo, "");
-          openCombo(combo);
-          input.focus();
-        } else {
-          closeCombo(combo);
-          input.blur();
-        }
-      });
-    }
     document.addEventListener("click", function (event) {
-      if (!root.contains(event.target)) closeCombo(combo);
+      if ($("#comboPopup").hidden) return;
+      if ($("#comboPopup").contains(event.target)) return;
+      if (comboState.trigger && comboState.trigger.contains(event.target)) return;
+      closeCombo();
     });
-    return combo;
+    window.addEventListener("resize", positionCombo);
+    window.addEventListener("scroll", positionCombo, true);
   }
 
-  function openCombo(combo) {
-    combo.pop.hidden = false;
-    combo.input.setAttribute("aria-expanded", "true");
-  }
-
-  function closeCombo(combo) {
-    combo.pop.hidden = true;
-    combo.input.setAttribute("aria-expanded", "false");
-  }
-
-  function renderCombo(combo, query) {
-    var text = String(query || "").trim().toLowerCase();
-    combo.visible = combo.options.filter(function (item) {
-      return !text || item.label.toLowerCase().indexOf(text) !== -1;
-    });
-    if (combo.active >= combo.visible.length) combo.active = combo.visible.length - 1;
-    var html = combo.visible.map(function (item, index) {
-      return '<div class="combo-item' + (index === combo.active ? " is-active" : "") +
-        '" role="option" data-value="' + escapeHtml(item.value) +
-        '" aria-selected="' + (String(item.value) === String(combo.value) ? "true" : "false") + '">' +
-        escapeHtml(item.label) + "</div>";
-    }).join("");
-    if (!html) html = '<div class="combo-empty">Tidak ada item yang cocok.</div>';
-    combo.list.innerHTML = html;
-    $$(".combo-item", combo.list).forEach(function (node) {
-      node.addEventListener("mousedown", function (event) {
-        event.preventDefault();
-        chooseCombo(combo, itemByValue(combo, node.dataset.value));
-      });
-    });
-  }
-
-  function itemByValue(combo, value) {
-    for (var index = 0; index < combo.options.length; index += 1) {
-      if (String(combo.options[index].value) === String(value)) return combo.options[index];
+  function setSelectOptions(id, items, placeholder) {
+    var select = $("#" + id);
+    if (!select) return;
+    var current = select.value;
+    select.innerHTML = "";
+    if (placeholder) {
+      var head = document.createElement("option");
+      head.value = "";
+      head.textContent = placeholder;
+      select.appendChild(head);
     }
-    return null;
-  }
-
-  function moveCombo(combo, delta) {
-    if (!combo.visible.length) return;
-    combo.active = (combo.active + delta + combo.visible.length) % combo.visible.length;
-    renderCombo(combo, "");
-    var active = $(".combo-item.is-active", combo.list);
-    if (active) active.scrollIntoView({ block: "nearest" });
-  }
-
-  function chooseCombo(combo, item) {
-    if (!item) return;
-    combo.value = item.value;
-    combo.input.value = item.label;
-    combo.input.dataset.value = item.value;
-    closeCombo(combo);
-    if (combo.onChange) combo.onChange(item);
-  }
-
-  function setComboOptions(id, options) {
-    var combo = combos[id];
-    if (!combo) return;
-    combo.options = (options || []).map(function (item) {
-      return { value: item.value, label: item.label, data: item.data };
+    (items || []).forEach(function (item) {
+      var option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      select.appendChild(option);
     });
-    combo.visible = combo.options.slice();
-    if (combo.value && !itemByValue(combo, combo.value)) {
-      combo.value = "";
-      combo.input.value = "";
-      combo.input.dataset.value = "";
-    }
-    renderCombo(combo, "");
+    selectData[id] = items || [];
+    var valid = (items || []).some(function (item) {
+      return String(item.value) === String(current);
+    });
+    select.value = valid ? current : "";
+    refreshCombo(select);
   }
 
-  function getComboValue(id) {
-    return combos[id] ? combos[id].value : "";
+  function getSelectValue(id) {
+    var select = $("#" + id);
+    return select ? select.value : "";
   }
 
-  function getComboItem(id) {
-    var combo = combos[id];
-    return combo ? itemByValue(combo, combo.value) : null;
+  function getSelectItem(id) {
+    var select = $("#" + id);
+    if (!select) return null;
+    return (selectData[id] || []).filter(function (item) {
+      return String(item.value) === String(select.value);
+    })[0] || null;
   }
 
   function loadInstances() {
@@ -2639,6 +2727,7 @@
       });
       select.innerHTML = html.join("");
       if (state.instances.length === 1) select.value = String(state.instances[0].port);
+      refreshCombo(select);
       $("#instanceHint").textContent = data.hint || "";
       renderModelAvailability();
       return data;
@@ -2669,8 +2758,8 @@
       var options = state.workspaces.map(function (item) {
         return { value: item.id, label: item.label, data: item };
       });
-      setComboOptions("modelWorkspaceCombo", options);
-      setComboOptions("reportWorkspaceCombo", options);
+      setSelectOptions("modelWorkspace", options, "Pilih workspace model…");
+      setSelectOptions("reportWorkspace", options, "Pilih workspace report…");
       $("#workspaceHint").textContent = data.hint ||
         "Ketik nama workspace untuk memfilter, atau buka daftar.";
       return data;
@@ -2680,7 +2769,7 @@
   }
 
   function loadModelContents() {
-    var workspaceId = getComboValue("modelWorkspaceCombo");
+    var workspaceId = getSelectValue("modelWorkspace");
     if (!workspaceId || !apiReady()) return Promise.resolve();
     $("#workspaceHint").textContent = "Memuat dataset workspace model…";
     return api().get(
@@ -2689,9 +2778,9 @@
     ).then(function (data) {
       state.datasets = data.datasets || [];
       $("#xmlaEndpoint").value = (data.workspace && data.workspace.endpoint) || "";
-      setComboOptions("catalogCombo", state.datasets.map(function (item) {
+      setSelectOptions("catalog", state.datasets.map(function (item) {
         return { value: item.name, label: item.name, data: item };
-      }));
+      }), "Pilih dataset…");
       $("#workspaceHint").textContent = state.datasets.length
         ? "Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog."
         : "Workspace model ini tidak punya dataset yang bisa dibaca.";
@@ -2703,7 +2792,7 @@
   }
 
   function loadReportContents() {
-    var workspaceId = getComboValue("reportWorkspaceCombo");
+    var workspaceId = getSelectValue("reportWorkspace");
     if (!workspaceId || !apiReady()) return Promise.resolve();
     $("#reportHint").textContent = "Memuat report workspace…";
     return api().get(
@@ -2711,9 +2800,9 @@
       "/contents?datasets=false&reports=true"
     ).then(function (data) {
       state.reports = data.reports || [];
-      setComboOptions("reportCombo", state.reports.map(function (item) {
+      setSelectOptions("serviceReport", state.reports.map(function (item) {
         return { value: item.id, label: item.label, data: item };
-      }));
+      }), "Pilih report…");
       $("#reportHint").textContent = state.reports.length
         ? "Report paginated (RDL) ditandai dan tidak bisa diekstrak."
         : "Workspace report ini tidak punya report yang bisa diekstrak.";
@@ -2777,22 +2866,22 @@
       out_dir: $("#outFolder").value.trim()
     };
     if (payload.source === "service") {
-      var modelItem = getComboItem("modelWorkspaceCombo");
-      var reportWorkspace = getComboItem("reportWorkspaceCombo");
-      var reportItem = getComboItem("reportCombo");
+      var modelItem = getSelectItem("modelWorkspace");
+      var reportWorkspace = getSelectItem("reportWorkspace");
+      var reportItem = getSelectItem("serviceReport");
       var report = reportItem ? reportItem.data : null;
-      payload.model_workspace_id = getComboValue("modelWorkspaceCombo");
+      payload.model_workspace_id = getSelectValue("modelWorkspace");
       payload.model_workspace_name = modelItem ? modelItem.data.name : "";
-      payload.report_workspace_id = getComboValue("reportWorkspaceCombo");
+      payload.report_workspace_id = getSelectValue("reportWorkspace");
       payload.report_workspace_name = reportWorkspace
         ? reportWorkspace.data.name
         : "";
       payload.endpoint = $("#xmlaEndpoint").value.trim();
-      payload.report_id = getComboValue("reportCombo");
+      payload.report_id = getSelectValue("serviceReport");
       payload.report_name = report ? report.name : "";
       payload.report_type = report ? report.report_type : "";
       payload.dataset_id = report ? report.dataset_id : "";
-      payload.catalog = getComboValue("catalogCombo");
+      payload.catalog = getSelectValue("catalog");
       payload.dataset_name = payload.catalog;
       payload.workspace_id = payload.report_workspace_id;
       payload.workspace_name = payload.report_workspace_name;
@@ -2872,6 +2961,8 @@
   }
 
   function init() {
+    initComboEvents();
+    enhanceAllSelects();
     applyTheme(state.theme, false);
     applyMotion(state.motion, false);
     setSource(state.source);
@@ -2920,14 +3011,14 @@
 
     $("#reloadWorkspaces").addEventListener("click", function () {
       loadWorkspaces().then(function () {
-        if (getComboValue("modelWorkspaceCombo")) loadModelContents();
-        if (getComboValue("reportWorkspaceCombo")) loadReportContents();
+        if (getSelectValue("modelWorkspace")) loadModelContents();
+        if (getSelectValue("reportWorkspace")) loadReportContents();
         toast("Katalog workspace dimuat");
       });
     });
 
     $("#reloadReport").addEventListener("click", function () {
-      if (!getComboValue("reportWorkspaceCombo")) {
+      if (!getSelectValue("reportWorkspace")) {
         toast("Pilih workspace report lebih dulu");
         return;
       }
@@ -2945,32 +3036,35 @@
       renderModelAvailability();
     });
 
-    setupCombo("modelWorkspaceCombo", function (item) {
-      if (!item) {
+    $("#modelWorkspace").addEventListener("change", function () {
+      if (!this.value) {
         $("#xmlaEndpoint").value = "";
-        setComboOptions("catalogCombo", []);
+        setSelectOptions("catalog", [], "Pilih dataset…");
         $("#workspaceHint").textContent = "";
         return;
       }
       loadModelContents();
     });
 
-    setupCombo("reportWorkspaceCombo", function (item) {
-      if (!item) {
-        setComboOptions("reportCombo", []);
+    $("#reportWorkspace").addEventListener("change", function () {
+      if (!this.value) {
+        setSelectOptions("serviceReport", [], "Pilih report…");
         $("#reportHint").textContent = "";
         return;
       }
       loadReportContents();
     });
 
-    setupCombo("catalogCombo", function (item) {
+    $("#catalog").addEventListener("change", function () {
+      var item = getSelectItem("catalog");
       if (item && item.data) {
         $("#workspaceHint").textContent =
           "Catalog " + item.data.name + " dipakai dari workspace model ini.";
       }
     });
-    setupCombo("reportCombo", function (item) {
+
+    $("#serviceReport").addEventListener("change", function () {
+      var item = getSelectItem("serviceReport");
       if (item && item.data) applyReportDefaults(item.data);
     });
 
