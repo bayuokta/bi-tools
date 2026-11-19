@@ -91,6 +91,11 @@
     analysisRunning: false,
     reportDetail: {},
     reportLoading: {},
+    partitions: null,
+    partitionLoaded: false,
+    partitionSelected: {},
+    partitionRunning: false,
+    partitionStateLoaded: false,
     relView: "graph",
     relSelected: null,
     relZoom: 1,
@@ -236,6 +241,7 @@
     if (state.settings) renderSettings(state.settings);
     if (state.tsd) renderTsdState(state.tsd);
     if (state.analysis !== undefined) analysisRender();
+    if (state.partitions !== null) partitionRender();
     if (state.lineageGraph) {
       lineageRenderGraph();
       if (state.selectedId && state.lineageNodesLive[state.selectedId]) {
@@ -297,6 +303,9 @@
     if (heading) heading.focus({ preventScroll: true });
     if (name === "lineage" && state.lineageHasDb && !state.lineageData) {
       lineageLoadState();
+    }
+    if (name === "partisi" && !state.partitionStateLoaded) {
+      partitionLoadState();
     }
   }
 
@@ -569,6 +578,9 @@
       $("#stopAnalyze").hidden = true;
       $("#runAnalyze").disabled = false;
     }
+    if (options.kind === "partitions-inventory" || options.kind === "partitions-refresh") {
+      state.partitionRunning = false;
+    }
     if (options.kind === "tsd" || options.kind === "tsd_capture") {
       if (state.tsdTimer) {
         window.clearInterval(state.tsdTimer);
@@ -745,6 +757,7 @@
     loadWorkspaces();
     loadTsdState();
     analysisLoad();
+    partitionLoadState();
     lineageLoadState();
   }
 
@@ -3476,6 +3489,266 @@
     }).catch(reportError);
   }
 
+  // -- Partisi ------------------------------------------------------------
+  function partitionRows() {
+    return (state.partitions && state.partitions.partitions) || [];
+  }
+
+  function partitionSelectedRows() {
+    return partitionRows().filter(function (_row, index) {
+      return Boolean(state.partitionSelected[index]);
+    });
+  }
+
+  function partitionTime(value) {
+    var text = String(value || "").replace("T", " ");
+    return text ? text.slice(0, 19) : "-";
+  }
+
+  function partitionRefreshLabel(value) {
+    var select = $("#partitionRefreshType");
+    if (!select) return value;
+    var option = select.options[select.selectedIndex];
+    return option ? option.textContent : value;
+  }
+
+  function partitionLoadState() {
+    if (!apiReady()) return Promise.resolve();
+    return api().get("/api/partitions/state").then(function (data) {
+      state.partitionStateLoaded = true;
+      setSelectOptions(
+        "partitionWsSelect",
+        (data.workspaces || []).map(function (item) {
+          return { value: item.id, label: item.label, data: item };
+        }),
+        "Choose a workspace…"
+      );
+      setSelectOptions("partitionDatasetSelect", [], "Choose a semantic model…");
+      var missing = data.credentials_missing || [];
+      setChip(
+        $("#partitionSourceChip"),
+        missing.length ? "warn" : "idle",
+        missing.length ? t("Credentials are incomplete") : t("Not loaded")
+      );
+      $("#partitionHint").textContent = tr(data.hint) || "";
+      partitionRender();
+      return data;
+    }).catch(function (error) {
+      addLog(t("Partition catalog could not be read: ") + error.message, "warn");
+    });
+  }
+
+  function partitionLoadDatasets() {
+    var workspaceId = getSelectValue("partitionWsSelect");
+    state.partitions = null;
+    state.partitionLoaded = false;
+    state.partitionSelected = {};
+    if (!workspaceId || !apiReady()) {
+      setSelectOptions("partitionDatasetSelect", [], "Choose a semantic model…");
+      partitionRender();
+      return Promise.resolve();
+    }
+    setSelectOptions("partitionDatasetSelect", [], "Loading semantic models…");
+    return api().get(
+      "/api/partitions/workspaces/" + encodeURIComponent(workspaceId) + "/datasets"
+    ).then(function (data) {
+      setSelectOptions(
+        "partitionDatasetSelect",
+        (data.datasets || []).map(function (item) {
+          return { value: item.id, label: item.name, data: item };
+        }),
+        "Choose a semantic model…"
+      );
+      partitionRender();
+      return data;
+    }).catch(function (error) {
+      setSelectOptions("partitionDatasetSelect", [], "Choose a semantic model…");
+      reportError(error);
+    });
+  }
+
+  function partitionApply(result) {
+    state.partitions = result;
+    state.partitionLoaded = true;
+    state.partitionSelected = {};
+    var rows = partitionRows();
+    var tables = {};
+    rows.forEach(function (row) { tables[row.table] = true; });
+    var stamp = partitionTime(result.loaded_at);
+    $("#partitionSummary").textContent =
+      fmtInt(rows.length) + t(" partitions · ") +
+      fmtInt(Object.keys(tables).length) + t(" tables · ") + stamp;
+    setChip($("#partitionSourceChip"), "ok", t("Loaded via XMLA"));
+    var warnings = result.warnings || [];
+    $("#partitionHint").textContent = warnings.length
+      ? warnings.map(tr).join(" · ")
+      : t("Inventory loaded. Select partitions, choose a refresh type, then process.");
+    partitionRender();
+  }
+
+  function partitionRender() {
+    var rows = partitionRows();
+    var wrap = $("#partitionTableWrap");
+    var empty = $("#partitionEmptyState");
+    var count = partitionSelectedRows().length;
+    $("#processSelectedPartitions").disabled = count === 0;
+    $("#partitionSelectionSummary").textContent = count
+      ? fmtInt(count) + t(count === 1 ? " partition selected" : " partitions selected")
+      : t("No partitions selected");
+    $("#partitionSelectAll").checked = rows.length > 0 && count === rows.length;
+    $("#partitionSelectAll").indeterminate = count > 0 && count < rows.length;
+    if (!rows.length) {
+      wrap.hidden = true;
+      empty.hidden = false;
+      $("#partitionSummary").textContent = state.partitionLoaded
+        ? t("No partitions found")
+        : t("Not loaded yet");
+      return;
+    }
+    wrap.hidden = false;
+    empty.hidden = true;
+    $("#partitionBody").innerHTML = rows.map(function (row, index) {
+      var selected = Boolean(state.partitionSelected[index]);
+      var rowsText = row.rows == null ? "-" : fmtInt(row.rows);
+      var range = row.range || "-";
+      var rangeTitle = row.range_source
+        ? t("Range source: ") + row.range_source
+        : "";
+      return '<tr data-part-index="' + index + '"' +
+        (selected ? ' class="is-selected"' : "") + ">" +
+        '<td><input type="checkbox" class="partition-check" data-index="' + index +
+        '" aria-label="' + escapeHtml(t("Select partition ") + row.table + " / " + row.partition) +
+        '"' + (selected ? " checked" : "") + "></td>" +
+        '<td class="cell-name" title="' + escapeHtml(row.table || "") + '">' +
+        escapeHtml(row.table || "") + "</td>" +
+        '<td class="cell-name" title="' + escapeHtml(row.partition || "") + '">' +
+        escapeHtml(row.partition || "") + "</td>" +
+        '<td class="cell-num">' + rowsText + "</td>" +
+        '<td title="' + escapeHtml(rangeTitle) + '">' + escapeHtml(range) + "</td>" +
+        "<td>" + escapeHtml(row.mode || "-") + "</td>" +
+        "<td>" + escapeHtml(row.source_type || "-") + "</td>" +
+        "<td>" + escapeHtml(row.state || "-") + "</td>" +
+        "<td>" + escapeHtml(partitionTime(row.last_processed)) + "</td>" +
+        "<td>" + escapeHtml(partitionTime(row.modified)) + "</td>" +
+        "</tr>";
+    }).join("");
+    if (!state.partitionLoaded) {
+      $("#partitionSummary").textContent = t("Not loaded yet");
+    }
+  }
+
+  function partitionToggleAll(checked) {
+    state.partitionSelected = {};
+    if (checked) {
+      partitionRows().forEach(function (_row, index) {
+        state.partitionSelected[index] = true;
+      });
+    }
+    partitionRender();
+  }
+
+  function partitionOpenConfirm() {
+    var selected = partitionSelectedRows();
+    if (!selected.length) {
+      toast(t("Select at least one partition first"));
+      return;
+    }
+    $("#partitionDialogCount").textContent =
+      fmtInt(selected.length) +
+      t(selected.length === 1
+        ? " partition will be processed."
+        : " partitions will be processed.");
+    $("#partitionDialogTargets").innerHTML = selected.map(function (row) {
+      return "<div>" + escapeHtml(row.table + " / " + row.partition) + "</div>";
+    }).join("");
+    $("#partitionDialogType").textContent =
+      t("Refresh type: ") + partitionRefreshLabel(getSelectValue("partitionRefreshType"));
+    $("#partitionConfirmCheck").checked = false;
+    $("#partitionConfirmText").value = "";
+    $("#partitionConfirmError").hidden = true;
+    $("#partitionConfirmError").textContent = "";
+    $("#partitionDialog").showModal();
+    $("#partitionConfirmText").focus();
+  }
+
+  function partitionCloseDialog() {
+    var dialog = $("#partitionDialog");
+    if (dialog.open) dialog.close();
+  }
+
+  function partitionConfirmProcess() {
+    if (!$("#partitionConfirmCheck").checked) {
+      $("#partitionConfirmError").textContent =
+        t("Check the acknowledgement first.");
+      $("#partitionConfirmError").hidden = false;
+      return;
+    }
+    if ($("#partitionConfirmText").value.trim().toUpperCase() !== "PROCESS") {
+      $("#partitionConfirmError").textContent = t("Type PROCESS to confirm.");
+      $("#partitionConfirmError").hidden = false;
+      return;
+    }
+    var selected = partitionSelectedRows();
+    if (!selected.length) {
+      partitionCloseDialog();
+      toast(t("Select at least one partition first"));
+      return;
+    }
+    if (state.jobId) {
+      toast(t("Another job is still running"));
+      return;
+    }
+    partitionCloseDialog();
+    state.partitionRunning = true;
+    startJob({
+      kind: "partitions-refresh",
+      path: "/api/partitions/refresh",
+      body: {
+        workspace_id: getSelectValue("partitionWsSelect"),
+        dataset_id: getSelectValue("partitionDatasetSelect"),
+        refresh_type: getSelectValue("partitionRefreshType"),
+        confirmation: "PROCESS",
+        targets: selected.map(function (row) {
+          return { table: row.table, partition: row.partition };
+        })
+      },
+      label: t("Refresh partitions"),
+      button: $("#processSelectedPartitions"),
+      onDone: function (snapshot) {
+        state.partitionRunning = false;
+        if (snapshot.result) {
+          partitionApply(snapshot.result);
+          toast(tr((snapshot.result.refresh || {}).message) ||
+            t("Partition refresh completed."));
+        }
+      }
+    });
+  }
+
+  function partitionLoadInventory() {
+    var workspaceId = getSelectValue("partitionWsSelect");
+    var datasetId = getSelectValue("partitionDatasetSelect");
+    if (!workspaceId || !datasetId) {
+      toast(t("Choose a workspace and semantic model first"));
+      return;
+    }
+    if (state.partitionRunning || state.jobId) {
+      toast(t("Another job is still running"));
+      return;
+    }
+    state.partitionRunning = true;
+    startJob({
+      kind: "partitions-inventory",
+      path: "/api/partitions/inventory",
+      body: { workspace_id: workspaceId, dataset_id: datasetId },
+      label: t("Load partition inventory"),
+      button: $("#reloadPartitions"),
+      onDone: function (snapshot) {
+        if (snapshot.result) partitionApply(snapshot.result);
+      }
+    });
+  }
+
   // -- Lineage ------------------------------------------------------------
   function lineageLoadState() {
     if (!apiReady()) return Promise.resolve();
@@ -4179,6 +4452,45 @@
       analysisRender();
     });
     $("#exportXlsx").addEventListener("click", analysisExport);
+
+    $("#reloadPartitions").addEventListener("click", partitionLoadInventory);
+    $("#partitionsFromEmpty").addEventListener("click", partitionLoadInventory);
+    $("#processSelectedPartitions").addEventListener("click", partitionOpenConfirm);
+    $("#reloadPartitionDatasets").addEventListener("click", function () {
+      if (!getSelectValue("partitionWsSelect")) {
+        toast(t("Choose a workspace first"));
+        return;
+      }
+      partitionLoadDatasets().then(function () {
+        toast(t("Semantic model list reloaded"));
+      });
+    });
+    $("#partitionWsSelect").addEventListener("change", function () {
+      partitionLoadDatasets();
+    });
+    $("#partitionDatasetSelect").addEventListener("change", function () {
+      state.partitions = null;
+      state.partitionLoaded = false;
+      state.partitionSelected = {};
+      partitionRender();
+    });
+    $("#partitionSelectAll").addEventListener("change", function () {
+      partitionToggleAll(this.checked);
+    });
+    $("#partitionBody").addEventListener("change", function (event) {
+      var input = event.target.closest(".partition-check");
+      if (!input) return;
+      var index = String(input.getAttribute("data-index"));
+      if (input.checked) state.partitionSelected[index] = true;
+      else delete state.partitionSelected[index];
+      partitionRender();
+    });
+    $("#closePartitionDialog").addEventListener("click", partitionCloseDialog);
+    $("#cancelPartitionDialog").addEventListener("click", partitionCloseDialog);
+    $("#confirmPartitionDialog").addEventListener("click", partitionConfirmProcess);
+    $("#partitionDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) partitionCloseDialog();
+    });
 
     $$("#analyzeTabs [role='tab']").forEach(function (tab) {
       tab.addEventListener("click", function () {

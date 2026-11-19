@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
 
@@ -62,6 +63,20 @@ def _resolve(name: str, env_var: str) -> Path:
             # Folder belum ada; dibuat saat tulisan pertama.
             return base / name
     return APP_DIR / name
+
+
+def cli_argv(args: Sequence[str]) -> list[str]:
+    """Argumen untuk menjalankan perintah CLI dari proses server.
+
+    Saat source, CLI dijalankan lewat ``python -m cli``; saat paket, executable
+    ``bi-tools-cli.exe`` berada di folder yang sama dengan server. Dipakai untuk
+    memisahkan ADOMD/DMV dari TOM dalam proses terpisah.
+    """
+    values = [str(item) for item in args]
+    if getattr(sys, "frozen", False):
+        cli = Path(sys.executable).resolve().with_name("bi-tools-cli.exe")
+        return [str(cli), *values]
+    return [sys.executable, "-m", "cli", *values]
 
 
 @lru_cache(maxsize=8)

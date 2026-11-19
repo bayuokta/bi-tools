@@ -7,6 +7,44 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-19 - Rilis 0.4.2
+
+Menambahkan halaman **Partisi** yang berfungsi penuh dan perintah CLI `partition`.
+
+### Inventaris partisi
+
+- Daftar partisi dibaca dari TOM/XMLA: tabel, partisi, jumlah baris, range,
+  mode, tipe source, state, waktu proses terakhir, dan modified time.
+- Jumlah baris diambil dari DMV `DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS`
+  (`RECORDS_COUNT` terbesar per partisi). ADOMD dan TOM memakai versi assembly
+  `Microsoft.AnalysisServices` yang tidak kompatibel dalam satu proses, sehingga
+  DMV dijalankan lewat proses CLI `partition --dmv-json`; token dikirim melalui
+  stdin, bukan argumen atau file.
+- Range bersifat best-effort dari literal M (`RangeStart`/`RangeEnd`) lalu pola
+  tanggal pada nama partisi. Bila tidak ditemukan, UI menampilkan `-` dan tidak
+  mengarang nilai.
+- DLL TOM/MSAL net472 dibundel di `libs\tom\`; ADOMD tetap di `libs\`.
+
+### Refresh partisi
+
+- **Process selected** mengirim satu perintah TMSL untuk semua partisi terpilih.
+  Semua 8 jenis refresh tersedia: `full`, `automatic`, `dataOnly`,
+  `clearValues`, `calculate`, `add`, `defragment`, `indexes`.
+- `add` ditolak untuk calculated partition dan DirectQuery; `defragment`
+  dikirim sebagai objek tabel tanpa partisi.
+- Konfirmasi web memerlukan checkbox dan mengetik **PROCESS**; CLI memerlukan
+  `--yes`. Satu perintah TMSL tidak bisa dibatalkan setelah dikirim.
+- Status partisi dibaca ulang setelah eksekusi; tidak ada perubahan metadata,
+  query M, atau refresh policy.
+
+### CLI dan pengujian
+
+- Perintah baru: `bi-tools-cli partition --workspace-id ... --dataset-id ... --list`
+  dan `--table`/`--partition` + `--refresh-type` + `--yes`.
+- Suite menjadi 645 tes (636 lulus, 9 skip); uji baru mencakup TMSL, parser
+  range, row count per partisi, presenter/endpoint, dan CLI tanpa .NET/network.
+- Smoke test live: 39 partisi dan 39 row count terbaca dari model uji, 0 warning.
+
 ## 2026-11-19 - Rilis 0.4.1
 
 Rilis ini menyempurnakan halaman Analisa dan Lineage, menambahkan pemilih

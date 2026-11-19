@@ -411,6 +411,30 @@ def normalize_powerbi_endpoint(value: str, *, readonly: bool = True) -> str:
     return 'Data Source="{}"'.format(url.replace('"', '""'))
 
 
+def readwrite_endpoint(value: str) -> str:
+    """Kembalikan endpoint XMLA tanpa suffix ``?readonly``.
+
+    Jalur tulis (TOM ``Server.Execute``) membutuhkan endpoint read-write.
+    Endpoint turunan :func:`workspace_endpoint` tidak menambahkan query, tetapi
+    nilai lama/katalog bisa membawa ``?readonly``; query itu harus dibuang agar
+    Power BI tidak membuka koneksi baca-saja.
+    """
+    text = str(value or "").strip()
+    if not text or "=" in text:
+        return text
+    if not text.lower().startswith(CLOUD_XMLA):
+        return text
+    parsed = urlparse(text)
+    query = "&".join(
+        part
+        for part in parsed.query.split("&")
+        if part and not part.lower().startswith(("readonly", "readwrite"))
+    )
+    return urlunparse(
+        (parsed.scheme, parsed.netloc, parsed.path, parsed.params, query, parsed.fragment)
+    )
+
+
 def connection_catalog(connection_string: str) -> str:
     """Nama catalog yang sudah tertulis di connection string (bila ada)."""
     match = re.search(

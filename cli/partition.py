@@ -1,0 +1,229 @@
+"""CLI inventaris dan refresh partisi semantic model via XMLA/TOM.
+
+Contoh::
+
+    python -m cli partition --workspace-id <ws> --dataset-id <ds> --list
+    python -m cli partition --workspace-id <ws> --dataset-id <ds> \
+        --table "Fact Sales" --partition "Fact Sales 2025" --refresh-type full --yes
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+from core.auth import ServicePrincipal, Token
+from core.column_stats import STORAGE_DMV
+from core.errors import ExtractionError
+from core.lineage_store import DEFAULT_DB
+from core.partition_service import process_partitions, read_partition_inventory
+from core.requests import PARTITION_CONFIRMATION, PartitionRefreshRequest
+from core.usage_service import resolve_names
+from core.xmla_client import open_client
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Inventaris partisi semantic model Power BI Service dan refresh "
+            "partisi terpilih lewat XMLA/TOM."
+        ),
+        allow_abbrev=False,
+    )
+    parser.add_argument("--workspace-id", help="Workspace ID (GUID).")
+    parser.add_argument("--dataset-id", help="Semantic model ID (GUID).")
+    parser.add_argument("--workspace-name", help="Nama workspace (default: katalog SQLite).")
+    parser.add_argument("--dataset-name", help="Nama semantic model (default: katalog SQLite).")
+    parser.add_argument("--db", help=f"Database SQLite (default: {DEFAULT_DB}).")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Hanya tampilkan inventaris partisi (tanpa refresh).",
+    )
+    parser.add_argument(
+        "--table",
+        action="append",
+        default=[],
+        help="Nama tabel target; ulangi berpasangan dengan --partition.",
+    )
+    parser.add_argument(
+        "--partition",
+        action="append",
+        default=[],
+        help="Nama partisi target; ulangi berpasangan dengan --table.",
+    )
+    parser.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        help="Target alternatif 'Table|Partition'; boleh diulang.",
+    )
+    parser.add_argument(
+        "--refresh-type",
+        default="full",
+        help=(
+            "full | automatic | dataOnly | clearValues | calculate | add | "
+            "defragment | indexes"
+        ),
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help=f"Wajib untuk refresh; setara mengetik {PARTITION_CONFIRMATION}.",
+    )
+    # Mode internal: mengambil DMV di proses terpisah agar ADOMD tidak dimuat
+    # bersama TOM (dua assembly Microsoft.AnalysisServices saling bentrok).
+    parser.add_argument("--dmv-json", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--endpoint", help=argparse.SUPPRESS)
+    parser.add_argument("--catalog", help=argparse.SUPPRESS)
+    return parser.parse_args(argv)
+
+
+class _StaticTokens:
+    """Token tunggal untuk mode ``--dmv-json`` (tanpa MSAL di proses anak)."""
+
+    def __init__(self, value: str, expires_on: int) -> None:
+        self._token = Token(value=value, expires_on=expires_on)
+
+    def get(self, _scope: str, *, force: bool = False) -> Token:
+        return self._token
+
+
+def _dmv_json(args: argparse.Namespace) -> int:
+    """Ambil segmen VertiPaq dan cetak JSON; dipanggil dari proses server."""
+    endpoint = str(args.endpoint or "").strip()
+    catalog = str(args.catalog or "").strip()
+    if not endpoint or not catalog:
+        raise ExtractionError("Mode --dmv-json membutuhkan --endpoint dan --catalog.")
+    try:
+        payload = json.loads(sys.stdin.read() or "{}")
+    except ValueError as exc:
+        raise ExtractionError(f"Payload token --dmv-json tidak valid: {exc}") from exc
+    token = str((payload or {}).get("token") or "").strip()
+    if not token:
+        raise ExtractionError("Token --dmv-json kosong.")
+    expires_on = int((payload or {}).get("expires_on") or (time.time() + 3000))
+    tokens = _StaticTokens(token, expires_on)
+    with open_client(endpoint=endpoint, catalog=catalog, tokens=tokens) as client:
+        rows = client.query(STORAGE_DMV)
+    # ASCII agar aman di pipe Windows dengan encoding console yang berbeda.
+    print(json.dumps(rows, ensure_ascii=True, default=str))
+    return 0
+
+
+def _names(args: argparse.Namespace) -> tuple[str, str]:
+    workspace_name = str(args.workspace_name or "").strip()
+    dataset_name = str(args.dataset_name or "").strip()
+    if workspace_name and dataset_name:
+        return workspace_name, dataset_name
+    database = Path(args.db) if args.db else DEFAULT_DB
+    from_catalog_ws, from_catalog_ds = resolve_names(
+        database, args.workspace_id, args.dataset_id
+    )
+    return workspace_name or from_catalog_ws, dataset_name or from_catalog_ds
+
+
+def _targets(args: argparse.Namespace) -> tuple[tuple[str, str], ...]:
+    tables = [str(item).strip() for item in args.table]
+    partitions = [str(item).strip() for item in args.partition]
+    if len(tables) != len(partitions):
+        raise ExtractionError(
+            "Jumlah --table dan --partition harus sama dan berpasangan."
+        )
+    pairs = list(zip(tables, partitions))
+    for item in args.target:
+        text = str(item or "")
+        if "|" not in text:
+            raise ExtractionError(
+                f"Format --target harus 'Table|Partition': {text!r}"
+            )
+        table, partition = text.split("|", 1)
+        pairs.append((table.strip(), partition.strip()))
+    if not pairs:
+        raise ExtractionError("Sebutkan --table/--partition atau --target untuk refresh.")
+    return tuple(pairs)
+
+
+def _print_inventory(payload: dict[str, Any]) -> None:
+    dataset = payload.get("dataset") or {}
+    print(f"Workspace    : {(payload.get('workspace') or {}).get('name', '')}")
+    print(f"Model        : {dataset.get('name', '')}")
+    print(f"Endpoint     : {payload.get('endpoint', '')}")
+    print(f"Partisi      : {len(payload.get('partitions') or [])}")
+    print()
+    print(f"{'Table':<28} {'Partition':<34} {'Rows':>10} {'Range':<24} {'State':<12} Last processed")
+    print("-" * 128)
+    for row in payload.get("partitions") or []:
+        rows = row.get("rows")
+        print(
+            f"{str(row.get('table') or ''):<28} "
+            f"{str(row.get('partition') or ''):<34} "
+            f"{(rows if rows is not None else '-'):>10} "
+            f"{str(row.get('range') or '-'):<24} "
+            f"{str(row.get('state') or '-'):<12} "
+            f"{row.get('last_processed') or '-'}"
+        )
+    for warning in payload.get("warnings") or []:
+        print(f"CATATAN: {warning}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        if args.dmv_json:
+            return _dmv_json(args)
+        if not args.workspace_id or not args.dataset_id:
+            raise ExtractionError("--workspace-id dan --dataset-id wajib diisi.")
+        workspace_name, dataset_name = _names(args)
+        if not workspace_name or not dataset_name:
+            raise ExtractionError(
+                "Nama workspace/model tidak ditemukan di katalog SQLite; isi "
+                "--workspace-name dan --dataset-name."
+            )
+        principal = ServicePrincipal.from_env()
+        if args.list:
+            payload = read_partition_inventory(
+                workspace_id=args.workspace_id,
+                workspace_name=workspace_name,
+                dataset_id=args.dataset_id,
+                dataset_name=dataset_name,
+                principal=principal,
+                log=print,
+            )
+            _print_inventory(payload)
+            return 0
+
+        if not args.yes:
+            raise ExtractionError(
+                f"Refresh mengubah data model. Tambahkan --yes (konfirmasi "
+                f"{PARTITION_CONFIRMATION}) untuk melanjutkan."
+            )
+        request = PartitionRefreshRequest(
+            workspace_id=args.workspace_id,
+            dataset_id=args.dataset_id,
+            workspace_name=workspace_name,
+            dataset_name=dataset_name,
+            targets=_targets(args),
+            refresh_type=args.refresh_type,
+            confirmation=PARTITION_CONFIRMATION,
+        )
+        payload = process_partitions(
+            **request.to_refresh_kwargs(),
+            principal=principal,
+            log=print,
+        )
+        print()
+        print(payload.get("refresh", {}).get("message", "Refresh selesai."))
+        _print_inventory(payload)
+        return 0
+    except ExtractionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -794,12 +794,62 @@
         <section class="view" id="view-partisi" aria-labelledby="titlePartisi" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow" data-i18n="Tools · diagnostics">Tools · diagnostics</div>
+              <div class="view-eyebrow" data-i18n="Tools · write access">Tools · write access</div>
               <h1 class="view-title" id="titlePartisi" tabindex="-1" data-i18n="Semantic model partitions">Semantic model partitions</h1>
-              <p class="view-sub" data-i18n="Table partition inventory from Power BI Service: row counts, ranges, status, and last processed time.">Table partition inventory from Power BI Service: row counts, ranges, status, and last processed time.</p>
+              <p class="view-sub" data-i18n="Partition inventory from Power BI Service via XMLA. Load the inventory, select partitions, then process them. Processing changes model data.">Partition inventory from Power BI Service via XMLA. Load the inventory, select partitions, then process them. Processing changes model data.</p>
             </div>
             <div class="view-actions">
+              <button class="btn" id="reloadPartitions" type="button" data-i18n="Load inventory">Load inventory</button>
               <button class="btn btn-primary" id="processSelectedPartitions" type="button" disabled="" data-i18n="Process selected">Process selected</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title" data-i18n="Source &amp; options">Source &amp; options</span>
+              <div class="spacer"></div>
+              <span class="chip chip-idle" id="partitionSourceChip"><span class="dot"></span><span data-i18n="Not loaded">Not loaded</span></span>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid form-grid--source">
+                <div class="field">
+                  <label for="partitionWsSelect">Workspace</label>
+                  <div class="row-inline">
+                    <div class="select">
+                      <select id="partitionWsSelect">
+                        <option value="" data-i18n="Choose a workspace…">Choose a workspace…</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="partitionDatasetSelect">Semantic model</label>
+                  <div class="row-inline">
+                    <div class="select">
+                      <select id="partitionDatasetSelect">
+                        <option value="" data-i18n="Choose a semantic model…">Choose a semantic model…</option>
+                      </select>
+                    </div>
+                    <button class="btn btn-sm" type="button" id="reloadPartitionDatasets" data-i18n="Reload">Reload</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="partitionRefreshType" data-i18n="Refresh type">Refresh type</label>
+                  <div class="select">
+                    <select id="partitionRefreshType">
+                      <option value="full" data-i18n="Full">Full</option>
+                      <option value="automatic" data-i18n="Automatic">Automatic</option>
+                      <option value="dataOnly" data-i18n="Data only">Data only</option>
+                      <option value="clearValues" data-i18n="Clear values">Clear values</option>
+                      <option value="calculate" data-i18n="Calculate">Calculate</option>
+                      <option value="add" data-i18n="Add">Add</option>
+                      <option value="defragment" data-i18n="Defragment">Defragment</option>
+                      <option value="indexes" data-i18n="Indexes">Indexes</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <p class="helper" id="partitionHint"></p>
             </div>
           </div>
 
@@ -807,12 +857,51 @@
             <div class="panel-head">
               <span class="panel-title" data-i18n="Partition inventory">Partition inventory</span>
               <div class="spacer"></div>
-              <span class="chip chip-idle" id="partitionSourceChip"><span class="dot"></span><span data-i18n="Not available yet">Not available yet</span></span>
+              <span class="helper" id="partitionSummary" data-i18n="Not loaded yet">Not loaded yet</span>
             </div>
             <div class="panel-body">
+              <div class="table-scroll" id="partitionTableWrap" hidden="">
+                <table class="data" id="partitionTable">
+                  <colgroup>
+                    <col style="width:38px">
+                    <col style="width:20%">
+                    <col style="width:24%">
+                    <col style="width:92px">
+                    <col style="width:180px">
+                    <col style="width:110px">
+                    <col style="width:140px">
+                    <col style="width:100px">
+                    <col style="width:160px">
+                    <col style="width:160px">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th><input type="checkbox" id="partitionSelectAll" aria-label="Select all partitions" data-i18n-aria-label="Select all partitions"></th>
+                      <th data-i18n="Table">Table</th>
+                      <th data-i18n="Partition">Partition</th>
+                      <th data-i18n="Rows">Rows</th>
+                      <th data-i18n="Range">Range</th>
+                      <th data-i18n="Mode">Mode</th>
+                      <th data-i18n="Source">Source</th>
+                      <th data-i18n="State">State</th>
+                      <th data-i18n="Last processed">Last processed</th>
+                      <th data-i18n="Modified">Modified</th>
+                    </tr>
+                  </thead>
+                  <tbody id="partitionBody"></tbody>
+                </table>
+              </div>
               <div class="empty" id="partitionEmptyState">
+                <span class="empty-icon" aria-hidden="true">
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path><path d="M8 5v14"></path></svg>
+                </span>
                 <div class="empty-title" data-i18n="Partition inventory is not available yet">Partition inventory is not available yet</div>
-                <p class="empty-text" data-i18n="Partition metadata will be read from XMLA (row counts, ranges, status, and processed time) in a later stage. This page uses no sample data.">Partition metadata will be read from XMLA (row counts, ranges, status, and processed time) in a later stage. This page uses no sample data.</p>
+                <p class="empty-text" data-i18n="Choose a workspace and semantic model, then load the inventory. The table is read from XMLA and no sample data is used.">Choose a workspace and semantic model, then load the inventory. The table is read from XMLA and no sample data is used.</p>
+                <button class="btn btn-sm" id="partitionsFromEmpty" type="button" data-i18n="Load inventory">Load inventory</button>
+              </div>
+              <div class="panel-foot" style="justify-content:space-between">
+                <span class="helper" id="partitionSelectionSummary" data-i18n="No partitions selected">No partitions selected</span>
+                <span class="helper" data-i18n="Processing writes to the semantic model and cannot be undone from this app.">Processing writes to the semantic model and cannot be undone from this app.</span>
               </div>
             </div>
           </div>
@@ -1079,6 +1168,33 @@
   <div class="dialog-foot">
     <button class="btn" id="cancelJsonDialog" type="button" data-i18n="Cancel">Cancel</button>
     <button class="btn btn-primary" id="saveJsonDialog" type="button" data-i18n="Save">Save</button>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="partitionDialog" aria-labelledby="partitionDialogTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="partitionDialogTitle" data-i18n="Process selected partitions">Process selected partitions</h2>
+      <p class="helper" id="partitionDialogCount"></p>
+    </div>
+    <button class="dialog-close" id="closePartitionDialog" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <p class="helper" data-i18n="This command writes to the semantic model. It cannot be cancelled after the TMSL command is sent.">This command writes to the semantic model. It cannot be cancelled after the TMSL command is sent.</p>
+    <div class="partition-targets" id="partitionDialogTargets"></div>
+    <p class="helper" id="partitionDialogType"></p>
+    <label class="check"><input type="checkbox" id="partitionConfirmCheck"> <span data-i18n="I understand this processes the selected partitions and may take a long time.">I understand this processes the selected partitions and may take a long time.</span></label>
+    <div class="field">
+      <label for="partitionConfirmText" data-i18n="Type PROCESS to confirm">Type PROCESS to confirm</label>
+      <input class="input mono" id="partitionConfirmText" type="text" autocomplete="off" spellcheck="false" placeholder="PROCESS">
+    </div>
+    <p class="helper" id="partitionConfirmError" hidden=""></p>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="cancelPartitionDialog" type="button" data-i18n="Cancel">Cancel</button>
+    <button class="btn btn-primary" id="confirmPartitionDialog" type="button" data-i18n="Process partitions">Process partitions</button>
   </div>
 </dialog>
 

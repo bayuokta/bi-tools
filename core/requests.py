@@ -345,3 +345,94 @@ class AnalysisRequest:
             payload["database"] = self.database
         return payload
 
+
+# ---------------------------------------------------------------------------
+# Partisi semantic model (inventaris read-only + refresh lewat XMLA)
+# ---------------------------------------------------------------------------
+PARTITION_CONFIRMATION = "PROCESS"
+
+
+@dataclass(frozen=True)
+class PartitionRequest:
+    """Input inventaris partisi satu semantic model Power BI Service."""
+
+    workspace_id: str
+    dataset_id: str
+    workspace_name: str = ""
+    dataset_name: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "workspace_id", _guid(self.workspace_id, "Workspace ID")
+        )
+        object.__setattr__(self, "dataset_id", _guid(self.dataset_id, "Semantic model ID"))
+        object.__setattr__(self, "workspace_name", str(self.workspace_name or "").strip())
+        object.__setattr__(self, "dataset_name", str(self.dataset_name or "").strip())
+
+    def to_inventory_kwargs(self) -> dict[str, Any]:
+        """Argumen :func:`core.partition_service.read_partition_inventory`."""
+        return {
+            "workspace_id": self.workspace_id,
+            "workspace_name": self.workspace_name,
+            "dataset_id": self.dataset_id,
+            "dataset_name": self.dataset_name,
+        }
+
+
+@dataclass(frozen=True)
+class PartitionRefreshRequest(PartitionRequest):
+    """Input refresh partisi; konfirmasi wajib ``PROCESS``."""
+
+    targets: tuple[tuple[str, str], ...] = ()
+    refresh_type: str = "full"
+    confirmation: str = ""
+
+    def __post_init__(self) -> None:
+        PartitionRequest.__post_init__(self)
+        pairs: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in self.targets or ():
+            if isinstance(item, Mapping):
+                table = str(item.get("table") or "").strip()
+                partition = str(item.get("partition") or "").strip()
+            else:
+                try:
+                    table, partition = item
+                except (TypeError, ValueError) as exc:
+                    raise ExtractionError(
+                        "Target partisi harus berisi pasangan (table, partition)."
+                    ) from exc
+                table = str(table or "").strip()
+                partition = str(partition or "").strip()
+            if not table or not partition:
+                raise ExtractionError("Nama tabel dan partisi tidak boleh kosong.")
+            key = (table, partition)
+            if key not in seen:
+                seen.add(key)
+                pairs.append(key)
+        if not pairs:
+            raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
+        object.__setattr__(self, "targets", tuple(pairs))
+
+        from .tom_client import normalize_refresh_type
+
+        normalized = normalize_refresh_type(self.refresh_type)
+        object.__setattr__(self, "refresh_type", normalized)
+        confirmation = str(self.confirmation or "").strip().upper()
+        if confirmation != PARTITION_CONFIRMATION:
+            raise ExtractionError(
+                f"Ketik {PARTITION_CONFIRMATION} untuk mengonfirmasi refresh partisi."
+            )
+        object.__setattr__(self, "confirmation", confirmation)
+
+    def to_refresh_kwargs(self) -> dict[str, Any]:
+        """Argumen :func:`core.partition_service.process_partitions`."""
+        payload = self.to_inventory_kwargs()
+        payload.update(
+            {
+                "targets": self.targets,
+                "refresh_type": self.refresh_type,
+            }
+        )
+        return payload
+

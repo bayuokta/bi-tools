@@ -39,11 +39,13 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   report_usage.py               pemakaian field dari definisi report PBIR + PBIR-Legacy
   usage_store.py                tabel SQLite analisa kolom (cache report, pemakaian, snapshot ukuran)
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
+  tom_client.py                 koneksi TOM/XMLA + TMSL refresh partisi (jalur tulis)
+  partition_service.py          inventaris partisi + row count DMV (proses CLI terpisah)
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
   paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
-cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py
-  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/install-browser)
+cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, partition.py
+  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/install-browser)
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
   app.py                        pabrik aplikasi, rute API, aset web, penjaga token
@@ -52,12 +54,13 @@ server\                         server web lokal (FastAPI + uvicorn, hanya 127.0
   jobs.py                       antrean satu job + log live (SSE) + pembatalan
   settings_store.py             preferensi JSON + migrasi sekali dari registry QSettings 0.3.x
   settings.py                   kunci preferensi web
-  presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, lineage
-  api\                          system, settings, catalog, metadata, tsd, analysis, lineage, files, jobs
+  presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, lineage, partitions
+  api\                          system, settings, catalog, metadata, tsd, analysis, lineage, partitions, files, jobs
 web\                            aset statis: index.html, styles.css, app.js, api.js (tanpa build step)
 templates\tsd.template.html     template TSD gaya Confluence (salinan repo template-tsd)
 tests\                          uji angka acuan, TSD, lineage, dan penanganan error
 libs\Microsoft.AnalysisServices.AdomdClient.dll   dependency ADOMD (v19.84.1.0)
+libs\tom\*.dll                  dependency TOM/MSAL untuk refresh partisi (net472, terpisah dari ADOMD)
 extract_report_metadata.py      wrapper CLI report (perintah lama tetap berfungsi)
 extract_model_metadata.py       wrapper CLI model
 extract_tsd.py                  wrapper CLI generate TSD
@@ -95,7 +98,7 @@ python -m server --no-browser --port 8800
 - Pekerjaan panjang berjalan di thread server dengan log live (SSE); refresh halaman tidak memutus pekerjaan.
 - Berkas dan folder dipilih lewat penjelajah di halaman (server yang membaca disk lokal), bukan dialog native browser.
 - Preferensi disimpan di `data\settings.json` (fallback `%LOCALAPPDATA%\BI Tools\data`). Saat pertama dijalankan, nilai QSettings 0.3.x dimigrasikan sekali (termasuk `lineage/*` → `auth/*`/`paths/*`); nilai baru tidak ditimpa. Pilihan sesi (workspace/report/dataset/instance) tetap dikosongkan setiap server dimulai.
-- Status pengembangan 0.4.1: **Ekstraksi metadata**, **Generate TSD**, **Analisa Semantic Model**, **Lineage**, dan **Pengaturan** sudah tersambung penuh — sumber Service/Desktop, cakupan, pemilih `.pbix`/folder, instance Desktop, workspace model + workspace report, dataset/report dari katalog, job dengan log live, kartu output, serta ringkasan halaman/tabel/kolom/measure. Halaman **Generate TSD** memakai desain terbaru dan sudah berfungsi (sumber metadata, konteks manual, opsi render, screenshot + cache, output, pratinjau, checklist). Halaman Partisi masih berupa empty state (fitur proses menyusul).
+- Status pengembangan 0.4.2: **Ekstraksi metadata**, **Generate TSD**, **Analisa Semantic Model**, **Partisi**, **Lineage**, dan **Pengaturan** sudah tersambung penuh — sumber Service/Desktop, cakupan, pemilih `.pbix`/folder, instance Desktop, workspace model + workspace report, dataset/report dari katalog, job dengan log live, kartu output, serta ringkasan halaman/tabel/kolom/measure. Halaman **Generate TSD** memakai desain terbaru dan sudah berfungsi (sumber metadata, konteks manual, opsi render, screenshot + cache, output, pratinjau, checklist). Halaman **Partisi** membaca inventaris via XMLA dan bisa me-refresh partisi terpilih (jalur tulis dengan konfirmasi).
 - **Ekstraksi dari web**:
   - **Service**: pilih **workspace model** dan **workspace report** secara terpisah (boleh berbeda). Workspace model menentukan endpoint XMLA dan daftar Catalog; workspace report menentukan daftar report. Memilih report tidak mengubah Catalog, karena report bisa memakai dataset di workspace lain. Combo memakai komponen desain prototype: tombol select-like dengan chevron yang membuka popup berisi kolom pencarian + daftar pilihan (semua `<select>` di halaman ikut di-enhance). Report PBIR-Legacy (satu `report.json`) ditolak dengan pesan agar disimpan ulang sebagai PBIR; report paginated (RDL) ditandai dan tidak diekstrak.
   - **Desktop**: pilih file `.pbix` lewat penjelajah (bukan dialog browser). Jenis sumber dideteksi otomatis; live connection hanya mengekstrak report. Instance Power BI Desktop dipilih otomatis hanya bila tepat satu terbuka; cakupan report saja tidak memerlukan instance.
@@ -116,8 +119,14 @@ python -m server --no-browser --port 8800
   - **Tables** tetap hierarki per tabel (grup Measure/Kolom) dan menambahkan **Mode** serta **Partisi**. **Relationships** punya tampilan tabel 9 kolom (Nama relasi, Tipe, Cross filter, Kardinalitas, Status, Auto create, # dipakai, Dari kolom, Ke kolom) dan grafik tree per kolom mengikuti arah relasi: edge per pasangan tabel dengan lane routing, badge jumlah, zoom Fit/−/+, **drag untuk menggeser kanvas**, serta panel samping statistik. `# dipakai` dihitung dari DMV `DISCOVER_CALC_DEPENDENCY` (jumlah objek model yang bergantung pada relasi); `Auto create` dideteksi dari nama relasi `AutoDetected_`/GUID. **Report results** bertingkat seperti prototype: report → **Hidden pages/Pages** → halaman → **Visuals** → visual → **Artifacts used** + **Visual level filters** → **Columns used**, plus **Page level filters** dan **Report level filters**. Detail dimuat lazy per report; kolom **Views**, **Visual rusak**, dan **Skor praktik** ditampilkan `-` karena belum ada sumbernya, tema diambil dari definisi report. Tiap baris memakai ikon penanda; halaman/visual tersembunyi ditandai ikon eye-off dan chip **Hidden**. **DAX expressions** menampilkan measure + calculated column; **M queries** menampilkan M tabel + parameter/ekspresi.
   - Pencarian, filter tipe/status, **Hanya tidak dipakai**, expand/collapse, dan **Export XLSX** tersedia. Sel yang terpotong menampilkan teks lengkap saat di-hover (tooltip).
   - **Muat ulang** di samping semantic model memuat ulang daftar dataset workspace terpilih; workspace tidak punya tombol muat ulang sendiri.
-  - Sidebar punya item **Partisi** (masih empty state, tanpa data contoh) dan tombol ciutkan yang statusnya diingat di browser.
-- **Bahasa antarmuka**: Inggris (bawaan) atau Indonesia, dipilih di **Pengaturan → Tampilan → Language**. Pilihan disimpan di preferensi server dan diterapkan tanpa reload; angka mengikuti locale. Sort dengan klik header tersedia di tab datar (Semua hasil, Relationships, Report results, DAX expressions, M queries); tab Tables mengikuti urutan model. Kolom mockup yang tidak punya sumber data (views, tema, skor praktik, visual rusak, auto-create relationship) tidak ditampilkan. Mode baca-saja; tidak ada perubahan ke model.
+  - Sidebar punya item **Partisi** dan tombol ciutkan yang statusnya diingat di browser.
+- **Partisi dari web**:
+  - Pilih workspace + semantic model, lalu **Muat inventaris**. Daftar partisi dibaca dari TOM/XMLA: tabel, partisi, jumlah baris, rentang (best-effort), mode, tipe source, state, waktu proses terakhir, dan modified time.
+  - **Rows** diambil dari DMV `DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS` (`RECORDS_COUNT` terbesar per partisi). Karena ADOMD dan TOM membawa versi assembly yang berbeda, pengambilan DMV dijalankan di proses CLI terpisah; token dikirim lewat stdin, bukan argumen atau file. Bila DMV tidak tersedia, kolom ditampilkan `-`.
+  - **Range** diambil dari literal tanggal di ekspresi M (`RangeStart`/`RangeEnd`) lalu pola tanggal pada nama partisi. Bila tidak ditemukan, nilainya `-`; ekspresi M asli tetap tersimpan di data inventaris, bukan dikarang.
+  - **Process selected** mengirim satu perintah TMSL untuk semua partisi terpilih. Semua 8 jenis refresh tersedia (`full`, `automatic`, `dataOnly`, `clearValues`, `calculate`, `add`, `defragment`, `indexes`); server memvalidasi kombinasi yang tidak berlaku (`add` untuk calculated/DirectQuery, `defragment` dikirim level tabel).
+  - Konfirmasi memerlukan centang dan mengetik **PROCESS**. Setelah TMSL dikirim, perintah tidak bisa dibatalkan dari aplikasi; hasilnya dibaca ulang dan pesan mengarahkan ke Refresh history (**Via XMLA Endpoint**). Tidak ada perubahan metadata/query/policy.
+- **Bahasa antarmuka**: Inggris (bawaan) atau Indonesia, dipilih di **Pengaturan → Tampilan → Language**. Pilihan disimpan di preferensi server dan diterapkan tanpa reload; angka mengikuti locale. Sort dengan klik header tersedia di tab datar (Semua hasil, Relationships, Report results, DAX expressions, M queries); tab Tables mengikuti urutan model. Kolom mockup yang tidak punya sumber data (views, tema, skor praktik, visual rusak, auto-create relationship) ditampilkan `-`. Halaman **Analisa** tetap read-only; **Partisi** adalah satu-satunya jalur tulis ke model.
 - **Lineage dari web**:
   - Cari item (kata kunci, workspace, tipe) dari `data\bi_tools.db`; hasil pertama langsung dibuka. Database belum ada → pencarian dinonaktifkan dan diarahkan ke **Sinkronisasi data** di Pengaturan.
   - Kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan, dengan panah tipe relasi dan **zoom −/+/Fit** serta **drag untuk menggeser** (seperti grafik Relationships). Klik node menyalakan seluruh jalur hulu–hilir berwarna kuning dan meredupkan node lain. Tombol **Upstream/Downstream** meredupkan sisi lain; **Kedalaman** 1–15; klik node menampilkan detail (owner, modified, endorsement, datasource, node ID), klik dua kali menjadikannya akar. Tautan **Buka report** tersedia untuk node Report.
@@ -170,6 +179,18 @@ python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh
 ```
 
 Nama workspace/dataset diambil dari katalog SQLite (`data\bi_tools.db`); `--workspace-name`/`--dataset-name` hanya perlu bila katalog belum pernah disinkronkan. Hasil ditulis ke `Analisa_Semantic_Model_<nama>_<id8>.xlsx` (`--out` untuk path lain).
+
+Partisi semantic model (inventaris read-only + refresh lewat XMLA):
+
+```powershell
+python -m cli partition --workspace-id <ws> --dataset-id <ds> --list
+python -m cli partition --workspace-id <ws> --dataset-id <ds> `
+  --table "Fact Sales" --partition "Fact Sales 2025" --refresh-type full --yes
+python -m cli partition --workspace-id <ws> --dataset-id <ds> `
+  --target "Fact Sales|Fact Sales 2025" --yes
+```
+
+Refresh memerlukan XMLA **Read Write**, service principal sebagai Member/Admin workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
 
 ## Generate TSD
 
@@ -274,7 +295,7 @@ Skrip mengekstrak ulang ke folder sementara (workbook di folder tooling tidak di
 
 ## Analisa Semantic Model
 
-Tab ini **read-only**: tidak ada perubahan ke model maupun report. Tujuannya menjawab dua pertanyaan sekaligus: berapa ukuran tiap kolom, dan apakah kolom/measure itu masih dipakai. Halaman **Partisi** nanti akan menjadi pengecualian untuk memproses partisi lewat XMLA; selama jalur itu belum ada, tombol **Proses terpilih** dibiarkan nonaktif dan tidak ada request tulis dari halaman lain.
+Tab ini **read-only**: tidak ada perubahan ke model maupun report. Tujuannya menjawab dua pertanyaan sekaligus: berapa ukuran tiap kolom, dan apakah kolom/measure itu masih dipakai. Halaman **Partisi** adalah pengecualian yang disengaja untuk me-refresh partisi lewat XMLA Read Write dengan konfirmasi `PROCESS`; halaman lain tidak mengirim request tulis.
 
 ### Ukuran kolom
 
@@ -355,6 +376,8 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset denga
 ## Paket dan rilis
 
 Aplikasi dibagikan sebagai paket Windows: `BI Tools.exe` (server web lokal + browser) dan `bi-tools-cli.exe` (perintah baris). Semua perintah di bagian sebelumnya memakai bentuk `bi-tools-cli <perintah>` saat dijalankan dari paket, mis. `bi-tools-cli report --report "path\ke\Report.pbix"`.
+
+Paket membawa DLL ADOMD di `libs\` dan DLL TOM/MSAL di `libs\tom\`. Halaman Partisi memakai TOM di proses server, sedangkan row count DMV dijalankan lewat `bi-tools-cli.exe` di proses terpisah karena kedua assembly Microsoft.AnalysisServices tidak kompatibel dalam satu proses. Jangan menghapus `libs\tom\` atau memindahkannya ke `_internal`. DLL Microsoft Analysis Services/MSAL tetap tunduk pada lisensi Microsoft; perhatikan ketentuan redistribusi bila paket dibagikan.
 
 Rilis otomatis berjalan di GitHub Actions setiap tag `vX.Y.Z`:
 

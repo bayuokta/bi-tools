@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, Mapping
 
 from .errors import ExtractionError
 from .model import LiveModel, build_columns, build_measures, build_tables
@@ -203,6 +203,36 @@ def aggregate_segments(
 def table_rows(sizes: StorageSizes, column_ids: list[int]) -> int:
     """Jumlah baris tabel dari kolom dengan ``RECORDS_COUNT`` terbesar."""
     return max((sizes.row_count(column_id) for column_id in column_ids), default=0)
+
+
+def partition_row_counts(
+    segments: Iterable[Mapping[str, Any]],
+) -> dict[tuple[str, str], int]:
+    """Jumlah baris per partisi dari segmen ``DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS``.
+
+    Satu partisi punya banyak segmen kolom; jumlah barisnya adalah
+    ``RECORDS_COUNT`` terbesar di antara segmen data biasa. Artefak hierarki
+    (``POS_TO_ID``/``ID_TO_POS``/``INDEX``) dan segmen non-data dilewati.
+    Partisi tanpa segmen tidak diberi entri agar UI bisa membedakan "tidak
+    diketahui" dari nol baris.
+    """
+    counts: dict[tuple[str, str], int] = {}
+    for row in segments:
+        raw_id = row.get("COLUMN_ID")
+        if is_artifact(raw_id):
+            continue
+        raw_type = str(row.get("COLUMN_TYPE") or "").upper()
+        if raw_type and raw_type not in BASIC_COLUMN_TYPES:
+            continue
+        table = str(
+            row.get("MEASURE_GROUP_NAME") or row.get("TABLE_NAME") or ""
+        ).strip()
+        partition = str(row.get("PARTITION_NAME") or "").strip()
+        if not table or not partition:
+            continue
+        key = (table, partition)
+        counts[key] = max(counts.get(key, 0), _size(row.get("RECORDS_COUNT")))
+    return counts
 
 
 # ---------------------------------------------------------------------------

@@ -121,7 +121,10 @@ if ($artifacts.Count -gt 0) {
         "$hash  $(Split-Path -Leaf $file)"
     }
     $sums = Join-Path $RepoRoot "dist\SHA256SUMS.txt"
-    Set-Content -Path $sums -Value $lines -Encoding utf8NoBOM
+    # Windows PowerShell 5.1 tidak mengenal -Encoding utf8NoBOM; tulis manual
+    # agar build lokal dan pwsh menghasilkan checksum UTF-8 tanpa BOM.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllLines($sums, [string[]]$lines, $utf8NoBom)
     Write-Host "Checksum: $sums" -ForegroundColor Green
 }
 

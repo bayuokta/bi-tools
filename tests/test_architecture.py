@@ -241,7 +241,7 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("function renderLineage(", js)
         self.assertIn('isApp ? "Apps" : "Local report"', js)
 
-    def test_web_sidebar_and_partisi_placeholder(self) -> None:
+    def test_web_sidebar_and_partisi_page(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         self.assertIn('id="appSidebar"', html)
@@ -255,9 +255,19 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("reloadWsAnalisa", html)
         self.assertNotIn("partitionTables", js)
         self.assertNotIn("renderPartitions", js)
-        self.assertNotIn("partitionDialog", html)
+        self.assertIn('id="partitionDialog"', html)
         self.assertIn("partitionEmptyState", html)
+        self.assertIn("function partitionLoadState(", js)
+        self.assertIn("function partitionRender(", js)
+        self.assertIn("/api/partitions/inventory", js)
+        self.assertIn("/api/partitions/refresh", js)
+        self.assertIn('confirmation: "PROCESS"', js)
         self.assertIn('item.kind !== "measure"', js)
+
+    def test_partition_core_has_no_terminal_calls(self) -> None:
+        for name in ("tom_client.py", "partition_service.py"):
+            text = (ROOT / "core" / name).read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"(?m)^\s*(print\(|input\()")
 
     def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
@@ -307,7 +317,7 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn('kind: "subhead"', js)
         self.assertIn('"columns": [', presenter)
         self.assertNotIn("function processPartitions(", js)
-        self.assertNotIn('$("#processSelectedPartitions").addEventListener', js)
+        self.assertIn('$("#processSelectedPartitions").addEventListener', js)
 
 
 if __name__ == "__main__":

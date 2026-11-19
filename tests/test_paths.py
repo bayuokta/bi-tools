@@ -29,6 +29,27 @@ class AppDirTests(unittest.TestCase):
                 self.assertEqual(paths.app_dir(), exe.parent.resolve())
 
 
+class CliArgvTests(unittest.TestCase):
+    def test_script_mode_uses_python_module(self) -> None:
+        with patch.object(sys, "frozen", False, create=True), patch.object(
+            sys, "executable", r"C:\Python\python.exe"
+        ):
+            self.assertEqual(
+                paths.cli_argv(["partition", "--list"]),
+                [r"C:\Python\python.exe", "-m", "cli", "partition", "--list"],
+            )
+
+    def test_frozen_mode_uses_cli_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "BI Tools.exe"
+            with patch.object(sys, "frozen", True, create=True), patch.object(
+                sys, "executable", str(exe)
+            ):
+                argv = paths.cli_argv(["partition", "--dmv-json"])
+        self.assertEqual(Path(argv[0]).name, "bi-tools-cli.exe")
+        self.assertEqual(argv[1:], ["partition", "--dmv-json"])
+
+
 class OutputsDirTests(unittest.TestCase):
     def setUp(self) -> None:
         paths.outputs_dir.cache_clear()

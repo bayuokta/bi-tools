@@ -47,7 +47,15 @@ class CliDispatcherTests(unittest.TestCase):
         with contextlib.redirect_stdout(buffer):
             self.assertEqual(cli_main.main(["--help"]), 0)
         output = buffer.getvalue()
-        for name in ("report", "model", "tsd", "lineage", "analyze", "install-browser"):
+        for name in (
+            "report",
+            "model",
+            "tsd",
+            "lineage",
+            "analyze",
+            "partition",
+            "install-browser",
+        ):
             self.assertIn(name, output)
 
     def test_without_arguments_prints_usage(self) -> None:
