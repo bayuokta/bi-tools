@@ -7,7 +7,10 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-19 - Rilis 0.4.1
+
+Rilis ini menyempurnakan halaman Analisa dan Lineage, menambahkan pemilih
+bahasa Inggris/Indonesia, dan menyiapkan halaman Partisi (masih empty state).
 
 ### Bahasa antarmuka dan penyempurnaan tab Analisa
 
@@ -98,8 +101,7 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Kolom mockup tanpa sumber data (views, tema, skor praktik, visual rusak)
   tidak ditampilkan. Mode Analisa tetap read-only; pemrosesan partisi akan
   menjadi pengecualian di halaman Partisi.
-- Prototipe data contoh di `web\app.js` dihapus; suite menjadi 599 tes
-  (590 lulus, 9 skip).
+- Prototipe data contoh di `web\app.js` dihapus.
 
 ## 2026-11-18 - Rilis 0.4.0
 
