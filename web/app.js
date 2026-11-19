@@ -109,6 +109,9 @@
     lineageGraph: null,
     lineageNodesLive: {},
     lineageHasDb: false,
+    lineageQuery: "",
+    lineageStateReady: false,
+    lineageStatePromise: null,
     lineageSearchTimer: null,
     lineageZoom: 1,
     lineagePanX: 0,
@@ -248,7 +251,7 @@
         lineageRenderDetail(state.lineageNodesLive[state.selectedId].payload || {});
       }
     }
-    if (!state.lineageGraph && state.lineageHasDb) {
+    if (!state.lineageGraph && state.lineageHasDb && !state.lineageQuery) {
       $("#lineageResults").innerHTML =
         '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
         t("No search yet") + "</div>" +
@@ -3750,10 +3753,59 @@
   }
 
   // -- Lineage ------------------------------------------------------------
+  var NODE_HUE_BY_TYPE = {
+    Database: "db",
+    Datasource: "db",
+    Dataflow: "flow",
+    "Semantic Model": "model",
+    SemanticModel: "model",
+    Table: "table",
+    "Tables": "table",
+    Measure: "measure",
+    Report: "report",
+    PaginatedReport: "report",
+    App: "report",
+    Dashboard: "neutral",
+    Workspace: "neutral"
+  };
+
+  var NODE_ICONS = {
+    db: '<ellipse cx="5" cy="2.6" rx="3.6" ry="1.5"></ellipse>' +
+      '<path d="M1.4 2.6v4.8c0 .83 1.61 1.5 3.6 1.5s3.6-.67 3.6-1.5V2.6"></path>',
+    flow: '<path d="M1 3h4.2l1.6 1.6h2.2"></path><path d="M1 7h3.1l1.4-1.4"></path>' +
+      '<path d="M7.6 2.2l1.4 2.4-1.4 2.4"></path>',
+    model: '<path d="M5 1.2l3.8 1.9v3.8L5 8.8 1.2 6.9V3.1z"></path><path d="M1.2 3.1L5 5l3.8-1.9M5 5v3.8"></path>',
+    table: '<rect x="1.4" y="2.2" width="7.2" height="5.6" rx="1"></rect><path d="M1.4 4.6h7.2M4.4 2.2v5.6"></path>',
+    measure: '<path d="M7.8 2.4H2.4l2.7 2.6-2.7 2.6h5.4"></path>',
+    report: '<path d="M2.4 1.4h3.4l2 2v5.2H2.4z"></path><path d="M5.8 1.4v2h2"></path>',
+    neutral: '<circle cx="5" cy="5" r="2.2"></circle>'
+  };
+
+  function nodeHue(type) {
+    return NODE_HUE_BY_TYPE[type] || "neutral";
+  }
+
+  function nodeIconMarkup(hue, x, y) {
+    return '<g class="node-icon" transform="translate(' + x + " " + y + ')" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.1" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' +
+      (NODE_ICONS[hue] || NODE_ICONS.neutral) + "</g>";
+  }
+
+  function clipLabel(text, max) {
+    var value = String(text || "");
+    return value.length > max ? value.slice(0, max - 1) + "\u2026" : value;
+  }
+
+  function nodeTypeLabel(type) {
+    return String(type || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toUpperCase();
+  }
   function lineageLoadState() {
     if (!apiReady()) return Promise.resolve();
-    return api().get("/api/lineage/state").then(function (data) {
+    if (state.lineageStatePromise) return state.lineageStatePromise;
+    state.lineageStatePromise = api().get("/api/lineage/state").then(function (data) {
       state.lineageHasDb = Boolean(data.readable);
+      state.lineageStateReady = true;
       state.depth = Number(data.depth || 3);
       state.direction = data.direction || "upstream";
       var types = [{ value: "", label: t("All types") }].concat(
@@ -3762,7 +3814,6 @@
         })
       );
       setSelectOptions("lineageType", types, null);
-      $("#lineageSearch").value = "";
       $("#lineageSearch").disabled = !data.readable;
       $("#lineageSearchBtn").disabled = !data.readable;
       $("#lineageWorkspace").disabled = !data.readable;
@@ -3774,7 +3825,7 @@
       $("#dirDownstream").setAttribute("aria-pressed", String(state.direction === "downstream"));
       if (!data.readable) {
         $("#lineageResults").innerHTML =
-          '<div class="empty" style="padding:18px 8px"><div class="empty-title">Database belum siap</div>' +
+          '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + t("Database is not ready") + "</div>" +
           '<p class="empty-text">' + escapeHtml(data.status || "") + "</p></div>";
         $("#lineageCount").textContent = "";
         $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + t("No root selected");
@@ -3783,6 +3834,12 @@
         $("#exportCsv").disabled = true;
         return data;
       }
+      if (state.lineageQuery) {
+        // Pengguna sudah mencari sebelum status selesai dimuat; jangan timpa
+        // hasil/kolom pencarian yang sedang tampil.
+        return data;
+      }
+      $("#lineageSearch").value = "";
       $("#lineageResults").innerHTML =
         '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
         t("No search yet") + '</div>' +
@@ -3797,18 +3854,17 @@
       return data;
     }).catch(function (error) {
       addLog(t("Lineage status could not be read: ") + error.message, "warn");
+    }).finally(function () {
+      state.lineageStatePromise = null;
     });
+    return state.lineageStatePromise;
   }
 
-  function lineageSearch() {
-    if (!apiReady()) return Promise.resolve();
+  function lineageSearchQuery(query, workspace, type) {
     if (!state.lineageHasDb) {
       toast(t("The lineage database is not ready; run Data sync first"));
       return Promise.resolve();
     }
-    var query = $("#lineageSearch").value.trim();
-    var workspace = $("#lineageWorkspace").value.trim();
-    var type = getSelectValue("lineageType") || "";
     if (!query && !workspace && !type) {
       toast(t("Enter a keyword or filter first"));
       return Promise.resolve();
@@ -3820,21 +3876,34 @@
       "&limit=100"
     ).then(function (data) {
       lineageRenderResults(data.results || []);
-      $("#lineageCount").textContent = data.message || "";
-      if ((data.results || []).length) {
-        var first = data.results[0];
-        lineageOpen(String(first.node_id || first.id || ""));
-      }
+      if (data.message) $("#lineageCount").textContent = tr(data.message);
       return data;
     }).catch(reportError);
+  }
+
+  function lineageSearch() {
+    if (!apiReady()) return Promise.resolve();
+    var query = $("#lineageSearch").value.trim();
+    var workspace = $("#lineageWorkspace").value.trim();
+    var type = getSelectValue("lineageType") || "";
+    // Tandai lebih dulu agar status yang datang belakangan tidak menghapus
+    // kata kunci yang sedang diketik.
+    state.lineageQuery = query;
+    if (!state.lineageStateReady) {
+      // Pengguna bisa menekan Cari sebelum /api/lineage/state selesai.
+      return lineageLoadState().then(function () {
+        return lineageSearchQuery(query, workspace, type);
+      });
+    }
+    return lineageSearchQuery(query, workspace, type);
   }
 
   function lineageRenderResults(rows) {
     var box = $("#lineageResults");
     if (!rows.length) {
       box.innerHTML =
-        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada item</div>' +
-        '<p class="empty-text">Ubah kata kunci atau filter workspace.</p></div>';
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + t("No items") + "</div>" +
+        '<p class="empty-text">' + t("Change the keyword or workspace filter.") + "</p></div>";
       $("#lineageCount").textContent = t("0 results");
       return;
     }
@@ -3874,7 +3943,7 @@
       lineageRenderGraph();
       lineageRenderDetail(data.node || {});
       $("#lineageRootChip").innerHTML =
-        '<span class="dot"></span>Akar: ' + escapeHtml((data.node && data.node.name) || nodeId);
+        '<span class="dot"></span>' + t("Root: ") + escapeHtml((data.node && data.node.name) || nodeId);
       $("#lineageRootChip").title =
         "Upstream " + (data.upstream_count || 0) + " item \u00b7 downstream " +
         (data.downstream_count || 0) + t(" items") +
@@ -3966,10 +4035,10 @@
     var maxCol = Math.max.apply(null, columns);
     var minRow = Math.min.apply(null, rows);
     var maxRow = Math.max.apply(null, rows);
-    var nodeW = 168;
-    var nodeH = 54;
-    var colGap = 74;
-    var rowGap = 38;
+    var nodeW = 176;
+    var nodeH = 64;
+    var colGap = 44;
+    var rowGap = 20;
     var positions = {};
     nodes.forEach(function (node) {
       positions[node.id] = {
@@ -3982,6 +4051,11 @@
     state.lineageBaseWidth = width;
     state.lineageBaseHeight = height;
     var chain = state.lineageChainId ? lineageChain(state.lineageChainId) : null;
+    var neighbours = {};
+    (graph.edges || []).forEach(function (edge) {
+      if (edge.source === state.selectedId) neighbours[edge.target] = true;
+      if (edge.target === state.selectedId) neighbours[edge.source] = true;
+    });
     var edges = "";
     (graph.edges || []).forEach(function (edge, index) {
       var from = positions[edge.source];
@@ -4008,32 +4082,40 @@
       var name = String(node.name || node.id);
       var type = String(node.type || "");
       var workspace = String(node.workspace || "");
-      var label = name.length > 23 ? name.slice(0, 22) + "\u2026" : name;
-      var typeLabel = type.length > 24 ? type.slice(0, 23) + "\u2026" : type;
-      var workspaceLabel = workspace.length > 24
-        ? workspace.slice(0, 23) + "\u2026"
-        : workspace;
-      var selected = node.id === state.selectedId ? " sel" : "";
+      var hue = nodeHue(type);
+      var selected = node.id === state.selectedId;
+      var near = !selected && Boolean(neighbours[node.id]);
       var inChain = Boolean(chain && chain.nodes[node.id]);
       var muted = chain
         ? (inChain ? "" : " is-muted")
         : (node.side && node.side !== "root" && node.side !== state.direction ? " is-muted" : "");
-      markup += '<g class="node lineage-node' + (inChain ? " is-chain" : "") + muted +
-        '" tabindex="0" role="button" data-id="' +
-        escapeHtml(node.id) + '" aria-label="' + escapeHtml(name) + ", " +
-        escapeHtml(type) + '">' +
+      var classes = "node lineage-node" + (selected ? " is-sel" : "") +
+        (near ? " is-near" : "") + (inChain ? " is-chain" : "") + muted;
+      markup += '<g class="' + classes + '" data-hue="' + hue +
+        '" tabindex="0" role="button" data-id="' + escapeHtml(node.id) +
+        '" aria-current="' + (node.id === state.rootId ? "true" : "false") +
+        '" aria-label="' + escapeHtml(name) + ", " + escapeHtml(type) + '">' +
         "<title>" + escapeHtml(name) + " \u00b7 " + escapeHtml(type) +
         (workspace ? " \u00b7 " + escapeHtml(workspace) : "") + "</title>" +
-        '<rect class="node-box' + selected + '" x="' + pos.x + '" y="' + pos.y +
-        '" width="' + nodeW + '" height="' + nodeH + '" rx="6"></rect>' +
-        '<text class="node-type" x="' + (pos.x + 11) + '" y="' + (pos.y + 16) + '">' +
-        escapeHtml(typeLabel) + "</text>" +
-        '<text class="node-name" x="' + (pos.x + 11) + '" y="' + (pos.y + 33) + '">' +
-        escapeHtml(label) + "</text>" +
-        (workspaceLabel
-          ? '<text class="rel-node-meta" x="' + (pos.x + 11) + '" y="' +
-            (pos.y + 47) + '">' + escapeHtml(workspaceLabel) + "</text>"
+        (selected
+          ? '<rect class="node-halo" x="' + (pos.x - 3) + '" y="' + (pos.y - 3) +
+            '" width="' + (nodeW + 6) + '" height="' + (nodeH + 6) + '" rx="10"></rect>'
           : "") +
+        '<rect class="node-box" x="' + pos.x + '" y="' + pos.y +
+        '" width="' + nodeW + '" height="' + nodeH + '" rx="8"></rect>' +
+        '<rect class="node-band" x="' + (pos.x + 1) + '" y="' + (pos.y + 1) +
+        '" width="' + (nodeW - 2) + '" height="17" rx="7"></rect>' +
+        '<rect class="node-band" x="' + (pos.x + 1) + '" y="' + (pos.y + 9) +
+        '" width="' + (nodeW - 2) + '" height="9"></rect>' +
+        '<path class="node-band-rule" d="M' + (pos.x + 1) + " " + (pos.y + 18) +
+        "H" + (pos.x + nodeW - 1) + '"></path>' +
+        nodeIconMarkup(hue, pos.x + 8, pos.y + 4) +
+        '<text class="node-type" x="' + (pos.x + 21) + '" y="' + (pos.y + 12.6) + '">' +
+        escapeHtml(nodeTypeLabel(type)) + "</text>" +
+        '<text class="node-name" x="' + (pos.x + 10) + '" y="' + (pos.y + 36) + '">' +
+        escapeHtml(clipLabel(name, 25)) + "</text>" +
+        '<text class="node-meta" x="' + (pos.x + 10) + '" y="' + (pos.y + 51) + '">' +
+        escapeHtml(clipLabel(workspace, 27)) + "</text>" +
         "</g>";
     });
     $("#lineageLayer").innerHTML = edges + markup;
@@ -4082,7 +4164,7 @@
           return '<button class="chip chip-idle analysis-link" type="button" data-lineage-node="' +
             escapeHtml(item.id) + '">' + escapeHtml(item.name || item.id) + "</button>";
         }).join(" ")
-      : '<span class="helper">Tidak ada relasi langsung.</span>';
+      : '<span class="helper">' + t("No direct relationship.") + "</span>";
     var url = "";
     if ((type || "").toLowerCase().indexOf("report") !== -1 && payload.workspace_id) {
       var reportId = payload.report_id || payload.node_id || "";
@@ -4096,11 +4178,12 @@
       '<div class="detail-head"><div><div class="detail-name">' + escapeHtml(name) + "</div>" +
       '<div class="helper">' + escapeHtml(type) + (workspace ? " \u00b7 " + escapeHtml(workspace) : "") +
       "</div></div>" +
+      '<span class="row-inline">' +
       (url ? '<a class="btn btn-sm" href="' + escapeHtml(url) +
         '" target="_blank" rel="noopener">' + t("Open report") + "</a>" : "") +
-      (state.selectedId !== state.rootId
-        ? '<button class="btn btn-sm" type="button" id="makeRoot">' + t("Make root") + "</button>"
-        : "") + "</div>" +
+      '<button class="btn btn-sm" type="button" id="makeRoot"' +
+      (state.selectedId === state.rootId ? " disabled" : "") + ">" +
+      t("Make root") + "</button></span></div>" +
       '<dl class="kv">' + rows.join("") + "</dl>" +
       '<div class="dep-chips">' + chips + "</div>";
     var makeRoot = $("#makeRoot");

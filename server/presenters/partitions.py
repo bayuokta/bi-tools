@@ -11,13 +11,13 @@ from typing import Any, Mapping
 
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB
+from core.partition_plan import REFRESH_TYPE_ORDER
 from core.partition_service import process_partitions, read_partition_inventory
 from core.requests import (
     PARTITION_CONFIRMATION,
     PartitionRefreshRequest,
     PartitionRequest,
 )
-from core.tom_client import REFRESH_TYPE_ORDER
 from core.usage_service import resolve_names
 
 from ..settings_store import SettingsStore

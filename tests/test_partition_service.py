@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import unittest
-from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -42,22 +40,6 @@ def _partition(
         is_calculated=is_calculated,
         range=PartitionRange(label=range_label, source="M"),
     )
-
-
-class FakeDmvClient:
-    def __init__(self, segments: list[dict] | None = None) -> None:
-        self.segments = segments or []
-        self.queries: list[str] = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_exc):
-        return None
-
-    def query(self, name: str) -> list[dict]:
-        self.queries.append(name)
-        return self.segments
 
 
 class PartitionServiceTests(unittest.TestCase):
@@ -104,43 +86,39 @@ class PartitionServiceTests(unittest.TestCase):
         self.assertEqual(rows[0]["TABLE_NAME"], "Fact")
 
     def test_read_inventory_combines_tom_and_dmv(self) -> None:
-        dmv = FakeDmvClient(
-            [
+        with patch(
+            "core.partition_service._tom_partitions_subprocess",
+            return_value=[_partition(range_label="2026-01")],
+        ), patch(
+            "core.partition_service._dmv_rows_subprocess",
+            return_value=[
                 {
                     "MEASURE_GROUP_NAME": "Fact",
                     "PARTITION_NAME": "P1",
                     "COLUMN_ID": "A (1)",
                     "RECORDS_COUNT": 42,
                 }
-            ]
-        )
-        with patch(
-            "core.partition_service.list_partitions",
-            return_value=[_partition(range_label="2026-01")],
-        ):
+            ],
+        ) as dmv:
             payload = read_partition_inventory(
                 workspace_id="11111111-2222-3333-4444-555555555555",
                 workspace_name="Workspace",
                 dataset_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
                 dataset_name="Model",
                 principal=self.principal,
-                connect_factory=lambda *_args, **_kwargs: nullcontext(object()),
-                open_factory=lambda **_kwargs: dmv,
             )
         self.assertEqual(payload["dataset"]["name"], "Model")
         self.assertEqual(payload["partitions"][0]["rows"], 42)
         self.assertEqual(payload["partitions"][0]["range"], "2026-01")
-        self.assertEqual(dmv.queries, ["DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS"])
+        dmv.assert_called_once()
 
-    def test_process_builds_one_tmsl_for_all_targets(self) -> None:
+    def test_process_delegates_one_refresh_to_child(self) -> None:
         partitions = [_partition("Fact", "P1"), _partition("Fact", "P2")]
-        seen: dict[str, str] = {}
-
-        def execute(_server, tmsl: str) -> None:
-            seen["tmsl"] = tmsl
-
         with patch(
-            "core.partition_service.list_partitions", return_value=partitions
+            "core.partition_service._tom_refresh_subprocess",
+            return_value=partitions,
+        ) as refresh, patch(
+            "core.partition_service._dmv_rows_subprocess", return_value=[]
         ):
             payload = process_partitions(
                 workspace_id="11111111-2222-3333-4444-555555555555",
@@ -150,19 +128,17 @@ class PartitionServiceTests(unittest.TestCase):
                 targets=(("Fact", "P1"), ("Fact", "P2")),
                 refresh_type="dataOnly",
                 principal=self.principal,
-                connect_factory=lambda *_args, **_kwargs: nullcontext(object()),
-                open_factory=lambda **_kwargs: FakeDmvClient(),
-                execute_factory=execute,
             )
-        body = json.loads(seen["tmsl"])
-        self.assertEqual(body["refresh"]["type"], "dataOnly")
-        self.assertEqual(len(body["refresh"]["objects"]), 2)
+        args = refresh.call_args.args
+        self.assertEqual(args[3], (("Fact", "P1"), ("Fact", "P2")))
+        self.assertEqual(args[4], "dataOnly")
         self.assertEqual(payload["refresh"]["type"], "dataOnly")
         self.assertEqual(len(payload["refresh"]["targets"]), 2)
 
-    def test_process_rejects_missing_target_and_calculated_add(self) -> None:
+    def test_process_propagates_child_validation_error(self) -> None:
         with patch(
-            "core.partition_service.list_partitions", return_value=[_partition()]
+            "core.partition_service._tom_refresh_subprocess",
+            side_effect=ExtractionError("Partisi tidak ditemukan di model"),
         ):
             with self.assertRaises(ExtractionError):
                 process_partitions(
@@ -173,23 +149,6 @@ class PartitionServiceTests(unittest.TestCase):
                     targets=(("Fact", "Missing"),),
                     refresh_type="full",
                     principal=self.principal,
-                    connect_factory=lambda *_args, **_kwargs: nullcontext(object()),
-                )
-
-        calculated = _partition("Calc", "P", is_calculated=True)
-        with patch(
-            "core.partition_service.list_partitions", return_value=[calculated]
-        ):
-            with self.assertRaises(ExtractionError):
-                process_partitions(
-                    workspace_id="11111111-2222-3333-4444-555555555555",
-                    workspace_name="Workspace",
-                    dataset_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-                    dataset_name="Model",
-                    targets=(("Calc", "P"),),
-                    refresh_type="add",
-                    principal=self.principal,
-                    connect_factory=lambda *_args, **_kwargs: nullcontext(object()),
                 )
 
 

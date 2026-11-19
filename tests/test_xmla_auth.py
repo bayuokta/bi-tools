@@ -237,5 +237,76 @@ class ZoneIdentifierTests(unittest.TestCase):
         self.assertEqual(path.parent.name, "runtime")
 
 
+class ChannelCacheRetryTests(unittest.TestCase):
+    """Cache controller ADOMD lintas-versi: bersihkan lalu coba sekali lagi."""
+
+    class FlakyConnection:
+        errors: list[str] = []
+        attempts = 0
+
+        def __init__(self, connection_string: str) -> None:
+            self.connection_string = connection_string
+            self.closed = False
+            self.ServerVersion = "16.0"
+
+        def Open(self) -> None:  # noqa: N802 - meniru ADOMD
+            type(self).attempts += 1
+            if type(self).errors:
+                raise RuntimeError(type(self).errors.pop(0))
+
+        def Close(self) -> None:  # noqa: N802 - meniru ADOMD
+            self.closed = True
+
+    def setUp(self) -> None:
+        type(self).FlakyConnection.errors = []
+        type(self).FlakyConnection.attempts = 0
+
+    def _connect(self):
+        from core import xmla_client
+
+        with patch.object(
+            xmla_client,
+            "load_adomd",
+            return_value=(self.FlakyConnection, object, object),
+        ), patch.object(
+            xmla_client, "_clear_adomd_channel_cache", return_value=True
+        ) as clear:
+            client = xmla_client._connect("Data Source=localhost:1234")
+        return client, clear
+
+    def test_retries_once_after_cache_error(self) -> None:
+        type(self).FlakyConnection.errors = [
+            "System.InvalidCastException: Specified cast is not valid.\n"
+            "   at Microsoft.AnalysisServices.AdomdClient.HttpStream."
+            "ChannelOptions.DeserializeFromGlobalObject(...)\n"
+            "   at Microsoft.AnalysisServices.AdomdClient.Utilities.SharedMemoryCache"
+        ]
+        client, clear = self._connect()
+        self.assertEqual(type(self).FlakyConnection.attempts, 2)
+        self.assertEqual(clear.call_count, 2)
+        self.assertTrue(clear.call_args_list[1].kwargs.get("force"))
+        self.assertEqual(client.server_version, "16.0")
+
+    def test_other_errors_are_not_retried(self) -> None:
+        type(self).FlakyConnection.errors = ["Koneksi ditolak"]
+        with self.assertRaises(RuntimeError):
+            self._connect()
+        self.assertEqual(type(self).FlakyConnection.attempts, 1)
+
+    def test_persistent_cache_error_has_actionable_message(self) -> None:
+        error = (
+            "System.InvalidCastException: Specified cast is not valid.\n"
+            "   at Microsoft.AnalysisServices.AdomdClient.HttpStream."
+            "ChannelOptions.DeserializeFromGlobalObject(...)"
+        )
+        type(self).FlakyConnection.errors = [error, error]
+        with self.assertRaises(XmlaError) as ctx:
+            self._connect()
+        message = str(ctx.exception)
+        self.assertIn("cache channel ADOMD", message)
+        self.assertIn("DAX Studio", message)
+        self.assertEqual(type(self).FlakyConnection.attempts, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

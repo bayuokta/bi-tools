@@ -414,7 +414,7 @@ class PartitionRefreshRequest(PartitionRequest):
             raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
         object.__setattr__(self, "targets", tuple(pairs))
 
-        from .tom_client import normalize_refresh_type
+        from .partition_plan import normalize_refresh_type
 
         normalized = normalize_refresh_type(self.refresh_type)
         object.__setattr__(self, "refresh_type", normalized)

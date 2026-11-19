@@ -20,8 +20,15 @@ from core.auth import ServicePrincipal, Token
 from core.column_stats import STORAGE_DMV
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB
+from core.partition_plan import (
+    build_refresh_tmsl,
+    normalize_refresh_type,
+    partition_payload,
+    validate_refresh_targets,
+)
 from core.partition_service import process_partitions, read_partition_inventory
 from core.requests import PARTITION_CONFIRMATION, PartitionRefreshRequest
+from core.tom_client import connect_server, execute_refresh, list_partitions
 from core.usage_service import resolve_names
 from core.xmla_client import open_client
 
@@ -75,16 +82,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=f"Wajib untuk refresh; setara mengetik {PARTITION_CONFIRMATION}.",
     )
-    # Mode internal: mengambil DMV di proses terpisah agar ADOMD tidak dimuat
-    # bersama TOM (dua assembly Microsoft.AnalysisServices saling bentrok).
+    # Mode internal: TOM dan ADOMD dipisah ke proses berbeda agar dua assembly
+    # Microsoft.AnalysisServices tidak bentrok. Token dan target lewat stdin.
     parser.add_argument("--dmv-json", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--inventory-json", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--refresh-json", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--endpoint", help=argparse.SUPPRESS)
     parser.add_argument("--catalog", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
 class _StaticTokens:
-    """Token tunggal untuk mode ``--dmv-json`` (tanpa MSAL di proses anak)."""
+    """Token tunggal untuk mode internal (tanpa MSAL di proses anak)."""
 
     def __init__(self, value: str, expires_on: int) -> None:
         self._token = Token(value=value, expires_on=expires_on)
@@ -93,25 +102,84 @@ class _StaticTokens:
         return self._token
 
 
-def _dmv_json(args: argparse.Namespace) -> int:
-    """Ambil segmen VertiPaq dan cetak JSON; dipanggil dari proses server."""
+def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticTokens, dict[str, Any]]:
     endpoint = str(args.endpoint or "").strip()
     catalog = str(args.catalog or "").strip()
     if not endpoint or not catalog:
-        raise ExtractionError("Mode --dmv-json membutuhkan --endpoint dan --catalog.")
+        raise ExtractionError(
+            f"Mode {mode} membutuhkan --endpoint dan --catalog."
+        )
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError as exc:
-        raise ExtractionError(f"Payload token --dmv-json tidak valid: {exc}") from exc
+        raise ExtractionError(f"Payload token {mode} tidak valid: {exc}") from exc
     token = str((payload or {}).get("token") or "").strip()
     if not token:
-        raise ExtractionError("Token --dmv-json kosong.")
+        raise ExtractionError(f"Token {mode} kosong.")
     expires_on = int((payload or {}).get("expires_on") or (time.time() + 3000))
-    tokens = _StaticTokens(token, expires_on)
+    return endpoint, catalog, _StaticTokens(token, expires_on), payload
+
+
+def _dmv_json(args: argparse.Namespace) -> int:
+    """Ambil segmen VertiPaq dan cetak JSON; dipanggil dari proses server."""
+    endpoint, catalog, tokens, _payload = _read_stdin(args, "--dmv-json")
     with open_client(endpoint=endpoint, catalog=catalog, tokens=tokens) as client:
         rows = client.query(STORAGE_DMV)
     # ASCII agar aman di pipe Windows dengan encoding console yang berbeda.
     print(json.dumps(rows, ensure_ascii=True, default=str))
+    return 0
+
+
+def _inventory_json(args: argparse.Namespace) -> int:
+    """Baca partisi lewat TOM dan cetak JSON; dipanggil dari proses server."""
+    endpoint, catalog, tokens, _payload = _read_stdin(args, "--inventory-json")
+    with connect_server(endpoint, catalog, tokens) as server:
+        rows = list_partitions(server, catalog)
+    print(json.dumps(partition_payload(rows), ensure_ascii=True))
+    return 0
+
+
+def _refresh_json(args: argparse.Namespace) -> int:
+    """Validasi target, kirim satu TMSL, lalu cetak inventaris terbaru."""
+    endpoint, catalog, tokens, payload = _read_stdin(args, "--refresh-json")
+    targets: list[tuple[str, str]] = []
+    for item in payload.get("targets") or []:
+        table = str((item or {}).get("table") or "").strip()
+        partition = str((item or {}).get("partition") or "").strip()
+        if not table or not partition:
+            raise ExtractionError("Nama tabel dan partisi tidak boleh kosong.")
+        targets.append((table, partition))
+    if not targets:
+        raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
+    refresh_type = normalize_refresh_type(str(payload.get("refresh_type") or "full"))
+
+    with connect_server(endpoint, catalog, tokens) as server:
+        partitions = list_partitions(server, catalog)
+        by_key = {(item.table, item.name): item for item in partitions}
+        missing = [key for key in targets if key not in by_key]
+        if missing:
+            listing = ", ".join(f"{table}/{name}" for table, name in missing)
+            raise ExtractionError(
+                f"Partisi tidak ditemukan di model: {listing}. Muat ulang inventaris."
+            )
+        refresh_type = validate_refresh_targets(
+            refresh_type, [by_key[key] for key in targets]
+        )
+        tmsl = build_refresh_tmsl(catalog, targets, refresh_type)
+        print(
+            f"Mengirim refresh TMSL untuk {len(targets)} partisi; "
+            "perintah tidak bisa dibatalkan setelah dikirim.",
+            file=sys.stderr,
+            flush=True,
+        )
+        execute_refresh(server, tmsl)
+        print(
+            "Perintah refresh selesai; membaca ulang status partisi.",
+            file=sys.stderr,
+            flush=True,
+        )
+        refreshed = list_partitions(server, catalog)
+    print(json.dumps(partition_payload(refreshed), ensure_ascii=True))
     return 0
 
 
@@ -176,6 +244,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.dmv_json:
             return _dmv_json(args)
+        if args.inventory_json:
+            return _inventory_json(args)
+        if args.refresh_json:
+            return _refresh_json(args)
         if not args.workspace_id or not args.dataset_id:
             raise ExtractionError("--workspace-id dan --dataset-id wajib diisi.")
         workspace_name, dataset_name = _names(args)

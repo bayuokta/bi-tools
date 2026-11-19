@@ -133,6 +133,87 @@ def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
     return _ADOMD
 
 
+_CHANNEL_CACHE_CLEARED = False
+
+
+def _is_channel_cache_error(exc: BaseException) -> bool:
+    """Error deserialisasi cache controller HTTP milik ADOMD.
+
+    Cache ``XmlaLibControllerCache`` disimpan di shared memory dan dipakai
+    bersama semua proses di mesin. Entri yang ditulis ADOMD versi lain tidak
+    bisa dibaca versi ini dan muncul sebagai ``Specified cast is not valid``
+    di ``DeserializeFromGlobalObject``.
+    """
+    text = str(exc)
+    if "Specified cast is not valid" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "HttpStream",
+            "SharedMemoryCache",
+            "DeserializeFromGlobalObject",
+            "CreateControllerFromGlobalObject",
+        )
+    )
+
+
+def _clear_adomd_channel_cache(*, force: bool = False) -> bool:
+    """Kosongkan cache controller HTTP ADOMD (best-effort).
+
+    Cache ini hanya mempercepat handshake, jadi mengosongkannya aman. Refleksi
+    dipakai karena API-nya internal dan bisa berubah antar versi ADOMD; semua
+    kegagalan diabaikan. Return ``True`` bila pembersihan dijalankan.
+    """
+    global _CHANNEL_CACHE_CLEARED
+    if _CHANNEL_CACHE_CLEARED and not force:
+        return False
+    _CHANNEL_CACHE_CLEARED = True
+    try:
+        import clr  # pythonnet
+        from Microsoft.AnalysisServices.AdomdClient import AdomdConnection
+        from System.Reflection import BindingFlags
+
+        assembly = clr.GetClrType(AdomdConnection).Assembly
+        manager = assembly.GetType(
+            "Microsoft.AnalysisServices.AdomdClient.HttpStream+HttpChannelManager"
+        )
+        if manager is None:
+            return False
+        flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static
+        active = manager.GetField("activeControllers", flags).GetValue(None)
+        if active is not None:
+            try:
+                active.Clear()
+            except Exception:  # noqa: BLE001 - cache hanya optimasi
+                pass
+        controllers = manager.GetField("controllers", flags).GetValue(None)
+        if controllers is not None:
+            try:
+                controllers.ClearResources()
+            except Exception:  # noqa: BLE001
+                pass
+        cache = manager.GetField("controllerCache", flags).GetValue(None)
+        if cache is not None:
+            try:
+                cache.Clear()
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001 - jangan gagalkan koneksi karena cache
+        return False
+    return True
+
+
+def _channel_cache_message(exc: BaseException) -> str:
+    return (
+        "Koneksi XMLA gagal karena cache channel ADOMD tidak kompatibel "
+        "dengan versi lain di mesin ini (Specified cast is not valid).\n"
+        "Tutup aplikasi lain yang memakai ADOMD/XMLA (Power BI Desktop, "
+        "DAX Studio, Tabular Editor, SSMS), lalu coba lagi.\n"
+        f"Detail: {exc}"
+    )
+
+
 def _clean(value: Any) -> Any:
     """Ubah DBNull menjadi None."""
     if value is None:
@@ -274,22 +355,41 @@ def _connect(
     wrap_expired: Any | None = None,
 ) -> XmlaClient:
     connection_cls, command_cls, _ = load_adomd(dll_path)
-    connection = connection_cls(connection_string)
-    if tokens is not None and _is_cloud(connection_string):
-        attach_token(
-            connection,
-            tokens,
-            scope=scope,
-            access_token_cls=access_token_cls,
-            wrap_expired=wrap_expired,
+    # Cache controller ADOMD dipakai bersama semua proses. Entri dari versi
+    # ADOMD lain tidak bisa dibaca (Specified cast is not valid), jadi cache
+    # dibersihkan sekali per proses sebelum koneksi pertama.
+    _clear_adomd_channel_cache()
+
+    for attempt in (1, 2):
+        connection = connection_cls(connection_string)
+        if tokens is not None and _is_cloud(connection_string):
+            attach_token(
+                connection,
+                tokens,
+                scope=scope,
+                access_token_cls=access_token_cls,
+                wrap_expired=wrap_expired,
+            )
+        try:
+            connection.Open()
+        except Exception as exc:  # noqa: BLE001 - periksa jenis kegagalan
+            try:
+                connection.Close()
+            except Exception:  # noqa: BLE001
+                pass
+            if not _is_channel_cache_error(exc):
+                raise
+            if attempt == 1:
+                _clear_adomd_channel_cache(force=True)
+                continue
+            raise XmlaError(_channel_cache_message(exc)) from exc
+        return XmlaClient(
+            connection=connection,
+            command_cls=command_cls,
+            connection_string=connection_string,
+            server_version=str(getattr(connection, "ServerVersion", "") or ""),
         )
-    connection.Open()
-    return XmlaClient(
-        connection=connection,
-        command_cls=command_cls,
-        connection_string=connection_string,
-        server_version=str(getattr(connection, "ServerVersion", "") or ""),
-    )
+    raise XmlaError("Koneksi XMLA tidak bisa dibuka.")
 
 
 def _is_cloud(connection_string: str) -> bool:

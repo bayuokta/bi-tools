@@ -226,6 +226,7 @@ class WebLayerTests(unittest.TestCase):
     def test_web_lineage_is_live_and_zoomable(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn('id="lineageZoomIn"', html)
         self.assertIn('id="lineageZoomOut"', html)
         self.assertIn('id="lineageZoomReset"', html)
@@ -240,6 +241,35 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("var lineageEdges = [", js)
         self.assertNotIn("function renderLineage(", js)
         self.assertIn('isApp ? "Apps" : "Local report"', js)
+        # Desain node mengikuti mockup: warna per tipe, band, ikon, halo.
+        self.assertIn("NODE_HUE_BY_TYPE", js)
+        self.assertIn("nodeIconMarkup(", js)
+        self.assertIn("node-band-rule", js)
+        self.assertIn('class="node-halo"', js)
+        self.assertIn("--node-report", css)
+        self.assertIn('data-hue="', js)
+        # Hasil pencarian tidak lagi otomatis membuka item pertama.
+        search = js.index("function lineageSearch(")
+        render = js.index("function lineageRenderResults(", search)
+        self.assertNotIn("lineageOpen(", js[search:render])
+        # Chip tipe tidak boleh menempati kolom pertama (bug tumpukan).
+        self.assertIn(".result-type{ grid-column:2", css)
+
+    def test_partition_tom_is_isolated_in_child_process(self) -> None:
+        service = (ROOT / "core" / "partition_service.py").read_text(encoding="utf-8")
+        self.assertNotIn("tom_client", service)
+        presenter = (
+            ROOT / "server" / "presenters" / "partitions.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("tom_client", presenter)
+        plan = (ROOT / "core" / "partition_plan.py").read_text(encoding="utf-8")
+        self.assertNotIn("import clr", plan)
+        self.assertNotIn("from .tom_client", plan)
+        self.assertNotIn("from .xmla_client", plan)
+        # Cache controller ADOMD dibersihkan sebelum koneksi XMLA.
+        xmla = (ROOT / "core" / "xmla_client.py").read_text(encoding="utf-8")
+        self.assertIn("_clear_adomd_channel_cache(", xmla)
+        self.assertIn("HttpStream+HttpChannelManager", xmla)
 
     def test_web_sidebar_and_partisi_page(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

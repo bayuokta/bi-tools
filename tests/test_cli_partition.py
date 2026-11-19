@@ -9,10 +9,29 @@ import unittest
 from unittest.mock import patch
 
 from cli import partition as cli
+from core.partition_plan import PartitionInfo
 
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 DATASET = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+
+def _cli_partition(
+    table: str = "Fact", name: str = "P1", *, is_calculated: bool = False
+) -> PartitionInfo:
+    return PartitionInfo(
+        table=table,
+        name=name,
+        state="Ready",
+        mode="Import",
+        data_view="Full",
+        source_type="CalculatedPartitionSource" if is_calculated else "MPartitionSource",
+        expression="",
+        description="",
+        modified_time="",
+        refreshed_time="",
+        is_calculated=is_calculated,
+    )
 
 
 class PartitionCliTests(unittest.TestCase):
@@ -142,6 +161,147 @@ class PartitionCliTests(unittest.TestCase):
         self.assertEqual(kwargs["targets"], (("Fact", "P1"),))
         self.assertEqual(kwargs["refresh_type"], "dataOnly")
         self.assertIn("Refresh selesai.", buffer.getvalue())
+
+
+    def test_inventory_json_reads_token_from_stdin(self) -> None:
+        partition = PartitionInfo(
+            table="Fact",
+            name="P1",
+            state="Ready",
+            mode="Import",
+            data_view="Full",
+            source_type="MPartitionSource",
+            expression="RangeStart",
+            description="",
+            modified_time="2026-01-01 00:00:00",
+            refreshed_time="2026-01-02 00:00:00",
+            is_calculated=False,
+        )
+        buffer = io.StringIO()
+        stdin = io.StringIO(json.dumps({"token": "secret-token", "expires_on": 123}))
+        with patch.object(
+            cli, "connect_server", return_value=contextlib.nullcontext(object())
+        ) as opened, patch.object(
+            cli, "list_partitions", return_value=[partition]
+        ), patch("sys.stdin", stdin), contextlib.redirect_stdout(buffer):
+            code = cli.main(
+                [
+                    "--inventory-json",
+                    "--endpoint",
+                    "powerbi://api.powerbi.com/v1.0/myorg/W",
+                    "--catalog",
+                    "Model",
+                ]
+            )
+        self.assertEqual(code, 0)
+        rows = json.loads(buffer.getvalue())
+        self.assertEqual(rows[0]["partition"], "P1")
+        tokens = opened.call_args.args[2]
+        self.assertEqual(tokens.get("scope").value, "secret-token")
+
+    def test_refresh_json_executes_one_tmsl(self) -> None:
+        partitions = [
+            _cli_partition("Fact", "P1"),
+            _cli_partition("Fact", "P2"),
+        ]
+        seen: dict[str, str] = {}
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        stdin = io.StringIO(
+            json.dumps(
+                {
+                    "token": "secret-token",
+                    "expires_on": 123,
+                    "refresh_type": "dataOnly",
+                    "targets": [
+                        {"table": "Fact", "partition": "P1"},
+                        {"table": "Fact", "partition": "P2"},
+                    ],
+                }
+            )
+        )
+
+        def execute(_server, tmsl: str) -> None:
+            seen["tmsl"] = tmsl
+
+        with patch.object(
+            cli, "connect_server", return_value=contextlib.nullcontext(object())
+        ), patch.object(cli, "list_partitions", return_value=partitions), patch.object(
+            cli, "execute_refresh", side_effect=execute
+        ), patch("sys.stdin", stdin), contextlib.redirect_stdout(
+            buffer
+        ), contextlib.redirect_stderr(errors):
+            code = cli.main(
+                [
+                    "--refresh-json",
+                    "--endpoint",
+                    "powerbi://api.powerbi.com/v1.0/myorg/W",
+                    "--catalog",
+                    "Model",
+                ]
+            )
+        self.assertEqual(code, 0)
+        body = json.loads(seen["tmsl"])
+        self.assertEqual(body["refresh"]["type"], "dataOnly")
+        self.assertEqual(len(body["refresh"]["objects"]), 2)
+        self.assertIn("Mengirim refresh TMSL", errors.getvalue())
+        self.assertEqual(len(json.loads(buffer.getvalue())), 2)
+
+    def test_refresh_json_rejects_missing_and_calculated_add(self) -> None:
+        errors = io.StringIO()
+        stdin = io.StringIO(
+            json.dumps(
+                {
+                    "token": "secret-token",
+                    "refresh_type": "full",
+                    "targets": [{"table": "Fact", "partition": "Missing"}],
+                }
+            )
+        )
+        with patch.object(
+            cli, "connect_server", return_value=contextlib.nullcontext(object())
+        ), patch.object(
+            cli, "list_partitions", return_value=[_cli_partition("Fact", "P1")]
+        ), patch("sys.stdin", stdin), contextlib.redirect_stderr(errors):
+            code = cli.main(
+                [
+                    "--refresh-json",
+                    "--endpoint",
+                    "powerbi://api.powerbi.com/v1.0/myorg/W",
+                    "--catalog",
+                    "Model",
+                ]
+            )
+        self.assertEqual(code, 2)
+        self.assertIn("tidak ditemukan", errors.getvalue())
+
+        calculated = _cli_partition("Calc", "P", is_calculated=True)
+        errors = io.StringIO()
+        stdin = io.StringIO(
+            json.dumps(
+                {
+                    "token": "secret-token",
+                    "refresh_type": "add",
+                    "targets": [{"table": "Calc", "partition": "P"}],
+                }
+            )
+        )
+        with patch.object(
+            cli, "connect_server", return_value=contextlib.nullcontext(object())
+        ), patch.object(cli, "list_partitions", return_value=[calculated]), patch(
+            "sys.stdin", stdin
+        ), contextlib.redirect_stderr(errors):
+            code = cli.main(
+                [
+                    "--refresh-json",
+                    "--endpoint",
+                    "powerbi://api.powerbi.com/v1.0/myorg/W",
+                    "--catalog",
+                    "Model",
+                ]
+            )
+        self.assertEqual(code, 2)
+        self.assertIn("calculated partition", errors.getvalue())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,43 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-19 - Rilis 0.4.3
+
+Memperbaiki ekstraksi model yang gagal karena cache ADOMD, mengisolasi TOM dari
+proses server, dan menyelaraskan halaman Lineage dengan mockup.
+
+### Perbaikan ekstraksi model (`Specified cast is not valid`)
+
+- ADOMD menyimpan controller HTTP di cache shared memory `XmlaLibControllerCache`
+  yang dipakai bersama semua proses. Entri dari ADOMD versi lain (Power BI
+  Desktop, DAX Studio, Tabular Editor, SSMS) tidak bisa dibaca dan membuat
+  ekstraksi/analisa gagal. Aplikasi kini membersihkan cache itu sekali per
+  proses sebelum koneksi XMLA pertama, lalu mengulang sekali bila error yang
+  sama muncul. Pesan akhir menyebutkan langkah yang bisa dilakukan pengguna.
+- Semua operasi TOM (inventaris dan refresh partisi) dipindahkan ke proses CLI
+  anak (`partition --inventory-json` / `--refresh-json`). Proses server hanya
+  memakai ADOMD, sehingga membuka halaman Partisi tidak lagi mematikan
+  ekstraksi model/analisa di sesi yang sama.
+- `core\partition_plan.py` baru menyimpan tipe, parser range, dan validasi TMSL
+  tanpa CLR; `core\partition_service.py` tidak lagi mengimpor `core\tom_client`.
+
+### Halaman Lineage
+
+- Daftar hasil pencarian diperbaiki: chip tipe tidak lagi menempati kolom
+  pertama, sehingga nama/workspace tidak tertumpuk dan tinggi baris kembali
+  ringkas.
+- Pencarian hanya menampilkan daftar (tidak lagi otomatis membuka hasil
+  pertama). Klik hasil menjadikan root; klik node menyalakan jalur + detail;
+  klik dua kali node menjadikan root baru.
+- Node grafik mengikuti mockup: warna per tipe, band header, ikon, halo untuk
+  node terpilih, dan sorotan tetangga langsung. Toolbar dan panel detail
+  diselaraskan (tombol **Jadikan akar** selalu tampil, nonaktif di root).
+
+### Pengujian
+
+- Suite menjadi 652 tes (643 lulus, 9 skip). Uji baru mencakup retry cache
+  ADOMD, isolasi TOM/proses anak, mode CLI internal, dan penjaga arsitektur.
+
 ## 2026-11-19 - Rilis 0.4.2
 
 Menambahkan halaman **Partisi** yang berfungsi penuh dan perintah CLI `partition`.

@@ -1,12 +1,15 @@
 """Orkestrasi inventaris dan proses partisi semantic model.
 
-Inventaris memakai dua koneksi yang berbagi token yang sama:
+Modul ini **tidak** memuat TOM maupun ADOMD. Keduanya dijalankan di proses CLI
+terpisah karena membawa versi assembly ``Microsoft.AnalysisServices`` yang
+tidak kompatibel dalam satu proses:
 
-- TOM untuk metadata partisi (state, mode, source, refresh time, ekspresi M);
-- ADOMD/DMV untuk ``RECORDS_COUNT`` per partisi.
+- ``partition --inventory-json`` / ``partition --refresh-json`` memakai TOM;
+- ``partition --dmv-json`` memakai ADOMD untuk ``RECORDS_COUNT`` per partisi.
 
-Proses refresh tetap satu perintah TMSL untuk semua partisi terpilih. Modul ini
-tidak mencetak ke terminal dan tidak menyimpan token ke disk.
+Dengan begitu proses server (yang memakai ADOMD untuk ekstraksi/analisa) tetap
+sehat setelah halaman Partisi dipakai. Token dikirim lewat stdin, tidak pernah
+menjadi argumen baris perintah atau file.
 """
 
 from __future__ import annotations
@@ -14,25 +17,23 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .auth import POWERBI_SCOPE, EntraTokens, ServicePrincipal
-from .paths import APP_DIR, cli_argv
-from .column_stats import STORAGE_DMV, partition_row_counts
+from .column_stats import partition_row_counts
 from .errors import ExtractionError
-from .tom_client import (
+from .partition_plan import (
     PartitionInfo,
-    build_refresh_tmsl,
-    connect_server,
-    execute_refresh,
-    list_partitions,
     normalize_refresh_type,
-    validate_refresh_targets,
+    partitions_from_payload,
 )
+from .paths import APP_DIR, cli_argv
 from .xmla_client import workspace_endpoint
 
 Log = Callable[[str], None]
+TOM_TIMEOUT = 180
 
 
 def _silent(_message: str) -> None:
@@ -47,27 +48,40 @@ def _endpoint(principal: ServicePrincipal, workspace_name: str) -> str:
     return workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
 
 
-def _dmv_rows_subprocess(
-    endpoint: str, dataset_name: str, tokens: EntraTokens
-) -> list[dict[str, Any]]:
-    """Ambil DMV di proses CLI terpisah yang hanya memuat ADOMD.
-
-    TOM dan ADOMD membawa versi assembly ``Microsoft.AnalysisServices`` yang
-    berbeda dan tidak bisa hidup di satu proses. Token dikirim lewat stdin,
-    tidak pernah menjadi argumen baris perintah atau file.
-    """
+def _token_payload(tokens: EntraTokens) -> dict[str, Any]:
     token = tokens.get(POWERBI_SCOPE)
-    command = cli_argv(
+    return {"token": token.value, "expires_on": token.expires_on}
+
+
+def _cli_command(mode: str, endpoint: str, dataset_name: str) -> list[str]:
+    return cli_argv(
         [
             "partition",
-            "--dmv-json",
+            mode,
             "--endpoint",
             endpoint,
             "--catalog",
             dataset_name,
         ]
     )
-    payload = json.dumps({"token": token.value, "expires_on": token.expires_on})
+
+
+def _cli_env() -> dict[str, str]:
+    return {**os.environ, "PYTHONIOENCODING": "utf-8"}
+
+
+def _error_line(text: str) -> str:
+    detail = (text or "").strip()
+    line = next((item.strip() for item in detail.splitlines() if item.strip()), "")
+    if line.upper().startswith("ERROR:"):
+        return line[len("ERROR:") :].strip()
+    return line
+
+
+def _run_json_process(
+    command: list[str], payload: str, *, timeout: int | None
+) -> str:
+    """Jalankan proses anak tanpa streaming log (inventaris/DMV)."""
     completed = subprocess.run(
         command,
         input=payload,
@@ -75,15 +89,116 @@ def _dmv_rows_subprocess(
         text=True,
         encoding="utf-8",
         cwd=str(APP_DIR),
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-        timeout=180,
+        env=_cli_env(),
+        timeout=timeout,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "").strip()
-        line = next((item.strip() for item in detail.splitlines() if item.strip()), "")
-        raise RuntimeError(line or "Proses DMV gagal tanpa pesan.")
-    return json.loads(completed.stdout or "[]")
+        line = _error_line(completed.stderr or completed.stdout)
+        raise ExtractionError(line or "Proses CLI gagal tanpa pesan.")
+    return completed.stdout or ""
+
+
+def _run_stream_process(
+    command: list[str], payload: str, log: Log, *, timeout: int | None = None
+) -> str:
+    """Jalankan proses anak sambil meneruskan stderr sebagai log job."""
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        cwd=str(APP_DIR),
+        env=_cli_env(),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    chunks: list[str] = []
+
+    def read_stdout() -> None:
+        try:
+            chunks.append(process.stdout.read() if process.stdout else "")
+        except Exception:  # noqa: BLE001 - proses mungkin ditutup
+            chunks.append("")
+
+    reader = threading.Thread(target=read_stdout, daemon=True)
+    reader.start()
+    errors: list[str] = []
+    try:
+        if process.stdin is not None:
+            try:
+                process.stdin.write(payload)
+                process.stdin.close()
+            except (BrokenPipeError, OSError):
+                pass
+        if process.stderr is not None:
+            for line in process.stderr:
+                text = line.rstrip()
+                if not text:
+                    continue
+                errors.append(text)
+                log(text)
+        process.wait(timeout=timeout)
+    finally:
+        reader.join(timeout=10)
+        if process.poll() is None:
+            process.kill()
+    if process.returncode != 0:
+        line = _error_line("\n".join(errors))
+        raise ExtractionError(line or "Proses CLI gagal tanpa pesan.")
+    return "".join(chunks)
+
+
+def _tom_partitions_subprocess(
+    endpoint: str, dataset_name: str, tokens: EntraTokens
+) -> list[PartitionInfo]:
+    """Baca metadata partisi lewat proses anak yang hanya memuat TOM."""
+    text = _run_json_process(
+        _cli_command("--inventory-json", endpoint, dataset_name),
+        json.dumps(_token_payload(tokens)),
+        timeout=TOM_TIMEOUT,
+    )
+    return partitions_from_payload(json.loads(text or "[]"))
+
+
+def _tom_refresh_subprocess(
+    endpoint: str,
+    dataset_name: str,
+    tokens: EntraTokens,
+    targets: Sequence[tuple[str, str]],
+    refresh_type: str,
+    log: Log,
+) -> list[PartitionInfo]:
+    """Kirim satu TMSL lewat proses anak TOM; log progres ikut diteruskan."""
+    payload = _token_payload(tokens)
+    payload.update(
+        {
+            "targets": [
+                {"table": table, "partition": partition}
+                for table, partition in targets
+            ],
+            "refresh_type": refresh_type,
+        }
+    )
+    text = _run_stream_process(
+        _cli_command("--refresh-json", endpoint, dataset_name),
+        json.dumps(payload),
+        log,
+    )
+    return partitions_from_payload(json.loads(text or "[]"))
+
+
+def _dmv_rows_subprocess(
+    endpoint: str, dataset_name: str, tokens: EntraTokens
+) -> list[dict[str, Any]]:
+    """Ambil DMV di proses CLI terpisah yang hanya memuat ADOMD."""
+    text = _run_json_process(
+        _cli_command("--dmv-json", endpoint, dataset_name),
+        json.dumps(_token_payload(tokens)),
+        timeout=TOM_TIMEOUT,
+    )
+    return json.loads(text or "[]")
 
 
 def _row_counts(
@@ -91,17 +206,9 @@ def _row_counts(
     dataset_name: str,
     tokens: EntraTokens,
     log: Log,
-    *,
-    open_factory: Callable[..., Any] | None = None,
 ) -> tuple[dict[tuple[str, str], int], list[str]]:
     try:
-        if open_factory is None:
-            segments = _dmv_rows_subprocess(endpoint, dataset_name, tokens)
-        else:
-            with open_factory(
-                endpoint=endpoint, catalog=dataset_name, tokens=tokens
-            ) as client:
-                segments = client.query(STORAGE_DMV)
+        segments = _dmv_rows_subprocess(endpoint, dataset_name, tokens)
     except Exception as exc:  # noqa: BLE001 - row count bersifat best-effort
         message = f"Jumlah baris partisi tidak tersedia: {exc}"
         log(message)
@@ -176,8 +283,6 @@ def read_partition_inventory(
     principal: ServicePrincipal,
     log: Log = _silent,
     should_stop: Callable[[], bool] | None = None,
-    connect_factory: Callable[..., Any] | None = None,
-    open_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Baca inventaris partisi satu semantic model (tanpa menulis apa pun)."""
     principal.validate()
@@ -186,19 +291,11 @@ def read_partition_inventory(
     log(f"Workspace: {workspace_name}")
     log(f"Semantic model: {dataset_name}")
 
-    connect = connect_factory or connect_server
-    with connect(endpoint, dataset_name, tokens) as server:
-        if _should_stop(should_stop):
-            raise ExtractionError("Pembacaan partisi dibatalkan.")
-        partitions = list_partitions(server, dataset_name)
+    if _should_stop(should_stop):
+        raise ExtractionError("Pembacaan partisi dibatalkan.")
+    partitions = _tom_partitions_subprocess(endpoint, dataset_name, tokens)
 
-    row_counts, warnings = _row_counts(
-        endpoint,
-        dataset_name,
-        tokens,
-        log,
-        open_factory=open_factory,
-    )
+    row_counts, warnings = _row_counts(endpoint, dataset_name, tokens, log)
     log(
         f"Partisi dibaca: {len(partitions)}; jumlah baris tersedia untuk "
         f"{len(row_counts)} partisi."
@@ -226,9 +323,6 @@ def process_partitions(
     principal: ServicePrincipal,
     log: Log = _silent,
     should_stop: Callable[[], bool] | None = None,
-    connect_factory: Callable[..., Any] | None = None,
-    open_factory: Callable[..., Any] | None = None,
-    execute_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Jalankan satu TMSL refresh untuk semua partisi terpilih."""
     principal.validate()
@@ -243,38 +337,18 @@ def process_partitions(
     log(f"Semantic model: {dataset_name}")
     log(f"Refresh type: {normalized}")
     log(f"Target partisi: {len(pairs)}")
+    if _should_stop(should_stop):
+        raise ExtractionError("Refresh partisi dibatalkan sebelum dikirim.")
 
-    connect = connect_factory or connect_server
-    execute = execute_factory or execute_refresh
-    with connect(endpoint, dataset_name, tokens) as server:
-        if _should_stop(should_stop):
-            raise ExtractionError("Refresh partisi dibatalkan sebelum dikirim.")
-        partitions = list_partitions(server, dataset_name)
-        by_key = {(item.table, item.name): item for item in partitions}
-        missing = [key for key in pairs if key not in by_key]
-        if missing:
-            listing = ", ".join(f"{table}/{name}" for table, name in missing)
-            raise ExtractionError(
-                f"Partisi tidak ditemukan di model: {listing}. Muat ulang inventaris."
-            )
-        selected = [by_key[key] for key in pairs]
-        validate_refresh_targets(normalized, selected)
-        tmsl = build_refresh_tmsl(dataset_name, pairs, normalized)
-        log(
-            f"Mengirim refresh TMSL untuk {len(pairs)} partisi; "
-            "perintah tidak bisa dibatalkan setelah dikirim."
-        )
-        execute(server, tmsl)
-        log("Perintah refresh selesai; membaca ulang status partisi.")
-        refreshed = list_partitions(server, dataset_name)
-
-    row_counts, warnings = _row_counts(
-        endpoint,
-        dataset_name,
-        tokens,
-        log,
-        open_factory=open_factory,
+    log(
+        "Mengirim refresh TMSL; perintah tidak bisa dibatalkan setelah dikirim."
     )
+    refreshed = _tom_refresh_subprocess(
+        endpoint, dataset_name, tokens, pairs, normalized, log
+    )
+    log("Perintah refresh selesai; membaca jumlah baris partisi.")
+
+    row_counts, warnings = _row_counts(endpoint, dataset_name, tokens, log)
     payload = _payload(
         workspace_id=workspace_id,
         workspace_name=workspace_name,
