@@ -7,12 +7,14 @@ snapshot SQLite tanpa XMLA, dan ekspor XLSX.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
 from core.auth import ServicePrincipal
 from core.errors import ExtractionError
-from core.lineage_store import DEFAULT_DB
+from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
+from core.usage_store import initialize as initialize_usage, report_detail
 from core.paths import outputs_dir
 from core.requests import AnalysisRequest
 from core.usage_service import (
@@ -43,13 +45,63 @@ SORT_KEYS = (
     "format_string",
     "has_error",
     "display_folder",
+    "from_table",
+    "to_table",
+    "cross_filtering",
+    "from_cardinality",
+    "to_cardinality",
+    "security_filtering",
+    "is_active",
+    "cross",
+    "cardinality",
+    "auto",
+    "used",
+    "workspace_name",
+    "format",
+    "pages",
+    "visuals",
+    "fields",
+    "unresolved",
+    "modified_at",
+    "kind",
+    "source",
+    "warning",
 )
 SORT_DESC_DEFAULT = {"size", "uses", "has_error"}
-USAGE_GROUPS = (
-    ("Dipakai di visual", ("field",)),
-    ("Dipakai di filter", ("filter-report", "filter-page", "filter-visual", "filter-query")),
-    ("Dipakai di sorting & format", ("sort", "format", "calculation")),
+GROUP_ARTIFACTS = "Used in artifacts"
+GROUP_VISUALS = "Used in visuals"
+GROUP_KEY_COLUMN = "Used as key column"
+GROUP_RELATIONSHIPS = "Used in relationships"
+GROUP_SECURITY = "Used in row/object level security"
+GROUP_PAGE_FILTERS = "Used in page level filters"
+GROUP_SORTING = "Used in column sorting"
+GROUP_FIELD_PARAMETERS = "Used in field parameters"
+
+GROUP_ORDER = (
+    GROUP_ARTIFACTS,
+    GROUP_VISUALS,
+    GROUP_KEY_COLUMN,
+    GROUP_RELATIONSHIPS,
+    GROUP_SECURITY,
+    GROUP_PAGE_FILTERS,
+    GROUP_SORTING,
+    GROUP_FIELD_PARAMETERS,
 )
+
+ARTIFACT_TYPES = {
+    "measure": "Measure",
+    "calculated column": "Calculated column",
+    "calculated table": "Calculated table",
+    "calculated table column": "Calculated column",
+    "calculation item": "Calculation item",
+    "KPI": "KPI",
+    "hierarchy": "Hierarchy",
+    "langkah M": "Langkah M",
+}
+SECURITY_TYPES = {"RLS": "RLS", "column permission": "OLS"}
+KIND_SORT = "sort by"
+KIND_FIELD_PARAMETER = "field parameter"
+
 USAGE_LABELS = {
     "field": "Field",
     "filter-report": "Filter report",
@@ -150,7 +202,34 @@ def snapshot_payload(store: SettingsStore, dataset_id: str) -> dict[str, Any]:
     if not dataset:
         return {"result": None}
     result = load_snapshot(database_path(store), dataset)
-    return {"result": serialize_result(result) if result is not None else None}
+    if result is None:
+        return {"result": None}
+    return {"result": serialize_result(result, _report_workspace_names(store, result))}
+
+
+def _report_workspace_names(store: SettingsStore, result: Any) -> dict[str, str]:
+    """Nama workspace untuk report lintas workspace, dibaca dari katalog lokal."""
+    ids = {
+        str(item.get("workspace_id") or "")
+        for item in getattr(result, "reports", []) or []
+        if isinstance(item, Mapping)
+    }
+    ids.discard("")
+    if not ids:
+        return {}
+    database = database_path(store)
+    if not Path(database).exists():
+        return {}
+    names: dict[str, str] = {}
+    conn = connect(database)
+    try:
+        for workspace_id in ids:
+            row = workspace_by_id(conn, workspace_id)
+            if row:
+                names[workspace_id] = str(row.get("name") or "")
+    finally:
+        close_quietly(conn)
+    return names
 
 
 def _record_payload(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -168,64 +247,350 @@ def _record_payload(record: Mapping[str, Any]) -> dict[str, Any]:
         "visual_type": str(record.get("visual_type") or ""),
         "field_kind": str(record.get("field_kind") or ""),
         "aggregation": str(record.get("aggregation") or ""),
+        "detail": str(record.get("detail") or ""),
         "is_hidden": bool(record.get("is_hidden")),
         "url": report_url(workspace_id, report_id),
     }
 
 
-def _usage_groups(analysis: Any) -> list[dict[str, Any]]:
-    records = [
-        _record_payload(record) for record in (analysis.report_records or [])
-    ]
-    groups: list[dict[str, Any]] = []
-    for label, kinds in USAGE_GROUPS:
-        selected = [row for row in records if row["usage_kind"] in kinds]
-        if not selected:
-            continue
-        by_report: dict[str, dict[str, Any]] = {}
-        for row in selected:
-            key = row["report_id"] or row["report_name"]
-            report = by_report.setdefault(
-                key,
-                {
-                    "report_id": row["report_id"],
-                    "report_name": row["report_name"],
-                    "workspace_id": row["workspace_id"],
-                    "url": row["url"],
-                    "points": [],
-                },
-            )
-            report["points"].append(row)
-        groups.append(
-            {
-                "kind": "usage",
-                "label": label,
-                "count": len(selected),
-                "reports": list(by_report.values()),
-            }
+GROUP_COLUMNS = {
+    GROUP_ARTIFACTS: (
+        (1, "Type"),
+        (2, "Table"),
+        (3, "Source"),
+        (4, "Data type"),
+        (5, "Size"),
+        (6, "Status"),
+        (7, "# of uses"),
+        (8, "Format string"),
+        (10, "Display folder"),
+    ),
+    GROUP_VISUALS: ((1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")),
+    GROUP_KEY_COLUMN: (
+        (1, "Type"),
+        (2, "Table"),
+        (3, "Source"),
+        (5, "Size"),
+        (6, "Status"),
+        (7, "# of uses"),
+    ),
+    GROUP_RELATIONSHIPS: ((1, "Type"), (2, "Table"), (3, "Source")),
+    GROUP_SECURITY: ((1, "Type"), (2, "Table"), (3, "Source")),
+    GROUP_PAGE_FILTERS: ((1, "Type"), (2, "Page"), (3, "Report")),
+    GROUP_SORTING: (
+        (1, "Type"),
+        (2, "Table"),
+        (3, "Source"),
+        (4, "Data type"),
+        (5, "Size"),
+        (6, "Status"),
+        (7, "# of uses"),
+        (8, "Format string"),
+    ),
+    GROUP_FIELD_PARAMETERS: ((1, "Type"), (2, "Table"), (3, "Source")),
+}
+
+GROUP_ICONS = {
+    GROUP_ARTIFACTS: "measure",
+    GROUP_VISUALS: "page",
+    GROUP_KEY_COLUMN: "link",
+    GROUP_RELATIONSHIPS: "link",
+    GROUP_SECURITY: "filter",
+    GROUP_PAGE_FILTERS: "filter",
+    GROUP_SORTING: "group",
+    GROUP_FIELD_PARAMETERS: "group",
+}
+
+
+def _owner(analysis: Any) -> tuple[str, str]:
+    """Nama dan tabel objek yang sedang dianalisa (kolom atau measure)."""
+    node = getattr(analysis, "column", None) or getattr(analysis, "measure", None)
+    if node is None:
+        return "", ""
+    name = getattr(node, "column", "") or getattr(node, "measure", "")
+    return str(name or ""), str(getattr(node, "table", "") or "")
+
+
+def _parse_object(text: str) -> tuple[str, str]:
+    """Baca ``'Tabel'[Kolom]`` menjadi pasangan tabel/kolom."""
+    value = str(text or "").strip()
+    match = re.match(r"^'((?:[^']|'')+)'\s*\[([^\]]+)\]$", value)
+    if not match:
+        match = re.match(r"^([^\[\]]+?)\s*\[([^\]]+)\]$", value)
+    if not match:
+        return "", ""
+    return match.group(1).replace("''", "'"), match.group(2)
+
+
+def _child(
+    name: str, icon: str, cells: Mapping[int, Any], href: str = ""
+) -> dict[str, Any]:
+    payload: dict[str, str] = {}
+    for index, value in cells.items():
+        text = str(value if value is not None else "").strip()
+        if text:
+            payload[str(index)] = text
+    return {
+        "name": str(name or ""),
+        "icon": icon,
+        "href": str(href or ""),
+        "cells": payload,
+    }
+
+
+def _relationship_label(relation: Mapping[str, Any]) -> str:
+    name = str(relation.get("name") or "")
+    generated = bool(re.match(r"^AutoDetected_", name, re.IGNORECASE)) or bool(
+        re.match(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            name,
+            re.IGNORECASE,
         )
+    )
+    if name and not generated:
+        return name
+    return (
+        f"{relation.get('from_table')}[{relation.get('from_column')}] \u2192 "
+        f"{relation.get('to_table')}[{relation.get('to_column')}]"
+    )
+
+
+def _relation_sides(relation: Mapping[str, Any]) -> list[tuple[str, str]]:
+    return [
+        (
+            str(relation.get(f"{side}_table") or "").casefold(),
+            str(relation.get(f"{side}_column") or "").casefold(),
+        )
+        for side in ("from", "to")
+    ]
+
+
+def _filter_type(detail: str) -> str:
+    return str(detail or "").split(" \u00b7 ")[0].strip()
+
+
+def _security_table(detail: str) -> str:
+    text = str(detail or "")
+    match = re.search(r"tabel '((?:[^']|'')+)'", text)
+    if match:
+        return match.group(1).replace("''", "'")
+    object_match = re.search(r"'((?:[^']|'')+)'\s*\[[^\]]+\]", text)
+    return object_match.group(1).replace("''", "'") if object_match else ""
+
+
+def _usage_groups(
+    analysis: Any, context: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Kelompok pemakaian untuk baris anak tab "Semua hasil".
+
+    Setiap grup membawa daftar kolom sendiri (``columns``: indeks kolom utama +
+    label) dan baris anak menyimpan nilai pada indeks tersebut, sehingga
+    sub-header dan isi baris selalu sejajar.
+    """
+    ctx = context or {}
+    relations = [row for row in ctx.get("relationships") or [] if isinstance(row, Mapping)]
+    tables = ctx.get("tables") or {}
+    columns = ctx.get("columns") or {}
+    measures = ctx.get("measures") or {}
+    name, table = _owner(analysis)
+    own_table = table.casefold()
+    mine = [
+        relation
+        for relation in relations
+        if (own_table, name.casefold()) in _relation_sides(relation)
+    ]
+    records = [_record_payload(record) for record in (analysis.report_records or [])]
     refs = [
         {
             "kind": str(ref.kind or ""),
             "object": str(ref.object or ""),
             "detail": str(ref.detail or ""),
-            "blocking": bool(ref.blocking),
         }
         for ref in (analysis.model_refs or [])
     ]
-    if refs:
-        groups.append(
+    groups: dict[str, list[dict[str, Any]]] = {key: [] for key in GROUP_ORDER}
+
+    for ref in refs:
+        label = ARTIFACT_TYPES.get(ref["kind"])
+        if not label:
+            continue
+        ref_table, ref_column = _parse_object(ref["object"])
+        key = (ref_table.casefold(), ref_column.casefold())
+        item = None
+        if ref["kind"] == "measure":
+            item = measures.get(key)
+        elif ref["kind"] in ("calculated column", "calculated table column"):
+            item = columns.get(key)
+        if item:
+            cells: dict[int, Any] = {
+                1: label,
+                2: item.get("table", ""),
+                3: "Model",
+                4: item.get("data_type", ""),
+                5: "0 B" if ref["kind"] == "measure" else item.get("size", ""),
+                6: item.get("status", ""),
+                7: item.get("uses", 0),
+                8: item.get("format_string", ""),
+                10: item.get("display_folder", ""),
+            }
+        else:
+            cells = {1: label, 2: ref_table, 3: "Model"}
+        groups[GROUP_ARTIFACTS].append(
+            _child(
+                ref["object"] or ref["detail"],
+                "measure" if ref["kind"] == "measure" else "code",
+                cells,
+            )
+        )
+
+    for record in records:
+        if record["usage_kind"] != "field":
+            continue
+        groups[GROUP_VISUALS].append(
+            _child(
+                record["visual_title"] or record["visual_type"] or "(visual)",
+                "page",
+                {
+                    1: record["visual_type"],
+                    2: record["page_name"],
+                    3: record["report_name"],
+                    10: record["detail"],
+                },
+                record["url"],
+            )
+        )
+
+    keys: dict[str, dict[str, Any]] = {}
+    for relation in mine:
+        key = str(relation.get("to_table") or "")
+        if not key:
+            continue
+        entry = keys.setdefault(key.casefold(), {"name": key, "count": 0})
+        entry["count"] += 1
+    for entry in keys.values():
+        info = tables.get(entry["name"].casefold()) or {}
+        groups[GROUP_KEY_COLUMN].append(
+            _child(
+                entry["name"],
+                "table",
+                {
+                    1: "Table",
+                    2: entry["name"],
+                    3: "Model",
+                    5: info.get("size") or "",
+                    6: "Dipakai",
+                    7: entry["count"],
+                },
+            )
+        )
+
+    for relation in mine:
+        if (str(relation.get("from_table") or "").casefold(),
+                str(relation.get("from_column") or "").casefold()) == (own_table, name.casefold()):
+            other = str(relation.get("to_table") or "")
+        else:
+            other = str(relation.get("from_table") or "")
+        groups[GROUP_RELATIONSHIPS].append(
+            _child(
+                str(relation.get("label") or _relationship_label(relation)),
+                "link",
+                {
+                    1: "Active" if relation.get("is_active") else "Inactive",
+                    2: other,
+                    3: "Model",
+                },
+            )
+        )
+
+    for ref in refs:
+        label = SECURITY_TYPES.get(ref["kind"])
+        if not label:
+            continue
+        groups[GROUP_SECURITY].append(
+            _child(
+                ref["object"] or label,
+                "filter",
+                {1: label, 2: _security_table(ref["detail"]), 3: "Model"},
+            )
+        )
+
+    for record in records:
+        if record["usage_kind"] != "filter-page":
+            continue
+        groups[GROUP_PAGE_FILTERS].append(
+            _child(
+                name,
+                "filter",
+                {
+                    1: _filter_type(record["detail"]) or USAGE_LABELS["filter-page"],
+                    2: record["page_name"],
+                    3: record["report_name"],
+                },
+                record["url"],
+            )
+        )
+
+    for ref in refs:
+        if ref["kind"] != KIND_SORT:
+            continue
+        owner_table, owner_column = _parse_object(ref["object"])
+        item = columns.get((owner_table.casefold(), owner_column.casefold())) or measures.get(
+            (owner_table.casefold(), owner_column.casefold())
+        ) or {}
+        groups[GROUP_SORTING].append(
+            _child(
+                ref["object"],
+                "group",
+                {
+                    1: "Sort by",
+                    2: owner_table,
+                    3: "Model",
+                    4: item.get("data_type", ""),
+                    5: item.get("size", ""),
+                    6: item.get("status", ""),
+                    7: item.get("uses", 0),
+                    8: item.get("format_string", ""),
+                },
+            )
+        )
+
+    for ref in refs:
+        if ref["kind"] != KIND_FIELD_PARAMETER:
+            continue
+        parameter_table = ref["object"].strip("'")
+        groups[GROUP_FIELD_PARAMETERS].append(
+            _child(
+                parameter_table,
+                "group",
+                {1: "Field parameter", 2: table, 3: "Model"},
+            )
+        )
+
+    payload: list[dict[str, Any]] = []
+    for key in GROUP_ORDER:
+        if not groups[key]:
+            continue
+        payload.append(
             {
-                "kind": "model",
-                "label": "Referensi model",
-                "count": len(refs),
-                "refs": refs,
+                "label": key,
+                "icon": GROUP_ICONS[key],
+                "count": len(groups[key]),
+                "columns": [
+                    {"index": index, "label": label}
+                    for index, label in GROUP_COLUMNS[key]
+                ],
+                "rows": groups[key],
             }
         )
-    return groups
+    return payload
 
 
-def _column_row(analysis: Any) -> dict[str, Any]:
+def _column_row(
+    analysis: Any,
+    context: Mapping[str, Any] | None = None,
+    *,
+    with_children: bool = True,
+) -> dict[str, Any]:
     column = analysis.column
     size_bytes = int(getattr(column, "size_total_bytes", 0) or 0)
     return {
@@ -244,6 +609,8 @@ def _column_row(analysis: Any) -> dict[str, Any]:
         "format_string": str(getattr(column, "format_string", "")),
         "has_error": bool(getattr(column, "has_error", False)),
         "display_folder": str(getattr(column, "display_folder", "")),
+        "is_hidden": bool(getattr(column, "is_hidden", False)),
+        "is_calculated": bool(getattr(column, "is_calculated", False)),
         "reason": str(analysis.reason or ""),
         "rows": int(getattr(column, "rows", 0) or 0),
         "size_breakdown": {
@@ -251,12 +618,17 @@ def _column_row(analysis: Any) -> dict[str, Any]:
             "hierarchy": int(getattr(column, "size_hierarchy_bytes", 0) or 0),
             "dictionary": int(getattr(column, "size_dictionary_bytes", 0) or 0),
         },
-        "expression": "",
-        "children": _usage_groups(analysis),
+        "expression": str(getattr(column, "expression", "")),
+        "children": _usage_groups(analysis, context) if with_children else [],
     }
 
 
-def _measure_row(analysis: Any) -> dict[str, Any]:
+def _measure_row(
+    analysis: Any,
+    context: Mapping[str, Any] | None = None,
+    *,
+    with_children: bool = True,
+) -> dict[str, Any]:
     measure = analysis.measure
     return {
         "name": str(getattr(measure, "measure", "")),
@@ -274,35 +646,185 @@ def _measure_row(analysis: Any) -> dict[str, Any]:
         "format_string": str(getattr(measure, "format_string", "")),
         "has_error": bool(getattr(measure, "has_error", False)),
         "display_folder": str(getattr(measure, "display_folder", "")),
+        "is_hidden": bool(getattr(measure, "is_hidden", False)),
         "reason": str(analysis.reason or ""),
         "rows": 0,
         "size_breakdown": {"data": 0, "hierarchy": 0, "dictionary": 0},
         "expression": str(getattr(measure, "expression", "")),
-        "children": _usage_groups(analysis),
+        "children": _usage_groups(analysis, context) if with_children else [],
     }
 
 
-def serialize_result(result: Any) -> dict[str, Any]:
+def _table_rows(result: Any) -> list[dict[str, Any]]:
+    """Ringkasan per tabel (dipakai tab Tables dan graph relasi)."""
+    columns_by_table: dict[str, list[Any]] = {}
+    for column in result.columns:
+        columns_by_table.setdefault(column.column.table.casefold(), []).append(column)
+    measures_by_table: dict[str, list[Any]] = {}
+    for measure in result.measures:
+        measures_by_table.setdefault(measure.measure.table.casefold(), []).append(measure)
+    rows: list[dict[str, Any]] = []
+    for table in getattr(result.stats, "tables", []) or []:
+        key = table.table.casefold()
+        columns = columns_by_table.get(key, [])
+        measures = measures_by_table.get(key, [])
+        items = list(columns) + list(measures)
+        counts: dict[str, int] = {}
+        for item in items:
+            counts[item.status] = counts.get(item.status, 0) + 1
+        used = sum(1 for item in items if item.status != "Tidak dipakai")
+        size_bytes = int(table.size_total_bytes)
+        rows.append(
+            {
+                "name": table.table,
+                "column_count": len(columns),
+                "measure_count": len(measures),
+                "rows": int(table.rows),
+                "size": format_bytes(size_bytes),
+                "size_bytes": size_bytes,
+                "storage_mode": str(table.storage_mode or ""),
+                "partition_count": int(table.partition_count or 0),
+                "uses": used,
+                "total_items": len(items),
+                "used_items": used,
+                "statuses": counts,
+            }
+        )
+    return rows
+
+
+def _cardinality_code(value: Any) -> str:
+    return {"one": "1", "many": "N", "none": "0"}.get(
+        str(value or "").casefold(), str(value or "") or "?"
+    )
+
+
+def _relationship_row(item: Mapping[str, Any]) -> dict[str, Any]:
+    from_table = str(item.get("from_table") or "")
+    from_column = str(item.get("from_column") or "")
+    to_table = str(item.get("to_table") or "")
+    to_column = str(item.get("to_column") or "")
+    cardinality = (
+        f"{_cardinality_code(item.get('from_cardinality'))} \u2190 "
+        f"{_cardinality_code(item.get('to_cardinality'))}"
+    )
+    cross_filtering = str(item.get("cross_filtering") or "")
+    cross = {
+        "oneDirection": "Single",
+        "bothDirections": "Both",
+        "automatic": "Auto",
+    }.get(cross_filtering, cross_filtering)
+    is_active = bool(item.get("is_active"))
+    return {
+        "name": str(item.get("name") or ""),
+        "label": (
+            f"'{from_table}'[{from_column}] {cardinality} "
+            f"'{to_table}'[{to_column}]"
+        ),
+        "from_table": from_table,
+        "from_column": from_column,
+        "to_table": to_table,
+        "to_column": to_column,
+        "type": "Active" if is_active else "Inactive",
+        "cross": cross,
+        "cross_filtering": cross_filtering,
+        "cardinality": cardinality,
+        "status": "Dipakai" if is_active else "Tidak dipakai",
+        "auto": "Ya" if item.get("is_auto") else "Tidak",
+        "used": int(item.get("dependent_count") or 0),
+        "security_filtering": str(item.get("security_filtering") or ""),
+        "is_active": is_active,
+        "join_on_date_behavior": str(item.get("join_on_date_behavior") or ""),
+        "from_cardinality": str(item.get("from_cardinality") or ""),
+        "to_cardinality": str(item.get("to_cardinality") or ""),
+    }
+
+
+def serialize_result(
+    result: Any, workspace_names: Mapping[str, str] | None = None
+) -> dict[str, Any]:
     stats = result.stats
+    names = workspace_names or {}
     reports = []
+    pages_map = dict(getattr(result, "report_pages", {}) or {})
     for item in result.reports or []:
         if not isinstance(item, Mapping):
             continue
+        workspace_id = str(item.get("workspace_id") or "")
+        report_id = str(item.get("report_id") or item.get("id") or "")
         reports.append(
             {
-                "report_id": str(item.get("report_id") or item.get("id") or ""),
+                "report_id": report_id,
                 "report_name": str(item.get("report_name") or item.get("name") or ""),
-                "workspace_id": str(item.get("workspace_id") or ""),
-                "workspace_name": str(item.get("workspace_name") or ""),
+                "workspace_id": workspace_id,
+                "workspace_name": str(
+                    item.get("workspace_name") or names.get(workspace_id) or ""
+                ),
                 "format": str(
                     item.get("report_format") or item.get("format") or ""
                 ),
                 "status": str(item.get("status") or ""),
                 "message": str(item.get("message") or ""),
                 "modified_at": str(item.get("modified_at") or ""),
+                "page_count": int(item.get("page_count") or 0),
+                "visual_count": int(item.get("visual_count") or 0),
+                "field_count": int(item.get("field_count") or 0),
+                "unresolved_count": int(item.get("unresolved_count") or 0),
+                "is_active": bool(item.get("is_active", 1)),
+                "theme": str(item.get("theme") or ""),
+                "pages": [
+                    {
+                        "page_id": str(page.get("page_id") or ""),
+                        "page_name": str(page.get("page_name") or ""),
+                        "order_index": int(page.get("order_index") or 0),
+                        "is_hidden": bool(page.get("is_hidden")),
+                        "visual_count": int(page.get("visual_count") or 0),
+                        "field_count": int(page.get("field_count") or 0),
+                    }
+                    for page in pages_map.get(report_id, [])
+                    if isinstance(page, Mapping)
+                ],
             }
         )
     unused_bytes = int(result.unused_bytes)
+    hidden_columns = sum(
+        1 for column in result.columns if bool(getattr(column.column, "is_hidden", False))
+    )
+    helper_measures = sum(
+        1
+        for measure in result.measures
+        if measure.measure.table.casefold() == "_measures"
+    )
+    page_total = sum(int(item.get("page_count") or 0) for item in reports)
+    visual_total = sum(int(item.get("visual_count") or 0) for item in reports)
+    table_rows = _table_rows(result)
+    relationship_rows = [
+        _relationship_row(item)
+        for item in (getattr(result, "relationships", []) or [])
+        if isinstance(item, Mapping)
+    ]
+    child_context = {
+        "relationships": relationship_rows,
+        "tables": {row["name"].casefold(): row for row in table_rows},
+    }
+    column_rows = [
+        _column_row(column, with_children=False) for column in result.columns
+    ]
+    measure_rows = [
+        _measure_row(measure, with_children=False) for measure in result.measures
+    ]
+    child_context["columns"] = {
+        (row["table"].casefold(), row["name"].casefold()): row
+        for row in column_rows
+    }
+    child_context["measures"] = {
+        (row["table"].casefold(), row["name"].casefold()): row
+        for row in measure_rows
+    }
+    for analysis, row in zip(result.columns, column_rows):
+        row["children"] = _usage_groups(analysis, child_context)
+    for analysis, row in zip(result.measures, measure_rows):
+        row["children"] = _usage_groups(analysis, child_context)
     return {
         "dataset": {
             "id": result.dataset_id,
@@ -332,16 +854,55 @@ def serialize_result(result: Any) -> dict[str, Any]:
             "reports_app": int(result.report_app),
             "reports_inaccessible": int(result.report_inaccessible),
             "unresolved": len(result.unresolved),
+            "pages": page_total,
+            "visuals": visual_total,
+            "hidden_columns": hidden_columns,
+            "helper_measures": helper_measures,
+            "tables": len(getattr(result.stats, "tables", []) or []),
         },
         "counts": {
             "columns": dict(result.status_counts),
             "measures": dict(result.measure_status_counts),
         },
-        "columns": [_column_row(column) for column in result.columns],
-        "measures": [_measure_row(measure) for measure in result.measures],
+        "columns": column_rows,
+        "measures": measure_rows,
         "reports": reports,
+        "tables": table_rows,
+        "relationships": relationship_rows,
+        "m_queries": [
+            {
+                "name": str(item.get("name") or ""),
+                "kind": str(item.get("kind") or ""),
+                "source": str(item.get("source") or ""),
+                "expression": str(item.get("expression") or ""),
+                "warning": str(item.get("warning") or ""),
+                "detail": str(item.get("detail") or ""),
+            }
+            for item in (getattr(result, "m_queries", []) or [])
+            if isinstance(item, Mapping)
+        ],
         "messages": list(result.messages),
     }
+
+
+def report_detail_payload(
+    store: SettingsStore, dataset_id: str, report_id: str
+) -> dict[str, Any]:
+    dataset = str(dataset_id or "").strip()
+    report = str(report_id or "").strip()
+    if not dataset or not report:
+        raise ExtractionError("Dataset dan report harus dipilih.")
+    database = database_path(store)
+    if not Path(database).exists():
+        raise ExtractionError(
+            "Belum ada hasil analisa tersimpan. Jalankan analisa lebih dulu."
+        )
+    conn = connect(database)
+    try:
+        initialize_usage(conn)
+        return report_detail(conn, dataset, report)
+    finally:
+        close_quietly(conn)
 
 
 def run_job(
@@ -378,7 +939,7 @@ def run_job(
         progress=progress,
         should_stop=cancel.is_set,
     )
-    return serialize_result(result)
+    return serialize_result(result, _report_workspace_names(store, result))
 
 
 def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:

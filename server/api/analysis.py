@@ -29,6 +29,15 @@ def snapshot(request: Request, dataset_id: str = Query(default="")) -> dict[str,
     return presenter.snapshot_payload(settings_of(request), dataset_id)
 
 
+@router.get("/report-detail")
+def report_detail(
+    request: Request,
+    dataset_id: str = Query(default=""),
+    report_id: str = Query(default=""),
+) -> dict[str, Any]:
+    return presenter.report_detail_payload(settings_of(request), dataset_id, report_id)
+
+
 @router.post("/run", status_code=202)
 def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     store = settings_of(request)

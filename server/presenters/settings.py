@@ -23,6 +23,7 @@ from .formatting import credential_status, duration_text, format_time
 
 CATALOG_MODES = ("auto", "admin", "member")
 THEMES = ("dark", "light")
+LANGUAGES = ("en", "id")
 
 
 def effective_database(store: SettingsStore) -> str:
@@ -51,6 +52,7 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
     if active_tab not in keys.ACTIVE_TABS:
         active_tab = "local"
     theme = store.get_str(keys.SETTINGS_UI_THEME_KEY, "dark")
+    language = store.get_str(keys.SETTINGS_UI_LANGUAGE_KEY, "en")
     return {
         "auth": {
             "tenant_id": principal.tenant_id,
@@ -80,6 +82,7 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         },
         "ui": {
             "theme": theme if theme in THEMES else "dark",
+            "language": language if language in LANGUAGES else "en",
             "motion": store.get_bool(keys.SETTINGS_UI_MOTION_KEY, True),
             "show_console": store.get_bool(keys.SETTINGS_UI_CONSOLE_KEY, True),
         },
@@ -211,6 +214,7 @@ def save_ui(
     theme: str | None = None,
     motion: bool | None = None,
     show_console: bool | None = None,
+    language: str | None = None,
 ) -> dict[str, Any]:
     changes: dict[str, Any] = {}
     if theme is not None:
@@ -218,6 +222,11 @@ def save_ui(
         if value not in THEMES:
             raise ExtractionError(f"Tema tidak dikenal: {theme}")
         changes[keys.SETTINGS_UI_THEME_KEY] = value
+    if language is not None:
+        value = str(language).strip().lower()
+        if value not in LANGUAGES:
+            raise ExtractionError(f"Bahasa tidak dikenal: {language}")
+        changes[keys.SETTINGS_UI_LANGUAGE_KEY] = value
     if motion is not None:
         changes[keys.SETTINGS_UI_MOTION_KEY] = bool(motion)
     if show_console is not None:

@@ -7,6 +7,100 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Bahasa antarmuka dan penyempurnaan tab Analisa
+
+- Web kini punya pemilih bahasa di **Pengaturan → Tampilan**:
+  **English** (bawaan) atau **Bahasa Indonesia**. Pilihan disimpan sebagai
+  `ui/language`, di-cache di browser agar tidak berkedip saat boot, dan
+  diterapkan tanpa reload (label, header tabel, status, ringkasan, tombol).
+- Seluruh teks dasar dipindah ke Bahasa Inggris dengan kamus Indonesia di
+  `web/locales.js`; pesan dari server diterjemahkan di klien dan log
+  diagnostik `core` tetap Bahasa Indonesia.
+- Angka mengikuti bahasa (desimal `20.3 MB` vs `20,3 MB`), termasuk ukuran
+  dataset, ukuran berkas, dan jumlah item.
+- Suite menjadi 609 tes (600 lulus, 9 skip).
+
+### Analisa semantic model sesuai mockup
+
+- Halaman Analisa memakai enam tab: **Semua hasil**, **Tables**,
+  **Relationships**, **Report results**, **DAX expressions**, dan **M queries**.
+- **Semua hasil** kini daftar datar kolom + measure (bukan hierarki per tabel).
+  Tiap baris dapat dibuka menjadi delapan kelompok pemakaian: **Used in
+  artifacts**, **Used in visuals**, **Used as key column**, **Used in
+  relationships**, **Used in row/object level security**, **Used in page level
+  filters**, **Used in column sorting**, dan **Used in field parameters**.
+  Kelompok kosong tidak dirender. Tiap kelompok membawa sub-header sendiri
+  (mis. visuals: Type, Page, Report, Used as) dan nilai baris anak mengikuti
+  indeks kolom sub-header itu, bukan diulang dari 11 judul kolom utama.
+- **Tables** tetap hierarki per tabel (grup Measure/Kolom) dan menampilkan mode
+  penyimpanan serta jumlah partisi per tabel; **Report results** menampilkan
+  halaman/visual/field/tak terpetakan; **DAX expressions** memuat measure +
+  calculated column; **M queries** memuat M tabel + parameter/ekspresi.
+- **Relationships** memakai 9 kolom: Nama relasi (`'Tabel'[Kolom] N ← 1
+  'Tabel'[Kolom]`), Tipe, Cross filter, Kardinalitas, Status, Auto create,
+  # dipakai, Dari kolom, Ke kolom. `Auto create` dideteksi dari nama relasi,
+  `# dipakai` dari DMV `DISCOVER_CALC_DEPENDENCY` (jumlah objek model yang
+  bergantung pada relasi). Grafik mengelompokkan edge per pasangan tabel
+  (badge jumlah), punya zoom Fit/−/+ dan panel samping statistik.
+- Grafik memakai layout tree per kolom mengikuti arah relasi (`from → to`) dengan
+  lane routing untuk edge yang melompat kolom, kanvas dinamis, dan zoom berbasis
+  ukuran kanvas; node tetap berlabel `Tabel`.
+- **Semua hasil** tidak lagi menampilkan DAX pada baris measure (DAX hanya di
+  tab **DAX expressions**); calculated column tetap menampilkan ekspresinya.
+- **Sumber & opsi** memakai tombol **Muat ulang** di samping semantic model untuk
+  memuat ulang daftar dataset; tombol muat ulang workspace dihapus.
+- Sidebar mendapat item **Partisi** dan tombol ciutkan (`#sidebarToggle`) yang
+  statusnya disimpan di `localStorage` (`pbi-sidebar`). Halaman Partisi masih
+  empty state tanpa data contoh; dialog proses partisi dihapus.
+- Bug tab `Tables` diperbaiki: setelah **Collapse**, membuka satu tabel tidak lagi
+  membuka semua tabel/grup; default grup tertutup dan kondisi awal diisi eksplisit
+  saat analisa diterapkan.
+- Grafik `Relationships` bisa digeser (drag) saat di-zoom; `Fit` mengembalikan
+  posisi dan zoom. Klik node tetap memilih tabel selama gerakan di bawah 4 px.
+- **Report results** kini hierarkis: report → grup Halaman → baris halaman →
+  anak Visual/Field. Data per halaman dihitung dari `usage_field` lewat
+  `report_pages`; filter memakai Dipakai/Tidak dipakai.
+- Combo **Workspace** dan **Semantic model** di `Sumber & opsi` melebar penuh
+  (`.row-inline .select{flex:1 1 auto}`).
+- **Report results** kini sedetail prototype: report → Hidden pages/Pages →
+  halaman → Visuals → visual → Artifacts used + Visual level filters → Columns
+  used, plus Page/Report level filters. Detail dimuat lazy dari endpoint
+  `/api/analysis/report-detail`; tabel `usage_page` menyimpan halaman (termasuk
+  hidden) dan tema report ikut discan. Kolom **Views**, **Visual rusak**, dan
+  **Skor praktik** ditampilkan `-`.
+- Baris sub-header per grup di tab **Semua hasil** dihapus; header utama sudah
+  mewakili semua kolom.
+- Indentasi tabel Analisa diperbaiki: aturan `padding-left` sel nama tidak lagi
+  ditimpa `#analyzeTable td`, sehingga level 0-8 tampil bertingkat (16 px/level)
+  dan ekspansi satu baris tidak lagi terlihat sejajar.
+- Report results memakai ikon penanda (report/page/visual/filter/table/column)
+  dan menandai halaman/visual tersembunyi dengan ikon eye-off + chip `Hidden`.
+- Baris grup di Report results kini hanya berisi nama (tanpa teks `Type`/`Source`)
+  agar konsisten dengan tab Semua hasil.
+- Lineage kini interaktif seperti Relationships: tombol zoom `-/+/Fit`,
+  kanvas bisa digeser (drag), dan data contoh statis (`lineageNodes`,
+  `lineageEdges`, `renderLineage`) dihapus.
+- Report dengan nama `[App] ...` memakai tipe `Apps` di tab Report results.
+- Sel tabel Analisa yang terpotong kini punya tooltip berisi teks lengkap
+  (tanpa melebarkan kolom).
+- Overlap Lineage diperbaiki: grafik tidak lagi menimpa header (SVG
+  `overflow:hidden`), dan tombol `Jadikan akar` tidak tertimpa URL panjang.
+- Klik node Lineage menyalakan rantai hulu–hilir berwarna kuning, node di luar
+  rantai diredupkan.
+- Deteksi field parameter baru (`find_field_parameter_refs`): calculated table
+  berisi `NAMEOF(...)` dibaca sebagai pemakaian kolom/measure asal, bukan tabel
+  calculated biasa, sehingga tidak dihitung ganda.
+- Backend analisa membaca tabel/relasi/partisi/M dari TMSCHEMA tanpa koneksi
+  tambahan (`read_model_metadata`), menyimpan relasi di snapshot dan M query di
+  tabel `usage_m_query`, sehingga tab tetap terisi setelah restart tanpa XMLA.
+- Kolom mockup tanpa sumber data (views, tema, skor praktik, visual rusak)
+  tidak ditampilkan. Mode Analisa tetap read-only; pemrosesan partisi akan
+  menjadi pengecualian di halaman Partisi.
+- Prototipe data contoh di `web\app.js` dihapus; suite menjadi 599 tes
+  (590 lulus, 9 skip).
+
 ## 2026-11-18 - Rilis 0.4.0
 
 ### Antarmuka web lokal

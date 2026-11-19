@@ -42,8 +42,10 @@ from core.usage_service import (
     measure_rows,
     model_references,
     model_snapshot,
+    m_query_rows,
     normalize_report_format,
     output_file_name,
+    relationship_dependency_counts,
     scan_reports,
     verdict,
     write_workbook,
@@ -52,6 +54,7 @@ from core.usage_store import (
     field_usage,
     initialize,
     save_columns,
+    save_m_queries,
     save_measures,
     save_model_refs,
     save_report,
@@ -882,6 +885,131 @@ class MeasureAnalysisTests(unittest.TestCase):
         self.assertIs(rows["Total"]["analysis"], self.by_name(result)["Total"])
 
 
+class MetadataRowsTests(unittest.TestCase):
+    def test_relationship_dependency_counts_ignore_column_rows(self) -> None:
+        rows = [
+            {
+                "OBJECT_TYPE": "ACTIVE_RELATIONSHIP",
+                "OBJECT": "AutoDetected_x",
+                "REFERENCED_OBJECT_TYPE": "COLUMN",
+                "REFERENCED_OBJECT": "Col",
+            },
+            {
+                "OBJECT_TYPE": "MEASURE",
+                "TABLE": "Sales",
+                "OBJECT": "M1",
+                "REFERENCED_OBJECT_TYPE": "RELATIONSHIP",
+                "REFERENCED_OBJECT": "AutoDetected_x",
+            },
+            {
+                "OBJECT_TYPE": "MEASURE",
+                "TABLE": "Sales",
+                "OBJECT": "M1",
+                "REFERENCED_OBJECT_TYPE": "RELATIONSHIP",
+                "REFERENCED_OBJECT": "AutoDetected_x",
+            },
+            {
+                "OBJECT_TYPE": "MEASURE",
+                "TABLE": "Sales",
+                "OBJECT": "M2",
+                "REFERENCED_OBJECT_TYPE": "ACTIVE_RELATIONSHIP",
+                "REFERENCED_OBJECT": "AutoDetected_x",
+            },
+        ]
+
+        self.assertEqual(relationship_dependency_counts(rows), {"AutoDetected_x": 2})
+
+    def test_relationship_auto_detection(self) -> None:
+        from core.model import relationship_is_auto
+
+        self.assertTrue(relationship_is_auto("AutoDetected_526c6f8a"))
+        self.assertTrue(relationship_is_auto("526c6f8a-bde4-49fa-b1c4-79db0a095bfd"))
+        self.assertFalse(relationship_is_auto("Relasi Dealer"))
+
+    def test_m_query_rows_group_partitions_and_parameters(self) -> None:
+        rows = m_query_rows(
+            [
+                {
+                    "table": "Sales",
+                    "source": "let Source = ... in Source",
+                    "mode": "Import",
+                    "state": "ready",
+                },
+                {
+                    "table": "Sales",
+                    "source": "",
+                    "mode": "Import",
+                    "state": "evaluationError",
+                },
+                {
+                    "table": "Dates",
+                    "source": "let Dates = ... in Dates",
+                    "mode": "Import",
+                    "state": "ready",
+                },
+                {
+                    "table": "CalcTable",
+                    "source": "SUMMARIZE ( Sales, Sales[Key] )",
+                    "source_type": "calculated",
+                    "mode": "Import",
+                    "state": "ready",
+                },
+            ],
+            [
+                {
+                    "name": "ServerURL",
+                    "kind": "Parameter",
+                    "query_group": "Param",
+                    "expression": '"server"',
+                    "data_type": "Text",
+                },
+                {
+                    "name": "Helper",
+                    "kind": "Expression",
+                    "query_group": "",
+                    "expression": "1",
+                    "data_type": "",
+                },
+            ],
+        )
+
+        by_name = {row["name"]: row for row in rows}
+        self.assertEqual(by_name["Sales"]["kind"], "Tabel")
+        self.assertEqual(by_name["Sales"]["detail"], "2 partisi")
+        self.assertIn("let Source", by_name["Sales"]["expression"])
+        self.assertEqual(by_name["Sales"]["warning"], "evaluationError")
+        self.assertEqual(by_name["ServerURL"]["kind"], "M parameter")
+        self.assertEqual(by_name["ServerURL"]["source"], "Param")
+        self.assertEqual(by_name["Helper"]["kind"], "Expression")
+        self.assertNotIn("CalcTable", by_name)
+        self.assertEqual(rows[0]["kind"], "Tabel")
+
+    def test_model_snapshot_keeps_table_mode_and_relationships(self) -> None:
+        value = ModelStats(
+            model_name="Model",
+            compatibility_level=1600,
+            last_update="2026-01-01",
+            columns=[],
+            tables=[
+                TableStat(
+                    "Sales", 2, 10, 3000, 0,
+                    storage_mode="DirectQuery", measure_count=4, partition_count=3,
+                )
+            ],
+            segment_bytes=3000,
+            artifact_bytes=0,
+        )
+
+        payload = json.loads(
+            model_snapshot(value, "Workspace", [{"name": "Rel", "is_active": True}])
+        )
+
+        self.assertEqual(payload["tables"][0]["storage_mode"], "DirectQuery")
+        self.assertEqual(payload["tables"][0]["measure_count"], 4)
+        self.assertEqual(payload["tables"][0]["partition_count"], 3)
+        self.assertEqual(payload["relationships"][0]["name"], "Rel")
+
+
 class WriteWorkbookTests(unittest.TestCase):
     def test_workbook_contains_expected_sheets(self) -> None:
         result = AnalysisResult(
@@ -989,6 +1117,7 @@ class ModelReferenceTests(unittest.TestCase):
             "TMSCHEMA_TABLES": [
                 {"ID": 2, "Name": "Sales", "IsHidden": False},
                 {"ID": 3, "Name": "Product", "IsHidden": False},
+                {"ID": 4, "Name": "Parameter Posisi", "IsHidden": False},
             ],
             "TMSCHEMA_COLUMNS": [
                 {"ID": 10, "TableID": 2, "ExplicitName": "Customer", "Type": 1, "ExplicitDataType": 2},
@@ -996,6 +1125,7 @@ class ModelReferenceTests(unittest.TestCase):
                 {"ID": 12, "TableID": 2, "ExplicitName": "Year", "Type": 1, "ExplicitDataType": 6},
                 {"ID": 13, "TableID": 2, "ExplicitName": "Month", "Type": 1, "ExplicitDataType": 2, "SortByColumnID": 12},
                 {"ID": 20, "TableID": 3, "ExplicitName": "Name", "Type": 1, "ExplicitDataType": 2},
+                {"ID": 21, "TableID": 4, "ExplicitName": "Parameter", "Type": 1, "ExplicitDataType": 2},
             ],
             "TMSCHEMA_MEASURES": [
                 {
@@ -1021,7 +1151,18 @@ class ModelReferenceTests(unittest.TestCase):
                         'let Source = ... , Added = Table.AddColumn(Source, "Flag", '
                         "each [Qty] * 2 ) in Added"
                     ),
-                }
+                },
+                {
+                    "ID": 41,
+                    "TableID": 4,
+                    "Name": "Parameter Posisi",
+                    "Mode": 0,
+                    "Type": 2,
+                    "QueryDefinition": (
+                        '{\n    ("Qty", NAMEOF(\'Sales\'[Qty]), 0),\n'
+                        '    ("Tahun", NAMEOF(\'Sales\'[Year]), 1)\n}'
+                    ),
+                },
             ],
             "TMSCHEMA_RELATIONSHIPS": [
                 {"ID": 50, "FromColumnID": 10, "ToColumnID": 20}
@@ -1059,6 +1200,19 @@ class ModelReferenceTests(unittest.TestCase):
         self.assertIn("hierarchy", kinds("Year"))
         self.assertIn("sort by", kinds("Year"))
         self.assertIn("relationship", kinds("Name", table="product"))
+
+    def test_field_parameter_is_detected_once(self) -> None:
+        refs = model_references(self.model())
+        qty = [ref for ref in refs[("sales", "qty")] if ref.kind == "field parameter"]
+
+        self.assertEqual(len(qty), 1)
+        self.assertEqual(qty[0].object, "'Parameter Posisi'")
+        self.assertEqual(qty[0].detail, "field parameter 'Parameter Posisi'")
+        self.assertNotIn(
+            "calculated table",
+            {ref.kind for ref in refs[("sales", "qty")]},
+        )
+        self.assertIn("field parameter", {ref.kind for ref in refs[("sales", "year")]})
 
     def test_measure_to_measure_reference(self) -> None:
         refs = measure_references(self.model())
@@ -1121,6 +1275,20 @@ class SnapshotTests(unittest.TestCase):
                     }
                 ],
             )
+            save_m_queries(
+                conn,
+                "ds",
+                [
+                    {
+                        "name": "Sales",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": "let Source = ... in Source",
+                        "warning": "",
+                        "detail": "2 partisi",
+                    }
+                ],
+            )
             save_report(
                 conn,
                 report_id="r1",
@@ -1133,7 +1301,10 @@ class SnapshotTests(unittest.TestCase):
                 usage=ReportUsage(
                     report_format="PBIR",
                     records=[
-                        UsageRecord("field", "Column", "Sales", "Customer")
+                        UsageRecord(
+                            "field", "Column", "Sales", "Customer",
+                            page_id="p1", page_name="Overview",
+                        )
                     ],
                 ),
             )
@@ -1153,7 +1324,11 @@ class SnapshotTests(unittest.TestCase):
                     "report_failed": 0,
                     "report_unsupported": 0,
                     "coverage_complete": 1,
-                    "model_json": model_snapshot(stats_value),
+                    "model_json": model_snapshot(
+                        stats_value,
+                        "Workspace",
+                        [{"name": "Rel", "is_active": True}],
+                    ),
                     "column_count": 2,
                     "unused_count": 1,
                     "unused_bytes": 2000,
@@ -1179,6 +1354,11 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(result.analyzed_at, "2026-01-01T10:00:00+00:00")
         self.assertTrue(result.coverage_complete)
         self.assertEqual(result.method, "cache")
+        self.assertEqual(result.relationships[0]["name"], "Rel")
+        self.assertEqual(result.report_pages["r1"][0]["page_name"], "Overview")
+        self.assertEqual(result.report_pages["r1"][0]["field_count"], 1)
+        self.assertEqual(result.m_queries[0]["name"], "Sales")
+        self.assertEqual(result.m_queries[0]["detail"], "2 partisi")
 
     def test_snapshot_restores_measures(self) -> None:
         result = load_snapshot(self.db, "ds")

@@ -14,10 +14,14 @@ from core.usage_store import (
     field_usage,
     initialize,
     last_run,
+    m_queries,
     mark_reports_inactive,
+    report_detail,
+    report_pages,
     report_cache,
     reports,
     save_columns,
+    save_m_queries,
     unresolved,
     save_report,
     save_run,
@@ -74,6 +78,82 @@ class UsageStoreTests(unittest.TestCase):
         cached = report_cache(self.conn, "ds")["r1"]
         self.assertEqual(cached["status"], "ok")
         self.assertEqual(cached["field_count"], 2)
+
+    def test_report_pages_groups_per_page(self) -> None:
+        self.save()
+
+        pages = report_pages(self.conn, "ds")["r1"]
+
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(pages[0]["page_name"], "Overview")
+        self.assertEqual(pages[0]["visual_count"], 1)
+        self.assertEqual(pages[0]["field_count"], 2)
+
+    def test_report_detail_groups_visuals_and_filters(self) -> None:
+        usage_value = ReportUsage(
+            report_format="PBIR",
+            pages=1,
+            visuals=1,
+            theme="Corporate",
+            page_rows=[
+                {
+                    "page_id": "p1",
+                    "page_name": "Overview",
+                    "order_index": 1,
+                    "is_hidden": False,
+                    "visual_count": 2,
+                }
+            ],
+            records=[
+                UsageRecord(
+                    "field", "Column", "Sales", "Region",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="Values",
+                ),
+                UsageRecord(
+                    "filter-visual", "Column", "Sales", "Region",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="Categorical \u00b7 A",
+                ),
+                UsageRecord(
+                    "filter-page", "Column", "Sales", "Segment",
+                    page_id="p1", page_name="Overview",
+                    visual_title="(semua visual di halaman)",
+                    detail="Categorical",
+                ),
+                UsageRecord(
+                    "filter-report", "Column", "Sales", "Channel",
+                    page_name="(semua halaman)", visual_title="(semua visual)",
+                    detail="Advanced",
+                ),
+            ],
+        )
+        save_report(
+            self.conn,
+            report_id="r1",
+            workspace_id="ws",
+            dataset_id="ds",
+            name="Report A",
+            report_format="PBIR",
+            modified_at="2026-01-01T00:00:00Z",
+            status="ok",
+            usage=usage_value,
+        )
+
+        detail = report_detail(self.conn, "ds", "r1")
+
+        self.assertEqual(detail["pages"][0]["page_name"], "Overview")
+        self.assertEqual(detail["pages"][0]["visual_count"], 2)
+        visual = detail["pages"][0]["visuals"][0]
+        self.assertEqual(visual["artifacts"][0]["field"], "Region")
+        self.assertEqual(visual["filters"][0]["type"], "Categorical")
+        self.assertEqual(
+            detail["pages"][0]["page_filters"][0]["columns"][0]["field"], "Segment"
+        )
+        self.assertEqual(detail["report_filters"][0]["columns"][0]["field"], "Channel")
+        self.assertEqual(reports(self.conn, "ds")[0]["theme"], "Corporate")
 
     def test_rescan_replaces_fields(self) -> None:
         self.save()
@@ -178,6 +258,44 @@ class UsageStoreTests(unittest.TestCase):
         self.assertEqual(last["unused_count"], 2)
         self.assertEqual(last["report_personal"], 3)
         self.assertEqual(last["report_inaccessible"], 1)
+
+    def test_m_query_snapshot_is_replaced_per_dataset(self) -> None:
+        save_m_queries(
+            self.conn,
+            "ds",
+            [
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": "let Source = 1 in Source",
+                    "warning": "",
+                    "detail": "2 partisi",
+                },
+                {
+                    "name": "ServerURL",
+                    "kind": "M parameter",
+                    "source": "Param",
+                    "expression": '"server"',
+                    "warning": "",
+                    "detail": "Text",
+                },
+            ],
+        )
+
+        rows = m_queries(self.conn, "ds")
+        self.assertEqual([row["name"] for row in rows], ["ServerURL", "Sales"])
+        self.assertEqual(rows[1]["detail"], "2 partisi")
+
+        save_m_queries(
+            self.conn,
+            "ds",
+            [{"name": "Dates", "kind": "Tabel", "expression": "1"}],
+        )
+
+        rows = m_queries(self.conn, "ds")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Dates")
 
 
 if __name__ == "__main__":

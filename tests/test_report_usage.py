@@ -278,6 +278,25 @@ class PbirScanTests(unittest.TestCase):
         self.assertEqual(self.usage.pages, 1)
         self.assertEqual(self.usage.visuals, 3)
 
+    def test_pages_and_theme(self) -> None:
+        parts = pbir_parts()
+        parts["definition/report.json"]["themeCollection"] = {
+            "baseTheme": {"name": "Corporate"}
+        }
+        parts["definition/pages/pages.json"]["pageOrder"] = ["p1", "p2"]
+        parts["definition/pages/p2/page.json"] = {
+            "displayName": "Arsip",
+            "visibility": "HiddenInViewMode",
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        self.assertEqual(usage.theme, "Corporate")
+        self.assertEqual(usage.pages, 2)
+        pages = {row["page_name"]: row for row in usage.page_rows}
+        self.assertFalse(pages["Overview"]["is_hidden"])
+        self.assertTrue(pages["Arsip"]["is_hidden"])
+        self.assertEqual(pages["Overview"]["visual_count"], 3)
+
     def test_visual_fields(self) -> None:
         fields = [
             (row.field_kind, row.table, row.field, row.aggregation)

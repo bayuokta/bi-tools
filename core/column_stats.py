@@ -256,6 +256,9 @@ class TableStat:
     size_data_bytes: int
     size_hierarchy_bytes: int
     size_dictionary_bytes: int = 0
+    storage_mode: str = ""
+    measure_count: int = 0
+    partition_count: int = 0
 
     @property
     def size_total_bytes(self) -> int:
@@ -380,6 +383,9 @@ def build_model_stats(
                 size_dictionary_bytes=sum(
                     sizes.dictionary(column_id) for column_id in ids
                 ),
+                storage_mode=str(row.get("storage_mode") or ""),
+                measure_count=int(row.get("measure_count") or 0),
+                partition_count=int(row.get("partition_count") or 0),
             )
         )
 

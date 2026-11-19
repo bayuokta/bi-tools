@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id" data-theme="dark"><head>
+<html lang="en" data-theme="dark"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BI Tools — Metadata Power BI</title>
@@ -9,42 +9,50 @@
 <div class="app-window">
 
   <div class="app-body">
-    <aside class="sidebar">
+    <aside class="sidebar" id="appSidebar">
       <div class="side-brand">
         <span class="logo" aria-hidden="true">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 15l4-5 3 3 5-7"></path></svg>
         </span>
         <div class="text">
           <div class="side-brand-name">Metadata Tools</div>
-          <div class="side-brand-sub">Power BI · <span id="brandVersion">memuat…</span></div>
+          <div class="side-brand-sub">Power BI · <span id="brandVersion">loading…</span></div>
         </div>
       </div>
-      <nav class="side-nav" aria-label="Bagian aplikasi">
-        <div class="nav-label">Alat</div>
-        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Ekstraksi">
+      <nav class="side-nav" aria-label="Application sections" data-i18n-aria-label="Application sections">
+        <div class="nav-label" data-i18n="Tools">Tools</div>
+        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction" data-i18n-title="Extraction">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
-          <span class="label">Ekstraksi Metadata</span>
+          <span class="label" data-i18n="Metadata extraction">Metadata extraction</span>
         </button>
         <button class="nav-item" type="button" data-view="tsd" title="Generate TSD">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
           <span class="label">Generate TSD</span>
         </button>
-        <button class="nav-item" type="button" data-view="analisa" title="Analisa model">
+        <button class="nav-item" type="button" data-view="analisa" title="Model analysis" data-i18n-title="Model analysis">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
-          <span class="label">Analisa model</span>
+          <span class="label" data-i18n="Model analysis">Model analysis</span>
         </button>
         <button class="nav-item" type="button" data-view="lineage" title="Lineage">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
           <span class="label">Lineage</span>
         </button>
-        <div class="nav-label">Sistem</div>
-        <button class="nav-item" type="button" data-view="pengaturan" title="Pengaturan">
+        <button class="nav-item" type="button" data-view="partisi" title="Partitions" data-i18n-title="Partitions">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4Z"></path><path d="M4 11l8 4 8-4"></path><path d="M4 15l8 4 8-4"></path></svg>
+          <span class="label" data-i18n="Partitions">Partitions</span>
+        </button>
+        <div class="nav-label" data-i18n="System">System</div>
+        <button class="nav-item" type="button" data-view="pengaturan" title="Settings" data-i18n-title="Settings">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h4M12 17h8"></path><circle cx="15" cy="7" r="2.2"></circle><circle cx="9" cy="17" r="2.2"></circle></svg>
-          <span class="label">Pengaturan</span>
+          <span class="label" data-i18n="Settings">Settings</span>
+        </button>
+        <button class="nav-item nav-toggle" id="sidebarToggle" type="button" aria-controls="appSidebar" aria-expanded="true" title="Collapse sidebar" aria-label="Collapse sidebar" data-i18n-title="Collapse sidebar" data-i18n-aria-label="Collapse sidebar">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path><path d="M15 9l-3 3 3 3"></path></svg>
+          <span class="label" data-i18n="Collapse sidebar">Collapse sidebar</span>
         </button>
       </nav>
       <div class="side-foot">
-        <div class="side-meta" id="appVersion">Versi …</div>
+        <div class="side-meta" id="appVersion">Version …</div>
       </div>
     </aside>
 
@@ -54,14 +62,14 @@
         <section class="view" id="view-ekstraksi" aria-labelledby="titleEkstraksi">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Alur kerja · langkah 1</div>
-              <h1 class="view-title" id="titleEkstraksi" tabindex="-1">Ekstraksi metadata</h1>
-              <p class="view-sub">Tarik definisi report dan semantic model ke workbook Excel, lalu lanjutkan ke Generate TSD.</p>
+              <div class="view-eyebrow" data-i18n="Workflow · step 1">Workflow · step 1</div>
+              <h1 class="view-title" id="titleEkstraksi" tabindex="-1" data-i18n="Metadata extraction">Metadata extraction</h1>
+              <p class="view-sub" data-i18n="Pull report and semantic model definitions into Excel workbooks, then continue to Generate TSD.">Pull report and semantic model definitions into Excel workbooks, then continue to Generate TSD.</p>
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runExtract" type="button">
                 <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
-                Jalankan ekstraksi
+                <span data-i18n="Run extraction">Run extraction</span>
               </button>
             </div>
           </div>
@@ -70,89 +78,89 @@
             <div class="od-stack" style="--od-gap:16px">
               <div class="panel">
                 <div class="panel-head">
-                  <span class="panel-title">Sumber &amp; cakupan</span>
+                  <span class="panel-title" data-i18n="Source &amp; scope">Source &amp; scope</span>
                   <div class="spacer"></div>
-                  <div class="segmented" role="group" aria-label="Sumber metadata">
+                  <div class="segmented" role="group" aria-label="Metadata source" data-i18n-aria-label="Metadata source">
                     <button type="button" id="srcBtnService" aria-pressed="true">Service</button>
                     <button type="button" id="srcBtnDesktop" aria-pressed="false">Desktop</button>
                   </div>
                 </div>
                 <div class="panel-body">
                   <div class="form-row">
-                    <label for="scope">Cakupan ekstraksi</label>
+                    <label for="scope" data-i18n="Extraction scope">Extraction scope</label>
                     <div class="select">
                       <select id="scope">
                         <option value="both">Report + semantic model</option>
-                        <option value="model">Semantic model saja</option>
-                        <option value="report">Report saja</option>
+                        <option value="model" data-i18n="Semantic model only">Semantic model only</option>
+                        <option value="report" data-i18n="Report only">Report only</option>
                       </select>
                     </div>
                   </div>
 
                   <div id="paneDesktop" hidden="">
                     <div class="form-row">
-                      <label for="pbixPath">File .pbix</label>
-                      <input class="input mono" id="pbixPath" type="text" readonly="" placeholder="Pilih file .pbix sumber">
-                      <button class="btn btn-sm" type="button" id="pickPbix">Pilih…</button>
+                      <label for="pbixPath" data-i18n=".pbix file">.pbix file</label>
+                      <input class="input mono" id="pbixPath" type="text" readonly="" placeholder="Choose the source .pbix file" data-i18n-placeholder="Choose the source .pbix file">
+                      <button class="btn btn-sm" type="button" id="pickPbix" data-i18n="Choose…">Choose…</button>
                     </div>
-                    <p class="helper" id="pbixKind">Pilih file .pbix sumber.</p>
+                    <p class="helper" id="pbixKind">Choose the source .pbix file.</p>
                     <div class="form-row">
-                      <label for="desktopInstance">Instance Desktop</label>
+                      <label for="desktopInstance" data-i18n="Desktop instance">Desktop instance</label>
                       <div class="select">
                         <select id="desktopInstance">
-                          <option>Tidak ada instance terbuka</option>
+                          <option data-i18n="No open instance">No open instance</option>
                           <option>PBIDesktop · Sales Performance.pbix</option>
                         </select>
                       </div>
                       <button class="btn btn-sm" type="button" id="reloadDesktop">
                         <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 -2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>
-                        Muat ulang
+                        <span data-i18n="Reload">Reload</span>
                       </button>
                     </div>
-                    <p class="helper" id="instanceHint">Buka file .pbix/.pbip lebih dulu; daftar instance diperbarui setelah Muat ulang.</p>
+                    <p class="helper" id="instanceHint">Open the .pbix/.pbip file first; the instance list refreshes after Reload.</p>
                   </div>
 
                   <div id="paneService">
                     <div class="form-row">
-                      <label for="modelWorkspace">Workspace model</label>
+                      <label for="modelWorkspace" data-i18n="Model workspace">Model workspace</label>
                       <div class="select">
                         <select id="modelWorkspace">
-                          <option value="">Memuat katalog…</option>
+                          <option value="" data-i18n="Loading catalog…">Loading catalog…</option>
                         </select>
                       </div>
-                      <button class="btn btn-sm" type="button" id="reloadWorkspaces">Muat ulang</button>
+                      <button class="btn btn-sm" type="button" id="reloadWorkspaces" data-i18n="Reload">Reload</button>
                     </div>
                     <p class="helper" id="workspaceHint"></p>
                     <div class="form-row">
                       <label for="xmlaEndpoint">Endpoint XMLA</label>
                       <div class="input-with-info">
-                        <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Diturunkan dari workspace model" aria-describedby="xmlaEndpointHelp">
-                        <button class="info-tip" type="button" aria-label="Penjelasan Endpoint XMLA" data-tooltip="Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog.">!</button>
-                        <span class="sr-only" id="xmlaEndpointHelp">Endpoint XMLA diturunkan dari workspace model; pilih dataset untuk catalog.</span>
+                        <input class="input mono" id="xmlaEndpoint" type="text" readonly="" placeholder="Derived from the model workspace" aria-describedby="xmlaEndpointHelp" data-i18n-placeholder="Derived from the model workspace">
+                        <button class="info-tip" type="button" aria-label="XMLA endpoint explanation" data-tooltip="The XMLA endpoint is derived from the model workspace; choose a dataset for the catalog." data-i18n-aria-label="XMLA endpoint explanation" data-i18n-tooltip="The XMLA endpoint is derived from the model workspace; choose a dataset for the catalog.">!</button>
+                        <span class="sr-only" id="xmlaEndpointHelp" data-i18n="The XMLA endpoint is derived from the model workspace; choose a dataset for the catalog.">The XMLA endpoint is derived from the model workspace; choose a dataset for the catalog.</span>
                       </div>
                     </div>
                     <div class="form-row">
                       <label for="catalog">Catalog</label>
                       <div class="select">
                         <select id="catalog">
-                          <option value="">Pilih dataset…</option>
+                          <option value="" data-i18n="Choose a dataset…">Choose a dataset…</option>
                         </select>
                       </div>
                     </div>
                     <div class="form-row">
-                      <label for="reportWorkspace">Workspace report</label>
+                      <label for="reportWorkspace" data-i18n="Report workspace">Report workspace</label>
                       <div class="select">
                         <select id="reportWorkspace">
-                          <option value="">Memuat katalog…</option>
+                          <option value="" data-i18n="Loading catalog…">Loading catalog…</option>
                         </select>
                       </div>
-                      <button class="btn btn-sm" type="button" id="reloadReport">Muat ulang</button>
+                      <button class="btn btn-sm" type="button" id="reloadReport" data-i18n="Reload">Reload</button>
                     </div>
                     <div class="form-row">
                       <label for="serviceReport">Report</label>
                       <div class="select">
                         <select id="serviceReport">
-                          <option value="">Pilih report…</option>
+                          <option value="" data-i18n="Choose a report…">Choose a report…</option>
                         </select>
                       </div>
                     </div>
@@ -165,53 +173,53 @@
                 <div class="panel-head">
                   <span class="panel-title">Output</span>
                   <div class="spacer"></div>
-                  <span class="chip chip-idle" id="outputState"><span class="dot"></span>Belum dijalankan</span>
+                  <span class="chip chip-idle" id="outputState"><span class="dot"></span><span data-i18n="Not run yet">Not run yet</span></span>
                 </div>
                 <div class="panel-body">
                   <div class="form-row">
-                    <label for="outFolder">Folder tujuan</label>
-                    <input class="input mono" id="outFolder" type="text" readonly="" placeholder="Folder output metadata">
-                    <button class="btn btn-sm" type="button" id="pickFolder">Pilih…</button>
+                    <label for="outFolder" data-i18n="Output folder">Output folder</label>
+                    <input class="input mono" id="outFolder" type="text" readonly="" placeholder="Metadata output folder" data-i18n-placeholder="Metadata output folder">
+                    <button class="btn btn-sm" type="button" id="pickFolder" data-i18n="Choose…">Choose…</button>
                   </div>
                   <div class="file-list">
                     <div class="file-row">
                       <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
                       <div>
                         <div class="file-name">Report_Metadata.xlsx</div>
-                        <div class="file-meta" id="metaReport">Belum dibuat</div>
+                        <div class="file-meta" id="metaReport">Not created</div>
                       </div>
-                      <button class="btn btn-sm" id="openReport" type="button" disabled="">Buka</button>
+                      <button class="btn btn-sm" id="openReport" type="button" disabled="" data-i18n="Open">Open</button>
                     </div>
                     <div class="file-row">
                       <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
                       <div>
                         <div class="file-name">Semantic_Model_Metadata.xlsx</div>
-                        <div class="file-meta" id="metaModel">Belum dibuat</div>
+                        <div class="file-meta" id="metaModel">Not created</div>
                       </div>
-                      <button class="btn btn-sm" id="openModel" type="button" disabled="">Buka</button>
+                      <button class="btn btn-sm" id="openModel" type="button" disabled="" data-i18n="Open">Open</button>
                     </div>
                     <div class="file-row">
                       <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 14l-1.5 1.5L9 17M12 14l1.5 1.5L12 17"></path></svg></span>
                       <div>
                         <div class="file-name">TSD_Report.html</div>
-                        <div class="file-meta" id="metaTsd">Belum dibuat</div>
+                        <div class="file-meta" id="metaTsd" data-i18n="Not created">Not created</div>
                       </div>
-                      <button class="btn btn-sm" id="openTsd" type="button" disabled="">Buka</button>
+                      <button class="btn btn-sm" id="openTsd" type="button" disabled="" data-i18n="Open">Open</button>
                     </div>
                   </div>
                   <div class="row-actions">
                     <button class="btn btn-sm" id="openFolder" type="button" disabled="">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>
-                      Buka folder
+                      <span data-i18n="Open folder">Open folder</span>
                     </button>
-                    <button class="btn btn-sm" id="goTsd" type="button">Buat TSD dari hasil</button>
-                    <span class="helper">Generate TSD memakai workbook di atas.</span>
+                    <button class="btn btn-sm" id="goTsd" type="button" data-i18n="Create TSD from results">Create TSD from results</button>
+                    <span class="helper" data-i18n="Generate TSD uses the workbooks above.">Generate TSD uses the workbooks above.</span>
                   </div>
                 </div>
               </div>
 
               <div class="run-card" id="extractRun" hidden="">
-                <div class="run-label"><span id="extractRunLabel">Menyiapkan ekstraksi…</span><span id="extractRunPct">0%</span></div>
+                <div class="run-label"><span id="extractRunLabel">Preparing extraction…</span><span id="extractRunPct">0%</span></div>
                 <div class="progress"><i id="extractBar"></i></div>
               </div>
 
@@ -221,11 +229,11 @@
                     <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
                   </span>
                   <div>
-                    <div style="font-weight:600">Ekstraksi selesai</div>
-                    <div class="helper" id="extractDoneText">Workbook tersimpan di folder tujuan.</div>
+                    <div style="font-weight:600" data-i18n="Extraction complete">Extraction complete</div>
+                    <div class="helper" id="extractDoneText">Workbooks saved to the output folder.</div>
                   </div>
                   <div style="margin-left:auto">
-                    <button class="btn btn-sm btn-primary" id="doneToTsd" type="button">Lanjut ke Generate TSD</button>
+                    <button class="btn btn-sm btn-primary" id="doneToTsd" type="button" data-i18n="Continue to Generate TSD">Continue to Generate TSD</button>
                   </div>
                 </div>
               </div>
@@ -233,40 +241,40 @@
 
             <div class="od-stack" style="--od-gap:16px">
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Katalog &amp; sinkronisasi</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Catalog &amp; sync">Catalog &amp; sync</span></div>
                 <div class="panel-body">
                   <div class="stat-list">
-                    <div class="stat-row"><span class="stat-key">Katalog lokal</span><span class="stat-val" id="catalogCount">-</span></div>
-                    <div class="stat-row"><span class="stat-key">Sinkron terakhir</span><span class="stat-val" id="catalogSync">-</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Local catalog">Local catalog</span><span class="stat-val" id="catalogCount">-</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Last sync">Last sync</span><span class="stat-val" id="catalogSync">-</span></div>
                   </div>
                 </div>
               </div>
 
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Ringkasan hasil</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Result summary">Result summary</span></div>
                 <div class="panel-body">
                   <div class="empty" id="summaryEmpty" style="padding:10px 4px">
                     <span class="empty-icon" aria-hidden="true">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
                     </span>
-                    <div class="empty-title">Belum ada hasil</div>
-                    <p class="empty-text">Jalankan ekstraksi untuk melihat jumlah tabel, kolom, dan measure.</p>
+                    <div class="empty-title" data-i18n="No results yet">No results yet</div>
+                    <p class="empty-text" data-i18n="Run an extraction to see table, column, and measure counts.">Run an extraction to see table, column, and measure counts.</p>
                   </div>
                   <div class="stat-list" id="summaryBody" hidden="">
-                    <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val" id="sumTables">0</span></div>
-                    <div class="stat-row"><span class="stat-key">Kolom</span><span class="stat-val" id="sumColumns">0</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Tables">Tables</span><span class="stat-val" id="sumTables">0</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Columns">Columns</span><span class="stat-val" id="sumColumns">0</span></div>
                     <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val" id="sumMeasures">0</span></div>
-                    <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val" id="sumPages">0</span></div>
-                    <div class="stat-row"><span class="stat-key">Relasi</span><span class="stat-val" id="sumRelations">0</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Report pages">Report pages</span><span class="stat-val" id="sumPages">0</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Relationships">Relationships</span><span class="stat-val" id="sumRelations">0</span></div>
                   </div>
                 </div>
               </div>
 
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Langkah berikutnya</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Next steps">Next steps</span></div>
                 <div class="panel-body">
-                  <p class="helper" style="font-size:12.5px">Setelah kedua workbook siap, render dokumen TSD memakai template dan konteks manual.</p>
-                  <button class="btn" id="sideToTsd" type="button">Buka Generate TSD</button>
+                  <p class="helper" style="font-size:12.5px" data-i18n="Once both workbooks are ready, render the TSD document with the template and manual context.">Once both workbooks are ready, render the TSD document with the template and manual context.</p>
+                  <button class="btn" id="sideToTsd" type="button" data-i18n="Open Generate TSD">Open Generate TSD</button>
                 </div>
               </div>
             </div>
@@ -276,9 +284,9 @@
         <section class="view" id="view-tsd" aria-labelledby="titleTsd" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Alur kerja · langkah 2</div>
+              <div class="view-eyebrow" data-i18n="Workflow · step 2">Workflow · step 2</div>
               <h1 class="view-title" id="titleTsd" tabindex="-1">Generate TSD</h1>
-              <p class="view-sub">Gabungkan workbook metadata, template, dan konteks manual menjadi dokumen TSD siap kirim.</p>
+              <p class="view-sub" data-i18n="Combine the metadata workbooks, template, and manual context into a delivery-ready TSD document.">Combine the metadata workbooks, template, and manual context into a delivery-ready TSD document.</p>
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runTsd" type="button">
@@ -291,64 +299,64 @@
           <div class="layout-split">
             <div class="od-stack" style="--od-gap:16px">
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Sumber metadata</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Metadata source">Metadata source</span></div>
                 <div class="panel-body">
                   <div class="form-row">
                     <label for="reportWorkbook">Report workbook</label>
-                    <input class="input mono" id="reportWorkbook" type="text" readonly="" placeholder="Pilih Report_Metadata.xlsx">
-                    <button class="btn btn-sm" type="button" id="pickReportWorkbook">Pilih…</button>
+                    <input class="input mono" id="reportWorkbook" type="text" readonly="" placeholder="Choose Report_Metadata.xlsx" data-i18n-placeholder="Choose Report_Metadata.xlsx">
+                    <button class="btn btn-sm" type="button" id="pickReportWorkbook" data-i18n="Choose…">Choose…</button>
                   </div>
-                  <p class="helper form-note" id="reportWorkbookStatus">Belum ada workbook dipilih.</p>
+                  <p class="helper form-note" id="reportWorkbookStatus">No workbook selected yet.</p>
                   <div class="form-row">
                     <label for="modelWorkbook">Model workbook</label>
-                    <input class="input mono" id="modelWorkbook" type="text" readonly="" placeholder="Pilih Semantic_Model_Metadata.xlsx (opsional)">
-                    <button class="btn btn-sm" type="button" id="pickModelWorkbook">Pilih…</button>
+                    <input class="input mono" id="modelWorkbook" type="text" readonly="" placeholder="Choose Semantic_Model_Metadata.xlsx (optional)" data-i18n-placeholder="Choose Semantic_Model_Metadata.xlsx (optional)">
+                    <button class="btn btn-sm" type="button" id="pickModelWorkbook" data-i18n="Choose…">Choose…</button>
                   </div>
-                  <p class="helper form-note" id="modelWorkbookStatus">Bagian model memakai empty state bila kosong.</p>
+                  <p class="helper form-note" id="modelWorkbookStatus">The model section shows an empty state when omitted.</p>
                   <div class="form-row">
                     <label for="template">Template</label>
                     <input class="input mono" id="template" type="text" value="templates/tsd.template.html" readonly="">
-                    <button class="btn btn-sm" type="button" id="pickTemplate">Pilih…</button>
+                    <button class="btn btn-sm" type="button" id="pickTemplate" data-i18n="Choose…">Choose…</button>
                   </div>
-                  <p class="helper form-note">Versi template dari repo template-tsd.</p>
+                  <p class="helper form-note" data-i18n="Template version from the template-tsd repo.">Template version from the template-tsd repo.</p>
                 </div>
               </div>
 
               <div class="panel">
                 <div class="panel-head">
-                  <span class="panel-title">Konteks manual</span>
+                  <span class="panel-title" data-i18n="Manual context">Manual context</span>
                   <div class="spacer"></div>
-                  <span class="chip chip-idle">Opsional</span>
+                  <span class="chip chip-idle" data-i18n="Optional">Optional</span>
                 </div>
                 <div class="panel-body">
                   <div class="form-row">
-                    <label for="contextJson">File JSON</label>
-                    <input class="input mono" id="contextJson" type="text" readonly="" placeholder="TSD_<nama report>.json (otomatis)">
-                    <button class="btn btn-sm" type="button" id="pickContext">Pilih…</button>
+                    <label for="contextJson" data-i18n="JSON file">JSON file</label>
+                    <input class="input mono" id="contextJson" type="text" readonly="" placeholder="TSD_&lt;report name&gt;.json (automatic)" data-i18n-placeholder="TSD_&lt;report name&gt;.json (automatic)">
+                    <button class="btn btn-sm" type="button" id="pickContext" data-i18n="Choose…">Choose…</button>
                   </div>
                   <div class="row-actions">
-                    <button class="btn btn-sm" id="loadContext" type="button">Muat</button>
-                    <button class="btn btn-sm" id="saveContext" type="button">Simpan</button>
+                    <button class="btn btn-sm" id="loadContext" type="button" data-i18n="Load">Load</button>
+                    <button class="btn btn-sm" id="saveContext" type="button" data-i18n="Save">Save</button>
                     <button class="btn btn-sm" id="editContext" type="button">Edit JSON…</button>
-                    <span class="helper" id="contextStatus">Belum dibuat · otomatis memakai nama output.</span>
+                    <span class="helper" id="contextStatus">Not created yet · uses the output name automatically.</span>
                   </div>
                 </div>
               </div>
 
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Opsi render</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Render options">Render options</span></div>
                 <div class="panel-body">
                   <div class="form-row">
-                    <label for="reportName">Nama report</label>
-                    <input class="input" id="reportName" type="text" placeholder="Nama report untuk judul dokumen">
+                    <label for="reportName" data-i18n="Report name">Report name</label>
+                    <input class="input" id="reportName" type="text" placeholder="Report name for the document title" data-i18n-placeholder="Report name for the document title">
                   </div>
                   <div class="form-row">
-                    <label for="docDate">Tanggal dokumen</label>
+                    <label for="docDate" data-i18n="Document date">Document date</label>
                     <input class="input" id="docDate" type="date">
                   </div>
                   <div class="check-row" style="padding-left:160px">
-                    <label class="check"><input type="checkbox" id="tsdDraft" checked=""> Mode draft (field kosong menjadi TODO)</label>
-                    <label class="check"><input type="checkbox" id="tsdExpandAll"> Buka semua panel expand</label>
+                    <label class="check"><input type="checkbox" id="tsdDraft" checked=""> <span data-i18n="Draft mode (empty fields become TODO)">Draft mode (empty fields become TODO)</span></label>
+                    <label class="check"><input type="checkbox" id="tsdExpandAll"> <span data-i18n="Expand all panels">Expand all panels</span></label>
                   </div>
                 </div>
               </div>
@@ -357,32 +365,32 @@
                 <div class="panel-head">
                   <span class="panel-title">Screenshot (Power BI Service)</span>
                   <div class="spacer"></div>
-                  <span class="chip chip-ok" id="shotChip"><span class="dot"></span>Aktif</span>
+                  <span class="chip chip-ok" id="shotChip"><span class="dot"></span><span data-i18n="Active">Active</span></span>
                 </div>
                 <div class="panel-body">
-                  <label class="check"><input type="checkbox" id="shotEnabled" checked> Ambil screenshot page, visual, mobile dari Power BI Service</label>
+                  <label class="check"><input type="checkbox" id="shotEnabled" checked> <span data-i18n="Capture page, visual, and mobile screenshots from Power BI Service">Capture page, visual, and mobile screenshots from Power BI Service</span></label>
                   <div class="form-row">
                     <label for="shotWorkspace">Workspace</label>
                     <div class="select">
                       <select id="shotWorkspace">
-                        <option value="">Pilih workspace…</option>
+                        <option value="" data-i18n="Choose a workspace…">Choose a workspace…</option>
                       </select>
                     </div>
-                    <button class="btn btn-sm" id="reloadShotWorkspace" type="button">Muat ulang daftar</button>
+                    <button class="btn btn-sm" id="reloadShotWorkspace" type="button" data-i18n="Reload list">Reload list</button>
                   </div>
                   <div class="form-row">
                     <label for="shotReport">Report</label>
                     <div class="select">
                       <select id="shotReport">
-                        <option value="">Pilih report…</option>
+                        <option value="" data-i18n="Choose a report…">Choose a report…</option>
                       </select>
                     </div>
-                    <button class="btn btn-sm" id="reloadShotReport" type="button">Muat ulang report</button>
+                    <button class="btn btn-sm" id="reloadShotReport" type="button" data-i18n="Reload reports">Reload reports</button>
                   </div>
                   <div class="form-grid">
                     <div class="field">
                       <label for="shotRlsUser">RLS username</label>
-                      <input class="input mono" id="shotRlsUser" type="text" placeholder="Memakai RLS default di Pengaturan">
+                      <input class="input mono" id="shotRlsUser" type="text" placeholder="Uses the default RLS in Settings" data-i18n-placeholder="Uses the default RLS in Settings">
                     </div>
                     <div class="field">
                       <label for="shotRlsRoles">RLS roles</label>
@@ -391,41 +399,41 @@
                   </div>
                   <div class="form-grid">
                     <div class="field">
-                      <label for="shotScope">Cakupan</label>
+                      <label for="shotScope" data-i18n="Scope">Scope</label>
                       <div class="select">
                         <select id="shotScope">
                           <option value="both">Page + visual</option>
-                          <option value="pages">Page saja</option>
-                          <option value="visuals">Visual saja</option>
+                          <option value="pages" data-i18n="Pages only">Pages only</option>
+                          <option value="visuals" data-i18n="Visuals only">Visuals only</option>
                         </select>
                       </div>
                     </div>
                     <div class="field">
-                      <label for="shotScale">Skala</label>
+                      <label for="shotScale" data-i18n="Scale">Scale</label>
                       <div class="select">
                         <select id="shotScale">
-                          <option value="1">1x (standar)</option>
-                          <option value="2" selected>2x (lebih tajam)</option>
-                          <option value="3">3x (maksimal)</option>
+                          <option value="1" data-i18n="1x (standard)">1x (standard)</option>
+                          <option value="2" selected data-i18n="2x (sharper)">2x (sharper)</option>
+                          <option value="3" data-i18n="3x (maximum)">3x (maximum)</option>
                         </select>
                       </div>
                     </div>
                   </div>
                   <div class="check-row" style="flex-direction:column;gap:9px;align-items:flex-start">
-                    <label class="check"><input type="checkbox" id="shotMobile" checked> Sertakan layout mobile di 2.2.7.2 (bila report punya phone layout)</label>
-                    <label class="check"><input type="checkbox" id="shotDebug"> Tampilkan browser saat capture (debug)</label>
-                    <label class="check"><input type="checkbox" id="shotDecorative"> Sertakan shape/image/tombol sebagai baris visual</label>
-                    <label class="check"><input type="checkbox" id="shotAutoInstall" checked> Unduh Chromium otomatis bila belum ada (sekitar 150 MB)</label>
+                    <label class="check"><input type="checkbox" id="shotMobile" checked> <span data-i18n="Include mobile layout in 2.2.7.2 (when the report has a phone layout)">Include mobile layout in 2.2.7.2 (when the report has a phone layout)</span></label>
+                    <label class="check"><input type="checkbox" id="shotDebug"> <span data-i18n="Show browser during capture (debug)">Show browser during capture (debug)</span></label>
+                    <label class="check"><input type="checkbox" id="shotDecorative"> <span data-i18n="Include shapes/images/buttons as visual rows">Include shapes/images/buttons as visual rows</span></label>
+                    <label class="check"><input type="checkbox" id="shotAutoInstall" checked> <span data-i18n="Download Chromium automatically when missing (about 150 MB)">Download Chromium automatically when missing (about 150 MB)</span></label>
                   </div>
                   <div class="shot-cache">
                     <div>
                       <div class="shot-cache-title">Cache</div>
-                      <p class="helper" id="shotCacheStatus">Belum ada cache; akan diambil saat generate.</p>
+                      <p class="helper" id="shotCacheStatus">No cache yet; screenshots are captured during generation.</p>
                       <div class="shot-cache-path" id="shotCachePath">TSD_assets\&lt;nama report&gt;_&lt;id8&gt;</div>
                     </div>
                     <div class="row-actions">
-                      <button class="btn btn-sm" id="captureScreenshots" type="button">Ambil screenshot</button>
-                      <button class="btn btn-sm" id="clearShotCache" type="button" disabled>Hapus cache</button>
+                      <button class="btn btn-sm" id="captureScreenshots" type="button" data-i18n="Capture screenshots">Capture screenshots</button>
+                      <button class="btn btn-sm" id="clearShotCache" type="button" disabled data-i18n="Clear cache">Clear cache</button>
                     </div>
                   </div>
                 </div>
@@ -436,53 +444,53 @@
                 <div class="panel-body">
                   <div class="form-row">
                     <label for="tsdOutFolder">Folder</label>
-                    <input class="input mono" id="tsdOutFolder" type="text" readonly="" placeholder="Folder output TSD">
-                    <button class="btn btn-sm" id="chooseTsdFolder" type="button">Pilih…</button>
+                    <input class="input mono" id="tsdOutFolder" type="text" readonly="" placeholder="TSD output folder" data-i18n-placeholder="TSD output folder">
+                    <button class="btn btn-sm" id="chooseTsdFolder" type="button" data-i18n="Choose…">Choose…</button>
                   </div>
                   <div class="form-row">
-                    <label for="tsdFileName">Nama file</label>
-                    <input class="input mono" id="tsdFileName" type="text" placeholder="Otomatis dari nama report">
+                    <label for="tsdFileName" data-i18n="File name">File name</label>
+                    <input class="input mono" id="tsdFileName" type="text" placeholder="Automatic from the report name">
                   </div>
-                  <p class="helper" id="tsdOutputState">Belum ada dokumen TSD.</p>
+                  <p class="helper" id="tsdOutputState">No TSD document yet.</p>
                   <div class="row-actions">
-                    <button class="btn btn-sm" id="openTsdFile" type="button" disabled>Buka HTML</button>
-                    <button class="btn btn-sm" id="openTsdFolder" type="button">Buka folder</button>
+                    <button class="btn btn-sm" id="openTsdFile" type="button" disabled data-i18n="Open HTML">Open HTML</button>
+                    <button class="btn btn-sm" id="openTsdFolder" type="button" data-i18n="Open folder">Open folder</button>
                   </div>
                 </div>
               </div>
 
               <div class="run-card" id="tsdRun" hidden="">
-                <div class="run-label"><span id="tsdRunLabel">Menyiapkan dokumen…</span><span id="tsdRunPct">0%</span></div>
+                <div class="run-label"><span id="tsdRunLabel">Preparing the document…</span><span id="tsdRunPct">0%</span></div>
                 <div class="progress"><i id="tsdBar"></i></div>
               </div>
             </div>
 
             <div class="od-stack" style="--od-gap:16px">
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Pratinjau dokumen</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Document preview">Document preview</span></div>
                 <div class="panel-body">
                   <div class="empty" id="tsdPreviewEmpty" style="padding:12px 4px">
                     <span class="empty-icon" aria-hidden="true">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
                     </span>
-                    <div class="empty-title">Belum digenerate</div>
-                    <p class="empty-text">Dokumen TSD dibuat dari workbook di samping.</p>
+                    <div class="empty-title" data-i18n="Not generated yet">Not generated yet</div>
+                    <p class="empty-text" data-i18n="The TSD document is built from the workbooks on the left.">The TSD document is built from the workbooks on the left.</p>
                   </div>
                   <div id="tsdPreview" hidden="">
                     <div class="stat-list">
-                      <div class="stat-row"><span class="stat-key">Bagian</span><span class="stat-val" id="tsdStatSections">6</span></div>
-                      <div class="stat-row"><span class="stat-key">Halaman report</span><span class="stat-val" id="tsdStatPages">—</span></div>
-                      <div class="stat-row"><span class="stat-key">Visual</span><span class="stat-val" id="tsdStatVisuals">—</span></div>
-                      <div class="stat-row"><span class="stat-key">Tabel</span><span class="stat-val" id="tsdStatTables">—</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Sections">Sections</span><span class="stat-val" id="tsdStatSections">6</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Report pages">Report pages</span><span class="stat-val" id="tsdStatPages">—</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Visuals">Visuals</span><span class="stat-val" id="tsdStatVisuals">—</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Tables">Tables</span><span class="stat-val" id="tsdStatTables">—</span></div>
                       <div class="stat-row"><span class="stat-key">Measure</span><span class="stat-val" id="tsdStatMeasures">—</span></div>
-                      <div class="stat-row"><span class="stat-key">TODO tersisa</span><span class="stat-val" id="tsdStatTodos">—</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Remaining TODO">Remaining TODO</span><span class="stat-val" id="tsdStatTodos">—</span></div>
                       <div class="stat-row" id="tsdShotRow" hidden><span class="stat-key">Screenshot Service</span><span class="stat-val" id="tsdShotVal">—</span></div>
                     </div>
                     <div class="note" style="margin-top:12px">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-                      <span id="tsdTodoNote">Field kosong di konteks manual ditandai <strong>TODO</strong> pada mode draft.</span>
+                      <span id="tsdTodoNote"><span data-i18n="Empty manual context fields are marked">Empty manual context fields are marked</span> <strong>TODO</strong> <span data-i18n="in draft mode.">in draft mode.</span></span>
                     </div>
-                    <button class="btn btn-sm btn-primary" id="previewOpenTsd" type="button" style="margin-top:12px">Buka dokumen</button>
+                    <button class="btn btn-sm btn-primary" id="previewOpenTsd" type="button" style="margin-top:12px" data-i18n="Open document">Open document</button>
                   </div>
                 </div>
               </div>
@@ -490,10 +498,10 @@
               <div class="panel">
                 <div class="panel-head"><span class="panel-title">Checklist</span></div>
                 <div class="panel-body" style="gap:9px">
-                  <div class="row-inline"><span class="chip chip-idle" id="checkReport"><span class="dot"></span>Workbook report</span><span class="helper" id="checkReportText">belum dipilih</span></div>
-                  <div class="row-inline"><span class="chip chip-idle" id="checkModel"><span class="dot"></span>Workbook model</span><span class="helper" id="checkModelText">opsional</span></div>
-                  <div class="row-inline"><span class="chip chip-idle" id="checkTemplate"><span class="dot"></span>Template</span><span class="helper" id="checkTemplateText">diperiksa saat generate</span></div>
-                  <div class="row-inline"><span class="chip chip-idle" id="checkContext"><span class="dot"></span>Konteks manual</span><span class="helper" id="checkContextText">opsional</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkReport"><span class="dot"></span><span data-i18n="Report workbook">Report workbook</span></span><span class="helper" id="checkReportText" data-i18n="not selected">not selected</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkModel"><span class="dot"></span><span data-i18n="Model workbook">Model workbook</span></span><span class="helper" id="checkModelText" data-i18n="optional">optional</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkTemplate"><span class="dot"></span>Template</span><span class="helper" id="checkTemplateText" data-i18n="checked during generation">checked during generation</span></div>
+                  <div class="row-inline"><span class="chip chip-idle" id="checkContext"><span class="dot"></span><span data-i18n="Manual context">Manual context</span></span><span class="helper" id="checkContextText" data-i18n="optional">optional</span></div>
                 </div>
               </div>
             </div>
@@ -503,35 +511,32 @@
         <section class="view" id="view-analisa" aria-labelledby="titleAnalisa" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Alur kerja · audit</div>
-              <h1 class="view-title" id="titleAnalisa" tabindex="-1">Analisa semantic model</h1>
-              <p class="view-sub">Ukur ukuran kolom dan pemakaiannya di report Power BI, lalu lihat verdict pemakaian. Mode baca-saja.</p>
+              <div class="view-eyebrow" data-i18n="Workflow · audit">Workflow · audit</div>
+              <h1 class="view-title" id="titleAnalisa" tabindex="-1" data-i18n="Semantic model analysis">Semantic model analysis</h1>
+              <p class="view-sub" data-i18n="Inventory of columns, measures, relationships, reports, DAX, and M queries with usage status. Read-only.">Inventory of columns, measures, relationships, reports, DAX, and M queries with usage status. Read-only.</p>
             </div>
             <div class="view-actions">
-              <button class="btn" id="stopAnalyze" type="button" hidden="">Hentikan</button>
-              <button class="btn btn-primary" id="runAnalyze" type="button">Analisa</button>
+              <button class="btn" id="stopAnalyze" type="button" hidden="" data-i18n="Stop">Stop</button>
+              <button class="btn btn-primary" id="runAnalyze" type="button" data-i18n="Analysis">Analysis</button>
             </div>
           </div>
 
           <div class="panel">
             <div class="panel-head">
-              <span class="panel-title">Sumber &amp; opsi</span>
+              <span class="panel-title" data-i18n="Source &amp; options">Source &amp; options</span>
               <div class="spacer"></div>
-              <span class="chip chip-ok" id="spStatus"><span class="dot"></span>Service principal siap</span>
+              <span class="chip chip-ok" id="spStatus"><span class="dot"></span><span data-i18n="Service principal ready">Service principal ready</span></span>
             </div>
             <div class="panel-body">
-              <div class="form-grid">
+              <div class="form-grid form-grid--source">
                 <div class="field">
                   <label for="wsSelect">Workspace</label>
                   <div class="row-inline">
                     <div class="select">
                       <select id="wsSelect">
-                        <option>Sales Analytics</option>
-                        <option>Finance APAC</option>
-                        <option>Data Platform</option>
+                        <option value="" data-i18n="Choose a workspace…">Choose a workspace…</option>
                       </select>
                     </div>
-                    <button class="btn btn-sm" type="button" id="reloadWsAnalisa">Muat ulang</button>
                   </div>
                 </div>
                 <div class="field">
@@ -539,90 +544,92 @@
                   <div class="row-inline">
                     <div class="select">
                       <select id="modelSelect">
-                        <option>Sales Model (APAC)</option>
-                        <option>Finance Model</option>
+                        <option value="" data-i18n="Choose a semantic model…">Choose a semantic model…</option>
                       </select>
                     </div>
-                    <button class="btn btn-sm" type="button" id="openSettingsFromAnalysis">Pengaturan…</button>
+                    <button class="btn btn-sm" type="button" id="reloadModelAnalisa" data-i18n="Reload">Reload</button>
                   </div>
                 </div>
               </div>
               <div class="check-row">
-                <label class="check"><input type="checkbox" id="includeOther" checked=""> Sertakan report dari workspace lain (admin API)</label>
-                <label class="check"><input type="checkbox" id="includePersonal"> Sertakan My Workspace (personal)</label>
+                <label class="check"><input type="checkbox" id="includeOther" checked=""> <span data-i18n="Include reports from other workspaces (admin API)">Include reports from other workspaces (admin API)</span></label>
+                <label class="check"><input type="checkbox" id="includePersonal"> <span data-i18n="Include My Workspace (personal)">Include My Workspace (personal)</span></label>
               </div>
             </div>
           </div>
 
-          <div class="metric-strip" id="analyzeMetrics" aria-label="Ringkasan analisa semantic model">
+          <div class="metric-strip" id="analyzeMetrics" aria-label="Semantic model analysis summary" data-i18n-aria-label="Semantic model analysis summary">
             <div class="metric-card">
-              <span class="metric-label">Ukuran dataset</span>
+              <span class="metric-label" data-i18n="Dataset size">Dataset size</span>
               <span class="metric-value" id="metricSize">—</span>
-              <span class="metric-note" id="metricSizeNote">Belum dianalisis</span>
+              <span class="metric-note" id="metricSizeNote">Not analyzed yet</span>
             </div>
             <div class="metric-card">
-              <span class="metric-label">Total kolom</span>
+              <span class="metric-label" data-i18n="Total columns">Total columns</span>
               <span class="metric-value" id="metricColumns">—</span>
-              <span class="metric-note" id="metricColumnsNote">Termasuk kolom tersembunyi</span>
+              <span class="metric-note" id="metricColumnsNote">Includes hidden columns</span>
             </div>
             <div class="metric-card">
-              <span class="metric-label">Total measure</span>
+              <span class="metric-label" data-i18n="Total measures">Total measures</span>
               <span class="metric-value" id="metricMeasures">—</span>
-              <span class="metric-note" id="metricMeasuresNote">Ekspresi DAX di model</span>
+              <span class="metric-note" id="metricMeasuresNote">DAX expressions in the model</span>
             </div>
             <div class="metric-card is-warn">
-              <span class="metric-label">Kolom tidak dipakai</span>
+              <span class="metric-label" data-i18n="Unused columns">Unused columns</span>
               <span class="metric-value" id="metricUnusedColumns">—</span>
-              <span class="metric-note" id="metricUnusedColumnsNote">Tanpa referensi visual atau measure</span>
+              <span class="metric-note" id="metricUnusedColumnsNote">No visual or measure references</span>
             </div>
             <div class="metric-card is-warn">
-              <span class="metric-label">Measure tidak dipakai</span>
+              <span class="metric-label" data-i18n="Unused measures">Unused measures</span>
               <span class="metric-value" id="metricUnusedMeasures">—</span>
-              <span class="metric-note" id="metricUnusedMeasuresNote">Tidak direferensikan</span>
+              <span class="metric-note" id="metricUnusedMeasuresNote">Not referenced</span>
             </div>
             <div class="metric-card">
-              <span class="metric-label">Report &amp; halaman</span>
+              <span class="metric-label" data-i18n="Reports &amp; pages">Reports &amp; pages</span>
               <span class="metric-value" id="metricReport">—</span>
-              <span class="metric-note" id="metricReportNote">Visual, halaman, dan filter</span>
+              <span class="metric-note" id="metricReportNote">Visuals, pages, and filters</span>
             </div>
           </div>
 
           <div class="panel panel--analysis-results">
-            <div class="tabs tabs--analysis" id="analyzeTabs" role="tablist" aria-label="Hasil analisa semantic model">
-              <button role="tab" id="tab-all" data-analysis-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0">Semua<span class="tab-count" id="tabCountAll"></span></button>
-              <button role="tab" id="tab-columns" data-analysis-tab="columns" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Kolom<span class="tab-count" id="tabCountColumns"></span></button>
-              <button role="tab" id="tab-measures" data-analysis-tab="measures" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Measure<span class="tab-count" id="tabCountMeasures"></span></button>
-              <button role="tab" id="tab-report" data-analysis-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Report<span class="tab-count" id="tabCountReport"></span></button>
+            <div class="tabs tabs--analysis" id="analyzeTabs" role="tablist" aria-label="Semantic model analysis results" data-i18n-aria-label="Semantic model analysis results">
+              <button role="tab" id="tab-all" data-analysis-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0"><span data-i18n="All results">All results</span><span class="tab-count" id="tabCountAll"></span></button>
+              <button role="tab" id="tab-tables" data-analysis-tab="tables" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Tables<span class="tab-count" id="tabCountTables"></span></button>
+              <button role="tab" id="tab-relationships" data-analysis-tab="relationships" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Relationships<span class="tab-count" id="tabCountRelationships"></span></button>
+              <button role="tab" id="tab-report" data-analysis-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Report results<span class="tab-count" id="tabCountReport"></span></button>
+              <button role="tab" id="tab-dax" data-analysis-tab="dax" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">DAX expressions<span class="tab-count" id="tabCountDax"></span></button>
+              <button role="tab" id="tab-m" data-analysis-tab="m" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">M queries<span class="tab-count" id="tabCountM"></span></button>
             </div>
             <div role="tabpanel" id="analyzePanel" aria-labelledby="tab-all">
               <div class="table-tools">
                 <label class="tool-field search">
-                  <span>Cari item</span>
-                  <input class="input" id="searchAnalyze" type="search" placeholder="Nama kolom, measure, atau tabel">
+                  <span data-i18n="Search items">Search items</span>
+                  <input class="input" id="searchAnalyze" type="search" placeholder="Column, measure, or table name" data-i18n-placeholder="Column, measure, or table name">
                 </label>
                 <label class="tool-field" id="toolTypeWrap">
-                  <span>Tipe</span>
+                  <span data-i18n="Type">Type</span>
                   <div class="select">
                     <select id="typeAnalyze">
-                      <option value="all">Semua tipe</option>
-                      <option value="columns">Kolom</option>
+                      <option value="all" data-i18n="All types">All types</option>
+                      <option value="columns" data-i18n="Columns">Columns</option>
                       <option value="measures">Measure</option>
                     </select>
                   </div>
                 </label>
-                <label class="check" id="toolUnusedWrap" style="margin-bottom:6px"><input type="checkbox" id="unusedOnly"> Hanya tidak dipakai</label>
+                <label class="check" id="toolUnusedWrap" style="margin-bottom:6px"><input type="checkbox" id="unusedOnly"> <span data-i18n="Unused only">Unused only</span></label>
                 <div class="tool-actions">
-                  <div class="segmented" id="relViewSwitch" role="group" aria-label="Tampilan relasi" hidden="">
-                    <button type="button" data-rel-view="table" aria-pressed="false">Tabel</button>
+                  <div class="segmented" id="relViewSwitch" role="group" aria-label="Relationship view" hidden="" data-i18n-aria-label="Relationship view">
+                    <button type="button" data-rel-view="table" aria-pressed="false" data-i18n="Tables">Tables</button>
                     <button type="button" data-rel-view="graph" aria-pressed="true">Graph</button>
                   </div>
                   <button class="btn btn-sm" id="expandRows" type="button">Expand</button>
                   <button class="btn btn-sm" id="collapseRows" type="button">Collapse</button>
-                  <button class="btn btn-sm" id="exportXlsx" type="button">Export XLSX</button>
+                  <button class="btn btn-sm" id="exportXlsx" type="button" data-i18n="Export XLSX">Export XLSX</button>
                 </div>
               </div>
               <div class="table-scroll" id="analyzeTableWrap" hidden="">
                 <table class="data" id="analyzeTable">
+                  <colgroup id="analyzeCols"></colgroup>
                   <thead id="analyzeHead"></thead>
                   <tbody id="analyzeBody"></tbody>
                 </table>
@@ -645,23 +652,29 @@
                   <aside class="rel-graph-side" id="relGraphSide" aria-live="polite"></aside>
                 </div>
                 <div class="rel-legend">
-                  <span class="rel-legend-item"><i class="rel-swatch"></i>Relasi aktif</span>
-                  <span class="rel-legend-item"><i class="rel-swatch is-inactive"></i>Tidak aktif</span>
-                  <span class="rel-legend-item"><i class="rel-swatch is-selected"></i>Terhubung ke pilihan</span>
-                  <span class="helper">Klik tabel atau garis untuk melihat detail relasi.</span>
+                  <span class="rel-legend-item"><i class="rel-swatch"></i><span data-i18n="Active relationship">Active relationship</span></span>
+                  <span class="rel-legend-item"><i class="rel-swatch is-inactive"></i><span data-i18n="Inactive">Inactive</span></span>
+                  <span class="rel-legend-item"><i class="rel-swatch is-selected"></i><span data-i18n="Connected to selection">Connected to selection</span></span>
+                  <span class="helper" data-i18n="Flow follows relationship direction from left to right · click a table or line for details.">Flow follows relationship direction from left to right · click a table or line for details.</span>
+                  <div class="graph-zoom" role="group" aria-label="Relationship graph zoom" data-i18n-aria-label="Relationship graph zoom">
+                    <button class="btn btn-sm graph-zoom-btn" id="relZoomOut" type="button" aria-label="Zoom out" data-i18n-aria-label="Zoom out">−</button>
+                    <span class="graph-zoom-value" id="relZoomValue">100%</span>
+                    <button class="btn btn-sm graph-zoom-btn" id="relZoomIn" type="button" aria-label="Zoom in" data-i18n-aria-label="Zoom in">+</button>
+                    <button class="btn btn-sm graph-zoom-fit" id="relZoomReset" type="button">Fit</button>
+                  </div>
                 </div>
               </div>
               <div class="empty" id="analyzeEmpty">
                 <span class="empty-icon" aria-hidden="true">
                   <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
                 </span>
-                <div class="empty-title" id="analyzeEmptyTitle">Belum ada hasil analisa</div>
-                <p class="empty-text" id="analyzeEmptyText">Pilih workspace dan semantic model, lalu tekan Analisa. Hasil muncul di sini tanpa mengubah model.</p>
-                <button class="btn btn-sm" id="analyzeFromEmpty" type="button">Analisa sekarang</button>
+                <div class="empty-title" id="analyzeEmptyTitle">No analysis results yet</div>
+                <p class="empty-text" id="analyzeEmptyText">Choose a workspace and semantic model, then press Analyze. Results appear here without changing the model.</p>
+                <button class="btn btn-sm" id="analyzeFromEmpty" type="button" data-i18n="Analyze now">Analyze now</button>
               </div>
               <div class="panel-foot" style="justify-content:space-between">
-                <span class="helper" id="analyzeSummary">Belum dianalisis</span>
-                <span class="helper">Mode baca-saja · tidak ada perubahan ke model</span>
+                <span class="helper" id="analyzeSummary">Not analyzed yet</span>
+                <span class="helper" data-i18n="Read-only mode · no changes to the model">Read-only mode · no changes to the model</span>
               </div>
             </div>
           </div>
@@ -670,9 +683,9 @@
         <section class="view" id="view-lineage" aria-labelledby="titleLineage" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Alur kerja · penelusuran</div>
+              <div class="view-eyebrow" data-i18n="Workflow · exploration">Workflow · exploration</div>
               <h1 class="view-title" id="titleLineage" tabindex="-1">Lineage</h1>
-              <p class="view-sub">Telusuri asal dan dampak sebuah item: report, semantic model, tabel, measure, sampai dataflow.</p>
+              <p class="view-sub" data-i18n="Trace an item&#x27;s origin and impact: reports, semantic models, tables, measures, down to dataflows.">Trace an item's origin and impact: reports, semantic models, tables, measures, down to dataflows.</p>
             </div>
             <div class="view-actions">
               <button class="btn" id="exportCsv" type="button">
@@ -685,27 +698,27 @@
           <div class="layout-split layout-split--lineage" id="lineageLayout">
             <div class="od-stack lineage-side" style="--od-gap:16px">
               <div class="panel">
-                <div class="panel-head"><span class="panel-title">Pencarian item</span></div>
+                <div class="panel-head"><span class="panel-title" data-i18n="Item search">Item search</span></div>
                 <div class="panel-body">
                   <div class="field">
-                    <label for="lineageSearch">Kata kunci</label>
+                    <label for="lineageSearch" data-i18n="Keyword">Keyword</label>
                     <div class="row-inline">
-                      <input class="input" id="lineageSearch" type="search" placeholder="Nama report, model, tabel, atau measure">
-                      <button class="btn btn-sm" id="lineageSearchBtn" type="button">Cari</button>
+                      <input class="input" id="lineageSearch" type="search" placeholder="Report, model, table, or measure name" data-i18n-placeholder="Report, model, table, or measure name">
+                      <button class="btn btn-sm" id="lineageSearchBtn" type="button" data-i18n="Search">Search</button>
                     </div>
                   </div>
                   <div class="field">
                     <label for="lineageWorkspace">Workspace</label>
-                    <input class="input" id="lineageWorkspace" type="text" placeholder="Semua workspace">
+                    <input class="input" id="lineageWorkspace" type="text" placeholder="All workspaces" data-i18n-placeholder="All workspaces">
                   </div>
                   <div class="field">
-                    <label for="lineageType">Tipe</label>
+                    <label for="lineageType" data-i18n="Type">Type</label>
                     <div class="select">
                       <select id="lineageType">
-                        <option value="all">Semua tipe</option>
+                        <option value="all" data-i18n="All types">All types</option>
                         <option>Report</option>
                         <option>Semantic model</option>
-                        <option>Tabel</option>
+                        <option data-i18n="Tables">Tables</option>
                         <option>Measure</option>
                         <option>Dataflow</option>
                         <option>Database</option>
@@ -715,7 +728,7 @@
                     </div>
                   </div>
                   <div class="result-list" id="lineageResults"></div>
-                  <p class="helper" id="lineageCount">6 item</p>
+                  <p class="helper" id="lineageCount"></p>
                 </div>
               </div>
             </div>
@@ -724,25 +737,31 @@
               <div class="panel">
                 <div class="panel-head">
                   <span class="panel-title">Lineage</span>
-                  <span class="chip chip-idle" id="lineageRootChip"><span class="dot"></span>Akar: Sales Performance</span>
+                  <span class="chip chip-idle" id="lineageRootChip"><span class="dot"></span><span data-i18n="No root selected">No root selected</span></span>
                   <div class="spacer"></div>
-                  <div class="segmented" role="group" aria-label="Arah lineage">
+                  <div class="segmented" role="group" aria-label="Lineage direction" data-i18n-aria-label="Lineage direction">
                     <button type="button" id="dirUpstream" aria-pressed="true">Upstream</button>
                     <button type="button" id="dirDownstream" aria-pressed="false">Downstream</button>
                   </div>
                 </div>
                 <div class="lineage-tools">
                   <div class="depth">
-                    <span class="helper">Kedalaman</span>
-                    <button class="btn btn-sm btn-icon" id="depthMinus" type="button" aria-label="Kurangi kedalaman">
+                    <span class="helper" data-i18n="Depth">Depth</span>
+                    <button class="btn btn-sm btn-icon" id="depthMinus" type="button" aria-label="Decrease depth" data-i18n-aria-label="Decrease depth">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
                     </button>
-                    <span class="depth-val" id="depthVal">3 level</span>
-                    <button class="btn btn-sm btn-icon" id="depthPlus" type="button" aria-label="Tambah kedalaman">
+                    <span class="depth-val" id="depthVal">3 levels</span>
+                    <button class="btn btn-sm btn-icon" id="depthPlus" type="button" aria-label="Increase depth" data-i18n-aria-label="Increase depth">
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
                     </button>
                   </div>
                   <div class="spacer"></div>
+                  <div class="graph-zoom" role="group" aria-label="Lineage graph zoom" data-i18n-aria-label="Lineage graph zoom">
+                    <button class="btn btn-sm graph-zoom-btn" id="lineageZoomOut" type="button" aria-label="Zoom out" data-i18n-aria-label="Zoom out">−</button>
+                    <span class="graph-zoom-value" id="lineageZoomValue">100%</span>
+                    <button class="btn btn-sm graph-zoom-btn" id="lineageZoomIn" type="button" aria-label="Zoom in" data-i18n-aria-label="Zoom in">+</button>
+                    <button class="btn btn-sm graph-zoom-fit" id="lineageZoomReset" type="button">Fit</button>
+                  </div>
                   <button class="btn btn-sm" id="visualLineage" type="button" aria-pressed="false">Visual lineage</button>
                 </div>
                 <div class="graph-wrap">
@@ -750,6 +769,9 @@
                     <defs>
                       <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                         <path class="edge-arrow" d="M0 0L8 4L0 8z"></path>
+                      </marker>
+                      <marker id="arrowChain" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                        <path class="edge-arrow-chain" d="M0 0L8 4L0 8z"></path>
                       </marker>
                     </defs>
                     <g id="lineageLayer"></g>
@@ -761,7 +783,7 @@
                 <div class="panel-head">
                   <span class="panel-title">Detail</span>
                   <div class="spacer"></div>
-                  <span class="helper">Klik node pada grafik untuk melihat detail</span>
+                  <span class="helper" data-i18n="Click a node in the graph to see details">Click a node in the graph to see details</span>
                 </div>
                 <div class="panel-body" id="lineageDetail"></div>
               </div>
@@ -772,135 +794,26 @@
         <section class="view" id="view-partisi" aria-labelledby="titlePartisi" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Alat · diagnostik</div>
-              <h1 class="view-title" id="titlePartisi" tabindex="-1">Partisi semantic model</h1>
-              <p class="view-sub">Periksa partisi tabel dari Power BI Service tanpa membuka SSMS: jumlah baris, rentang, status, dan waktu proses terakhir.</p>
+              <div class="view-eyebrow" data-i18n="Tools · diagnostics">Tools · diagnostics</div>
+              <h1 class="view-title" id="titlePartisi" tabindex="-1" data-i18n="Semantic model partitions">Semantic model partitions</h1>
+              <p class="view-sub" data-i18n="Table partition inventory from Power BI Service: row counts, ranges, status, and last processed time.">Table partition inventory from Power BI Service: row counts, ranges, status, and last processed time.</p>
             </div>
             <div class="view-actions">
-              <button class="btn btn-primary" id="processSelectedPartitions" type="button" disabled="">Proses terpilih</button>
+              <button class="btn btn-primary" id="processSelectedPartitions" type="button" disabled="" data-i18n="Process selected">Process selected</button>
             </div>
           </div>
 
           <div class="panel">
             <div class="panel-head">
-              <span class="panel-title">Sumber &amp; tabel</span>
+              <span class="panel-title" data-i18n="Partition inventory">Partition inventory</span>
               <div class="spacer"></div>
-              <span class="chip chip-idle" id="partitionSourceChip"><span class="dot"></span>Power BI Service</span>
+              <span class="chip chip-idle" id="partitionSourceChip"><span class="dot"></span><span data-i18n="Not available yet">Not available yet</span></span>
             </div>
             <div class="panel-body">
-              <div class="form-grid">
-                <div class="field">
-                  <label for="partitionWorkspace">Workspace</label>
-                  <div class="select">
-                    <select id="partitionWorkspace">
-                      <option>Sales Analytics</option>
-                      <option>Finance APAC</option>
-                      <option>Data Platform</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="partitionModel">Semantic model</label>
-                  <div class="select">
-                    <select id="partitionModel">
-                      <option>Sales Model (APAC)</option>
-                      <option>Finance Model</option>
-                    </select>
-                  </div>
-                </div>
+              <div class="empty" id="partitionEmptyState">
+                <div class="empty-title" data-i18n="Partition inventory is not available yet">Partition inventory is not available yet</div>
+                <p class="empty-text" data-i18n="Partition metadata will be read from XMLA (row counts, ranges, status, and processed time) in a later stage. This page uses no sample data.">Partition metadata will be read from XMLA (row counts, ranges, status, and processed time) in a later stage. This page uses no sample data.</p>
               </div>
-              <div class="form-row">
-                <label for="partitionTable">Tabel</label>
-                <div class="row-inline">
-                  <div class="select" style="flex:1">
-                    <select id="partitionTable">
-                      <option>Fact Sales</option>
-                      <option>Fact Budget</option>
-                      <option>Stock Level</option>
-                      <option>Fact Returns</option>
-                    </select>
-                  </div>
-                  <button class="btn btn-sm" id="loadPartitions" type="button">Muat partisi</button>
-                </div>
-              </div>
-              <p class="helper">Metadata partisi dibaca langsung dari model. Tabel tidak berubah sampai Anda menjalankan proses pada partisi.</p>
-            </div>
-          </div>
-
-          <div class="metric-strip metric-strip--four" aria-label="Ringkasan partisi">
-            <div class="metric-card">
-              <span class="metric-label">Jumlah partisi</span>
-              <span class="metric-value" id="partitionCount">—</span>
-              <span class="metric-note" id="partitionCountNote">Di tabel aktif</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">Total baris</span>
-              <span class="metric-value" id="partitionRows">—</span>
-              <span class="metric-note" id="partitionRowsNote">Seluruh partisi</span>
-            </div>
-            <div class="metric-card is-warn">
-              <span class="metric-label">Belum diproses</span>
-              <span class="metric-value" id="partitionUnprocessed">—</span>
-              <span class="metric-note">Tidak memiliki waktu proses</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">Partisi kosong</span>
-              <span class="metric-value" id="partitionEmpty">—</span>
-              <span class="metric-note">0 baris</span>
-            </div>
-          </div>
-
-          <div class="layout-split layout-split--partition">
-            <div class="panel">
-              <div class="panel-head">
-                <span class="panel-title" id="partitionListTitle">Partisi · Fact Sales</span>
-                <div class="spacer"></div>
-                <span class="chip chip-idle" id="partitionCountChip">8 partisi</span>
-              </div>
-              <div class="table-tools">
-                <label class="tool-field search">
-                  <span>Cari partisi</span>
-                  <input class="input" id="partitionSearch" type="search" placeholder="Nama partisi">
-                </label>
-                <label class="tool-field">
-                  <span>Status</span>
-                  <div class="select">
-                    <select id="partitionFilter">
-                      <option value="all">Semua status</option>
-                      <option value="processed">Diproses</option>
-                      <option value="unprocessed">Belum diproses</option>
-                      <option value="empty">Kosong</option>
-                    </select>
-                  </div>
-                </label>
-                <div class="tool-actions">
-                  <button class="btn btn-sm" id="reloadPartitions" type="button">Muat ulang</button>
-                  <button class="btn btn-sm" id="exportPartitions" type="button">Export CSV</button>
-                </div>
-              </div>
-              <div class="run-card partition-run" id="partitionRun" hidden="">
-                <div class="run-label"><span id="partitionRunLabel">Memproses partisi…</span><span id="partitionRunPct">0%</span></div>
-                <div class="progress"><i id="partitionBar"></i></div>
-              </div>
-              <div class="table-scroll" id="partitionTableWrap">
-                <table class="data data--partitions">
-                  <thead id="partitionHead"></thead>
-                  <tbody id="partitionBody"></tbody>
-                </table>
-              </div>
-              <div class="empty" id="partitionEmpty" hidden="">
-                <div class="empty-title">Tidak ada partisi yang cocok</div>
-                <p class="empty-text">Ubah nama atau filter status untuk melihat partisi lain.</p>
-              </div>
-              <div class="panel-foot" style="justify-content:space-between">
-                <span class="helper" id="partitionSelectionSummary">0 dipilih</span>
-                <span class="helper">Mode baca-saja · proses memerlukan izin XMLA</span>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-head"><span class="panel-title">Detail partisi</span></div>
-              <div class="panel-body" id="partitionDetail"></div>
             </div>
           </div>
         </section>
@@ -908,16 +821,16 @@
         <section class="view" id="view-pengaturan" aria-labelledby="titlePengaturan" hidden="">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow">Sistem</div>
-              <h1 class="view-title" id="titlePengaturan" tabindex="-1">Pengaturan</h1>
-              <p class="view-sub">Kredensial, katalog lokal, dan tampilan aplikasi.</p>
+              <div class="view-eyebrow" data-i18n="System">System</div>
+              <h1 class="view-title" id="titlePengaturan" tabindex="-1" data-i18n="Settings">Settings</h1>
+              <p class="view-sub" data-i18n="Credentials, local catalog, and application appearance.">Credentials, local catalog, and application appearance.</p>
             </div>
           </div>
 
-          <div class="tabs" role="tablist" aria-label="Bagian pengaturan">
-            <button role="tab" id="tab-kredensial" data-tab="kredensial" aria-controls="set-kredensial" aria-selected="true">Kredensial</button>
-            <button role="tab" id="tab-katalog" data-tab="katalog" aria-controls="set-katalog" aria-selected="false">Katalog database</button>
-            <button role="tab" id="tab-tampilan" data-tab="tampilan" aria-controls="set-tampilan" aria-selected="false">Tampilan</button>
+          <div class="tabs" role="tablist" aria-label="Settings sections" data-i18n-aria-label="Settings sections">
+            <button role="tab" id="tab-kredensial" data-tab="kredensial" aria-controls="set-kredensial" aria-selected="true" data-i18n="Credentials">Credentials</button>
+            <button role="tab" id="tab-katalog" data-tab="katalog" aria-controls="set-katalog" aria-selected="false" data-i18n="Catalog database">Catalog database</button>
+            <button role="tab" id="tab-tampilan" data-tab="tampilan" aria-controls="set-tampilan" aria-selected="false" data-i18n="Appearance">Appearance</button>
           </div>
 
           <div id="set-kredensial" role="tabpanel" aria-labelledby="tab-kredensial" class="od-stack" style="--od-gap:16px">
@@ -925,85 +838,85 @@
               <div class="panel-head">
                 <span class="panel-title">Service principal</span>
                 <div class="spacer"></div>
-                <span class="chip chip-idle" id="credChip"><span class="dot"></span>Belum diisi</span>
+                <span class="chip chip-idle" id="credChip"><span class="dot"></span><span data-i18n="Not filled in">Not filled in</span></span>
               </div>
               <div class="panel-body">
                 <div class="form-row">
                   <label for="tenantId">Tenant ID</label>
-                  <input class="input mono" id="tenantId" type="text" autocomplete="off" placeholder="GUID tenant Microsoft Entra">
+                  <input class="input mono" id="tenantId" type="text" autocomplete="off" placeholder="Microsoft Entra tenant GUID" data-i18n-placeholder="Microsoft Entra tenant GUID">
                 </div>
                 <div class="form-row">
                   <label for="clientId">Client ID</label>
-                  <input class="input mono" id="clientId" type="text" autocomplete="off" placeholder="GUID aplikasi (client ID)">
+                  <input class="input mono" id="clientId" type="text" autocomplete="off" placeholder="Application GUID (client ID)" data-i18n-placeholder="Application GUID (client ID)">
                 </div>
                 <div class="form-row">
                   <label for="clientSecret">Client secret</label>
-                  <input class="input mono" id="clientSecret" type="password" autocomplete="new-password" placeholder="Kosongkan bila tidak diubah">
+                  <input class="input mono" id="clientSecret" type="password" autocomplete="new-password" placeholder="Leave blank to keep unchanged">
                 </div>
                 <div class="form-row">
                   <label for="rlsUsername">RLS default</label>
-                  <input class="input mono" id="rlsUsername" type="text" autocomplete="off" placeholder="Username RLS (opsional)">
+                  <input class="input mono" id="rlsUsername" type="text" autocomplete="off" placeholder="RLS username (optional)" data-i18n-placeholder="RLS username (optional)">
                 </div>
                 <div class="form-row">
-                  <label for="rlsRoles">Role RLS</label>
+                  <label for="rlsRoles" data-i18n="RLS roles">RLS roles</label>
                   <input class="input mono" id="rlsRoles" type="text" autocomplete="off" placeholder="HO,Region">
                 </div>
               </div>
               <div class="panel-foot">
-                <button class="btn" id="testConn" type="button">Uji koneksi</button>
-                <button class="btn btn-primary" id="saveCreds" type="button">Simpan</button>
-                <span class="helper" id="connResult">Belum diuji pada sesi ini.</span>
+                <button class="btn" id="testConn" type="button" data-i18n="Test connection">Test connection</button>
+                <button class="btn btn-primary" id="saveCreds" type="button" data-i18n="Save">Save</button>
+                <span class="helper" id="connResult">Not tested in this session.</span>
               </div>
             </div>
             <div class="note">
               <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-              <span>Kredensial hanya dipakai untuk memanggil admin API dan XMLA. Client secret disimpan sebagai teks biasa di berkas preferensi lokal; token hanya di memori proses.</span>
+              <span data-i18n="Credentials are only used to call the admin API and XMLA. The client secret is stored as plain text in the local preferences file; tokens stay in process memory.">Credentials are only used to call the admin API and XMLA. The client secret is stored as plain text in the local preferences file; tokens stay in process memory.</span>
             </div>
           </div>
 
           <div id="set-katalog" role="tabpanel" aria-labelledby="tab-katalog" class="od-stack" style="--od-gap:16px" hidden="">
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Path &amp; penyimpanan</span></div>
+              <div class="panel-head"><span class="panel-title" data-i18n="Path &amp; storage">Path &amp; storage</span></div>
               <div class="panel-body">
                 <div class="form-row">
                   <label for="dbPath">Database</label>
-                  <input class="input mono" id="dbPath" type="text" autocomplete="off" placeholder="Folder database SQLite">
+                  <input class="input mono" id="dbPath" type="text" autocomplete="off" placeholder="SQLite database folder" data-i18n-placeholder="SQLite database folder">
                   <div class="row-inline">
-                    <button class="btn btn-sm" type="button" id="pickDb">Pilih…</button>
-                    <button class="btn btn-sm btn-primary" type="button" id="saveDb">Simpan</button>
+                    <button class="btn btn-sm" type="button" id="pickDb" data-i18n="Choose…">Choose…</button>
+                    <button class="btn btn-sm btn-primary" type="button" id="saveDb" data-i18n="Save">Save</button>
                   </div>
                 </div>
               </div>
             </div>
             <div class="panel">
               <div class="panel-head">
-                <span class="panel-title">Sinkronisasi data</span>
+                <span class="panel-title" data-i18n="Data sync">Data sync</span>
                 <div class="spacer"></div>
-                <span class="chip chip-ok" id="syncChip"><span class="dot"></span>Tersinkron</span>
+                <span class="chip chip-ok" id="syncChip"><span class="dot"></span><span data-i18n="In sync">In sync</span></span>
               </div>
               <div class="panel-body">
                 <div class="form-row">
-                  <label for="syncMode">Mode</label>
+                  <label for="syncMode" data-i18n="Mode">Mode</label>
                   <div class="select">
                     <select id="syncMode">
-                      <option value="auto">Otomatis (admin, lalu member)</option>
-                      <option value="admin">Admin (seluruh tenant)</option>
-                      <option value="member">Hanya member</option>
+                      <option value="auto" data-i18n="Automatic (admin, then member)">Automatic (admin, then member)</option>
+                      <option value="admin" data-i18n="Admin (entire tenant)">Admin (entire tenant)</option>
+                      <option value="member" data-i18n="Member only">Member only</option>
                     </select>
                   </div>
                 </div>
                 <div class="check-row" style="padding-left:160px">
-                  <label class="check"><input type="checkbox" id="fullScan"> Full scan lineage (abaikan timestamp inkremental)</label>
-                  <label class="check"><input type="checkbox" id="includePersonal"> Sertakan My Workspace (personal)</label>
+                  <label class="check"><input type="checkbox" id="fullScan"> <span data-i18n="Full lineage scan (ignore incremental timestamps)">Full lineage scan (ignore incremental timestamps)</span></label>
+                  <label class="check"><input type="checkbox" id="includePersonal"> <span data-i18n="Include My Workspace (personal)">Include My Workspace (personal)</span></label>
                 </div>
                 <div class="row-actions">
-                  <button class="btn btn-primary" id="syncCatalog" type="button">Sinkronisasi katalog workspace</button>
+                  <button class="btn btn-primary" id="syncCatalog" type="button" data-i18n="Sync workspace catalog">Sync workspace catalog</button>
                   <button class="btn" id="scanLineage" type="button">Scan lineage</button>
                 </div>
-                <p class="helper" id="syncStatus">Memuat status katalog…</p>
+                <p class="helper" id="syncStatus">Loading catalog status…</p>
                 <div class="note">
                   <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-                  <span>Kedua aksi memakai database di atas dan kredensial pada sub-tab Kredensial. Mode admin dipakai bersama; Full scan hanya mengubah cara scan lineage memilih workspace.</span>
+                  <span data-i18n="Both actions use the database above and the credentials on the Credentials sub-tab. Admin mode is shared; Full scan only changes how the lineage scan selects workspaces.">Both actions use the database above and the credentials on the Credentials sub-tab. Admin mode is shared; Full scan only changes how the lineage scan selects workspaces.</span>
                 </div>
               </div>
             </div>
@@ -1011,9 +924,34 @@
 
           <div id="set-tampilan" role="tabpanel" aria-labelledby="tab-tampilan" class="od-stack" style="--od-gap:16px" hidden="">
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Tema</span></div>
+              <div class="panel-head"><span class="panel-title" data-i18n="Language">Language</span></div>
               <div class="panel-body">
-                <div class="theme-grid" role="radiogroup" aria-label="Tema tampilan">
+                <div class="theme-grid" role="radiogroup" aria-label="Interface language" data-i18n-aria-label="Interface language">
+                  <button class="theme-card" type="button" role="radio" data-language="en" aria-checked="true">
+                    <span class="theme-card-row">
+                      <span class="theme-card-name" data-i18n="English">English</span>
+                      <span class="theme-check" aria-hidden="true" data-language-check="en">
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                      </span>
+                    </span>
+                    <span class="helper" data-i18n="Default interface language.">Default interface language.</span>
+                  </button>
+                  <button class="theme-card" type="button" role="radio" data-language="id" aria-checked="false">
+                    <span class="theme-card-row">
+                      <span class="theme-card-name" data-i18n="Bahasa Indonesia">Bahasa Indonesia</span>
+                      <span class="theme-check" aria-hidden="true" data-language-check="id">
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                      </span>
+                    </span>
+                    <span class="helper" data-i18n="The entire interface in Indonesian.">The entire interface in Indonesian.</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title" data-i18n="Theme">Theme</span></div>
+              <div class="panel-body">
+                <div class="theme-grid" role="radiogroup" aria-label="Display theme" data-i18n-aria-label="Display theme">
                   <button class="theme-card" type="button" role="radio" data-theme="dark" aria-checked="true">
                     <span class="theme-swatch">
                       <span class="swatch-side"></span>
@@ -1024,12 +962,12 @@
                       </span>
                     </span>
                     <span class="theme-card-row">
-                      <span class="theme-card-name">Gelap</span>
+                      <span class="theme-card-name" data-i18n="Dark">Dark</span>
                       <span class="theme-check" aria-hidden="true">
                         <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
                       </span>
                     </span>
-                    <span class="helper">Untuk sesi panjang di ruang redup.</span>
+                    <span class="helper" data-i18n="For long sessions in a dim room.">For long sessions in a dim room.</span>
                   </button>
                   <button class="theme-card" type="button" role="radio" data-theme="light" aria-checked="false">
                     <span class="theme-swatch is-light">
@@ -1041,37 +979,37 @@
                       </span>
                     </span>
                     <span class="theme-card-row">
-                      <span class="theme-card-name">Terang</span>
+                      <span class="theme-card-name" data-i18n="Light">Light</span>
                       <span class="theme-check" aria-hidden="true">
                         <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
                       </span>
                     </span>
-                    <span class="helper">Untuk ruang terang dan presentasi.</span>
+                    <span class="helper" data-i18n="For bright rooms and presentations.">For bright rooms and presentations.</span>
                   </button>
                 </div>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Server lokal</span></div>
+              <div class="panel-head"><span class="panel-title" data-i18n="Local server">Local server</span></div>
               <div class="panel-body">
                 <div class="form-row">
-                  <label for="serverUrl">Alamat</label>
+                  <label for="serverUrl" data-i18n="Address">Address</label>
                   <input class="input mono" id="serverUrl" type="text" readonly="" value="">
-                  <button class="btn btn-sm" type="button" id="copyServerUrl">Salin</button>
+                  <button class="btn btn-sm" type="button" id="copyServerUrl" data-i18n="Copy">Copy</button>
                 </div>
-                <p class="helper" id="serverMeta">Server hanya mendengarkan 127.0.0.1.</p>
+                <p class="helper" id="serverMeta">The server only listens on 127.0.0.1.</p>
                 <div class="row-actions">
-                  <button class="btn btn-sm" type="button" id="shutdownServer">Hentikan server</button>
-                  <span class="helper">Menutup jendela konsol juga menghentikan server.</span>
+                  <button class="btn btn-sm" type="button" id="shutdownServer" data-i18n="Stop server">Stop server</button>
+                  <span class="helper" data-i18n="Closing the console window also stops the server.">Closing the console window also stops the server.</span>
                 </div>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Antarmuka</span></div>
+              <div class="panel-head"><span class="panel-title" data-i18n="Interface">Interface</span></div>
               <div class="panel-body">
-                <label class="check"><input type="checkbox" id="motionToggle" checked=""> Aktifkan animasi antarmuka</label>
-                <label class="check"><input type="checkbox" id="showConsole" checked=""> Tampilkan console log saat proses berjalan</label>
-                <p class="helper">Pilihan tema tersimpan antar sesi.</p>
+                <label class="check"><input type="checkbox" id="motionToggle" checked=""> <span data-i18n="Enable interface animations">Enable interface animations</span></label>
+                <label class="check"><input type="checkbox" id="showConsole" checked=""> <span data-i18n="Show the console log while a job runs">Show the console log while a job runs</span></label>
+                <p class="helper" data-i18n="Theme and language are saved between sessions.">Theme and language are saved between sessions.</p>
               </div>
             </div>
           </div>
@@ -1079,15 +1017,15 @@
 
       </div>
 
-      <div class="console console--dock" id="consoleDock" role="region" aria-label="Log konsol sesi">
+      <div class="console console--dock" id="consoleDock" role="region" aria-label="Session console log" data-i18n-aria-label="Session console log">
         <div class="console-head">
           <button class="console-toggle" id="consoleToggle" type="button" aria-expanded="false" aria-controls="consoleBody">
             <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
-            <span class="console-title">Log konsol</span>
+            <span class="console-title" data-i18n="Console log">Console log</span>
             <span class="chip chip-idle" id="consoleCount" hidden="">0</span>
-            <span class="console-preview" id="consolePreview">Belum ada aktivitas pada sesi ini.</span>
+            <span class="console-preview" id="consolePreview">No activity in this session yet.</span>
           </button>
-          <button class="btn btn-ghost btn-sm" id="clearLog" type="button">Bersihkan</button>
+          <button class="btn btn-ghost btn-sm" id="clearLog" type="button" data-i18n="Clear">Clear</button>
         </div>
         <div class="console-body" id="consoleBody" hidden="">
           <pre id="consoleLog" tabindex="0" aria-label="Isi log konsol"></pre>
@@ -1098,45 +1036,13 @@
   </div>
 </div>
 
-<dialog class="dialog" id="partitionDialog" aria-labelledby="partitionDialogTitle">
-  <div class="dialog-head">
-    <div>
-      <h2 class="dialog-title" id="partitionDialogTitle">Proses partisi</h2>
-      <p class="helper" id="partitionDialogSub">Pilih partisi yang akan diproses.</p>
-    </div>
-    <button class="dialog-close" id="closePartitionDialog" type="button" aria-label="Tutup dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
-    </button>
-  </div>
-  <div class="dialog-body">
-    <div class="field">
-      <label for="partitionMode">Mode proses</label>
-      <div class="select">
-        <select id="partitionMode">
-          <option value="default">Process Default</option>
-          <option value="full">Process Full</option>
-          <option value="data">Process Data</option>
-          <option value="clear">Process Clear</option>
-          <option value="add">Process Add</option>
-        </select>
-      </div>
-    </div>
-    <p class="helper" id="partitionModeHelp">Memproses partisi yang belum diproses dan memperbarui dependensi.</p>
-    <div class="partition-checklist" id="partitionChecklist"></div>
-  </div>
-  <div class="dialog-foot">
-    <button class="btn" id="cancelPartitionProcess" type="button">Batal</button>
-    <button class="btn btn-primary" id="runPartitionProcess" type="button">Proses</button>
-  </div>
-</dialog>
-
 <dialog class="dialog" id="folderDialog" aria-labelledby="folderDialogTitle">
   <div class="dialog-head">
     <div>
-      <h2 class="dialog-title" id="folderDialogTitle">Pilih folder</h2>
-      <p class="helper" id="folderDialogPath">Memuat…</p>
+      <h2 class="dialog-title" id="folderDialogTitle" data-i18n="Choose a folder">Choose a folder</h2>
+      <p class="helper" id="folderDialogPath">Loading…</p>
     </div>
-    <button class="dialog-close" id="closeFolderDialog" type="button" aria-label="Tutup dialog">
+    <button class="dialog-close" id="closeFolderDialog" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
     </button>
   </div>
@@ -1144,42 +1050,42 @@
     <div class="field">
       <label for="folderPathInput">Path</label>
       <div class="row-inline">
-        <input class="input mono" id="folderPathInput" type="text" autocomplete="off" placeholder="Ketik path lalu Enter">
-        <button class="btn btn-sm" type="button" id="folderGo">Buka</button>
+        <input class="input mono" id="folderPathInput" type="text" autocomplete="off" placeholder="Type a path and press Enter" data-i18n-placeholder="Type a path and press Enter">
+        <button class="btn btn-sm" type="button" id="folderGo" data-i18n="Open">Open</button>
       </div>
     </div>
-    <div class="browse-list" id="folderList" role="listbox" aria-label="Isi folder"></div>
+    <div class="browse-list" id="folderList" role="listbox" aria-label="Folder contents" data-i18n-aria-label="Folder contents"></div>
   </div>
   <div class="dialog-foot">
-    <button class="btn" id="cancelFolder" type="button">Batal</button>
-    <button class="btn btn-primary" id="chooseFolder" type="button">Pilih folder ini</button>
+    <button class="btn" id="cancelFolder" type="button" data-i18n="Cancel">Cancel</button>
+    <button class="btn btn-primary" id="chooseFolder" type="button" data-i18n="Choose this folder">Choose this folder</button>
   </div>
 </dialog>
 
 <dialog class="dialog" id="jsonDialog" aria-labelledby="jsonDialogTitle">
   <div class="dialog-head">
     <div>
-      <h2 class="dialog-title" id="jsonDialogTitle">Konteks manual (JSON)</h2>
+      <h2 class="dialog-title" id="jsonDialogTitle" data-i18n="Manual context (JSON)">Manual context (JSON)</h2>
       <p class="helper" id="jsonDialogPath"></p>
     </div>
-    <button class="dialog-close" id="closeJsonDialog" type="button" aria-label="Tutup dialog">
+    <button class="dialog-close" id="closeJsonDialog" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
     </button>
   </div>
   <div class="dialog-body">
-    <textarea class="input mono json-editor" id="jsonEditor" spellcheck="false" aria-label="Isi konteks manual JSON"></textarea>
-    <p class="helper" id="jsonStatus">JSON harus berupa objek. Simpan menulis sidecar di path di atas.</p>
+    <textarea class="input mono json-editor" id="jsonEditor" spellcheck="false" aria-label="Manual context JSON contents" data-i18n-aria-label="Manual context JSON contents"></textarea>
+    <p class="helper" id="jsonStatus">JSON must be an object. Save writes a sidecar at the path above.</p>
   </div>
   <div class="dialog-foot">
-    <button class="btn" id="cancelJsonDialog" type="button">Batal</button>
-    <button class="btn btn-primary" id="saveJsonDialog" type="button">Simpan</button>
+    <button class="btn" id="cancelJsonDialog" type="button" data-i18n="Cancel">Cancel</button>
+    <button class="btn btn-primary" id="saveJsonDialog" type="button" data-i18n="Save">Save</button>
   </div>
 </dialog>
 
 <div class="combo-popup" id="comboPopup" hidden>
-  <input class="input combo-search" id="comboSearch" type="search" placeholder="Cari pilihan." autocomplete="off" aria-label="Cari pilihan">
+  <input class="input combo-search" id="comboSearch" type="search" placeholder="Search options." autocomplete="off" aria-label="Search options" data-i18n-placeholder="Search options." data-i18n-aria-label="Search options">
   <div class="combo-list" id="comboList" role="listbox"></div>
-  <div class="combo-empty" id="comboEmpty" hidden>Tidak ada pilihan</div>
+  <div class="combo-empty" id="comboEmpty" hidden data-i18n="No options">No options</div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite">
@@ -1187,6 +1093,7 @@
   <span id="toastText"></span>
 </div>
 
+<script src="locales.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
 

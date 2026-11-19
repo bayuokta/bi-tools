@@ -9,7 +9,8 @@ Isi:
 - ``usage_scan_run``  : riwayat satu kali analisa (status, cakupan, ringkasan),
 - ``usage_report``    : status scan per report (cache by ``modified_at``),
 - ``usage_field``     : baris pemakaian field per report/halaman/visual,
-- ``usage_column``    : snapshot ukuran + metadata kolom per dataset.
+- ``usage_column``    : snapshot ukuran + metadata kolom per dataset,
+- ``usage_m_query``   : M query/parameter terakhir per dataset.
 
 Modul ini hanya mengurus skema dan SQL; orkestrasi ada di
 :mod:`core.usage_service`.
@@ -47,9 +48,17 @@ CREATE TABLE IF NOT EXISTS usage_report (
   status TEXT, message TEXT,
   page_count INTEGER DEFAULT 0, visual_count INTEGER DEFAULT 0,
   field_count INTEGER DEFAULT 0, unresolved_count INTEGER DEFAULT 0,
+  theme TEXT,
   is_active INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS ix_usage_report_dataset ON usage_report(dataset_id);
+CREATE TABLE IF NOT EXISTS usage_page (
+  report_id TEXT, dataset_id TEXT, page_id TEXT, page_name TEXT,
+  order_index INTEGER DEFAULT 0, is_hidden INTEGER DEFAULT 0,
+  visual_count INTEGER DEFAULT 0,
+  PRIMARY KEY (report_id, page_id)
+);
+CREATE INDEX IF NOT EXISTS ix_usage_page_dataset ON usage_page(dataset_id);
 CREATE TABLE IF NOT EXISTS usage_field (
   report_id TEXT, dataset_id TEXT,
   page_id TEXT, page_name TEXT,
@@ -96,6 +105,12 @@ CREATE TABLE IF NOT EXISTS usage_measure (
   refs_json TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, measure_name)
 );
+CREATE TABLE IF NOT EXISTS usage_m_query (
+  dataset_id TEXT, name TEXT, kind TEXT, source TEXT,
+  expression TEXT, warning TEXT, detail TEXT, analyzed_at TEXT,
+  PRIMARY KEY (dataset_id, kind, name)
+);
+CREATE INDEX IF NOT EXISTS ix_usage_m_query_dataset ON usage_m_query(dataset_id);
 """
 
 
@@ -117,6 +132,9 @@ MIGRATIONS = {
     "usage_column": {
         "error_message": "TEXT",
         "size_dictionary_bytes": "INTEGER DEFAULT 0",
+    },
+    "usage_report": {
+        "theme": "TEXT",
     },
 }
 
@@ -163,20 +181,22 @@ def save_report(
     status: str,
     usage: ReportUsage | None = None,
     message: str = "",
+    theme: str = "",
 ) -> None:
     """Simpan status satu report beserta baris pemakaiannya (replace)."""
     page_count = int(usage.pages) if usage else 0
     visual_count = int(usage.visuals) if usage else 0
     unresolved = len(usage.unresolved) if usage else 0
     records = list(usage.records) if usage else []
+    theme_name = theme or (str(usage.theme) if usage else "")
 
     conn.execute(
         """
         INSERT INTO usage_report (
           report_id, workspace_id, dataset_id, name, report_format, modified_at,
           scanned_at, status, message, page_count, visual_count, field_count,
-          unresolved_count, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          unresolved_count, theme, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(report_id) DO UPDATE SET
           workspace_id=excluded.workspace_id, dataset_id=excluded.dataset_id,
           name=excluded.name, report_format=excluded.report_format,
@@ -184,7 +204,8 @@ def save_report(
           status=excluded.status, message=excluded.message,
           page_count=excluded.page_count, visual_count=excluded.visual_count,
           field_count=excluded.field_count,
-          unresolved_count=excluded.unresolved_count, is_active=1
+          unresolved_count=excluded.unresolved_count,
+          theme=excluded.theme, is_active=1
         """,
         (
             report_id,
@@ -200,8 +221,33 @@ def save_report(
             visual_count,
             len(records),
             unresolved,
+            theme_name,
         ),
     )
+    conn.execute("DELETE FROM usage_page WHERE report_id = ?", (report_id,))
+    page_rows = list(usage.page_rows) if usage else []
+    if page_rows:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO usage_page (
+              report_id, dataset_id, page_id, page_name, order_index,
+              is_hidden, visual_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    report_id,
+                    dataset_id,
+                    str(row.get("page_id") or ""),
+                    str(row.get("page_name") or ""),
+                    int(row.get("order_index") or 0),
+                    1 if row.get("is_hidden") else 0,
+                    int(row.get("visual_count") or 0),
+                )
+                for row in page_rows
+                if str(row.get("page_id") or "")
+            ],
+        )
     conn.execute("DELETE FROM usage_field WHERE report_id = ?", (report_id,))
     if records:
         save_fields(conn, report_id, dataset_id, records)
@@ -354,9 +400,232 @@ def stored_report(
     return dict(row) if row else None
 
 
-# ---------------------------------------------------------------------------
-# Snapshot ukuran kolom
-# ---------------------------------------------------------------------------
+def report_pages(
+    conn: sqlite3.Connection, dataset_id: str
+) -> dict[str, list[dict[str, Any]]]:
+    """Halaman per report: metadata halaman + jumlah visual/field.
+
+    Memakai ``usage_page`` (termasuk halaman tersembunyi dan jumlah visual dari
+    definisi) lalu melengkapi jumlah field dari ``usage_field``. Database lama
+    tanpa ``usage_page`` tetap terbaca lewat hitungan dari ``usage_field``.
+    """
+    counts: dict[tuple[str, str], dict[str, int]] = {}
+    for row in conn.execute(
+        """
+        SELECT report_id, page_id,
+               COUNT(DISTINCT visual_id) AS visual_count,
+               COUNT(*) AS field_count
+          FROM usage_field
+         WHERE dataset_id = ? AND page_id <> ''
+         GROUP BY report_id, page_id
+        """,
+        (dataset_id,),
+    ):
+        counts[(str(row["report_id"]), str(row["page_id"]))] = {
+            "visual_count": int(row["visual_count"] or 0),
+            "field_count": int(row["field_count"] or 0),
+        }
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    seen: set[tuple[str, str]] = set()
+    for row in conn.execute(
+        """
+        SELECT report_id, page_id, page_name, order_index, is_hidden, visual_count
+          FROM usage_page
+         WHERE dataset_id = ?
+         ORDER BY report_id, order_index, page_name
+        """,
+        (dataset_id,),
+    ):
+        report_id = str(row["report_id"])
+        page_id = str(row["page_id"])
+        seen.add((report_id, page_id))
+        stat = counts.get((report_id, page_id)) or {}
+        grouped.setdefault(report_id, []).append(
+            {
+                "page_id": page_id,
+                "page_name": str(row["page_name"] or ""),
+                "order_index": int(row["order_index"] or 0),
+                "is_hidden": bool(row["is_hidden"]),
+                "visual_count": int(row["visual_count"] or 0),
+                "field_count": int(stat.get("field_count") or 0),
+            }
+        )
+
+    # Cadangan database lama: halaman hanya dari baris pemakaian field.
+    for (report_id, page_id), stat in counts.items():
+        if (report_id, page_id) in seen:
+            continue
+        name_row = conn.execute(
+            """
+            SELECT page_name FROM usage_field
+             WHERE report_id = ? AND page_id = ? AND page_name <> ''
+             LIMIT 1
+            """,
+            (report_id, page_id),
+        ).fetchone()
+        grouped.setdefault(report_id, []).append(
+            {
+                "page_id": page_id,
+                "page_name": str(name_row["page_name"] if name_row else ""),
+                "order_index": 0,
+                "is_hidden": False,
+                "visual_count": int(stat.get("visual_count") or 0),
+                "field_count": int(stat.get("field_count") or 0),
+            }
+        )
+    for pages in grouped.values():
+        pages.sort(key=lambda item: (item["order_index"], item["page_name"]))
+    return grouped
+
+
+def _field_ref(row: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        "table": str(row.get("table_name") or ""),
+        "field": str(row.get("field_name") or ""),
+        "kind": str(row.get("field_kind") or ""),
+    }
+
+
+def report_detail(
+    conn: sqlite3.Connection, dataset_id: str, report_id: str
+) -> dict[str, Any]:
+    """Detail satu report untuk tab Report results (halaman/visual/filter)."""
+    rows = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT * FROM usage_field
+             WHERE dataset_id = ? AND report_id = ?
+             ORDER BY page_name, visual_title, usage_kind, table_name, field_name
+            """,
+            (dataset_id, report_id),
+        ).fetchall()
+    ]
+    pages = report_pages(conn, dataset_id).get(report_id, [])
+    page_map: dict[str, dict[str, Any]] = {}
+    for page in pages:
+        page_map[page["page_id"]] = {
+            "page_id": page["page_id"],
+            "page_name": page["page_name"],
+            "is_hidden": bool(page.get("is_hidden")),
+            "visual_count": int(page.get("visual_count") or 0),
+            "field_count": int(page.get("field_count") or 0),
+            "visuals": {},
+            "page_filters": {},
+        }
+    report_filters: dict[str, dict[str, Any]] = {}
+
+    def ensure_page(row: Mapping[str, Any]) -> dict[str, Any] | None:
+        page_id = str(row.get("page_id") or "")
+        name = str(row.get("page_name") or "")
+        if not page_id and not name:
+            return None
+        key = page_id or name
+        page = page_map.get(key)
+        if page is None:
+            page = {
+                "page_id": page_id,
+                "page_name": name,
+                "is_hidden": False,
+                "visual_count": 0,
+                "field_count": 0,
+                "visuals": {},
+                "page_filters": {},
+            }
+            page_map[key] = page
+        return page
+
+    def filter_entry(
+        bucket: dict[str, dict[str, Any]], row: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        detail = str(row.get("detail") or "") or "Filter"
+        entry = bucket.setdefault(
+            detail,
+            {
+                "name": str(row.get("field_name") or detail),
+                "type": detail.split(" · ")[0],
+                "detail": detail,
+                "columns": [],
+            },
+        )
+        column = _field_ref(row)
+        if column["field"] and column not in entry["columns"]:
+            entry["columns"].append(column)
+        return entry
+
+    for row in rows:
+        kind = str(row.get("usage_kind") or "")
+        if kind == "filter-report":
+            filter_entry(report_filters, row)
+            continue
+        page = ensure_page(row)
+        if page is None:
+            continue
+        if kind == "filter-page":
+            filter_entry(page["page_filters"], row)
+            continue
+        visual_id = str(row.get("visual_id") or "")
+        if kind in {"filter-visual", "filter-query"}:
+            if not visual_id:
+                continue
+            visual = page["visuals"].setdefault(
+                visual_id,
+                {
+                    "visual_id": visual_id,
+                    "visual_type": str(row.get("visual_type") or ""),
+                    "visual_title": str(row.get("visual_title") or ""),
+                    "is_hidden": bool(row.get("is_hidden")),
+                    "artifacts": [],
+                    "filters": {},
+                },
+            )
+            filter_entry(visual["filters"], row)
+            continue
+        if kind != "field" or not visual_id:
+            continue
+        visual = page["visuals"].setdefault(
+            visual_id,
+            {
+                "visual_id": visual_id,
+                "visual_type": str(row.get("visual_type") or ""),
+                "visual_title": str(row.get("visual_title") or ""),
+                "is_hidden": bool(row.get("is_hidden")),
+                "artifacts": [],
+                "filters": {},
+            },
+        )
+        artifact = _field_ref(row)
+        if artifact["field"] and artifact not in visual["artifacts"]:
+            visual["artifacts"].append(artifact)
+
+    output_pages: list[dict[str, Any]] = []
+    for page in sorted(
+        page_map.values(), key=lambda item: (item["page_name"] or "", item["page_id"])
+    ):
+        visuals = list(page["visuals"].values())
+        for visual in visuals:
+            visual["filters"] = list(visual["filters"].values())
+            visual["artifacts"].sort(key=lambda item: (item["kind"], item["table"], item["field"]))
+        visuals.sort(key=lambda item: (item["visual_title"], item["visual_id"]))
+        output_pages.append(
+            {
+                "page_id": page["page_id"],
+                "page_name": page["page_name"],
+                "is_hidden": bool(page["is_hidden"]),
+                "visual_count": int(page["visual_count"] or len(visuals)),
+                "field_count": int(page["field_count"]),
+                "visuals": visuals,
+                "page_filters": list(page["page_filters"].values()),
+            }
+        )
+    return {
+        "report_id": report_id,
+        "pages": output_pages,
+        "report_filters": list(report_filters.values()),
+    }
+
+
 def save_columns(
     conn: sqlite3.Connection,
     dataset_id: str,
@@ -528,6 +797,53 @@ def model_refs(
             }
         )
     return grouped
+
+
+# ---------------------------------------------------------------------------
+# M query / parameter (snapshot untuk tab M queries)
+# ---------------------------------------------------------------------------
+def save_m_queries(
+    conn: sqlite3.Connection,
+    dataset_id: str,
+    rows: Iterable[dict[str, Any]],
+    *,
+    analyzed_at: str | None = None,
+) -> None:
+    """Simpan M query tabel/parameter terakhir untuk satu dataset (replace)."""
+    stamp = analyzed_at or utc_now()
+    payload = [
+        (
+            dataset_id,
+            str(row.get("name") or ""),
+            str(row.get("kind") or ""),
+            str(row.get("source") or ""),
+            str(row.get("expression") or ""),
+            str(row.get("warning") or ""),
+            str(row.get("detail") or ""),
+            stamp,
+        )
+        for row in rows
+    ]
+    conn.execute("DELETE FROM usage_m_query WHERE dataset_id = ?", (dataset_id,))
+    if payload:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO usage_m_query (
+              dataset_id, name, kind, source, expression, warning, detail,
+              analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            payload,
+        )
+    conn.commit()
+
+
+def m_queries(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM usage_m_query WHERE dataset_id = ? ORDER BY kind, name",
+        (dataset_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 # ---------------------------------------------------------------------------

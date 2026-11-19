@@ -64,6 +64,7 @@ from .model import (
     build_partitions,
     build_tables,
     clean_expr,
+    read_model_metadata,
 )
 from .report_usage import scan_definition
 from .usage_store import (
@@ -71,12 +72,15 @@ from .usage_store import (
     field_usage,
     initialize,
     last_run,
+    m_queries as stored_m_queries,
     mark_reports_inactive,
     measures as stored_measures,
     model_refs as stored_model_refs,
     report_cache,
+    report_pages as stored_report_pages,
     reports as stored_reports,
     save_columns,
+    save_m_queries,
     save_measures,
     save_model_refs,
     save_report,
@@ -526,6 +530,37 @@ def measure_edges(
     return edges
 
 
+NAMEOF_CALL = re.compile(
+    r"NAMEOF\s*\(\s*"
+    r"(?:'(?P<quoted>(?:[^']|'')+)'|\"(?P<double>[^\"]+)\"|(?P<bare>[^\[\](),]+?))"
+    r"\s*\[\s*(?P<column>[^\]]+?)\s*\]\s*\)",
+    re.IGNORECASE,
+)
+
+
+def find_field_parameter_refs(expression: str) -> list[tuple[str, str]]:
+    """Pasangan ``(tabel, kolom)`` yang dirujuk ``NAMEOF(...)``.
+
+    Tabel field parameter disusun sebagai calculated table berisi baris
+    ``("Label", NAMEOF('Tabel'[Kolom]), urutan)``; ekspresi itu bukan DAX tabel
+    biasa, jadi kolom asalnya dibaca langsung dari ``NAMEOF``.
+    """
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for match in NAMEOF_CALL.finditer(str(expression or "")):
+        table = match.group("quoted") or match.group("double") or match.group("bare") or ""
+        table = table.replace("''", "'").strip()
+        column = (match.group("column") or "").strip()
+        if not table or not column:
+            continue
+        key = (table.casefold(), column.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append((table, column))
+    return pairs
+
+
 def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelReference]]:
     """Peta ``(tabel, kolom) casefold -> referensi model``."""
     refs: dict[tuple[str, str], list[ModelReference]] = defaultdict(list)
@@ -587,11 +622,32 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 f"calculated column {owner}",
             )
 
+    model_columns = {
+        (table.casefold(), name.casefold())
+        for table, name in model.column_name.values()
+    }
     for row in build_partitions(model):
         if str(row.get("source_type")) != "calculated":
             continue
-        owner = f"calculated table '{row['table']}'"
-        for table, column in find_dax_refs(str(row["source"]), table_names)[0]:
+        table_name = str(row.get("table") or "")
+        source = str(row.get("source") or "")
+        named = find_field_parameter_refs(source)
+        if named:
+            # Field parameter: kolom asal dipakai parameter, bukan tabel
+            # calculated biasa. Jangan dicatat ganda.
+            for ref_table, ref_column in named:
+                if (ref_table.casefold(), ref_column.casefold()) not in model_columns:
+                    continue
+                add(
+                    ref_table,
+                    ref_column,
+                    "field parameter",
+                    f"'{table_name}'",
+                    f"field parameter '{table_name}'",
+                )
+            continue
+        owner = f"calculated table '{table_name}'"
+        for table, column in find_dax_refs(source, table_names)[0]:
             add(table, column, "calculated table", owner, owner)
 
     for row in model.raw["TMSCHEMA_RELATIONSHIPS"]:
@@ -779,6 +835,9 @@ class AnalysisResult:
     unresolved: list[dict[str, Any]] = field(default_factory=list)
     measures: list[MeasureAnalysis] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
+    relationships: list[dict[str, Any]] = field(default_factory=list)
+    m_queries: list[dict[str, Any]] = field(default_factory=list)
+    report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     @property
     def unused(self) -> list[ColumnAnalysis]:
@@ -1021,6 +1080,9 @@ def build_analysis(
     measure_refs: dict[tuple[str, str], list[ModelReference]] | None = None,
     messages: list[str] | None = None,
     analyzed_at: str | None = None,
+    relationships: list[dict[str, Any]] | None = None,
+    m_queries: list[dict[str, Any]] | None = None,
+    report_pages: dict[str, list[dict[str, Any]]] | None = None,
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -1095,7 +1157,108 @@ def build_analysis(
         unresolved=list(unresolved or []),
         measures=measures,
         messages=list(messages or []),
+        relationships=list(relationships or []),
+        m_queries=list(m_queries or []),
+        report_pages=dict(report_pages or {}),
     )
+
+
+ERROR_PARTITION_STATES = {
+    "semanticerror",
+    "evaluationerror",
+    "dependencyerror",
+    "incomplete",
+}
+
+
+def m_query_rows(
+    partitions: Iterable[dict[str, Any]],
+    expressions: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Susun baris tab M queries dari partisi + shared expression.
+
+    Satu baris per tabel (M partisi pertama yang tidak kosong) dan satu baris
+    per shared expression/parameter. Tidak ada teks yang dikarang: ekspresi
+    kosong tetap kosong.
+    """
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in partitions:
+        table = str(row.get("table") or "")
+        if not table:
+            continue
+        # Partisi calculated/calculation group berisi DAX, bukan M; jangan
+        # ditampilkan sebagai M query.
+        if str(row.get("source_type") or "") in {"calculated", "calculationGroup"}:
+            continue
+        entry = grouped.setdefault(
+            table,
+            {
+                "name": table,
+                "kind": "Tabel",
+                "source": "",
+                "expression": "",
+                "warning": "",
+                "detail": "",
+                "count": 0,
+            },
+        )
+        entry["count"] += 1
+        expression = str(row.get("source") or "").strip()
+        if expression and not entry["expression"]:
+            entry["expression"] = expression
+        mode = str(row.get("mode") or "")
+        if mode and not entry["source"]:
+            entry["source"] = mode
+        state = str(row.get("state") or "")
+        if state and state.casefold() in ERROR_PARTITION_STATES and not entry["warning"]:
+            entry["warning"] = state
+    rows: list[dict[str, Any]] = []
+    for entry in grouped.values():
+        count = entry.pop("count")
+        entry["detail"] = f"{count} partisi"
+        rows.append(entry)
+    for row in expressions:
+        kind = str(row.get("kind") or "Expression")
+        rows.append(
+            {
+                "name": str(row.get("name") or ""),
+                "kind": "M parameter" if kind == "Parameter" else "Expression",
+                "source": str(row.get("query_group") or "Model"),
+                "expression": str(row.get("expression") or ""),
+                "warning": "",
+                "detail": str(row.get("data_type") or ""),
+            }
+        )
+    rows.sort(key=lambda item: (item["kind"] != "Tabel", item["name"].casefold()))
+    return rows
+
+
+def relationship_dependency_counts(
+    rows: Iterable[dict[str, Any]],
+) -> dict[str, int]:
+    """Jumlah objek model yang bergantung pada relasi (``DISCOVER_CALC_DEPENDENCY``).
+
+    Baris DMV dengan ``REFERENCED_OBJECT_TYPE`` relasi muncul saat measure atau
+    objek calculated memakai relasi tersebut (mis. ``USERELATIONSHIP``). Semua
+    relationship tetap punya baris ``OBJECT_TYPE = ACTIVE_RELATIONSHIP`` yang
+    menunjuk kolom; baris itu bukan pemakaian dan tidak dihitung.
+    """
+    owners: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
+    for row in rows:
+        kind = str(row.get("REFERENCED_OBJECT_TYPE") or "").casefold().replace("_", " ")
+        if kind not in {"relationship", "active relationship"}:
+            continue
+        name = str(row.get("REFERENCED_OBJECT") or "")
+        if not name:
+            continue
+        owners[name].add(
+            (
+                str(row.get("OBJECT_TYPE") or ""),
+                str(row.get("TABLE") or ""),
+                str(row.get("OBJECT") or ""),
+            )
+        )
+    return {name: len(items) for name, items in owners.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -1454,9 +1617,15 @@ def analyze_dataset(
                 "Dataset harus berada di kapasitas Premium/PPU/Fabric dengan "
                 "XMLA Read, dan service principal perlu akses ke workspace."
             ) from exc
+    dependencies: list[dict[str, Any]] = []
     try:
         model = LiveModel(client)
         stats = read_model_stats(client, model=model, log=log)
+        metadata = read_model_metadata(model)
+        try:
+            dependencies = client.query("DISCOVER_CALC_DEPENDENCY")
+        except XmlaError as exc:
+            log(f"Dependency DMV tidak tersedia: {exc}")
     finally:
         client.close()
 
@@ -1474,6 +1643,18 @@ def analyze_dataset(
         f"referensi model: "
         f"{sum(len(items) for items in references.values())} + "
         f"{sum(len(items) for items in measure_refs.values())} measure."
+    )
+    relationships = list(metadata.get("relationships") or [])
+    dependency_counts = relationship_dependency_counts(dependencies)
+    for relationship in relationships:
+        name = str(relationship.get("name") or "")
+        relationship["dependent_count"] = dependency_counts.get(name, 0)
+    m_rows = m_query_rows(
+        metadata.get("partitions") or [], metadata.get("expressions") or []
+    )
+    log(
+        f"Relasi model: {len(relationships)}; dependensi relasi: "
+        f"{sum(dependency_counts.values())}; M query/parameter: {len(m_rows)}."
     )
 
     provider = reports_provider or discover_reports
@@ -1528,6 +1709,7 @@ def analyze_dataset(
                 for reference in items
             ],
         )
+        save_m_queries(conn, dataset_id, m_rows)
         loader = definition_loader or (
             lambda entry: _fetch_definition(tokens, entry)
         )
@@ -1546,6 +1728,7 @@ def analyze_dataset(
         )
         usage_rows = field_usage(conn, dataset_id)
         report_rows = stored_reports(conn, dataset_id)
+        page_rows = stored_report_pages(conn, dataset_id)
         unresolved_rows = stored_unresolved(conn, dataset_id)
         coverage_complete = counters.complete
         coverage = coverage_text(counters)
@@ -1571,6 +1754,9 @@ def analyze_dataset(
             unresolved=unresolved_rows,
             measure_refs=measure_refs,
             messages=list(notes),
+            relationships=relationships,
+            m_queries=m_rows,
+            report_pages=page_rows,
         )
         save_run(
             conn,
@@ -1592,7 +1778,7 @@ def analyze_dataset(
                 "report_inaccessible": counters.inaccessible,
                 "report_app": counters.app,
                 "coverage_complete": 1 if coverage_complete else 0,
-                "model_json": model_snapshot(stats, workspace_name),
+                "model_json": model_snapshot(stats, workspace_name, relationships),
                 "column_count": len(result.columns),
                 "unused_count": len(result.unused),
                 "measure_count": len(result.measures),
@@ -1608,7 +1794,11 @@ def analyze_dataset(
     return result
 
 
-def model_snapshot(stats: ModelStats, workspace_name: str = "") -> str:
+def model_snapshot(
+    stats: ModelStats,
+    workspace_name: str = "",
+    relationships: Iterable[dict[str, Any]] | None = None,
+) -> str:
     """JSON ringkas metadata model untuk memulihkan snapshot tanpa XMLA."""
     payload = {
         "model_name": stats.model_name,
@@ -1626,9 +1816,13 @@ def model_snapshot(stats: ModelStats, workspace_name: str = "") -> str:
                 "size_data_bytes": table.size_data_bytes,
                 "size_hierarchy_bytes": table.size_hierarchy_bytes,
                 "size_dictionary_bytes": table.size_dictionary_bytes,
+                "storage_mode": table.storage_mode,
+                "measure_count": table.measure_count,
+                "partition_count": table.partition_count,
             }
             for table in stats.tables
         ],
+        "relationships": list(relationships or []),
     }
     return json.dumps(payload, ensure_ascii=False)
 
@@ -1692,6 +1886,9 @@ def load_snapshot(
                 size_dictionary_bytes=int(
                     item.get("size_dictionary_bytes") or 0
                 ),
+                storage_mode=str(item.get("storage_mode") or ""),
+                measure_count=int(item.get("measure_count") or 0),
+                partition_count=int(item.get("partition_count") or 0),
             )
             for item in meta.get("tables") or []
         ]
@@ -1751,6 +1948,11 @@ def load_snapshot(
             ]
             for row in measure_data
         }
+        relationships = [
+            dict(item)
+            for item in (meta.get("relationships") or [])
+            if isinstance(item, dict)
+        ]
         return build_analysis(
             stats=stats,
             usage_rows=field_usage(conn, dataset_id),
@@ -1770,10 +1972,13 @@ def load_snapshot(
             report_personal=int(run.get("report_personal") or 0),
             report_inaccessible=int(run.get("report_inaccessible") or 0),
             report_app=int(run.get("report_app") or 0),
+            report_pages=stored_report_pages(conn, dataset_id),
             unresolved=stored_unresolved(conn, dataset_id),
             measure_refs=measure_refs,
             messages=[],
             analyzed_at=str(run.get("finished_at") or ""),
+            relationships=relationships,
+            m_queries=stored_m_queries(conn, dataset_id),
         )
     finally:
         close_quietly(conn)

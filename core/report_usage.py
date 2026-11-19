@@ -28,7 +28,7 @@ from .metadata_common import (
     QUERY_AGGREGATE_FUNCTION,
     find_dax_refs,
 )
-from .report import collect_filter_values, parse_field
+from .report import collect_filter_values, page_is_hidden, parse_field
 
 Log = Callable[[str], None]
 
@@ -98,6 +98,8 @@ class ReportUsage:
     records: list[UsageRecord] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
     unresolved_rows: list[dict[str, str]] = field(default_factory=list)
+    theme: str = ""
+    page_rows: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def columns(self) -> dict[tuple[str, str], list[UsageRecord]]:
@@ -175,6 +177,8 @@ class _Collector:
         self.unresolved_rows: list[dict[str, str]] = []
         self.pages = 0
         self.visuals = 0
+        self.theme = ""
+        self.page_rows: list[dict[str, Any]] = []
         self._seen_format: set[tuple] = set()
 
     def add(
@@ -382,6 +386,11 @@ def _scan_pbir(
 ) -> None:
     pages_meta = parts.json("definition/pages/pages.json")
     report_meta = parts.json("definition/report.json")
+    collector.theme = str(
+        ((report_meta.get("themeCollection") or {}).get("baseTheme") or {}).get("name")
+        or report_meta.get("theme")
+        or ""
+    )
 
     for flt in (report_meta.get("filterConfig") or {}).get("filters") or []:
         info = parse_field(flt.get("field") or {})
@@ -569,6 +578,15 @@ def _scan_pbir(
                     detail=f"formatting {key}",
                     is_hidden=is_hidden,
                 )
+        collector.page_rows.append(
+            {
+                "page_id": page_id,
+                "page_name": page_name,
+                "is_hidden": page_is_hidden(page_json),
+                "visual_count": len(visuals),
+                "order_index": order,
+            }
+        )
         log(f"  PBIR halaman {order}: {page_name} ({len(visuals)} visual)")
 
 
@@ -734,6 +752,9 @@ def _scan_legacy(
     if not report:
         collector.unresolved.append("report.json kosong atau tidak bisa dibaca")
         return
+
+    report_config = _loads(report.get("config")) or {}
+    collector.theme = str(report.get("theme") or report_config.get("theme") or "")
 
     for info in _legacy_filter_fields(report.get("filters")):
         collector.add_field(
@@ -920,6 +941,19 @@ def _scan_legacy(
                     usage_kind=USAGE_FORMAT,
                     detail=f"formatting {key}",
                 )
+        section_config = _loads(section.get("config")) or {}
+        section_hidden = bool(section.get("isHidden")) or str(
+            section.get("visibility") or section_config.get("visibility") or ""
+        ).lower() in {"hiddeninviewmode", "hidden"}
+        collector.page_rows.append(
+            {
+                "page_id": page_id,
+                "page_name": page_name,
+                "is_hidden": section_hidden,
+                "visual_count": visuals,
+                "order_index": order,
+            }
+        )
         log(f"  Legacy halaman {order}: {page_name} ({visuals} visual)")
 
 
@@ -1001,4 +1035,6 @@ def scan_definition(
         records=collector.records,
         unresolved=collector.unresolved,
         unresolved_rows=collector.unresolved_rows,
+        theme=collector.theme,
+        page_rows=collector.page_rows,
     )

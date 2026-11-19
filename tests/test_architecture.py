@@ -181,7 +181,7 @@ class WebLayerTests(unittest.TestCase):
     def test_web_endpoint_help_is_a_tooltip_icon(self) -> None:
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn('class="info-tip"', text)
-        self.assertIn('data-tooltip="Endpoint XMLA diturunkan', text)
+        self.assertIn('data-tooltip="The XMLA endpoint is derived', text)
         self.assertIn('id="xmlaEndpointHelp"', text)
 
     def test_web_tsd_design_has_screenshot_panel(self) -> None:
@@ -197,6 +197,117 @@ class WebLayerTests(unittest.TestCase):
             'class="shot-cache"',
         ):
             self.assertIn(marker, text, f"desain TSD kehilangan {marker}")
+
+    def test_web_analysis_table_and_report_structure(self) -> None:
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn(".row-inline .select{ flex:1 1 auto; min-width:0; }", css)
+        self.assertIn('relSvg.addEventListener("pointerdown"', js)
+        self.assertIn("state.relPanX", js)
+        self.assertIn("function applyAnalysisCellTitles(", js)
+        self.assertIn("requestAnimationFrame(applyAnalysisCellTitles)", js)
+        self.assertIn(".detail-head .btn{ flex:0 0 auto; }", css)
+        self.assertIn(".graph-wrap{ padding:8px 12px 12px; background:var(--console-bg); overflow:hidden; }", css)
+        self.assertIn("function analysisLoadReportDetail(", js)
+        self.assertIn("/api/analysis/report-detail", js)
+        self.assertIn('label: t("Practice score")', js)
+        self.assertIn('label: t("Broken visuals")', js)
+        self.assertIn('{ label: "Views", num: true }', js)
+        self.assertIn("hidden: Boolean(page.is_hidden)", js)
+        self.assertIn("hidden: Boolean(visual.is_hidden)", js)
+        self.assertIn('page: \'<svg class="row-ico"', js)
+        self.assertIn("options.hidden && ANALYSIS_ICONS.hidden", js)
+        self.assertIn(
+            "#analyzeTable td.cell-name{ padding-left:calc(9px + var(--depth, 0) * 16px); }",
+            css,
+        )
+        self.assertIn("analysisIsOpen(tableId, false)", js)
+
+    def test_web_lineage_is_live_and_zoomable(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="lineageZoomIn"', html)
+        self.assertIn('id="lineageZoomOut"', html)
+        self.assertIn('id="lineageZoomReset"', html)
+        self.assertIn("function applyLineageZoom(", js)
+        self.assertIn("function setLineageZoom(", js)
+        self.assertIn("function lineageChain(", js)
+        self.assertIn("lineageChainId", js)
+        self.assertIn('" is-chain"', js)
+        self.assertIn('lineageSvg.addEventListener("pointerdown"', js)
+        self.assertIn('state.lineageJustDragged', js)
+        self.assertNotIn("var lineageNodes = {", js)
+        self.assertNotIn("var lineageEdges = [", js)
+        self.assertNotIn("function renderLineage(", js)
+        self.assertIn('isApp ? "Apps" : "Local report"', js)
+
+    def test_web_sidebar_and_partisi_placeholder(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="appSidebar"', html)
+        self.assertIn('id="sidebarToggle"', html)
+        self.assertIn('data-view="partisi"', html)
+        self.assertIn('"pbi-sidebar"', js)
+        self.assertIn("function applySidebar(", js)
+        self.assertIn('id="reloadModelAnalisa"', html)
+        self.assertIn("analysisLoadDatasets()", js)
+        self.assertNotIn("openSettingsFromAnalysis", html)
+        self.assertNotIn("reloadWsAnalisa", html)
+        self.assertNotIn("partitionTables", js)
+        self.assertNotIn("renderPartitions", js)
+        self.assertNotIn("partitionDialog", html)
+        self.assertIn("partitionEmptyState", html)
+        self.assertIn('item.kind !== "measure"', js)
+
+    def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        for tab in ("all", "tables", "relationships", "report", "dax", "m"):
+            self.assertIn(f'data-analysis-tab="{tab}"', html)
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "var modelTables",
+            "var relationshipRows",
+            "var reportModel",
+            "var mQueries",
+            "Fact Sales[Order Date Key]",
+        ):
+            self.assertNotIn(marker, js, f"data contoh mockup tidak boleh ada: {marker}")
+        for name in (
+            "analysisFlatRows",
+            "analysisChildGroups",
+            "analysisTreeView",
+            "analysisRenderGraph",
+            "analysisRelationshipRows",
+            "analysisDaxRows",
+            "analysisMRows",
+        ):
+            self.assertEqual(
+                js.count(f"function {name}("),
+                1,
+                f"helper {name} harus dideklarasikan tepat satu kali",
+            )
+        self.assertIn('if (tab === "all") view = analysisFlatRows();', js)
+        for label in (
+            "Used in artifacts",
+            "Used in visuals",
+            "Used as key column",
+            "Used in relationships",
+            "Used in row/object level security",
+            "Used in page level filters",
+            "Used in column sorting",
+            "Used in field parameters",
+        ):
+            self.assertIn(f'"{label}"', presenter, f"grup {label} hilang dari presenter")
+        self.assertIn('label: "Auto create"', js)
+        self.assertIn('label: t("# used"), key: "used", num: true', js)
+        self.assertNotIn('{ label: "Security filter"', js)
+        self.assertNotIn('kind: "subhead"', js)
+        self.assertIn('"columns": [', presenter)
+        self.assertNotIn("function processPartitions(", js)
+        self.assertNotIn('$("#processSelectedPartitions").addEventListener', js)
 
 
 if __name__ == "__main__":

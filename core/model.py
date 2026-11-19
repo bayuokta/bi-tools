@@ -686,6 +686,22 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
     return rows
 
 
+def relationship_is_auto(name: str) -> bool:
+    """Relasi buatan Power BI biasanya bernama ``AutoDetected_<guid>`` atau GUID."""
+    value = str(name or "").strip()
+    if not value:
+        return False
+    if value.casefold().startswith("autodetected_"):
+        return True
+    return bool(
+        re.match(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            value,
+            re.IGNORECASE,
+        )
+    )
+
+
 def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for row in model.raw["TMSCHEMA_RELATIONSHIPS"]:
@@ -695,9 +711,11 @@ def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
             from_table = model.table_name.get(int(row["FromTableID"]), "")
         if not to_table:
             to_table = model.table_name.get(int(row["ToTableID"]), "")
+        name = str(row.get("Name") or f"{from_table}[{from_column}] -> {to_table}[{to_column}]")
         rows.append(
             {
-                "name": str(row.get("Name") or f"{from_table}[{from_column}] -> {to_table}[{to_column}]"),
+                "name": name,
+                "is_auto": relationship_is_auto(name),
                 "from_table": from_table,
                 "from_column": from_column,
                 "to_table": to_table,
@@ -714,6 +732,21 @@ def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def read_model_metadata(model: LiveModel) -> dict[str, list[dict[str, Any]]]:
+    """Metadata model untuk analisa dan halaman Partisi (tanpa koneksi baru).
+
+    Semua bagian memakai helper ``build_*`` yang sudah membaca TMSCHEMA, jadi
+    pemanggil tidak perlu membuka XMLA dua kali. Hasilnya berupa list of dict
+    siap diserialisasi ke JSON/SQLite.
+    """
+    return {
+        "tables": build_tables(model),
+        "relationships": build_relationships(model),
+        "partitions": build_partitions(model),
+        "expressions": build_expressions(model),
+    }
 
 
 def build_roles(model: LiveModel) -> tuple[list[dict[str, Any]], int]:

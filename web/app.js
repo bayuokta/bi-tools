@@ -29,29 +29,32 @@
     }
   };
 
+  var i18n = window.BIToolsI18n || null;
+
+  function t(text) {
+    return i18n ? i18n.translate(text) : text;
+  }
+
+  function tr(text) {
+    return i18n && i18n.translateServer ? i18n.translateServer(text) : text;
+  }
+
+  function currentLanguage() {
+    return i18n && i18n.language === "id" ? "id" : "en";
+  }
+
   var state = {
     view: "ekstraksi",
     theme: store.get("pbi-theme", "dark") === "light" ? "light" : "dark",
+    language: store.get("pbi-lang", "en") === "id" ? "id" : "en",
     motion: store.get("pbi-motion", "on") !== "off",
+    sidebarCollapsed: store.get("pbi-sidebar", "open") === "collapsed",
     source: "service",
     running: false,
     tsdRunning: false,
     extractReady: false,
     tsdReady: false,
     logs: [],
-    analyzed: false,
-    analyzeTab: "all",
-    openGroups: {},
-    relView: "graph",
-    relSelected: "tbl:Fact Sales",
-    partitionTable: "Fact Sales",
-    partitionSelected: {},
-    partitionDetail: null,
-    partitionFilter: "all",
-    partitionBusy: false,
-    partitionDialogTrigger: null,
-    typeFilter: "all",
-    unusedOnly: false,
     rootId: "report-sales",
     selectedId: "report-sales",
     direction: "upstream",
@@ -83,13 +86,33 @@
     analysisSort: "default",
     analysisSortDesc: false,
     analysisOpen: {},
+    analysisForceOpen: null,
     analysisSettings: {},
     analysisRunning: false,
+    reportDetail: {},
+    reportLoading: {},
+    relView: "graph",
+    relSelected: null,
+    relZoom: 1,
+    relPanX: 0,
+    relPanY: 0,
+    relDrag: null,
+    relJustDragged: false,
+    relGraphBaseWidth: 760,
+    relGraphBaseHeight: 500,
     lineageData: null,
     lineageGraph: null,
     lineageNodesLive: {},
     lineageHasDb: false,
     lineageSearchTimer: null,
+    lineageZoom: 1,
+    lineagePanX: 0,
+    lineagePanY: 0,
+    lineageBaseWidth: 780,
+    lineageBaseHeight: 280,
+    lineageDrag: null,
+    lineageJustDragged: false,
+    lineageChainId: null,
     instances: [],
     workspaces: [],
     reports: [],
@@ -97,6 +120,8 @@
     pbix: null,
     endpoint: "",
     extractTimer: null,
+    workspaceHint: "",
+    instanceHint: "",
     pickKind: "dir",
     pickExt: "",
     pickFile: null
@@ -128,10 +153,10 @@
     store.set("pbi-theme", state.theme);
     if (announce && state.ready && !state.applying && window.BIToolsApi) {
       window.BIToolsApi.put("/api/settings/ui", { theme: state.theme }).catch(function () {
-        toast("Tema tidak bisa disimpan ke server");
+        toast(t("Theme could not be saved to the server"));
       });
     }
-    $$(".theme-card").forEach(function (card) {
+    $$(".theme-card[data-theme]").forEach(function (card) {
       card.setAttribute("aria-checked", card.dataset.theme === state.theme ? "true" : "false");
     });
     if (announce) {
@@ -149,11 +174,113 @@
       window.BIToolsApi.put("/api/settings/ui", { motion: state.motion }).catch(function () {});
     }
     if (announce) {
-      toast(state.motion ? "Animasi antarmuka aktif" : "Animasi antarmuka dimatikan");
+      toast(state.motion ? t("Interface animations enabled") : t("Interface animations disabled"));
     }
   }
 
+  function applySidebar(collapsed, persist) {
+    state.sidebarCollapsed = Boolean(collapsed);
+    document.documentElement.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
+    var toggle = $("#sidebarToggle");
+    if (toggle) {
+      var text = state.sidebarCollapsed ? t("Open sidebar") : t("Collapse sidebar");
+      var label = toggle.querySelector(".label");
+      toggle.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
+      toggle.setAttribute("aria-label", text);
+      toggle.title = text;
+      if (label) label.textContent = text;
+    }
+    if (persist) {
+      store.set("pbi-sidebar", state.sidebarCollapsed ? "collapsed" : "open");
+    }
+  }
+
+  function applyLanguage(language, options) {
+    var opts = options || {};
+    var next = language === "id" ? "id" : "en";
+    state.language = next;
+    store.set("pbi-lang", next);
+    if (state.settings && state.settings.ui) {
+      state.settings.ui.language = next;
+    }
+    if (i18n) i18n.setLanguage(next);
+    document.documentElement.lang = next;
+    $$(".theme-card[data-language]").forEach(function (card) {
+      card.setAttribute("aria-checked", card.dataset.language === next ? "true" : "false");
+    });
+    if (opts.rerender !== false) {
+      rerenderLanguage();
+    }
+    if (opts.persist && state.ready && !state.applying && window.BIToolsApi) {
+      window.BIToolsApi.put("/api/settings/ui", { language: next }).catch(function () {
+        toast(t("Language could not be saved to the server"));
+      });
+    }
+    if (opts.announce) {
+      toast(t(next === "id"
+        ? "Interface language set to Indonesian"
+        : "Interface language set to English"));
+    }
+  }
+
+  function applyComboLanguage() {
+    $$("select").forEach(function (select) {
+      var key = select.dataset.i18nPlaceholder;
+      var head = select.querySelector("option[value='']");
+      if (key && head) head.textContent = t(key);
+      refreshCombo(select);
+    });
+  }
+
+  function rerenderLanguage() {
+    if (state.settings) renderSettings(state.settings);
+    if (state.tsd) renderTsdState(state.tsd);
+    if (state.analysis !== undefined) analysisRender();
+    if (state.lineageGraph) {
+      lineageRenderGraph();
+      if (state.selectedId && state.lineageNodesLive[state.selectedId]) {
+        lineageRenderDetail(state.lineageNodesLive[state.selectedId].payload || {});
+      }
+    }
+    if (!state.lineageGraph && state.lineageHasDb) {
+      $("#lineageResults").innerHTML =
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
+        t("No search yet") + "</div>" +
+        '<p class="empty-text">' +
+        t("Search for a report, semantic model, table, or measure.") + "</p></div>";
+    }
+    if (state.system) {
+      $("#appVersion").textContent = t("Version ") + state.system.version;
+      $("#serverMeta").textContent = "Data: " + state.system.data_dir +
+        " \u00b7 " + t("Preferences: ") + state.system.settings.path;
+    }
+    $("#depthVal").textContent = state.depth + t(" levels");
+    $("#workspaceHint").textContent = tr(state.workspaceHint) ||
+      t("Type a workspace name to filter, or open the list.");
+    $("#instanceHint").textContent = tr(state.instanceHint) || "";
+    var selectedReport = getSelectItem("serviceReport");
+    if (selectedReport) {
+      applyReportDefaults(selectedReport);
+    } else {
+      $("#reportHint").textContent = "";
+    }
+    if (!state.pbix) {
+      $("#pbixKind").textContent = t("Choose the source .pbix file.");
+    }
+    renderModelAvailability();
+    renderLog();
+    if (state.ready) {
+      loadCatalogStatus();
+      loadOutputs();
+    }
+    applyComboLanguage();
+    $$(".theme-card[data-language]").forEach(function (card) {
+      card.setAttribute("aria-checked", card.dataset.language === state.language ? "true" : "false");
+    });
+  }
+
   function showView(name) {
+    if (!name || !$("#view-" + name)) return;
     state.view = name;
     $$(".view").forEach(function (section) {
       section.hidden = section.id !== "view-" + name;
@@ -192,7 +319,7 @@
     var badge = $("#consoleCount");
     badge.textContent = String(count);
     badge.hidden = count === 0;
-    $("#consolePreview").textContent = count ? state.logs[count - 1].text : "Belum ada aktivitas pada sesi ini.";
+    $("#consolePreview").textContent = count ? state.logs[count - 1].text : t("No activity in this session yet.");
   }
 
   function setConsole(open) {
@@ -226,1858 +353,13 @@
   }
 
 
-  var modelTables = [
-    {
-      name: "Fact Sales", storage: "Import", rows: 1248930,
-      columns: [
-        { n: "Sales Order No", t: "Text", mb: 18.4, u: 4, h: true },
-        { n: "Sales Order Line", t: "Integer", mb: 6.2, u: 1 },
-        { n: "Order Date Key", t: "Integer", mb: 5.8, u: 1 },
-        { n: "Ship Date Key", t: "Integer", mb: 5.8, u: 1 },
-        { n: "Customer Key", t: "Integer", mb: 6.1, u: 1, h: true },
-        { n: "Product Key", t: "Integer", mb: 6.1, u: 1 },
-        { n: "Geography Key", t: "Integer", mb: 5.2, u: 1 },
-        { n: "Sales Amount", t: "Decimal", mb: 12.6, u: 12 },
-        { n: "Cost Amount", t: "Decimal", mb: 12.4, u: 6 },
-        { n: "Quantity", t: "Integer", mb: 7.3, u: 7 },
-        { n: "Discount Amount", t: "Decimal", mb: 11.2, u: 2 },
-        { n: "Ship City", t: "Text", mb: 92.8, u: 0 }
-      ],
-      measures: [
-        { n: "Total Revenue", dax: "SUM ( 'Fact Sales'[Sales Amount] )", u: 12, f: "#,0" },
-        { n: "Total Cost", dax: "SUM ( 'Fact Sales'[Cost Amount] )", u: 8, f: "#,0" },
-        { n: "Gross Margin", dax: "[Total Revenue] - [Total Cost]", u: 5, f: "#,0", v: 1 },
-        { n: "Gross Margin %", dax: "DIVIDE ( [Gross Margin], [Total Revenue] )", u: 0, f: "0.0%" },
-        { n: "Total Quantity", dax: "SUM ( 'Fact Sales'[Quantity] )", u: 6, f: "#,0" },
-        { n: "Avg Order Value", dax: "DIVIDE ( [Total Revenue], DISTINCTCOUNT ( 'Fact Sales'[Sales Order No] ) )", u: 4, f: "#,0" },
-        { n: "Discount %", dax: "DIVIDE ( SUM ( 'Fact Sales'[Discount Amount] ), [Total Revenue] )", u: 2, f: "0.0%" },
-        { n: "Return Rate", dax: "DIVIDE ( [Total Returns], [Total Quantity] )", u: 1, f: "0.0%", v: 1 }
-      ]
-    },
-    {
-      name: "Fact Budget", storage: "Import", rows: 96400,
-      columns: [
-        { n: "Budget Month Key", t: "Integer", mb: 4.2, u: 1 },
-        { n: "Cost Center Key", t: "Integer", mb: 3.8, u: 1 },
-        { n: "Account Key", t: "Integer", mb: 3.9, u: 1 },
-        { n: "Budget Amount", t: "Decimal", mb: 14.2, u: 6 },
-        { n: "Forecast Amount", t: "Decimal", mb: 13.6, u: 3 },
-        { n: "Budget Comment", t: "Text", mb: 55.8, u: 0 },
-        { n: "Version", t: "Text", mb: 0.7, u: 1 }
-      ],
-      measures: [
-        { n: "Total Budget", dax: "SUM ( 'Fact Budget'[Budget Amount] )", u: 5, f: "#,0" },
-        { n: "Total Forecast", dax: "SUM ( 'Fact Budget'[Forecast Amount] )", u: 3, f: "#,0" },
-        { n: "Budget Variance", dax: "[Total Revenue] - [Total Budget]", u: 4, f: "#,0" },
-        { n: "Budget Variance %", dax: "DIVIDE ( [Budget Variance], [Total Budget] )", u: 2, f: "0.0%" }
-      ]
-    },
-    {
-      name: "Stock Level", storage: "Import", rows: 412870,
-      columns: [
-        { n: "Product Key", t: "Integer", mb: 6.4, u: 1 },
-        { n: "Warehouse Key", t: "Integer", mb: 4.1, u: 1 },
-        { n: "Snapshot Date Key", t: "Integer", mb: 5.3, u: 1 },
-        { n: "Quantity Stock", t: "Integer", mb: 9.8, u: 5 },
-        { n: "Stock Value", t: "Decimal", mb: 11.4, u: 4 },
-        { n: "Reorder Point", t: "Integer", mb: 7.9, u: 1 },
-        { n: "Legacy Stock Code", t: "Text", mb: 42.2, u: 0 },
-        { n: "Period Date Key", t: "Integer", mb: 1.2, u: 0 }
-      ],
-      measures: [
-        { n: "Stock Quantity", dax: "SUM ( 'Stock Level'[Quantity Stock] )", u: 7, f: "#,0" },
-        { n: "Stock Value", dax: "SUM ( 'Stock Level'[Stock Value] )", u: 5, f: "#,0" },
-        { n: "Stock Turnover", dax: "DIVIDE ( [Total Cost], [Stock Value] )", u: 2, f: "0.0" },
-        { n: "Days of Supply", dax: "DIVIDE ( [Stock Quantity], DIVIDE ( [Total Quantity], 365 ) )", u: 1, f: "#,0" }
-      ]
-    },
-    {
-      name: "Fact Returns", storage: "Import", rows: 38240,
-      columns: [
-        { n: "Return Order No", t: "Text", mb: 12.8, u: 1 },
-        { n: "Return Date Key", t: "Integer", mb: 5.1, u: 1 },
-        { n: "Product Key", t: "Integer", mb: 4.6, u: 1 },
-        { n: "Customer Key", t: "Integer", mb: 4.4, u: 1 },
-        { n: "Return Qty", t: "Integer", mb: 6.9, u: 3 },
-        { n: "Return Reason Detail", t: "Text", mb: 21.0, u: 0 }
-      ],
-      measures: [
-        { n: "Total Returns", dax: "SUM ( 'Fact Returns'[Return Qty] )", u: 4, f: "#,0" },
-        { n: "Return Qty %", dax: "DIVIDE ( [Total Returns], [Total Quantity] )", u: 0, f: "0.0%" }
-      ]
-    },
-    {
-      name: "Dim Customer", storage: "Import", rows: 12840,
-      columns: [
-        { n: "Customer Key", t: "Integer", mb: 1.6, u: 1 },
-        { n: "Customer Code", t: "Text", mb: 2.4, u: 1 },
-        { n: "Customer Name", t: "Text", mb: 4.8, u: 7 },
-        { n: "Segment", t: "Text", mb: 1.9, u: 3 },
-        { n: "Channel", t: "Text", mb: 1.8, u: 2 },
-        { n: "City", t: "Text", mb: 2.9, u: 2 },
-        { n: "Email", t: "Text", mb: 3.6, u: 0 },
-        { n: "Loyalty Tier", t: "Text", mb: 1.4, u: 0 },
-        { n: "Created At", t: "DateTime", mb: 1.2, u: 0 }
-      ],
-      measures: [
-        { n: "Active Customers", dax: "DISTINCTCOUNT ( 'Fact Sales'[Customer Key] )", u: 6, f: "#,0" },
-        { n: "Customers (PY)", dax: "CALCULATE ( [Active Customers], SAMEPERIODLASTYEAR ( 'Dim Date'[Date] ) )", u: 2, f: "#,0" }
-      ]
-    },
-    {
-      name: "Dim Product", storage: "Import", rows: 3120,
-      columns: [
-        { n: "Product Key", t: "Integer", mb: 1.8, u: 1 },
-        { n: "SKU", t: "Text", mb: 2.6, u: 2 },
-        { n: "Product Name", t: "Text", mb: 3.7, u: 6 },
-        { n: "Category", t: "Text", mb: 1.6, u: 4 },
-        { n: "Subcategory", t: "Text", mb: 1.9, u: 3 },
-        { n: "Brand", t: "Text", mb: 1.4, u: 2 },
-        { n: "Color", t: "Text", mb: 2.2, u: 0 },
-        { n: "Size", t: "Text", mb: 1.3, u: 1 },
-        { n: "Launch Date", t: "Date", mb: 1.2, u: 0 },
-        { n: "Weight Kg", t: "Decimal", mb: 1.2, u: 0 }
-      ],
-      measures: [
-        { n: "Products Sold", dax: "DISTINCTCOUNT ( 'Fact Sales'[Product Key] )", u: 5, f: "#,0" },
-        { n: "Distinct Products", dax: "DISTINCTCOUNT ( 'Dim Product'[Product Key] )", u: 3, f: "#,0" },
-        { n: "New Products", dax: "CALCULATE ( [Products Sold], 'Dim Product'[Launch Date] >= [Selected Period] )", u: 0, f: "#,0" }
-      ]
-    },
-    {
-      name: "Dim Geography", storage: "Import", rows: 18400,
-      columns: [
-        { n: "Geography Key", t: "Integer", mb: 0.9, u: 1 },
-        { n: "Country", t: "Text", mb: 1.0, u: 3 },
-        { n: "Region", t: "Text", mb: 0.8, u: 2 },
-        { n: "City", t: "Text", mb: 0.6, u: 2 },
-        { n: "Postal Code", t: "Text", mb: 0.5, u: 0 },
-        { n: "Latitude", t: "Decimal", mb: 0.25, u: 0 },
-        { n: "Longitude", t: "Decimal", mb: 0.25, u: 0 }
-      ],
-      measures: [
-        { n: "Countries Covered", dax: "DISTINCTCOUNT ( 'Dim Geography'[Country] )", u: 0, f: "#,0" }
-      ]
-    },
-    {
-      name: "Dim Date", storage: "Import", rows: 2192,
-      columns: [
-        { n: "Date", t: "Date", mb: 0.5, u: 9 },
-        { n: "Date Key", t: "Integer", mb: 0.4, u: 1 },
-        { n: "Year", t: "Integer", mb: 0.1, u: 2 },
-        { n: "Quarter", t: "Text", mb: 0.1, u: 2 },
-        { n: "Month", t: "Text", mb: 0.2, u: 3 },
-        { n: "Month Year", t: "Text", mb: 0.2, u: 4 },
-        { n: "Week", t: "Integer", mb: 0.1, u: 0 },
-        { n: "Is Weekend", t: "Boolean", mb: 0.1, u: 0 },
-        { n: "Fiscal Period", t: "Text", mb: 0.4, u: 0 }
-      ],
-      measures: [
-        { n: "Revenue YTD", dax: "TOTALYTD ( [Total Revenue], 'Dim Date'[Date] )", u: 4, f: "#,0" },
-        { n: "Revenue PY", dax: "CALCULATE ( [Total Revenue], SAMEPERIODLASTYEAR ( 'Dim Date'[Date] ) )", u: 3, f: "#,0" },
-        { n: "Revenue MTD", dax: "TOTALMTD ( [Total Revenue], 'Dim Date'[Date] )", u: 2, f: "#,0" },
-        { n: "Revenue QoQ", dax: "[Total Revenue] - CALCULATE ( [Total Revenue], PREVIOUSQUARTER ( 'Dim Date'[Date] ) )", u: 1, f: "#,0" },
-        { n: "Sales Y-1", dax: "CALCULATE ( [Total Quantity], SAMEPERIODLASTYEAR ( 'Dim Date'[Date] ) )", u: 1, f: "#,0" },
-        { n: "Budget Y-1", dax: "CALCULATE ( [Total Budget], SAMEPERIODLASTYEAR ( 'Dim Date'[Date] ) )", u: 1, f: "#,0" },
-        { n: "Stock Value Y-1", dax: "CALCULATE ( [Stock Value], SAMEPERIODLASTYEAR ( 'Dim Date'[Date] ) )", u: 1, f: "#,0" },
-        { n: "Month Label", dax: "FORMAT ( SELECTEDVALUE ( 'Dim Date'[Date] ), \"MMM YYYY\" )", u: 2 },
-        { n: "Max Period", dax: "CALCULATE ( MAX ( 'Dim Date'[Date] ), ALLSELECTED ( 'Dim Date' ) )", u: 3 }
-      ]
-    },
-    {
-      name: "_Measures", storage: "Import", rows: 0,
-      columns: [],
-      measures: [
-        { n: "Row Count Sales", dax: "COUNTROWS ( 'Fact Sales' )", u: 2, f: "#,0" },
-        { n: "Row Count Budget", dax: "COUNTROWS ( 'Fact Budget' )", u: 1, f: "#,0" },
-        { n: "Row Count Returns", dax: "COUNTROWS ( 'Fact Returns' )", u: 1, f: "#,0" },
-        { n: "Avg Unit Price", dax: "DIVIDE ( [Total Revenue], [Total Quantity] )", u: 1, f: "#,0" },
-        { n: "Margin per Customer", dax: "DIVIDE ( [Gross Margin], [Active Customers] )", u: 2, f: "#,0" },
-        { n: "Top Customer Revenue", dax: "MAXX ( TOPN ( 1, 'Dim Customer', [Total Revenue] ), [Total Revenue] )", u: 1, f: "#,0", v: 1 },
-        { n: "Share of Total", dax: "DIVIDE ( [Total Revenue], CALCULATE ( [Total Revenue], ALLSELECTED ( 'Dim Product' ) ) )", u: 3, f: "0.0%" },
-        { n: "Selected Period", dax: "SELECTEDVALUE ( 'Dim Date'[Month Year] )", u: 4 },
-        { n: "KPI Card", dax: "IF ( [Budget Variance] < 0, \"Di bawah target\", \"Sesuai target\" )", u: 2 },
-        { n: "RLS Enabled", dax: "IF ( [Row Count Sales] > 0, 1, 0 )", u: 1 },
-        { n: "Page Count", dax: "COUNTROWS ( 'Pages' )", u: 1, f: "#,0" },
-        { n: "Visual Count", dax: "SUM ( 'Pages'[Visual Count] )", u: 1, f: "#,0" },
-        { n: "Refresh Duration", dax: "DATEDIFF ( [Refresh Start], [Refresh End], SECOND )", u: 0, f: "#,0" },
-        { n: "Unused Placeholder", dax: "BLANK ()", u: 0 }
-      ]
-    },
-    {
-      name: "Report Config", storage: "Import", rows: 12,
-      columns: [
-        { n: "Config Key", t: "Text", mb: 0.3, u: 1 },
-        { n: "Config Value", t: "Text", mb: 0.6, u: 1 },
-        { n: "Updated At", t: "DateTime", mb: 0.3, u: 0 },
-        { n: "Owner", t: "Text", mb: 0.2, u: 0 }
-      ],
-      measures: []
-    }
-  ];
-
-  var relationshipRows = [
-    { name: "Fact Sales[Order Date Key] → Dim Date[Date Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Sales[Order Date Key]", to: "Dim Date[Date Key]" },
-    { name: "Fact Sales[Ship Date Key] → Dim Date[Date Key]", type: "Tidak aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 0, from: "Fact Sales[Ship Date Key]", to: "Dim Date[Date Key]" },
-    { name: "Fact Sales[Customer Key] → Dim Customer[Customer Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Sales[Customer Key]", to: "Dim Customer[Customer Key]" },
-    { name: "Fact Sales[Product Key] → Dim Product[Product Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Sales[Product Key]", to: "Dim Product[Product Key]" },
-    { name: "Fact Sales[Geography Key] → Dim Geography[Geography Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Sales[Geography Key]", to: "Dim Geography[Geography Key]" },
-    { name: "Fact Sales[Sales Order No] → Fact Returns[Return Order No]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Sales[Sales Order No]", to: "Fact Returns[Return Order No]" },
-    { name: "Fact Returns[Return Date Key] → Dim Date[Date Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Returns[Return Date Key]", to: "Dim Date[Date Key]" },
-    { name: "Fact Returns[Product Key] → Dim Product[Product Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Returns[Product Key]", to: "Dim Product[Product Key]" },
-    { name: "Fact Returns[Customer Key] → Dim Customer[Customer Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Returns[Customer Key]", to: "Dim Customer[Customer Key]" },
-    { name: "Fact Budget[Budget Month Key] → Dim Date[Date Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Fact Budget[Budget Month Key]", to: "Dim Date[Date Key]" },
-    { name: "Fact Budget[Version] → Report Config[Config Key]", type: "Aktif", cross: "Single", card: "1-1", auto: "Tidak", uses: 1, from: "Fact Budget[Version]", to: "Report Config[Config Key]" },
-    { name: "Stock Level[Product Key] → Dim Product[Product Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Stock Level[Product Key]", to: "Dim Product[Product Key]" },
-    { name: "Stock Level[Snapshot Date Key] → Dim Date[Date Key]", type: "Aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 1, from: "Stock Level[Snapshot Date Key]", to: "Dim Date[Date Key]" },
-    { name: "Stock Level[Period Date Key] → Dim Date[Date Key]", type: "Tidak aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 0, from: "Stock Level[Period Date Key]", to: "Dim Date[Date Key]" },
-    { name: "Dim Customer[City] → Dim Geography[City]", type: "Aktif", cross: "Both", card: "N-1", auto: "Ya", uses: 1, from: "Dim Customer[City]", to: "Dim Geography[City]" },
-    { name: "Dim Date[Fiscal Period] → Report Config[Config Key]", type: "Tidak aktif", cross: "Single", card: "N-1", auto: "Tidak", uses: 0, from: "Dim Date[Fiscal Period]", to: "Report Config[Config Key]" }
-  ];
-
-  var reportModel = {
-    name: "Sales Performance", theme: "Corporate", score: 96,
-    pages: [
-      { n: "Ringkasan", vis: 12, broken: 0, filters: 2, views: "12.480", used: true },
-      { n: "Tren", vis: 8, broken: 1, filters: 1, views: "4.210", used: true },
-      { n: "Detail Produk", vis: 16, broken: 0, filters: 2, views: "—", used: false },
-      { n: "Analisa Pelanggan", vis: 12, broken: 0, filters: 1, views: "1.842", used: true }
-    ],
-    hiddenPages: [
-      { n: "Catatan internal", vis: 3, broken: 0, filters: 0 },
-      { n: "Arsip 2024", vis: 5, broken: 0, filters: 1 }
-    ],
-    filters: ["Channel", "Tahun fiskal", "Region"]
-  };
-
-  var mQueries = [
-    { n: "Fact Sales", type: "Tabel", warn: 2, code: "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"SalesDW\" ),\n    FactSales = Source{[Schema=\"dbo\",Item=\"FactSales\"]}[Data],\n    Removed = Table.SelectColumns ( FactSales, { \"SalesOrderNo\", \"OrderDateKey\", \"SalesAmount\", \"Quantity\" } )\nin\n    Removed" },
-    { n: "Fact Budget", type: "Tabel", warn: 0, code: "let\n    Source = Excel.Workbook ( File.Contents ( \"\\\\finance\\budget\\Budget_2026.xlsx\" ), null, true ),\n    Budget = Source{[Item=\"Budget\",Kind=\"Table\"]}[Data],\n    Changed = Table.TransformColumnTypes ( Budget, { { \"Budget Amount\", type number } } )\nin\n    Changed" },
-    { n: "Stock Level", type: "Tabel", warn: 1, code: "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"InventoryDW\" ),\n    Stock = Source{[Schema=\"dbo\",Item=\"StockSnapshot\"]}[Data],\n    Removed = Table.RemoveColumns ( Stock, { \"LegacyStockCode\" } )\nin\n    Removed" },
-    { n: "Fact Returns", type: "Tabel", warn: 0, code: "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"SalesDW\" ),\n    Returns = Source{[Schema=\"dbo\",Item=\"ReturnLines\"]}[Data],\n    Filtered = Table.SelectRows ( Returns, each [ReturnQty] > 0 )\nin\n    Filtered" },
-    { n: "Dim Customer", type: "Tabel", warn: 0, code: "let\n    Source = Sql.Database ( \"sql-crm-apac\", \"CRM\" ),\n    Customer = Source{[Schema=\"dbo\",Item=\"Customer\"]}[Data],\n    Renamed = Table.RenameColumns ( Customer, { { \"CustName\", \"Customer Name\" } } )\nin\n    Renamed" },
-    { n: "Dim Product", type: "Tabel", warn: 0, code: "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"ProductDW\" ),\n    Product = Source{[Schema=\"dbo\",Item=\"Product\"]}[Data],\n    Typed = Table.TransformColumnTypes ( Product, { { \"WeightKg\", type number } } )\nin\n    Typed" },
-    { n: "Dim Geography", type: "Tabel", warn: 0, code: "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"SalesDW\" ),\n    Geography = Source{[Schema=\"dbo\",Item=\"Geography\"]}[Data]\nin\n    Geography" },
-    { n: "Dim Date", type: "Tabel", warn: 0, code: "let\n    Source = List.Dates ( #date ( 2020, 1, 1 ), 2192, #duration ( 1, 0, 0, 0 ) ),\n    ToTable = Table.FromList ( Source, Splitter.SplitByNothing ( ), { \"Date\" } )\nin\n    ToTable" },
-    { n: "RLS Main Dealer", type: "Tabel", warn: 0, code: "let\n    Source = PowerPlatform.Dataflows ( null ),\n    Workspaces = Source{[Id=\"Workspaces\"]}[Data],\n    RLS = Workspaces{[workspaceId=\"d562196e-c989-4308-8360-bc19f43cf379\"]}[Data],\n    Removed = Table.SelectColumns ( RLS, { \"MainDealerCode\", \"Email\" } ),\n    Renamed = Table.RenameColumns ( Removed, { { \"MainDealerCode\", \"Main Dealer Code\" } } )\nin\n    Renamed" },
-    { n: "Report Config", type: "Tabel", warn: 0, code: "let\n    Source = Json.Document ( Web.Contents ( \"https://config.internal/sales/theme.json\" ) ),\n    ToTable = Record.ToTable ( Source )\nin\n    ToTable" },
-    { n: "RangeStart", type: "M parameter", warn: 0, code: "#datetime ( 2025, 1, 1, 0, 0, 0 ) meta [\n    IsParameterQuery = true,\n    Type = \"DateTime\"\n]" },
-    { n: "RangeEnd", type: "M parameter", warn: 0, code: "#datetime ( 2026, 12, 31, 0, 0, 0 ) meta [\n    IsParameterQuery = true,\n    Type = \"DateTime\"\n]" }
-  ];
-
-  function tableSizeMb(table) {
-    return table.columns.reduce(function (sum, column) { return sum + column.mb; }, 0);
-  }
-
-  function fmtDecimal(value, digits) {
-    return Number(value).toLocaleString("id-ID", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  // -- utilitas format angka ---------------------------------------------
+  function decimalText(text) {
+    return currentLanguage() === "id" ? String(text).replace(".", ",") : String(text);
   }
 
   function fmtInt(value) {
-    return Number(value).toLocaleString("id-ID");
-  }
-
-  function fmtSize(mb) {
-    if (!mb) return "0 B";
-    if (mb < 1) return fmtDecimal(mb * 1024, 0) + " KB";
-    return fmtDecimal(mb, 1) + " MB";
-  }
-
-  function statusOf(item) {
-    if (item.u > 0) return item.h ? "Tersembunyi" : "Dipakai";
-    return "Tidak dipakai";
-  }
-
-  function analysisTotals() {
-    var totals = {
-      columns: 0, measures: 0, hidden: 0, size: 0, unusedColumns: 0,
-      unusedMeasures: 0, unusedColumnSize: 0, helperMeasures: 0, visuals: 0,
-      pageCount: reportModel.pages.length, relationshipCount: relationshipRows.length
-    };
-    modelTables.forEach(function (table) {
-      table.columns.forEach(function (column) {
-        totals.columns += 1;
-        totals.size += column.mb;
-        if (column.h) totals.hidden += 1;
-        if (column.u === 0) { totals.unusedColumns += 1; totals.unusedColumnSize += column.mb; }
-      });
-      table.measures.forEach(function (measure) {
-        totals.measures += 1;
-        if (measure.u === 0) totals.unusedMeasures += 1;
-        if (table.name === "_Measures") totals.helperMeasures += 1;
-      });
-    });
-    reportModel.pages.forEach(function (page) { totals.visuals += page.vis; });
-    return totals;
-  }
-
-  var ANALYSIS_HEADERS = {
-    all: ["Nama", "Tipe", "Tabel / halaman", "Sumber", "Tipe data", "Ukuran", "Status", "# dipakai", "Format string", "Has error", "Display folder"],
-    tables: ["Nama", "Tipe", "Tabel", "Sumber", "Tipe data", "Ukuran", "Status", "# dipakai", "Mode", "Format"],
-    relationships: ["Nama relasi", "Tipe", "Cross filter", "Kardinalitas", "Status", "Auto create", "Dipakai", "Dari kolom", "Ke kolom"],
-    report: ["Nama", "Tipe", "Sumber", "Visual", "Visual rusak", "Views", "Halaman", "Tema", "Skor praktik", "Status"],
-    dax: ["Nama / ekspresi", "Tabel", "Tipe", "Error", "Pelanggaran", "Dipakai", "Sumber", "Tipe sumber"],
-    m: ["Nama", "Tipe", "Sumber", "Peringatan"]
-  };
-
-  var ANALYSIS_TABS = {
-    all: {
-      placeholder: "Nama kolom, measure, atau tabel",
-      filters: [["all", "Semua tipe"], ["Kolom", "Kolom"], ["Measure", "Measure"], ["Halaman", "Halaman"]],
-      unused: true, expandable: true
-    },
-    tables: {
-      placeholder: "Nama tabel, kolom, atau measure",
-      filters: [["all", "Semua tipe"], ["Kolom", "Kolom"], ["Measure", "Measure"]],
-      unused: true, expandable: true
-    },
-    relationships: {
-      placeholder: "Nama relasi atau kolom",
-      filters: [["all", "Semua status"], ["Aktif", "Aktif"], ["Tidak aktif", "Tidak aktif"]],
-      unused: false, expandable: false
-    },
-    report: {
-      placeholder: "Nama halaman, filter, atau visual",
-      filters: [["all", "Semua status"], ["Dipakai", "Dipakai"], ["Tidak dipakai", "Tidak dipakai"]],
-      unused: false, expandable: true
-    },
-    dax: {
-      placeholder: "Nama measure atau isi ekspresi",
-      filters: [["all", "Semua measure"], ["Dipakai", "Dipakai"], ["Tidak dipakai", "Tidak dipakai"]],
-      unused: false, expandable: true
-    },
-    m: {
-      placeholder: "Nama kueri atau isi M",
-      filters: [["all", "Semua kueri"], ["Tabel", "Tabel"], ["M parameter", "M parameter"]],
-      unused: false, expandable: true
-    }
-  };
-
-  var CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-
-  var ROW_ICONS = {
-    table: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.6"/><path d="M3 9h18M9 9v11"/></svg>',
-    group: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
-    column: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.6"/><path d="M9 4v16M15 4v16"/></svg>',
-    measure: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 19L18 5"/><path d="M6 5h3M15 19h3"/></svg>',
-    page: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
-    link: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13.5a4 4 0 0 1 0-5.7l2.4-2.4a4 4 0 0 1 5.7 5.7l-1.6 1.6"/><path d="M14 10.5a4 4 0 0 1 0 5.7l-2.4 2.4a4 4 0 0 1-5.7-5.7l1.6-1.6"/></svg>',
-    code: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg>',
-    query: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>',
-    filter: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16l-6.4 7.4V19l-3.2-1.8v-3.8z"/></svg>'
-  };
-
-  function currentQuery() {
-    return ($("#searchAnalyze").value || "").trim().toLowerCase();
-  }
-
-  function statusChip(status) {
-    var cls = status === "Dipakai" ? "chip-ok" : (status === "Tersembunyi" ? "chip-warn" : "chip-danger");
-    return '<span class="chip ' + cls + '"><span class="dot"></span>' + escapeHtml(status) + "</span>";
-  }
-
-  function nameCell(text, icon, options) {
-    options = options || {};
-    var html = '<div class="name-cell">';
-    if (options.group) {
-      html += '<button type="button" class="row-toggle" data-group="' + escapeHtml(options.group) + '" aria-expanded="' +
-        (options.open ? "true" : "false") + '" aria-label="' + (options.open ? "Ciutkan " : "Bentangkan ") +
-        escapeHtml(text) + '">' + CHEVRON + "</button>";
-    } else if (options.level) {
-      html += '<span class="row-toggle" aria-hidden="true"></span>';
-    }
-    if (icon && ROW_ICONS[icon]) html += ROW_ICONS[icon];
-    html += '<span class="name-text" title="' + escapeHtml(text) + '">' + escapeHtml(text) + "</span></div>";
-    return html;
-  }
-
-  function headersMarkup(tab) {
-    var numeric = { all: [5, 7], tables: [5, 7], relationships: [6], report: [3, 4, 6, 8], dax: [4, 5], m: [] }[tab] || [];
-    return "<tr>" + ANALYSIS_HEADERS[tab].map(function (label, index) {
-      return "<th scope=\"col\"" + (numeric.indexOf(index) !== -1 ? ' class="num"' : "") + ">" + label + "</th>";
-    }).join("") + "</tr>";
-  }
-
-  function rowMarkup(row, open) {
-    var cells = row.cells;
-    if (row.group) {
-      cells = [nameCell(row.name, row.icon, { group: row.id, open: open, level: row.level })].concat(row.rest);
-    }
-    var numeric = row.numCols || [];
-    var html = cells.map(function (cell, index) {
-      var classes = [];
-      if (index === 0) classes.push("cell-name");
-      if (numeric.indexOf(index) !== -1) classes.push("num");
-      var style = index === 0 ? ' style="--depth:' + (row.level || 0) + '"' : "";
-      return "<td" + (classes.length ? ' class="' + classes.join(" ") + '"' : "") + style + ">" + cell + "</td>";
-    }).join("");
-    var rowClasses = [];
-    if (row.group) rowClasses.push("group-row");
-    if (row.cls) rowClasses.push(row.cls);
-    var attrs = rowClasses.length ? ' class="' + rowClasses.join(" ") + '"' : "";
-    if (row.group) attrs += ' data-level="' + (row.level || 0) + '"';
-    if (row.id) attrs += ' data-id="' + escapeHtml(row.id) + '"';
-    if (!row.group && row.id) attrs += ' tabindex="0"';
-    return "<tr" + attrs + ">" + html + "</tr>";
-  }
-
-  function emitRows(rows, forceOpen) {
-    var html = "";
-    var stack = [];
-    rows.forEach(function (row) {
-      var level = row.level || 0;
-      if (row.kind === "detail") {
-        html += '<tr class="detail-row"><td colspan="' + (row.cols || 4) + '">' + escapeHtml(row.text) + "</td></tr>";
-        return;
-      }
-      var parentOpen = level === 0 ? true : !!stack[level - 1];
-      if (!parentOpen) return;
-      if (row.kind === "code") {
-        html += '<tr class="code-row"><td colspan="' + (row.cols || 4) + '"><pre>' + escapeHtml(row.code) + "</pre></td></tr>";
-        return;
-      }
-      var open = row.group ? (forceOpen || isOpen(row.id)) : false;
-      stack[level] = open;
-      stack.length = level + 1;
-      html += rowMarkup(row, open);
-    });
-    return html;
-  }
-
-  function isOpen(id) {
-    return !!(state.openGroups && state.openGroups[id]);
-  }
-
-  function initOpenGroups() {
-    state.openGroups = {};
-    modelTables.forEach(function (table) {
-      state.openGroups["tbl:" + table.name] = true;
-      state.openGroups["tbl:" + table.name + ":m"] = true;
-      state.openGroups["tbl:" + table.name + ":c"] = true;
-      state.openGroups["all:table:" + table.name] = true;
-      state.openGroups["all:table:" + table.name + ":m"] = true;
-      state.openGroups["all:table:" + table.name + ":c"] = true;
-    });
-    state.openGroups.rep = true;
-    state.openGroups["rep:pages"] = true;
-    state.openGroups["all:report"] = true;
-    state.openGroups["all:report:pages"] = true;
-  }
-
-  function groupIdsFor(tab) {
-    var ids = [];
-    if (tab === "all") {
-      modelTables.forEach(function (table) {
-        var tableId = "all:table:" + table.name;
-        ids.push(tableId, tableId + ":m", tableId + ":c");
-        table.columns.forEach(function (column) {
-          var itemId = tableId + ":c:" + column.n;
-          ids.push(itemId, itemId + ":rel", itemId + ":msr");
-        });
-      });
-      ids.push("all:report", "all:report:pages");
-    } else if (tab === "tables") {
-      modelTables.forEach(function (table) {
-        ids.push("tbl:" + table.name, "tbl:" + table.name + ":m", "tbl:" + table.name + ":c");
-      });
-    } else if (tab === "report") {
-      ids.push("rep", "rep:hidden", "rep:pages", "rep:filters");
-      reportModel.pages.forEach(function (page) { ids.push("rep:page:" + page.n); });
-      reportModel.hiddenPages.forEach(function (page) { ids.push("rep:page:" + page.n); });
-    } else if (tab === "dax") {
-      modelTables.forEach(function (table) {
-        table.measures.forEach(function (measure) { ids.push("dax:" + table.name + ":" + measure.n); });
-      });
-    } else if (tab === "m") {
-      mQueries.forEach(function (query) { ids.push("m:" + query.n); });
-    }
-    return ids;
-  }
-
-  function updateMetrics() {
-    var totals = analysisTotals();
-    $("#metricSize").textContent = fmtSize(totals.size);
-    $("#metricSizeNote").textContent = modelTables.length + " tabel dalam model";
-    $("#metricColumns").textContent = fmtInt(totals.columns);
-    $("#metricColumnsNote").textContent = totals.hidden + " kolom tersembunyi";
-    $("#metricMeasures").textContent = fmtInt(totals.measures);
-    $("#metricMeasuresNote").textContent = totals.helperMeasures + " tersimpan di _Measures";
-    $("#metricUnusedColumns").textContent = fmtInt(totals.unusedColumns);
-    $("#metricUnusedColumnsNote").textContent = fmtSize(totals.unusedColumnSize) + " · " +
-      Math.round(totals.unusedColumnSize / totals.size * 100) + "% dataset";
-    $("#metricUnusedMeasures").textContent = fmtInt(totals.unusedMeasures);
-    $("#metricUnusedMeasuresNote").textContent = Math.round(totals.unusedMeasures / totals.measures * 100) + "% dari total measure";
-    $("#metricReport").textContent = "1 report";
-    $("#metricReportNote").textContent = totals.pageCount + " halaman · " + fmtInt(totals.visuals) + " visual";
-  }
-
-  function updateTabCounts() {
-    var totals = analysisTotals();
-    $("#tabCountAll").textContent = fmtInt(totals.columns + totals.measures + totals.pageCount);
-    $("#tabCountTables").textContent = fmtInt(modelTables.length);
-    $("#tabCountRelationships").textContent = fmtInt(totals.relationshipCount);
-    $("#tabCountReport").textContent = fmtInt(totals.pageCount);
-    $("#tabCountDax").textContent = fmtInt(totals.measures);
-    $("#tabCountM").textContent = fmtInt(mQueries.length);
-  }
-
-  function syncRelViewSwitch() {
-    $$("#relViewSwitch [data-rel-view]").forEach(function (button) {
-      button.setAttribute("aria-pressed", button.getAttribute("data-rel-view") === state.relView ? "true" : "false");
-    });
-  }
-
-  function applyTabTools(name) {
-    var config = ANALYSIS_TABS[name];
-    $("#searchAnalyze").placeholder = config.placeholder;
-    $("#toolTypeWrap").hidden = config.filters.length < 2;
-    $("#toolUnusedWrap").hidden = !config.unused;
-    $("#expandRows").hidden = !config.expandable;
-    $("#collapseRows").hidden = !config.expandable;
-    $("#relViewSwitch").hidden = name !== "relationships";
-    if (name === "relationships") syncRelViewSwitch();
-    var select = $("#typeAnalyze");
-    select.innerHTML = config.filters.map(function (pair) {
-      return '<option value="' + escapeHtml(pair[0]) + '">' + escapeHtml(pair[1]) + "</option>";
-    }).join("");
-    select.value = "all";
-    refreshCombo(select);
-  }
-
-  function setAnalysisTab(name) {
-    if (!state.analyzed) { toast("Jalankan analisa lebih dulu"); return; }
-    if (!ANALYSIS_TABS[name]) return;
-    state.analyzeTab = name;
-    state.typeFilter = "all";
-    $$("#analyzeTabs [role='tab']").forEach(function (tab) {
-      var active = tab.dataset.analyzeTab === name;
-      tab.setAttribute("aria-selected", active ? "true" : "false");
-      tab.tabIndex = active ? 0 : -1;
-    });
-    $("#analyzePanel").setAttribute("aria-labelledby", "tab-" + name);
-    applyTabTools(name);
-    renderAnalysis();
-  }
-
-  function errorChip() {
-    return '<span class="chip chip-ok"><span class="dot"></span>Tidak</span>';
-  }
-
-  function relTypeChip(type) {
-    return '<span class="chip ' + (type === "Aktif" ? "chip-ok" : "chip-idle") + '"><span class="dot"></span>' +
-      escapeHtml(type) + "</span>";
-  }
-
-  function columnFormat(column) {
-    return column.t === "Date" || column.t === "DateTime" ? "General Date" : "—";
-  }
-
-  function allGroupRest(type, tableName) {
-    return [type, tableName, "Model", "—", "—", "—", "—", "—", "—", "—"];
-  }
-
-  function relColumnName(reference) {
-    var start = reference.indexOf("[");
-    return reference.slice(start + 1, reference.lastIndexOf("]"));
-  }
-
-  function relationshipsForColumn(tableName, columnName) {
-    return relationshipRows.filter(function (rel) {
-      return (relationshipTableName(rel.from) === tableName && relColumnName(rel.from) === columnName) ||
-        (relationshipTableName(rel.to) === tableName && relColumnName(rel.to) === columnName);
-    });
-  }
-
-  function measuresForColumn(tableName, columnName) {
-    var needle = "'" + tableName + "'[" + columnName + "]";
-    var list = [];
-    modelTables.forEach(function (table) {
-      table.measures.forEach(function (measure) {
-        if (measure.dax && measure.dax.indexOf(needle) !== -1) {
-          list.push({ table: table.name, measure: measure });
-        }
-      });
-    });
-    return list;
-  }
-
-  function renderAll() {
-    var query = currentQuery();
-    var rows = [];
-    var shown = 0;
-    var groupsShown = 0;
-    var unused = 0;
-
-    function matches(name, extra, uses) {
-      if (state.unusedOnly && uses !== 0) return false;
-      return !query || (name + " " + extra).toLowerCase().indexOf(query) !== -1;
-    }
-
-    modelTables.forEach(function (table) {
-      var columns = state.typeFilter === "Measure" || state.typeFilter === "Halaman" ? [] : table.columns.filter(function (column) {
-        return matches(column.n, table.name + " " + column.t, column.u);
-      });
-      var measures = state.typeFilter === "Kolom" || state.typeFilter === "Halaman" ? [] : table.measures.filter(function (measure) {
-        return matches(measure.n, table.name + " " + (measure.dax || ""), measure.u);
-      });
-      if (!columns.length && !measures.length) return;
-
-      groupsShown += 1;
-      var tableId = "all:table:" + table.name;
-      var allItems = table.columns.concat(table.measures);
-      var usedItems = allItems.filter(function (item) { return item.u > 0; }).length;
-      var percent = allItems.length ? Math.round(usedItems / allItems.length * 100) : 100;
-      rows.push({
-        id: tableId, level: 0, group: true, name: table.name, icon: "table",
-        rest: [
-          "Tabel", "—", "Model", "—", fmtSize(tableSizeMb(table)),
-          '<span class="chip ' + (usedItems === allItems.length ? "chip-ok" : "chip-warn") + '"><span class="dot"></span>' +
-            percent + "% (" + usedItems + "/" + allItems.length + ") dipakai</span>",
-          fmtInt(usedItems), "—", errorChip(), "—"
-        ]
-      });
-
-      if (measures.length) {
-        var measureGroup = tableId + ":m";
-        rows.push({
-          id: measureGroup, level: 1, group: true, name: "Measure (" + measures.length + ")", icon: "group",
-          rest: allGroupRest("Grup", table.name)
-        });
-        measures.forEach(function (measure) {
-          rows.push({
-            id: measureGroup + ":" + measure.n, level: 2, numCols: [5, 7],
-            cls: measure.u === 0 ? "row-unused" : "",
-            cells: [
-              nameCell(measure.n, "measure", { level: 2 }),
-              "Measure", escapeHtml(table.name), "Model", "DAX", "0 B",
-              statusChip(statusOf(measure)), fmtInt(measure.u),
-              escapeHtml(measure.f || "—"), errorChip(),
-              table.name === "_Measures" ? "_Measures" : "—"
-            ]
-          });
-          shown += 1;
-          if (measure.u === 0) unused += 1;
-        });
-      }
-
-      if (columns.length) {
-        var columnGroup = tableId + ":c";
-        rows.push({
-          id: columnGroup, level: 1, group: true, name: "Kolom (" + columns.length + ")", icon: "group",
-          rest: allGroupRest("Grup", table.name)
-        });
-        columns.forEach(function (column) {
-          var rels = relationshipsForColumn(table.name, column.n);
-          var usedMeasures = measuresForColumn(table.name, column.n);
-          var itemId = columnGroup + ":" + column.n;
-          var expandable = rels.length > 0 || usedMeasures.length > 0 || column.u > 0;
-          var rest = [
-            "Kolom", escapeHtml(table.name), "Model", escapeHtml(column.t), fmtSize(column.mb),
-            statusChip(statusOf(column)), fmtInt(column.u), columnFormat(column), errorChip(), "—"
-          ];
-
-          if (expandable) {
-            rows.push({
-              id: itemId, level: 2, group: true, name: column.n, icon: "column", numCols: [5, 7],
-              cls: column.u === 0 ? "row-unused" : "", rest: rest
-            });
-          } else {
-            rows.push({
-              id: itemId, level: 2, numCols: [5, 7],
-              cls: column.u === 0 ? "row-unused" : "",
-              cells: [nameCell(column.n, "column", { level: 2 })].concat(rest)
-            });
-          }
-          shown += 1;
-          if (column.u === 0) unused += 1;
-
-          if (!expandable) return;
-
-          if (rels.length) {
-            var relGroup = itemId + ":rel";
-            rows.push({
-              id: relGroup, level: 3, group: true, name: "Digunakan di relasi (" + rels.length + ")", icon: "group",
-              rest: allGroupRest("Grup", table.name)
-            });
-            rels.forEach(function (rel) {
-              rows.push({
-                level: 4, numCols: [7],
-                cells: [
-                  nameCell(rel.name, "link", { level: 4 }),
-                  "Relasi", "—", "Model", "—", "—", relTypeChip(rel.type),
-                  fmtInt(rel.uses), "—", errorChip(), "—"
-                ]
-              });
-            });
-          }
-
-          if (usedMeasures.length) {
-            var measureUseGroup = itemId + ":msr";
-            rows.push({
-              id: measureUseGroup, level: 3, group: true, name: "Digunakan di measure (" + usedMeasures.length + ")", icon: "group",
-              rest: allGroupRest("Grup", table.name)
-            });
-            usedMeasures.forEach(function (entry) {
-              rows.push({
-                level: 4, numCols: [5, 7],
-                cells: [
-                  nameCell(entry.measure.n, "measure", { level: 4 }),
-                  "Measure", escapeHtml(entry.table), "Model", "DAX", "0 B",
-                  statusChip(statusOf(entry.measure)), fmtInt(entry.measure.u),
-                  escapeHtml(entry.measure.f || "—"), errorChip(),
-                  entry.table === "_Measures" ? "_Measures" : "—"
-                ]
-              });
-            });
-          }
-
-          if (column.u > 0) {
-            rows.push({
-              level: 3, numCols: [7],
-              cells: [
-                nameCell(column.u + " visual di " + reportModel.name, "page", { level: 3 }),
-                "Visual", reportModel.name, "Report", "—", "—",
-                statusChip("Dipakai"), fmtInt(column.u), "—", errorChip(), "—"
-              ]
-            });
-          }
-        });
-      }
-    });
-
-    if (state.typeFilter === "all" || state.typeFilter === "Halaman") {
-      var pages = reportModel.pages.filter(function (page) {
-        if (state.unusedOnly && page.used) return false;
-        return !query || (page.n + " Halaman " + reportModel.name).toLowerCase().indexOf(query) !== -1;
-      });
-      if (pages.length) {
-        groupsShown += 1;
-        var reportId = "all:report";
-        var reportVisuals = reportModel.pages.reduce(function (sum, page) { return sum + page.vis; }, 0);
-        rows.push({
-          id: reportId, level: 0, group: true, name: reportModel.name, icon: "page",
-          rest: [
-            "Report", "—", "Report", "—", reportModel.pages.length + " halaman",
-            statusChip("Dipakai"), fmtInt(reportVisuals), "—", errorChip(), "—"
-          ]
-        });
-        var pageGroup = reportId + ":pages";
-        rows.push({
-          id: pageGroup, level: 1, group: true, name: "Halaman (" + pages.length + ")", icon: "group",
-          rest: allGroupRest("Grup", reportModel.name)
-        });
-        pages.forEach(function (page) {
-          rows.push({
-            id: "all:page:" + page.n, level: 2, numCols: [7],
-            cls: page.used ? "" : "row-unused",
-            cells: [
-              nameCell(page.n, "page", { level: 2 }),
-              "Halaman", reportModel.name, "Report", "—", "—",
-              statusChip(page.used ? "Dipakai" : "Tidak dipakai"), fmtInt(page.vis), "—", errorChip(), "—"
-            ]
-          });
-          shown += 1;
-          if (!page.used) unused += 1;
-        });
-      }
-    }
-
-    return {
-      head: headersMarkup("all"),
-      body: emitRows(rows, !!query),
-      count: shown,
-      summary: fmtInt(shown) + " item · " + groupsShown + " tabel/report · " + unused + " tidak dipakai"
-    };
-  }
-
-  function tableGroupRest(table) {
-    var items = table.columns.concat(table.measures);
-    var used = items.filter(function (item) { return item.u > 0; }).length;
-    var percent = items.length ? Math.round(used / items.length * 100) : 100;
-    return [
-      "Tabel",
-      "—",
-      "Sales Model",
-      "—",
-      fmtSize(tableSizeMb(table)),
-      '<span class="chip ' + (used === items.length ? "chip-ok" : "chip-warn") + '"><span class="dot"></span>' +
-        percent + "% (" + used + "/" + items.length + ") dipakai</span>",
-      fmtInt(used),
-      table.storage,
-      "—"
-    ];
-  }
-
-  function tableSubGroupRest(label, table) {
-    return [label, table.name, "Model", "—", "—", "—", "—", "—", "—"];
-  }
-
-  function renderTables() {
-    var query = currentQuery();
-    var rows = [];
-    var shown = 0;
-    var shownColumns = 0;
-    var shownMeasures = 0;
-    var shownUnused = 0;
-    modelTables.forEach(function (table) {
-      var measures = table.measures.filter(function (measure) {
-        if (state.typeFilter === "Kolom") return false;
-        if (state.unusedOnly && measure.u !== 0) return false;
-        return !query || (table.name + " " + measure.n + " " + measure.dax).toLowerCase().indexOf(query) !== -1;
-      });
-      var columns = table.columns.filter(function (column) {
-        if (state.typeFilter === "Measure") return false;
-        if (state.unusedOnly && column.u !== 0) return false;
-        return !query || (table.name + " " + column.n + " " + column.t).toLowerCase().indexOf(query) !== -1;
-      });
-      if (!measures.length && !columns.length) return;
-      var tableId = "tbl:" + table.name;
-      rows.push({ id: tableId, level: 0, group: true, name: table.name, icon: "table", rest: tableGroupRest(table) });
-
-      if (measures.length) {
-        var measureGroup = tableId + ":m";
-        rows.push({ id: measureGroup, level: 1, group: true, name: "Measure (" + measures.length + ")", icon: "group", rest: tableSubGroupRest("Grup", table) });
-        measures.forEach(function (measure) {
-          rows.push({
-            id: measureGroup + ":" + measure.n, level: 2, numCols: [5, 7],
-            cls: measure.u === 0 ? "row-unused" : "",
-            cells: [
-              nameCell(measure.n, "measure", { level: 2 }),
-              "Measure",
-              escapeHtml(table.name),
-              "Model",
-              "DAX",
-              "0 B",
-              statusChip(statusOf(measure)),
-              fmtInt(measure.u),
-              "—",
-              escapeHtml(measure.f || "—")
-            ]
-          });
-          shown += 1;
-          shownMeasures += 1;
-          if (measure.u === 0) shownUnused += 1;
-        });
-      }
-
-      if (columns.length) {
-        var columnGroup = tableId + ":c";
-        rows.push({ id: columnGroup, level: 1, group: true, name: "Kolom (" + columns.length + ")", icon: "group", rest: tableSubGroupRest("Grup", table) });
-        columns.forEach(function (column) {
-          rows.push({
-            id: columnGroup + ":" + column.n, level: 2, numCols: [5, 7],
-            cls: column.u === 0 ? "row-unused" : "",
-            cells: [
-              nameCell(column.n, "column", { level: 2 }),
-              "Kolom",
-              escapeHtml(table.name),
-              "Model",
-              escapeHtml(column.t),
-              fmtSize(column.mb),
-              statusChip(statusOf(column)),
-              fmtInt(column.u),
-              table.storage,
-              "—"
-            ]
-          });
-          shown += 1;
-          shownColumns += 1;
-          if (column.u === 0) shownUnused += 1;
-        });
-      }
-    });
-    return {
-      head: headersMarkup("tables"),
-      body: emitRows(rows, !!query),
-      count: shown,
-      summary: fmtInt(shownColumns) + " kolom · " + fmtInt(shownMeasures) + " measure · " +
-        shownUnused + " tidak dipakai · " + modelTables.length + " tabel"
-    };
-  }
-
-  function filteredRelationships() {
-    var query = currentQuery();
-    return relationshipRows.filter(function (rel) {
-      if (state.typeFilter !== "all" && rel.type !== state.typeFilter) return false;
-      return !query || (rel.name + " " + rel.from + " " + rel.to).toLowerCase().indexOf(query) !== -1;
-    });
-  }
-
-  function renderRelationships() {
-    var list = filteredRelationships();
-    var rows = list.map(function (rel, index) {
-      return {
-        id: "rel-" + index, level: 0, numCols: [6],
-        cls: rel.uses === 0 ? "row-unused" : "",
-        cells: [
-          nameCell(rel.name, "link", { level: 0 }),
-          escapeHtml(rel.type),
-          escapeHtml(rel.cross),
-          escapeHtml(rel.card),
-          statusChip(rel.uses > 0 ? "Dipakai" : "Tidak dipakai"),
-          escapeHtml(rel.auto),
-          fmtInt(rel.uses),
-          '<span class="mono-trunc" title="' + escapeHtml(rel.from) + '">' + escapeHtml(rel.from) + "</span>",
-          '<span class="mono-trunc" title="' + escapeHtml(rel.to) + '">' + escapeHtml(rel.to) + "</span>"
-        ]
-      };
-    });
-    var active = list.filter(function (rel) { return rel.type === "Aktif"; }).length;
-    var unused = list.filter(function (rel) { return rel.uses === 0; }).length;
-    return {
-      head: headersMarkup("relationships"),
-      body: emitRows(rows, false),
-      count: list.length,
-      summary: fmtInt(list.length) + " relasi · " + active + " aktif · " + unused + " tidak dipakai"
-    };
-  }
-
-  var REL_LAYOUT = {
-    "Dim Customer": [95, 70],
-    "Dim Product": [95, 190],
-    "Dim Geography": [95, 310],
-    "Dim Date": [95, 430],
-    "Fact Sales": [380, 250],
-    "Fact Budget": [665, 80],
-    "Stock Level": [665, 210],
-    "Fact Returns": [665, 340],
-    "Report Config": [665, 460]
-  };
-
-  function relTableInfo(name) {
-    for (var i = 0; i < modelTables.length; i += 1) {
-      if (modelTables[i].name === name) return modelTables[i];
-    }
-    return null;
-  }
-
-  function relKindLabel(name) {
-    if (name.indexOf("Dim ") === 0) return "Tabel dimensi";
-    if (name === "Report Config") return "Tabel konfigurasi";
-    return "Tabel fakta";
-  }
-
-  function relationshipTableName(reference) {
-    return reference.split("[")[0];
-  }
-
-  function groupRelPairs(list) {
-    var pairs = {};
-    list.forEach(function (rel) {
-      var a = relationshipTableName(rel.from);
-      var b = relationshipTableName(rel.to);
-      var key = a + "|" + b;
-      if (!pairs[key]) pairs[key] = { key: key, a: a, b: b, rels: [] };
-      pairs[key].rels.push(rel);
-    });
-    return pairs;
-  }
-
-  function relPairStatus(pair) {
-    var active = pair.rels.filter(function (rel) { return rel.type === "Aktif"; }).length;
-    return { active: active, inactive: pair.rels.length - active };
-  }
-
-  function relEdgePoint(cx, cy, tx, ty) {
-    var dx = tx - cx;
-    var dy = ty - cy;
-    var scaleX = Math.abs(dx) < 0.001 ? Infinity : 75 / Math.abs(dx);
-    var scaleY = Math.abs(dy) < 0.001 ? Infinity : 29 / Math.abs(dy);
-    var scale = Math.min(scaleX, scaleY);
-    if (!isFinite(scale)) scale = 1;
-    return { x: cx + dx * scale, y: cy + dy * scale };
-  }
-
-  function relStatBlock(label, value) {
-    return '<div class="rel-side-stat"><b>' + escapeHtml(String(value)) + "</b><span>" + escapeHtml(label) + "</span></div>";
-  }
-
-  function relTableSide(name, visiblePairs) {
-    var info = relTableInfo(name) || { columns: [], measures: [], rows: 0 };
-    var keys = Object.keys(visiblePairs).filter(function (key) {
-      var pair = visiblePairs[key];
-      return pair.a === name || pair.b === name;
-    });
-    var rels = [];
-    keys.forEach(function (key) { rels = rels.concat(visiblePairs[key].rels); });
-    var active = rels.filter(function (rel) { return rel.type === "Aktif"; }).length;
-    var items = keys.map(function (key) {
-      var pair = visiblePairs[key];
-      var target = pair.a === name ? pair.b : pair.a;
-      var status = relPairStatus(pair);
-      return '<button type="button" class="rel-side-item" data-rel-pair="' + escapeHtml(pair.key) + '">' +
-        "<strong>" + escapeHtml(target) + "</strong>" +
-        "<span>" + pair.rels.length + " relasi · " + status.inactive + " tidak aktif</span></button>";
-    }).join("");
-
-    return '<p class="rel-side-title">' + escapeHtml(name) + "</p>" +
-      '<p class="rel-side-sub">' + relKindLabel(name) + " · " + info.columns.length + " kolom · " +
-      info.measures.length + " measure · " + fmtInt(info.rows) + " baris</p>" +
-      '<div class="rel-side-stats">' +
-        relStatBlock("Relasi", rels.length) +
-        relStatBlock("Aktif", active) +
-        relStatBlock("Tidak aktif", rels.length - active) +
-        relStatBlock("Tabel terkait", keys.length) +
-      "</div>" +
-      (keys.length
-        ? '<div class="rel-side-list">' + items + "</div>"
-        : '<p class="rel-side-note">Tidak ada relasi yang cocok dengan filter saat ini.</p>') +
-      '<p class="rel-side-note">Klik garis pada grafik untuk melihat kolom relasi.</p>';
-  }
-
-  function relPairSide(pair) {
-    var status = relPairStatus(pair);
-    var cards = pair.rels.map(function (rel) {
-      return '<div class="rel-side-rel"><code>' + escapeHtml(rel.from) + " → " + escapeHtml(rel.to) + "</code>" +
-        '<div class="rel-meta">' + statusChip(rel.uses > 0 ? "Dipakai" : "Tidak dipakai") +
-        '<span class="chip chip-idle">' + escapeHtml(rel.type) + "</span>" +
-        '<span class="chip chip-idle">' + escapeHtml(rel.cross) + "</span>" +
-        '<span class="chip chip-idle">' + escapeHtml(rel.card) + "</span>" +
-        '<span class="chip chip-idle">auto: ' + escapeHtml(rel.auto) + "</span></div></div>";
-    }).join("");
-
-    return '<p class="rel-side-title">' + escapeHtml(pair.a) + " → " + escapeHtml(pair.b) + "</p>" +
-      '<p class="rel-side-sub">' + pair.rels.length + " relasi · " + status.active + " aktif · " +
-      status.inactive + " tidak aktif</p>" +
-      '<div class="rel-side-list">' + cards + "</div>" +
-      '<button type="button" class="btn btn-sm rel-side-back" data-rel-table="' + escapeHtml(pair.a) + '">' +
-      "Lihat semua relasi " + escapeHtml(pair.a) + "</button>";
-  }
-
-  function renderRelationshipGraphSide(selected, allPairs, visiblePairs) {
-    if (selected.indexOf("pair:") === 0) {
-      var pair = allPairs[selected.slice(5)];
-      if (pair) return relPairSide(pair);
-    }
-    return relTableSide(selected.slice(4), visiblePairs);
-  }
-
-  function renderRelationshipGraph() {
-    var allPairs = groupRelPairs(relationshipRows);
-    var visiblePairs = groupRelPairs(filteredRelationships());
-    var selected = state.relSelected || "tbl:Fact Sales";
-
-    if (selected.indexOf("pair:") === 0 && !allPairs[selected.slice(5)]) selected = "tbl:Fact Sales";
-    if (selected.indexOf("tbl:") === 0 && !REL_LAYOUT[selected.slice(4)]) selected = "tbl:Fact Sales";
-    state.relSelected = selected;
-
-    var isTableSelection = selected.indexOf("tbl:") === 0;
-    var selectedTable = isTableSelection ? selected.slice(4) : "";
-
-    var edges = "";
-    Object.keys(visiblePairs).forEach(function (key) {
-      var pair = visiblePairs[key];
-      var from = REL_LAYOUT[pair.a];
-      var to = REL_LAYOUT[pair.b];
-      if (!from || !to) return;
-      var start = relEdgePoint(from[0], from[1], to[0], to[1]);
-      var end = relEdgePoint(to[0], to[1], from[0], from[1]);
-      var dx = end.x - start.x;
-      var dy = end.y - start.y;
-      var length = Math.sqrt(dx * dx + dy * dy) || 1;
-      if (length > 40) {
-        end.x -= (dx / length) * 9;
-        end.y -= (dy / length) * 9;
-      }
-      var status = relPairStatus(pair);
-      var inactive = status.active === 0;
-      var isPair = selected === "pair:" + key;
-      var hot = isPair || (isTableSelection && (pair.a === selectedTable || pair.b === selectedTable));
-      var classes = "edge rel-edge" + (inactive ? " is-inactive" : "") + (hot ? " is-selected" : "");
-      var path = "M" + start.x + " " + start.y + "L" + end.x + " " + end.y;
-      edges += '<path class="rel-edge-hit" d="' + path + '" data-pair="' + escapeHtml(key) + '"></path>';
-      edges += '<path class="' + classes + '" d="' + path + '" data-pair="' + escapeHtml(key) +
-        '" marker-end="url(#' + (hot ? "relArrowActive" : "relArrow") + ')">' +
-        "<title>" + escapeHtml(pair.a + " → " + pair.b + " · " + pair.rels.length + " relasi") + "</title></path>";
-      if (pair.rels.length > 1) {
-        var mx = (start.x + end.x) / 2;
-        var my = (start.y + end.y) / 2;
-        edges += '<g class="rel-edge-badge" aria-hidden="true">' +
-          '<rect x="' + (mx - 10) + '" y="' + (my - 8) + '" width="20" height="16" rx="8"></rect>' +
-          '<text x="' + mx + '" y="' + (my + 3) + '">' + pair.rels.length + "</text></g>";
-      }
-    });
-
-    var nodes = "";
-    Object.keys(REL_LAYOUT).forEach(function (name) {
-      var center = REL_LAYOUT[name];
-      var info = relTableInfo(name) || { columns: [], measures: [], rows: 0 };
-      var width = 150;
-      var height = 58;
-      var x = center[0] - width / 2;
-      var y = center[1] - height / 2;
-      var touches = Object.keys(visiblePairs).some(function (key) {
-        return visiblePairs[key].a === name || visiblePairs[key].b === name;
-      });
-      var isSelected = isTableSelection && selectedTable === name;
-      var classes = "node rel-node" + (touches ? "" : " is-dim");
-      nodes += '<g class="' + classes + '" tabindex="0" role="button" data-table="' + escapeHtml(name) +
-        '" aria-label="' + escapeHtml(name + ", " + relKindLabel(name) + (touches ? ", memiliki relasi" : ", tanpa relasi")) +
-        '" aria-current="' + (isSelected ? "true" : "false") + '">' +
-        '<rect class="node-box' + (isSelected ? " sel" : "") + '" x="' + x + '" y="' + y +
-        '" width="' + width + '" height="' + height + '" rx="6"></rect>' +
-        '<text class="node-type" x="' + (x + 11) + '" y="' + (y + 16) + '">' + escapeHtml(relKindLabel(name)) + "</text>" +
-        '<text class="node-name" x="' + (x + 11) + '" y="' + (y + 33) + '">' + escapeHtml(name) + "</text>" +
-        '<text class="rel-node-meta" x="' + (x + 11) + '" y="' + (y + 48) + '">' +
-        info.columns.length + " kolom · " + info.measures.length + " measure</text></g>";
-    });
-
-    var layer = $("#relGraphLayer");
-    if (layer) layer.innerHTML = edges + nodes;
-    $("#relGraphSide").innerHTML = renderRelationshipGraphSide(selected, allPairs, visiblePairs);
-  }
-
-  function brokenChip(count) {
-    return '<span class="chip ' + (count ? "chip-danger" : "chip-ok") + '"><span class="dot"></span>' + count + "</span>";
-  }
-
-  function renderReport() {
-    var query = currentQuery();
-    var pages = reportModel.pages.filter(function (page) {
-      if (state.typeFilter !== "all") {
-        if (state.typeFilter === "Dipakai" && !page.used) return false;
-        if (state.typeFilter === "Tidak dipakai" && page.used) return false;
-      }
-      return !query || (page.n + " Halaman " + reportModel.name).toLowerCase().indexOf(query) !== -1;
-    });
-    var hidden = reportModel.hiddenPages.filter(function (page) {
-      if (state.typeFilter === "Dipakai") return false;
-      return !query || (page.n + " Halaman tersembunyi").toLowerCase().indexOf(query) !== -1;
-    });
-    var filters = reportModel.filters.filter(function (name) {
-      if (state.typeFilter === "Tidak dipakai") return false;
-      return !query || (name + " Filter level report").toLowerCase().indexOf(query) !== -1;
-    });
-    var hiddenVisuals = reportModel.hiddenPages.reduce(function (sum, page) { return sum + page.vis; }, 0);
-    var totalVisuals = reportModel.pages.reduce(function (sum, page) { return sum + page.vis; }, 0);
-    var broken = reportModel.pages.reduce(function (sum, page) { return sum + page.broken; }, 0);
-    var rows = [];
-
-    if (pages.length || hidden.length || filters.length || !query) {
-      rows.push({
-        id: "rep", level: 0, group: true, name: reportModel.name, icon: "page",
-        numCols: [],
-        rest: [
-          "Local report", "File", fmtInt(totalVisuals), brokenChip(broken), "—",
-          String(reportModel.pages.length), reportModel.theme, reportModel.score + " (Baik)", statusChip("Dipakai")
-        ]
-      });
-    }
-
-    if (hidden.length) {
-      rows.push({
-        id: "rep:hidden", level: 1, group: true, name: "Halaman tersembunyi", icon: "group",
-        rest: ["Grup", "File", fmtInt(hiddenVisuals), brokenChip(0), "—", String(hidden.length), "—", "—", "—"]
-      });
-      hidden.forEach(function (page) {
-        rows.push({
-          id: "rep:hidden:" + page.n, level: 2, numCols: [3, 4, 5],
-          cls: "row-unused",
-          cells: [
-            nameCell(page.n, "page", { level: 2 }), "Halaman", "File", fmtInt(page.vis),
-            brokenChip(page.broken), "—", "—", "—", "—", statusChip("Tidak dipakai")
-          ]
-        });
-      });
-    }
-
-    if (pages.length) {
-      rows.push({
-        id: "rep:pages", level: 1, group: true, name: "Halaman", icon: "group",
-        rest: ["Grup", "File", fmtInt(totalVisuals), brokenChip(broken), "—", String(reportModel.pages.length), "—", "—", "—"]
-      });
-      pages.forEach(function (page) {
-        rows.push({
-          id: "rep:page:" + page.n, level: 2, group: true, name: page.n, icon: "page",
-          rest: [
-            "Halaman", "File", fmtInt(page.vis), brokenChip(page.broken), page.views,
-            "—", "—", "—", statusChip(page.used ? "Dipakai" : "Tidak dipakai")
-          ]
-        });
-        rows.push({
-          id: "rep:page:" + page.n + ":vis", level: 3, numCols: [3, 4],
-          cells: [
-            nameCell("Visual", "page", { level: 3 }), "Visual", page.n, fmtInt(page.vis),
-            brokenChip(page.broken), "—", "—", "—", "—", "—"
-          ]
-        });
-        rows.push({
-          id: "rep:page:" + page.n + ":filter", level: 3, numCols: [],
-          cells: [
-            nameCell("Filter level halaman (" + page.filters + ")", "filter", { level: 3 }), "Filter", page.n, "—",
-            "—", "—", "—", "—", "—", "—"
-          ]
-        });
-      });
-    }
-
-    if (filters.length) {
-      rows.push({
-        id: "rep:filters", level: 1, group: true, name: "Filter level report", icon: "group",
-        rest: ["Grup", "File", "—", "—", "—", "—", "—", "—", "—"]
-      });
-      filters.forEach(function (name) {
-        rows.push({
-          id: "rep:filter:" + name, level: 2, numCols: [6],
-          cells: [
-            nameCell(name, "filter", { level: 2 }), "Filter kategorikal", "File", "—",
-            "—", "—", "—", "—", "—", statusChip("Dipakai")
-          ]
-        });
-      });
-    }
-
-    return {
-      head: headersMarkup("report"),
-      body: emitRows(rows, !!query),
-      count: rows.length,
-      summary: "1 report · " + reportModel.pages.length + " halaman · " + fmtInt(totalVisuals) +
-        " visual · " + broken + " visual rusak · " + reportModel.filters.length + " filter"
-    };
-  }
-
-  function daxEntries() {
-    var entries = [];
-    modelTables.forEach(function (table) {
-      table.measures.forEach(function (measure) {
-        entries.push({ id: "dax:" + table.name + ":" + measure.n, table: table.name, measure: measure });
-      });
-    });
-    return entries;
-  }
-
-  function renderDax() {
-    var query = currentQuery();
-    var list = daxEntries().filter(function (entry) {
-      var measure = entry.measure;
-      if (state.typeFilter === "Dipakai" && measure.u === 0) return false;
-      if (state.typeFilter === "Tidak dipakai" && measure.u > 0) return false;
-      return !query || (measure.n + " " + measure.dax + " " + entry.table).toLowerCase().indexOf(query) !== -1;
-    });
-    var rows = [];
-    list.forEach(function (entry) {
-      var measure = entry.measure;
-      rows.push({
-        id: entry.id, level: 0, group: true, name: measure.n, icon: "code", numCols: [4, 5],
-        rest: [
-          entry.table,
-          "Measure",
-          '<span class="chip chip-ok"><span class="dot"></span>Tidak</span>',
-          fmtInt(measure.v || 0),
-          fmtInt(measure.u),
-          '<span class="mono-trunc" title="Sales Model (APAC)">Sales Model (APAC)</span>',
-          "Semantic model"
-        ]
-      });
-      rows.push({ kind: "code", level: 1, cols: 8, code: measure.dax });
-    });
-    var violations = list.reduce(function (sum, entry) { return sum + (entry.measure.v || 0); }, 0);
-    var unused = list.filter(function (entry) { return entry.measure.u === 0; }).length;
-    return {
-      head: headersMarkup("dax"),
-      body: emitRows(rows, false),
-      count: list.length,
-      summary: fmtInt(list.length) + " measure · " + unused + " tidak dipakai · " + violations + " pelanggaran praktik"
-    };
-  }
-
-  function renderM() {
-    var query = currentQuery();
-    var list = mQueries.filter(function (item) {
-      if (state.typeFilter !== "all" && item.type !== state.typeFilter) return false;
-      return !query || (item.n + " " + item.code).toLowerCase().indexOf(query) !== -1;
-    });
-    var rows = [];
-    list.forEach(function (item) {
-      rows.push({
-        id: "m:" + item.n, level: 0, group: true, name: item.n, icon: "query",
-        rest: [
-          item.type,
-          "Sales Model (APAC)",
-          item.warn ? '<span class="chip chip-warn"><span class="dot"></span>' + item.warn + " peringatan</span>"
-            : '<span class="chip chip-ok"><span class="dot"></span>Tidak ada</span>'
-        ]
-      });
-      rows.push({ kind: "code", level: 1, cols: 4, code: item.code });
-    });
-    var warnings = list.reduce(function (sum, item) { return sum + item.warn; }, 0);
-    var parameters = list.filter(function (item) { return item.type === "M parameter"; }).length;
-    return {
-      head: headersMarkup("m"),
-      body: emitRows(rows, false),
-      count: list.length,
-      summary: fmtInt(list.length) + " kueri · " + (list.length - parameters) + " tabel · " + parameters + " parameter · " + warnings + " peringatan"
-    };
-  }
-
-  function renderAnalysis() {
-    var wrap = $("#analyzeTableWrap");
-    var empty = $("#analyzeEmpty");
-
-    if (!state.analyzed) {
-      wrap.hidden = true;
-      $("#relGraph").hidden = true;
-      empty.hidden = false;
-      $("#analyzeFromEmpty").hidden = false;
-      $("#analyzeEmptyTitle").textContent = "Belum ada hasil analisa";
-      $("#analyzeEmptyText").textContent = "Pilih workspace dan semantic model, lalu tekan Analisa. Hasil muncul di sini tanpa mengubah model.";
-      $("#analyzeSummary").textContent = "Belum dianalisis";
-      return;
-    }
-
-    var graphMode = state.analyzeTab === "relationships" && state.relView === "graph";
-    $("#relGraph").hidden = !graphMode;
-    if (graphMode) {
-      var relResult = renderRelationships();
-      $("#analyzeHead").innerHTML = "";
-      $("#analyzeBody").innerHTML = "";
-      wrap.hidden = true;
-      empty.hidden = true;
-      $("#analyzeSummary").textContent = relResult.summary;
-      renderRelationshipGraph();
-      return;
-    }
-
-    var result;
-    if (state.analyzeTab === "tables") result = renderTables();
-    else if (state.analyzeTab === "relationships") result = renderRelationships();
-    else if (state.analyzeTab === "report") result = renderReport();
-    else if (state.analyzeTab === "dax") result = renderDax();
-    else if (state.analyzeTab === "m") result = renderM();
-    else result = renderAll();
-
-    $("#analyzeHead").innerHTML = result.head;
-    $("#analyzeBody").innerHTML = result.body;
-    $("#analyzeSummary").textContent = result.summary;
-
-    if (!result.count) {
-      wrap.hidden = true;
-      empty.hidden = false;
-      $("#analyzeFromEmpty").hidden = true;
-      $("#analyzeEmptyTitle").textContent = "Tidak ada item yang cocok";
-      $("#analyzeEmptyText").textContent = "Ubah kata kunci atau filter untuk melihat item lain pada tab ini.";
-    } else {
-      wrap.hidden = false;
-      empty.hidden = true;
-    }
-  }
-
-  function runAnalysis() {
-    if (state.analyzing) return;
-    state.analyzing = true;
-    $("#runAnalyze").disabled = true;
-    $("#analyzeEmpty").hidden = true;
-    $("#analyzeTableWrap").hidden = false;
-    $("#analyzeHead").innerHTML = headersMarkup(state.analyzeTab);
-    $("#analyzeBody").innerHTML = new Array(6).fill('<tr class="skeleton"><td colspan="' +
-      ANALYSIS_HEADERS[state.analyzeTab].length + '"><span class="sk"></span></td></tr>').join("");
-    setConsole(true);
-    addLog("Membaca semantic model: Sales Model (APAC)…", "info");
-    window.setTimeout(function () {
-      state.analyzed = true;
-      state.analyzing = false;
-      $("#runAnalyze").disabled = false;
-      $$("#analyzeTabs [role='tab']").forEach(function (tab) { tab.disabled = false; });
-      updateMetrics();
-      updateTabCounts();
-      initOpenGroups();
-      state.typeFilter = "all";
-      applyTabTools(state.analyzeTab);
-      renderAnalysis();
-      var totals = analysisTotals();
-      addLog("Analisa selesai: " + fmtInt(totals.columns + totals.measures + totals.pageCount) +
-        " item, " + (totals.unusedColumns + totals.unusedMeasures) + " kolom & measure tidak dipakai.", "ok");
-      addLog("Dataset " + fmtSize(totals.size) + " · " + totals.columns + " kolom · " +
-        totals.measures + " measure · " + totals.relationshipCount + " relasi.", "info");
-      toast("Analisa selesai");
-    }, 720);
-  }
-
-  var partitionTables = {
-    "Fact Sales": {
-      mode: "Import", sourceTable: "FactSales", dateColumn: "OrderDate",
-      partitions: [
-        { name: "2023", range: "1 Jan 2023 – 31 Des 2023", start: "2023-01-01", end: "2024-01-01", rows: 1632274, last: "2 Jul 2026 16.57" },
-        { name: "2024", range: "1 Jan 2024 – 31 Des 2024", start: "2024-01-01", end: "2025-01-01", rows: 1677669, last: "2 Jul 2026 16.58" },
-        { name: "2025", range: "1 Jan 2025 – 31 Des 2025", start: "2025-01-01", end: "2026-01-01", rows: 1666367, last: "2 Jul 2026 16.58" },
-        { name: "2026Q1", range: "1 Jan 2026 – 31 Mar 2026", start: "2026-01-01", end: "2026-04-01", rows: 445183, last: "2 Jul 2026 16.56" },
-        { name: "2026Q2", range: "1 Apr 2026 – 30 Jun 2026", start: "2026-04-01", end: "2026-07-01", rows: 421084, last: "2 Jul 2026 16.56" },
-        { name: "2026Q410", range: "1 Jul 2026 – 31 Jul 2026", start: "2026-07-01", end: "2026-08-01", rows: 145211, last: "6 Jul 2026 16.41" },
-        { name: "2026Q3", range: "1 Agu 2026 – 31 Okt 2026", start: "2026-08-01", end: "2026-11-01", rows: 451243, last: "—" },
-        { name: "2026Q411", range: "1 Nov 2026 – 30 Nov 2026", start: "2026-11-01", end: "2026-12-01", rows: 73566, last: "18 Nov 2026 06.50" }
-      ]
-    },
-    "Fact Budget": {
-      mode: "Import", sourceTable: "FactBudget", dateColumn: "BudgetMonth",
-      partitions: [
-        { name: "FY2023", range: "1 Jan 2023 – 31 Des 2023", start: "2023-01-01", end: "2024-01-01", rows: 28240, last: "2 Jul 2026 16.40" },
-        { name: "FY2024", range: "1 Jan 2024 – 31 Des 2024", start: "2024-01-01", end: "2025-01-01", rows: 30112, last: "2 Jul 2026 16.41" },
-        { name: "FY2025", range: "1 Jan 2025 – 31 Des 2025", start: "2025-01-01", end: "2026-01-01", rows: 31840, last: "2 Jul 2026 16.42" },
-        { name: "FY2026", range: "1 Jan 2026 – 31 Des 2026", start: "2026-01-01", end: "2027-01-01", rows: 22180, last: "—" }
-      ]
-    },
-    "Stock Level": {
-      mode: "Import", sourceTable: "StockLevel", dateColumn: "SnapshotDate",
-      partitions: [
-        { name: "2024", range: "1 Jan 2024 – 31 Des 2024", start: "2024-01-01", end: "2025-01-01", rows: 98420, last: "17 Nov 2026 04.06" },
-        { name: "2025", range: "1 Jan 2025 – 31 Des 2025", start: "2025-01-01", end: "2026-01-01", rows: 104760, last: "17 Nov 2026 04.06" },
-        { name: "2026Q1", range: "1 Jan 2026 – 31 Mar 2026", start: "2026-01-01", end: "2026-04-01", rows: 101220, last: "17 Nov 2026 04.10" },
-        { name: "2026Q2", range: "1 Apr 2026 – 30 Jun 2026", start: "2026-04-01", end: "2026-07-01", rows: 108470, last: "—" }
-      ]
-    },
-    "Fact Returns": {
-      mode: "Import", sourceTable: "FactReturns", dateColumn: "ReturnDate",
-      partitions: [
-        { name: "2023", range: "1 Jan 2023 – 31 Des 2023", start: "2023-01-01", end: "2024-01-01", rows: 8940, last: "17 Nov 2026 04.06" },
-        { name: "2024", range: "1 Jan 2024 – 31 Des 2024", start: "2024-01-01", end: "2025-01-01", rows: 9860, last: "17 Nov 2026 04.06" },
-        { name: "2025", range: "1 Jan 2025 – 31 Des 2025", start: "2025-01-01", end: "2026-01-01", rows: 10240, last: "17 Nov 2026 04.06" },
-        { name: "2026", range: "1 Jan 2026 – 31 Des 2026", start: "2026-01-01", end: "2027-01-01", rows: 9200, last: "—" }
-      ]
-    }
-  };
-
-  var PARTITION_MODES = {
-    default: { label: "Process Default", help: "Memproses partisi yang belum diproses dan memperbarui dependensi." },
-    full: { label: "Process Full", help: "Menghapus data partisi lalu memuat ulang seluruh isinya." },
-    data: { label: "Process Data", help: "Memuat ulang data partisi tanpa mengubah struktur tabel." },
-    clear: { label: "Process Clear", help: "Mengosongkan data partisi tanpa menghapus definisinya." },
-    add: { label: "Process Add", help: "Menambahkan data baru ke partisi yang sudah ada." }
-  };
-
-  function partitionInfo() {
-    return partitionTables[state.partitionTable];
-  }
-
-  function partitionStatus(partition) {
-    if (partition.rows === 0) return "Kosong";
-    return partition.last === "—" ? "Belum diproses" : "Diproses";
-  }
-
-  function partitionStatusChip(status) {
-    var cls = status === "Diproses" ? "chip-ok" : (status === "Belum diproses" ? "chip-warn" : "chip-idle");
-    return '<span class="chip ' + cls + '"><span class="dot"></span>' + escapeHtml(status) + "</span>";
-  }
-
-  function filteredPartitions() {
-    var info = partitionInfo();
-    var query = ($("#partitionSearch").value || "").trim().toLowerCase();
-    return info.partitions.filter(function (partition) {
-      var status = partitionStatus(partition);
-      if (state.partitionFilter === "processed" && status !== "Diproses") return false;
-      if (state.partitionFilter === "unprocessed" && status !== "Belum diproses") return false;
-      if (state.partitionFilter === "empty" && status !== "Kosong") return false;
-      return !query || (partition.name + " " + partition.range).toLowerCase().indexOf(query) !== -1;
-    });
-  }
-
-  function partitionExpression(tableName, partition) {
-    var info = partitionTables[tableName];
-    var start = partition.start.split("-");
-    var end = partition.end.split("-");
-    return "let\n    Source = Sql.Database ( \"sql-dw-finance\", \"SalesDW\" ),\n    Data = Source{[Schema=\"dbo\",Item=\"" + info.sourceTable + "\"]}[Data],\n    Filtered = Table.SelectRows ( Data, each [" + info.dateColumn + "] >= #date(" +
-      Number(start[0]) + ", " + Number(start[1]) + ", " + Number(start[2]) + ") and [" + info.dateColumn + "] < #date(" +
-      Number(end[0]) + ", " + Number(end[1]) + ", " + Number(end[2]) + ") )\nin\n    Filtered";
-  }
-
-  function selectedPartitionNames() {
-    return partitionInfo().partitions.filter(function (partition) {
-      return !!state.partitionSelected[partition.name];
-    }).map(function (partition) { return partition.name; });
-  }
-
-  function syncPartitionSelection() {
-    var names = selectedPartitionNames();
-    var button = $("#processSelectedPartitions");
-    button.disabled = state.partitionBusy || names.length === 0;
-    button.textContent = names.length ? "Proses terpilih (" + names.length + ")" : "Proses terpilih";
-    $("#partitionSelectionSummary").textContent = names.length + " dipilih · " + partitionInfo().partitions.length + " partisi";
-    var rows = filteredPartitions();
-    var allChecked = rows.length > 0 && rows.every(function (partition) { return state.partitionSelected[partition.name]; });
-    var someChecked = rows.some(function (partition) { return state.partitionSelected[partition.name]; });
-    var selectAll = $("#partitionSelectAll");
-    if (selectAll) {
-      selectAll.checked = allChecked;
-      selectAll.indeterminate = someChecked && !allChecked;
-    }
-  }
-
-  function renderPartitionDetail() {
-    var box = $("#partitionDetail");
-    var info = partitionInfo();
-    var partition = info.partitions.filter(function (item) { return item.name === state.partitionDetail; })[0];
-    if (!partition) {
-      state.partitionDetail = null;
-      box.innerHTML = '<div class="empty" style="padding:24px 6px">' +
-        '<span class="empty-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4-8 4-8-4 8-4Z"/><path d="M4 11l8 4 8-4"/><path d="M4 15l8 4 8-4"/></svg></span>' +
-        '<div class="empty-title">Pilih partisi</div>' +
-        '<p class="empty-text">Klik salah satu baris untuk melihat rentang, status, dan ekspresi sumbernya.</p></div>';
-      return;
-    }
-    var status = partitionStatus(partition);
-    box.innerHTML = '<div class="partition-detail-head"><div>' +
-      '<p class="partition-detail-name">' + escapeHtml(partition.name) + "</p>" +
-      '<p class="partition-detail-meta">' + escapeHtml(state.partitionTable) + " · " + escapeHtml(partition.range) + "</p></div>" +
-      partitionStatusChip(status) + "</div>" +
-      '<dl class="partition-kv">' +
-        "<dt>Tabel</dt><dd>" + escapeHtml(state.partitionTable) + "</dd>" +
-        "<dt>Baris</dt><dd>" + fmtInt(partition.rows) + "</dd>" +
-        "<dt>Diproses</dt><dd>" + escapeHtml(partition.last) + "</dd>" +
-        "<dt>Mode</dt><dd>" + escapeHtml(info.mode) + "</dd>" +
-        "<dt>Sumber</dt><dd>M query</dd>" +
-      "</dl>" +
-      '<div class="partition-code-label"><span>Ekspresi sumber</span>' +
-      '<button class="btn btn-ghost btn-sm" id="copyPartitionSource" type="button">Salin</button></div>' +
-      '<div class="partition-code"><pre>' + escapeHtml(partitionExpression(state.partitionTable, partition)) + "</pre></div>" +
-      '<div class="partition-detail-actions">' +
-      '<button class="btn btn-sm btn-primary" id="processPartitionDetail" type="button">Proses partisi ini</button></div>';
-  }
-
-  function renderPartitions() {
-    var info = partitionInfo();
-    var all = info.partitions;
-    var rows = filteredPartitions();
-    var totalRows = all.reduce(function (sum, partition) { return sum + partition.rows; }, 0);
-    var unprocessed = all.filter(function (partition) { return partitionStatus(partition) === "Belum diproses"; }).length;
-    var empty = all.filter(function (partition) { return partition.rows === 0; }).length;
-
-    $("#partitionCount").textContent = fmtInt(all.length);
-    $("#partitionCountNote").textContent = state.partitionTable;
-    $("#partitionRows").textContent = fmtInt(totalRows);
-    $("#partitionRowsNote").textContent = all.length + " partisi";
-    $("#partitionUnprocessed").textContent = fmtInt(unprocessed);
-    $("#partitionEmpty").textContent = fmtInt(empty);
-    $("#partitionListTitle").textContent = "Partisi · " + state.partitionTable;
-    $("#partitionCountChip").textContent = all.length + " partisi";
-
-    $("#partitionHead").innerHTML = "<tr>" +
-      '<th scope="col"><input type="checkbox" id="partitionSelectAll" class="partition-check" aria-label="Pilih semua partisi"></th>' +
-      '<th scope="col">Partisi</th><th scope="col">Rentang</th>' +
-      '<th scope="col" class="num"># baris</th><th scope="col">Status</th>' +
-      '<th scope="col">Diproses terakhir</th></tr>';
-
-    $("#partitionBody").innerHTML = rows.map(function (partition) {
-      var status = partitionStatus(partition);
-      var selected = !!state.partitionSelected[partition.name];
-      return '<tr tabindex="0" data-partition="' + escapeHtml(partition.name) + '"' +
-        (state.partitionDetail === partition.name ? ' class="is-detail"' : "") + ">" +
-        '<td class="cell-check"><input type="checkbox" class="partition-check" data-partition-check="' + escapeHtml(partition.name) +
-        '" aria-label="Pilih partisi ' + escapeHtml(partition.name) + '"' + (selected ? " checked" : "") + "></td>" +
-        '<td class="name">' + escapeHtml(partition.name) + "</td>" +
-        "<td>" + escapeHtml(partition.range) + "</td>" +
-        '<td class="num">' + fmtInt(partition.rows) + "</td>" +
-        "<td>" + partitionStatusChip(status) + "</td>" +
-        '<td class="num">' + escapeHtml(partition.last) + "</td></tr>";
-    }).join("");
-
-    if (rows.length) {
-      $("#partitionTableWrap").hidden = false;
-      $("#partitionEmpty").hidden = true;
-    } else {
-      $("#partitionTableWrap").hidden = true;
-      $("#partitionEmpty").hidden = false;
-    }
-
-    syncPartitionSelection();
-    renderPartitionDetail();
-  }
-
-  function nowPartitionLabel() {
-    var now = new Date();
-    return now.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) + " " +
-      now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  function loadPartitions() {
-    if (state.partitionBusy) return;
-    state.partitionBusy = true;
-    state.partitionSelected = {};
-    state.partitionDetail = null;
-    $("#partitionListTitle").textContent = "Partisi · " + state.partitionTable;
-    $("#partitionRun").hidden = false;
-    $("#partitionRunLabel").textContent = "Membaca partisi " + state.partitionTable + "…";
-    $("#partitionRunPct").textContent = "0%";
-    $("#partitionBar").style.width = "0%";
-    $("#partitionTableWrap").hidden = false;
-    $("#partitionEmpty").hidden = true;
-    $("#partitionBody").innerHTML = new Array(5).fill('<tr class="skeleton"><td colspan="6"><span class="sk"></span></td></tr>').join("");
-    syncPartitionSelection();
-    setConsole(true);
-    addLog("Membaca partisi " + state.partitionTable + " dari Power BI Service…", "info");
-    window.setTimeout(function () {
-      state.partitionBusy = false;
-      $("#partitionRun").hidden = true;
-      renderPartitions();
-      addLog("Partisi dimuat: " + partitionInfo().partitions.length + " partisi.", "ok");
-      toast("Partisi dimuat");
-    }, 560);
-  }
-
-  function processPartitions(names, mode) {
-    if (state.partitionBusy) return;
-    var info = partitionInfo();
-    var valid = names.filter(function (name) {
-      return info.partitions.some(function (partition) { return partition.name === name; });
-    });
-    if (!valid.length) return;
-    var modeInfo = PARTITION_MODES[mode] || PARTITION_MODES.default;
-    state.partitionBusy = true;
-    $("#partitionRun").hidden = false;
-    $("#partitionRunLabel").textContent = modeInfo.label + " · " + valid.length + " partisi…";
-    $("#partitionRunPct").textContent = "0%";
-    $("#partitionBar").style.width = "0%";
-    syncPartitionSelection();
-    setConsole(true);
-    addLog("Proses " + modeInfo.label + ": " + valid.join(", "), "info");
-    var pct = 0;
-    var timer = window.setInterval(function () {
-      pct += 25;
-      if (pct > 100) pct = 100;
-      $("#partitionBar").style.width = pct + "%";
-      $("#partitionRunPct").textContent = pct + "%";
-      if (pct < 100) return;
-      window.clearInterval(timer);
-      var stamp = nowPartitionLabel();
-      valid.forEach(function (name) {
-        var partition = info.partitions.filter(function (item) { return item.name === name; })[0];
-        if (!partition) return;
-        partition.last = stamp;
-        if (mode === "clear") partition.rows = 0;
-        if (mode === "add") partition.rows += 2500;
-      });
-      state.partitionBusy = false;
-      $("#partitionRun").hidden = true;
-      renderPartitions();
-      addLog("Selesai: " + valid.length + " partisi · " + modeInfo.label + ".", "ok");
-      toast(modeInfo.label + " selesai");
-    }, 120);
-  }
-
-  function updatePartitionModeHelp() {
-    var modeInfo = PARTITION_MODES[$("#partitionMode").value] || PARTITION_MODES.default;
-    $("#partitionModeHelp").textContent = modeInfo.help;
-  }
-
-  function openPartitionDialog(names) {
-    if (state.partitionBusy) return;
-    var info = partitionInfo();
-    var preselect = {};
-    (names || []).forEach(function (name) { preselect[name] = true; });
-    if (!(names || []).length) {
-      preselect[state.partitionDetail || info.partitions[0].name] = true;
-    }
-    state.partitionDialogTrigger = document.activeElement;
-    $("#partitionDialogSub").textContent = info.partitions.length + " partisi · " + state.partitionTable;
-    $("#partitionChecklist").innerHTML = info.partitions.map(function (partition) {
-      return '<label class="partition-check-item"><input type="checkbox" class="partition-dialog-check" value="' +
-        escapeHtml(partition.name) + '"' + (preselect[partition.name] ? " checked" : "") + ">" +
-        "<span>" + escapeHtml(partition.name) + '</span><span class="partition-check-rows">' +
-        fmtInt(partition.rows) + " baris</span></label>";
-    }).join("");
-    $("#partitionMode").value = "default";
-    updatePartitionModeHelp();
-    $("#runPartitionProcess").disabled = false;
-    var dialog = $("#partitionDialog");
-    if (!dialog.open) dialog.showModal();
-    $("#partitionMode").focus();
-  }
-
-  function closePartitionDialog() {
-    var dialog = $("#partitionDialog");
-    if (dialog.open) dialog.close();
-  }
-
-  var lineageNodes = {
-    "report-sales": { name: "Sales Performance", type: "Report", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "17 Nov 2026 04:06", size: "4 halaman" },
-    "model-sales": { name: "Sales Model (APAC)", type: "Semantic model", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "17 Nov 2026 04:06", size: "42 measure" },
-    "table-fact": { name: "Fact Sales", type: "Tabel", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "17 Nov 2026 04:06", size: "1,2 jt baris" },
-    "table-cust": { name: "Dim Customer", type: "Tabel", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "16 Nov 2026 22:10", size: "48 rb baris" },
-    "table-prod": { name: "Dim Product", type: "Tabel", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "16 Nov 2026 22:10", size: "12 rb baris" },
-    "measure-rev": { name: "Total Revenue", type: "Measure", workspace: "Sales Analytics", owner: "Sari Wulandari", refresh: "17 Nov 2026 04:06", size: "DAX" },
-    "dataflow": { name: "Sales Ingest", type: "Dataflow", workspace: "Data Platform", owner: "Sari Wulandari", refresh: "17 Nov 2026 02:00", size: "harian" },
-    "sql": { name: "SQL DW Finance", type: "Database", workspace: "Data Platform", owner: "Andi Pratama", refresh: "17 Nov 2026 01:30", size: "on-prem" },
-    "app": { name: "Sales App", type: "App", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "17 Nov 2026 04:06", size: "3 audiens" },
-    "dashboard": { name: "Revenue Overview", type: "Dashboard", workspace: "Sales Analytics", owner: "Sari Wulandari", refresh: "17 Nov 2026 04:06", size: "6 tile" },
-    "sub": { name: "Monthly exec", type: "Subscription", workspace: "Sales Analytics", owner: "Budi Santoso", refresh: "setiap 1 bulan", size: "email" },
-    "team-com": { name: "Tim Commercial", type: "Grup akses", workspace: "Sales Analytics", owner: "IT Ops", refresh: "—", size: "18 anggota" },
-    "team-fin": { name: "Tim Finance", type: "Grup akses", workspace: "Sales Analytics", owner: "IT Ops", refresh: "—", size: "9 anggota" }
-  };
-
-  var lineageEdges = [
-    ["model-sales", "report-sales"],
-    ["table-fact", "model-sales"],
-    ["table-cust", "model-sales"],
-    ["table-prod", "model-sales"],
-    ["measure-rev", "model-sales"],
-    ["dataflow", "table-fact"],
-    ["sql", "table-fact"],
-    ["dataflow", "table-cust"],
-    ["dataflow", "table-prod"],
-    ["report-sales", "app"],
-    ["report-sales", "dashboard"],
-    ["report-sales", "sub"],
-    ["app", "team-com"],
-    ["dashboard", "team-com"],
-    ["sub", "team-fin"]
-  ];
-
-  function levelsFor(rootId, direction, depth) {
-    var levels = [[rootId]];
-    var seen = {};
-    seen[rootId] = true;
-    for (var d = 0; d < depth; d += 1) {
-      var frontier = levels[levels.length - 1];
-      var next = [];
-      frontier.forEach(function (id) {
-        lineageEdges.forEach(function (edge) {
-          var candidate = direction === "upstream"
-            ? (edge[1] === id ? edge[0] : null)
-            : (edge[0] === id ? edge[1] : null);
-          if (candidate && !seen[candidate]) {
-            seen[candidate] = true;
-            next.push(candidate);
-          }
-        });
-      });
-      if (!next.length) break;
-      levels.push(next);
-    }
-    return levels;
-  }
-
-  function renderLineage() {
-    var levels = levelsFor(state.rootId, state.direction, state.depth);
-    var nodeW = 150;
-    var nodeH = 44;
-    var colGap = 34;
-    var rowGap = 18;
-    var width = Math.max(640, 198 + (levels.length - 1) * (nodeW + colGap));
-    var maxNodes = 1;
-    levels.forEach(function (ids) { maxNodes = Math.max(maxNodes, ids.length); });
-    var height = Math.max(280, maxNodes * (nodeH + rowGap) + 56);
-    var positions = {};
-
-    levels.forEach(function (ids, level) {
-      var total = ids.length * nodeH + (ids.length - 1) * rowGap;
-      var startY = (height - total) / 2;
-      ids.forEach(function (id, index) {
-        var x = state.direction === "upstream"
-          ? width - 24 - nodeW - level * (nodeW + colGap)
-          : 24 + level * (nodeW + colGap);
-        positions[id] = { x: x, y: startY + index * (nodeH + rowGap) };
-      });
-    });
-
-    var edges = "";
-    lineageEdges.forEach(function (edge) {
-      var from = positions[edge[0]];
-      var to = positions[edge[1]];
-      if (!from || !to) return;
-      var x1 = from.x + nodeW;
-      var y1 = from.y + nodeH / 2;
-      var x2 = to.x;
-      var y2 = to.y + nodeH / 2;
-      if (x2 <= x1) return;
-      var mid = (x1 + x2) / 2;
-      edges += '<path class="edge" d="M' + x1 + " " + y1 + " C" + mid + " " + y1 + ", " + mid + " " + y2 + ", " + x2 + " " + y2 + '" marker-end="url(#arrow)"></path>';
-    });
-
-    var nodes = "";
-    levels.forEach(function (ids) {
-      ids.forEach(function (id) {
-        var node = lineageNodes[id];
-        var pos = positions[id];
-        var selected = id === state.selectedId ? " sel" : "";
-        var current = id === state.rootId ? "true" : "false";
-        var label = node.name.length > 21 ? node.name.slice(0, 20) + "…" : node.name;
-        nodes += '<g class="node" tabindex="0" role="button" data-id="' + id + '" aria-label="' + escapeHtml(node.name) + ", " + escapeHtml(node.type) + '" aria-current="' + current + '">' +
-          '<rect class="node-box' + selected + '" x="' + pos.x + '" y="' + pos.y + '" width="' + nodeW + '" height="' + nodeH + '" rx="6"></rect>' +
-          '<text x="' + (pos.x + 12) + '" y="' + (pos.y + 15) + '" class="node-type">' + escapeHtml(node.type) + "</text>" +
-          '<text x="' + (pos.x + 12) + '" y="' + (pos.y + 32) + '" class="node-name">' + escapeHtml(label) + "</text>" +
-          "</g>";
-      });
-    });
-
-    var svg = $("#lineageSvg");
-    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-    $("#lineageLayer").innerHTML = edges + nodes;
-    $("#depthVal").textContent = state.depth + " level";
-    $("#depthMinus").disabled = state.depth <= 1;
-    $("#depthPlus").disabled = state.depth >= 3;
-    $("#lineageRootChip").innerHTML = '<span class="dot"></span>Akar: ' + escapeHtml(lineageNodes[state.rootId].name);
-    renderDetail();
-  }
-
-  function renderDetail() {
-    var node = lineageNodes[state.selectedId];
-    var deps = [];
-    lineageEdges.forEach(function (edge) {
-      if (edge[0] === state.selectedId) deps.push(lineageNodes[edge[1]]);
-      if (edge[1] === state.selectedId) deps.push(lineageNodes[edge[0]]);
-    });
-    var chips = deps.length
-      ? deps.map(function (dep) { return '<span class="chip">' + escapeHtml(dep.name) + "</span>"; }).join("")
-      : '<span class="helper">Tidak ada relasi langsung.</span>';
-
-    $("#lineageDetail").innerHTML =
-      '<div class="detail-head">' +
-        "<div>" +
-          '<div class="detail-name">' + escapeHtml(node.name) + "</div>" +
-          '<div class="helper">' + escapeHtml(node.type) + " · " + escapeHtml(node.workspace) + "</div>" +
-        "</div>" +
-        '<button class="btn btn-sm" type="button" id="makeRoot"' + (state.selectedId === state.rootId ? " disabled" : "") + ">Jadikan akar</button>" +
-      "</div>" +
-      '<dl class="kv">' +
-        "<dt>Pemilik</dt><dd>" + escapeHtml(node.owner) + "</dd>" +
-        "<dt>Refresh</dt><dd>" + escapeHtml(node.refresh) + "</dd>" +
-        "<dt>Ukuran</dt><dd>" + escapeHtml(node.size) + "</dd>" +
-        "<dt>Relasi</dt><dd>" + deps.length + " item</dd>" +
-      "</dl>" +
-      '<div class="dep-chips">' + chips + "</div>";
-
-    var makeRoot = $("#makeRoot");
-    if (makeRoot) {
-      makeRoot.addEventListener("click", function () {
-        state.rootId = state.selectedId;
-        renderLineage();
-        renderResults();
-        addLog("Akar lineage diubah ke " + lineageNodes[state.rootId].name + ".", "info");
-        toast("Akar lineage diperbarui");
-      });
-    }
-  }
-
-  function selectNode(id) {
-    if (!lineageNodes[id]) return;
-    state.selectedId = id;
-    renderLineage();
-  }
-
-  function renderResults() {
-    var query = ($("#lineageSearch").value || "").trim().toLowerCase();
-    var workspace = ($("#lineageWorkspace").value || "").trim().toLowerCase();
-    var type = $("#lineageType").value;
-    var items = Object.keys(lineageNodes).map(function (id) {
-      return { id: id, node: lineageNodes[id] };
-    }).filter(function (item) {
-      var matchQuery = !query || item.node.name.toLowerCase().indexOf(query) !== -1;
-      var matchWorkspace = !workspace || item.node.workspace.toLowerCase().indexOf(workspace) !== -1;
-      var matchType = type === "all" || item.node.type === type;
-      return matchQuery && matchWorkspace && matchType;
-    });
-
-    var box = $("#lineageResults");
-    if (!items.length) {
-      box.innerHTML = '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada item</div><p class="empty-text">Ubah kata kunci atau filter workspace.</p></div>';
-    } else {
-      box.innerHTML = items.map(function (item) {
-        return '<button class="result-item" type="button" data-id="' + item.id + '" aria-pressed="' + (item.id === state.rootId ? "true" : "false") + '">' +
-          '<span class="result-name">' + escapeHtml(item.node.name) + "</span>" +
-          '<span class="result-meta">' + escapeHtml(item.node.workspace) + "</span>" +
-          '<span class="result-type chip chip-idle">' + escapeHtml(item.node.type) + "</span>" +
-          "</button>";
-      }).join("");
-    }
-    $("#lineageCount").textContent = items.length + " item";
+    return Number(value).toLocaleString(currentLanguage() === "id" ? "id-ID" : "en-US");
   }
 
   function showSettingsTab(name) {
@@ -2099,11 +381,11 @@
   }
 
   function pendingFeature(name) {
-    toast(name + " disiapkan pada tahap berikutnya");
+    toast(name + t(" is planned for a later stage"));
   }
 
   function reportError(error) {
-    var message = error && error.message ? error.message : String(error);
+    var message = error && error.message ? tr(error.message) : String(error);
     addLog(message, "error");
     toast(message);
     return message;
@@ -2120,17 +402,17 @@
   function sizeText(bytes) {
     var value = Number(bytes || 0);
     if (!value) return "";
-    if (value >= 1048576) return (value / 1048576).toFixed(1) + " MB";
+    if (value >= 1048576) return decimalText((value / 1048576).toFixed(1)) + " MB";
     if (value >= 1024) return Math.round(value / 1024) + " KB";
     return value + " B";
   }
 
   function fileMeta(entry) {
-    if (!entry || !entry.exists) return "Belum dibuat";
+    if (!entry || !entry.exists) return t("Not created");
     var parts = [];
     if (entry.modified) parts.push(entry.modified);
     if (entry.size) parts.push(sizeText(entry.size));
-    return parts.join(" \u00b7 ") || "Siap";
+    return parts.join(" \u00b7 ") || t("Ready");
   }
 
   function setChip(element, tone, label) {
@@ -2156,13 +438,13 @@
     api().get("/api/system/state").then(function (data) {
       state.system = data;
       $("#brandVersion").textContent = data.version;
-      $("#appVersion").textContent = "Versi " + data.version;
+      $("#appVersion").textContent = t("Version ") + data.version;
       $("#serverUrl").value = window.location.origin + "/";
-      $("#serverMeta").textContent = "Data: " + data.data_dir + " \u00b7 Preferensi: " + data.settings.path;
+      $("#serverMeta").textContent = "Data: " + data.data_dir + " \u00b7 " + t("Preferences: ") + data.settings.path;
       document.title = "BI Tools " + data.version + " - Metadata Power BI";
-      addLog("BI Tools " + data.version + " siap di " + window.location.origin, "ok");
+      addLog("BI Tools " + data.version + t(" ready at ") + window.location.origin, "ok");
     }).catch(function (error) {
-      addLog("Server lokal tidak menjawab: " + error.message, "error");
+      addLog(t("The local server did not respond: ") + error.message, "error");
     });
   }
 
@@ -2172,7 +454,7 @@
       renderSettings(data);
       state.ready = true;
     }).catch(function (error) {
-      addLog("Preferensi tidak bisa dimuat: " + error.message, "error");
+      addLog(t("Preferences could not be loaded: ") + error.message, "error");
     });
   }
 
@@ -2180,7 +462,7 @@
     state.settings = data;
     state.applying = true;
     $("#clientSecret").placeholder = data.auth.has_secret
-      ? "Tersimpan - kosongkan bila tidak diubah"
+      ? t("Saved - leave blank to keep unchanged")
       : "Client secret";
     if (!state.formDirty) {
       $("#tenantId").value = data.auth.tenant_id;
@@ -2193,13 +475,23 @@
     setChip(
       $("#credChip"),
       data.auth.complete ? "ok" : (data.auth.has_secret ? "warn" : "idle"),
-      data.auth.complete ? "Lengkap" : (data.auth.has_secret ? "Belum lengkap" : "Belum diisi")
+      data.auth.complete ? t("Complete") : (data.auth.has_secret ? t("Not complete") : t("Not filled in"))
     );
-    $("#connResult").textContent = data.auth.status;
+    $("#connResult").textContent = tr(data.auth.status);
     $("#syncMode").value = data.catalog.mode;
     refreshCombo($("#syncMode"));
     $("#includePersonal").checked = data.catalog.include_personal;
     $("#showConsole").checked = data.ui.show_console;
+    if (data.ui.language && data.ui.language !== state.language) {
+      applyLanguage(data.ui.language, { rerender: false });
+    } else {
+      $$(".theme-card[data-language]").forEach(function (card) {
+        card.setAttribute(
+          "aria-checked",
+          card.dataset.language === state.language ? "true" : "false"
+        );
+      });
+    }
     if (data.ui.theme !== state.theme) applyTheme(data.ui.theme, false);
     if (data.ui.motion !== state.motion) applyMotion(data.ui.motion, false);
     setSource(data.extraction.active_tab === "service" ? "service" : "desktop");
@@ -2210,22 +502,22 @@
     setChip(
       $("#syncChip"),
       data.tone === "ok" ? "ok" : (data.tone === "error" ? "error" : "idle"),
-      data.tone === "ok" ? "Tersinkron" : (data.tone === "error" ? "Bermasalah" : "Belum sinkron")
+      data.tone === "ok" ? t("In sync") : (data.tone === "error" ? t("Problem") : t("Not in sync"))
     );
-    $("#syncStatus").textContent = data.text || "Belum ada katalog workspace tersimpan";
+    $("#syncStatus").textContent = tr(data.text) || t("No saved workspace catalog");
     $("#catalogCount").textContent = data.selectable
       ? fmtInt(data.selectable)
       : (data.total ? fmtInt(data.total) : "-");
     $("#catalogCount").title = data.total
-      ? data.total + " workspace tersimpan"
-      : "Belum ada katalog";
+      ? data.total + t(" workspaces saved")
+      : t("No catalog yet");
     $("#catalogSync").textContent = data.last_sync || "-";
   }
 
   function loadCatalogStatus() {
     if (!apiReady()) return;
     api().get("/api/catalog/status").then(renderCatalogStatus).catch(function (error) {
-      addLog("Status katalog tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("Catalog status could not be read: ") + error.message, "warn");
     });
   }
 
@@ -2242,14 +534,14 @@
   function loadOutputs() {
     if (!apiReady()) return;
     api().get("/api/files/outputs").then(renderOutputs).catch(function (error) {
-      addLog("Status output tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("Output status could not be read: ") + error.message, "warn");
     });
   }
 
   function openOutput(which) {
     var entry = state.outputs && state.outputs[which];
     if (!entry || !entry.exists) {
-      toast("Berkas belum dibuat");
+      toast(t("File not created yet"));
       return;
     }
     api().post("/api/files/open", { path: entry.path, mode: "open" }).catch(reportError);
@@ -2268,8 +560,8 @@
       state.extractTimer = null;
     }
     if (options.kind === "metadata") {
-      if (status === "error") setChip($("#outputState"), "error", "Gagal");
-      else if (status === "cancelled") setChip($("#outputState"), "idle", "Dibatalkan");
+      if (status === "error") setChip($("#outputState"), "error", t("Failed"));
+      else if (status === "cancelled") setChip($("#outputState"), "idle", t("Cancelled"));
       window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
     }
     if (options.kind === "analysis") {
@@ -2286,12 +578,12 @@
       if (status === "done") inspectTsd();
     }
     if (status === "error") {
-      var message = (snapshot && snapshot.error) || "Pekerjaan gagal.";
+      var message = (snapshot && snapshot.error) || t("Job failed.");
       addLog(message, "error");
       toast(message);
     } else if (status === "cancelled") {
-      addLog("Pekerjaan dibatalkan.", "warn");
-      toast("Pekerjaan dibatalkan");
+      addLog(t("Job cancelled."), "warn");
+      toast(t("Job cancelled"));
     } else if (options.onDone) {
       options.onDone(snapshot || {});
     }
@@ -2321,16 +613,16 @@
 
   function startJob(options) {
     if (!apiReady()) {
-      pendingFeature(options.label || "Pekerjaan ini");
+      pendingFeature(options.label || t("This job"));
       return;
     }
     if (state.jobId) {
-      toast("Pekerjaan lain masih berjalan");
+      toast(t("Another job is still running"));
       return;
     }
     state.jobLogCount = 0;
     setConsole(true);
-    addLog((options.label || "Pekerjaan") + " dimulai.", "info");
+    addLog((options.label || t("Job")) + t(" started."), "info");
     if (options.button) options.button.disabled = true;
     api().post(options.path, options.body || {}).then(function (data) {
       state.jobId = data.job_id;
@@ -2350,7 +642,7 @@
           finishJob(options, snapshot);
         },
         onError: function (error) {
-          addLog("Log live terputus (" + error.message + "); beralih ke polling.", "warn");
+          addLog(t("Live log disconnected (") + error.message + t("); switching to polling."), "warn");
           pollJob(data.job_id, options);
         }
       });
@@ -2372,19 +664,19 @@
       '" type="button" role="option" data-path="' + escapeHtml(target) +
       '" data-dir="' + (isDir ? "1" : "0") + '">' +
       '<span class="name">' + escapeHtml(name) + "</span>" +
-      '<span class="helper">' + (isDir ? "folder" : "berkas") + "</span></button>";
+      '<span class="helper">' + (isDir ? t("folder") : t("file")) + "</span></button>";
   }
 
   function renderBrowse(data) {
     state.pickDir = data.path || "";
-    $("#folderDialogPath").textContent = data.path || "Pilih drive";
+    $("#folderDialogPath").textContent = data.path || t("Choose a drive");
     $("#folderPathInput").value = data.path || "";
     var choosingFile = state.pickKind === "file";
-    $("#chooseFolder").textContent = choosingFile ? "Pilih berkas ini" : "Pilih folder ini";
+    $("#chooseFolder").textContent = choosingFile ? t("Choose this file") : t("Choose this folder");
     $("#chooseFolder").disabled = choosingFile ? !state.pickFile : !state.pickDir;
     $("#folderDialogTitle").textContent = choosingFile
-      ? "Pilih berkas " + (state.pickExt || "")
-      : "Pilih folder";
+      ? t("Choose file ") + (state.pickExt || "")
+      : t("Choose folder");
     var html = "";
     if (data.parent) html += browseRow("..", data.parent, true, false);
     html += (data.entries || []).map(function (entry) {
@@ -2473,12 +765,12 @@
     if (!button) return;
     var label = button.querySelector(".combo-label");
     var text = comboLabelText(select);
-    if (label) label.textContent = text || "Pilih…";
+    if (label) label.textContent = text || t("Choose…");
     button.title = text;
     var fieldLabel = select.id ? document.querySelector('label[for="' + select.id + '"]') : null;
     button.setAttribute(
       "aria-label",
-      (fieldLabel ? fieldLabel.textContent.trim() + ": " : "") + (text || "Pilih")
+      (fieldLabel ? fieldLabel.textContent.trim() + ": " : "") + (text || t("Choose"))
     );
     if (comboState.select === select) buildComboList($("#comboSearch").value);
   }
@@ -2669,11 +961,12 @@
     var select = $("#" + id);
     if (!select) return;
     var current = select.value;
+    select.dataset.i18nPlaceholder = placeholder || "";
     select.innerHTML = "";
     if (placeholder) {
       var head = document.createElement("option");
       head.value = "";
-      head.textContent = placeholder;
+      head.textContent = t(placeholder);
       select.appendChild(head);
     }
     (items || []).forEach(function (item) {
@@ -2716,7 +1009,7 @@
       state.instances = data.instances || [];
       var select = $("#desktopInstance");
       var html = ['<option value="">' +
-        (state.instances.length ? "Pilih instance…" : "Tidak ada instance terbuka") +
+        (state.instances.length ? t("Choose an instance…") : t("No open instance")) +
         "</option>"];
       state.instances.forEach(function (item) {
         html.push('<option value="' + item.port + '">' + escapeHtml(item.label) + "</option>");
@@ -2724,11 +1017,12 @@
       select.innerHTML = html.join("");
       if (state.instances.length === 1) select.value = String(state.instances[0].port);
       refreshCombo(select);
-      $("#instanceHint").textContent = data.hint || "";
+      state.instanceHint = data.hint || "";
+      $("#instanceHint").textContent = tr(state.instanceHint) || "";
       renderModelAvailability();
       return data;
     }).catch(function (error) {
-      addLog("Instance Desktop tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("The Desktop instance could not be read: ") + error.message, "warn");
     });
   }
 
@@ -2739,11 +1033,11 @@
     $("#desktopInstance").disabled = !needed;
     $("#reloadDesktop").disabled = !needed;
     if (scope === "report") {
-      $("#instanceHint").textContent = "Cakupan report saja: instance Power BI Desktop tidak dipakai.";
+      $("#instanceHint").textContent = t("Report scope only: the Power BI Desktop instance is not used.");
     } else if (state.pbix && !state.pbix.has_local_model) {
-      $("#instanceHint").textContent = "File ini live connection; instance Power BI Desktop tidak dipakai.";
+      $("#instanceHint").textContent = t("This file is a live connection; the Power BI Desktop instance is not used.");
     } else if (!state.instances.length) {
-      $("#instanceHint").textContent = "Tidak ada instance Power BI Desktop terbuka. Buka file .pbix lalu Muat ulang.";
+      $("#instanceHint").textContent = t("No Power BI Desktop instance is open. Open a .pbix file, then Reload.");
     }
   }
 
@@ -2754,21 +1048,22 @@
       var options = state.workspaces.map(function (item) {
         return { value: item.id, label: item.label, data: item };
       });
-      setSelectOptions("modelWorkspace", options, "Pilih workspace model…");
-      setSelectOptions("reportWorkspace", options, "Pilih workspace report…");
-      setSelectOptions("shotWorkspace", options, "Pilih workspace…");
-      $("#workspaceHint").textContent = data.hint ||
-        "Ketik nama workspace untuk memfilter, atau buka daftar.";
+      setSelectOptions("modelWorkspace", options, "Choose a model workspace…");
+      setSelectOptions("reportWorkspace", options, "Choose a report workspace…");
+      setSelectOptions("shotWorkspace", options, "Choose a workspace…");
+      state.workspaceHint = data.hint || "";
+      $("#workspaceHint").textContent = tr(state.workspaceHint) ||
+        t("Type a workspace name to filter, or open the list.");
       return data;
     }).catch(function (error) {
-      addLog("Katalog workspace tidak bisa dibaca: " + error.message, "error");
+      addLog(t("Workspace catalog could not be read: ") + error.message, "error");
     });
   }
 
   function loadModelContents() {
     var workspaceId = getSelectValue("modelWorkspace");
     if (!workspaceId || !apiReady()) return Promise.resolve();
-    $("#workspaceHint").textContent = "Memuat dataset workspace model…";
+    $("#workspaceHint").textContent = t("Loading model workspace datasets…");
     return api().get(
       "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
       "/contents?datasets=true&reports=false"
@@ -2777,21 +1072,21 @@
       $("#xmlaEndpoint").value = (data.workspace && data.workspace.endpoint) || "";
       setSelectOptions("catalog", state.datasets.map(function (item) {
         return { value: item.name, label: item.name, data: item };
-      }), "Pilih dataset…");
+      }), "Choose a dataset…");
       $("#workspaceHint").textContent = state.datasets.length
         ? ""
-        : "Workspace model ini tidak punya dataset yang bisa dibaca.";
+        : t("This model workspace has no readable datasets.");
       return data;
     }).catch(function (error) {
-      $("#workspaceHint").textContent = error.message;
-      addLog(error.message, "error");
+      $("#workspaceHint").textContent = tr(error.message);
+      addLog(tr(error.message), "error");
     });
   }
 
   function loadReportContents() {
     var workspaceId = getSelectValue("reportWorkspace");
     if (!workspaceId || !apiReady()) return Promise.resolve();
-    $("#reportHint").textContent = "Memuat report workspace…";
+    $("#reportHint").textContent = t("Loading report workspace…");
     return api().get(
       "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
       "/contents?datasets=false&reports=true"
@@ -2799,21 +1094,21 @@
       state.reports = data.reports || [];
       setSelectOptions("serviceReport", state.reports.map(function (item) {
         return { value: item.id, label: item.label, data: item };
-      }), "Pilih report…");
+      }), "Choose a report…");
       $("#reportHint").textContent = state.reports.length
-        ? "Report paginated (RDL) ditandai dan tidak bisa diekstrak."
-        : "Workspace report ini tidak punya report yang bisa diekstrak.";
+        ? t("Paginated (RDL) reports are marked and cannot be extracted.")
+        : t("This report workspace has no extractable reports.");
       return data;
     }).catch(function (error) {
-      $("#reportHint").textContent = error.message;
-      addLog(error.message, "error");
+      $("#reportHint").textContent = tr(error.message);
+      addLog(tr(error.message), "error");
     });
   }
 
   function applyReportDefaults(report) {
     if (report.is_paginated) {
       $("#reportHint").textContent =
-        "Report paginated (RDL) tidak didukung; pilih report Power BI biasa.";
+        t("Paginated (RDL) reports are not supported; choose a regular Power BI report.");
       return;
     }
     var dataset = null;
@@ -2822,11 +1117,11 @@
     });
     if (dataset) {
       $("#reportHint").textContent =
-        "Report memakai dataset " + dataset.name +
-        ". Catalog model dipilih terpisah dan boleh berbeda workspace.";
+        t("Report uses dataset ") + dataset.name +
+        t(". The model catalog is selected separately and may be in another workspace.");
     } else if (report.dataset_id) {
       $("#reportHint").textContent =
-        "Report memakai dataset di workspace lain; pilih catalog model secara terpisah.";
+        t("The report uses a dataset in another workspace; choose the model catalog separately.");
     } else {
       $("#reportHint").textContent = "";
     }
@@ -2837,7 +1132,7 @@
     if (!apiReady()) return;
     if (!path) {
       state.pbix = null;
-      $("#pbixKind").textContent = "Pilih file .pbix sumber.";
+      $("#pbixKind").textContent = t("Choose the source .pbix file.");
       $("#pbixKind").title = "";
       renderModelAvailability();
       return;
@@ -2851,7 +1146,7 @@
       renderModelAvailability();
     }).catch(function (error) {
       state.pbix = null;
-      $("#pbixKind").textContent = error.message;
+      $("#pbixKind").textContent = tr(error.message);
       renderModelAvailability();
     });
   }
@@ -2899,16 +1194,16 @@
     var report = result.report || null;
     var model = result.model || null;
     if (!report && !model) {
-      setChip($("#outputState"), "idle", "Tidak ada hasil");
+      setChip($("#outputState"), "idle", t("No results"));
       return;
     }
     setChip($("#outputState"), "ok", "Selesai");
     $("#extractDone").hidden = false;
     var notes = [];
-    if (report) notes.push((report.pages || 0) + " halaman");
-    if (model) notes.push((model.tables || 0) + " tabel");
+    if (report) notes.push((report.pages || 0) + t(" pages"));
+    if (model) notes.push((model.tables || 0) + t(" tables"));
     $("#extractDoneText").textContent = notes.join(" · ") ||
-      "Workbook tersimpan di folder tujuan.";
+      t("Workbooks saved to the output folder.");
     $("#summaryEmpty").hidden = true;
     $("#summaryBody").hidden = false;
     $("#sumTables").textContent = model ? model.tables : "—";
@@ -2920,13 +1215,13 @@
       : (report ? report.measures : "—");
     $("#sumPages").textContent = report ? report.pages : "—";
     $("#sumRelations").textContent = model ? model.relationships : "—";
-    if (result.model_error) addLog("Catatan: " + result.model_error, "warn");
+    if (result.model_error) addLog(t("Note: ") + result.model_error, "warn");
   }
 
   function runExtraction() {
     if (!apiReady()) return;
     if (state.jobId) {
-      toast("Pekerjaan lain masih berjalan");
+      toast(t("Another job is still running"));
       return;
     }
     var payload = buildMetadataPayload();
@@ -2934,8 +1229,8 @@
     $("#extractRun").hidden = false;
     $("#extractBar").style.width = "6%";
     $("#extractRunPct").textContent = "";
-    $("#extractRunLabel").textContent = "Menyiapkan ekstraksi…";
-    setChip($("#outputState"), "warn", "Berjalan");
+    $("#extractRunLabel").textContent = t("Preparing extraction…");
+    setChip($("#outputState"), "warn", t("Running"));
     var progress = 6;
     state.extractTimer = window.setInterval(function () {
       progress = Math.min(92, progress + (progress < 50 ? 6 : 2));
@@ -2946,7 +1241,7 @@
       kind: "metadata",
       path: "/api/metadata/run",
       body: payload,
-      label: "Ekstraksi metadata",
+      label: t("Metadata extraction"),
       button: $("#runExtract"),
       onDone: function (snapshot) {
         $("#extractBar").style.width = "100%";
@@ -3002,7 +1297,7 @@
     $("#tsdOutFolder").value = paths.out_dir || form.out_dir || "";
     $("#tsdFileName").placeholder = paths.suggested_name
       ? "Otomatis: " + paths.suggested_name
-      : "Otomatis dari nama report";
+      : t("Automatic from the report name");
 
     if (!state.tsdLoaded) {
       $("#reportWorkbook").value = form.report_workbook || "";
@@ -3029,39 +1324,39 @@
     }
 
     $("#reportWorkbookStatus").textContent =
-      (status.report && status.report.text) || "Belum dipilih";
+      tr(status.report && status.report.text) || t("Not selected");
     $("#modelWorkbookStatus").textContent =
-      (status.model && status.model.text) || "Tidak dipakai";
+      tr(status.model && status.model.text) || t("Unused");
     $("#tsdOutputState").textContent =
-      (status.output && status.output.text) || "Belum ada dokumen TSD.";
+      tr(status.output && status.output.text) || t("No TSD document yet.");
 
     var cache = status.cache || {};
     $("#shotCacheStatus").textContent = cache.exists
-      ? cache.summary
-      : "Belum ada cache; akan diambil saat generate.";
+      ? tr(cache.summary)
+      : t("No cache yet; screenshots are captured during generation.");
     $("#shotCachePath").textContent = cache.path || paths.assets_dir || "";
     $("#clearShotCache").disabled = !cache.exists;
     setChip(
       $("#shotChip"),
       $("#shotEnabled").checked ? "ok" : "idle",
-      $("#shotEnabled").checked ? "Aktif" : "Nonaktif"
+      $("#shotEnabled").checked ? t("Active") : t("Inactive")
     );
 
     var checklist = data.checklist || {};
     markChecklist(
-      "checkReport", "checkReportText", "Workbook report",
-      Boolean(checklist.report), "tersedia", "belum dipilih"
+      "checkReport", "checkReportText", t("Report workbook"),
+      Boolean(checklist.report), "tersedia", t("not selected")
     );
     markChecklist(
-      "checkModel", "checkModelText", "Workbook model",
+      "checkModel", "checkModelText", t("Model workbook"),
       Boolean(checklist.model), "tersedia", "opsional"
     );
     markChecklist(
       "checkTemplate", "checkTemplateText", "Template",
-      Boolean(checklist.template), "ditemukan", "tidak ditemukan"
+      Boolean(checklist.template), "ditemukan", t("not found")
     );
     markChecklist(
-      "checkContext", "checkContextText", "Konteks manual",
+      "checkContext", "checkContextText", t("Manual context"),
       Boolean(checklist.manual), "tersedia", "opsional"
     );
 
@@ -3073,7 +1368,7 @@
       $("#openTsdFile").disabled = false;
       if (!state.tsdLastResult) {
         $("#tsdTodoNote").textContent =
-          "Dokumen terakhir tersedia. Jalankan Generate TSD untuk memperbarui statistik.";
+          t("The last document is available. Run Generate TSD to refresh the statistics.");
       }
     } else if (!state.tsdLastResult) {
       $("#tsdPreviewEmpty").hidden = false;
@@ -3089,7 +1384,7 @@
       renderTsdState(data);
       return data;
     }).catch(function (error) {
-      addLog("Status TSD tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("TSD status could not be read: ") + error.message, "warn");
     });
   }
 
@@ -3113,7 +1408,7 @@
     $("#tsdRun").hidden = false;
     $("#tsdBar").style.width = "8%";
     $("#tsdRunPct").textContent = "";
-    $("#tsdRunLabel").textContent = label || "Menyiapkan dokumen…";
+    $("#tsdRunLabel").textContent = label || t("Preparing the document…");
     var progress = 8;
     if (state.tsdTimer) window.clearInterval(state.tsdTimer);
     state.tsdTimer = window.setInterval(function () {
@@ -3136,14 +1431,14 @@
     $("#tsdStatMeasures").textContent = result.measures == null ? "—" : result.measures;
     $("#tsdStatTodos").textContent = todos;
     $("#tsdTodoNote").innerHTML = todos
-      ? (todos + " field ditandai <strong>TODO</strong> karena kosong di konteks manual.")
-      : "Tidak ada field TODO pada dokumen ini.";
+      ? (todos + t(" fields are marked <strong>TODO</strong> because they are empty in the manual context."))
+      : t("No TODO fields in this document.");
     var hasShots = Boolean(result.screenshot_root);
     $("#tsdShotRow").hidden = !hasShots;
     if (hasShots) {
       $("#tsdShotVal").textContent =
-        (result.screenshot_pages || 0) + " page · " +
-        (result.screenshot_visuals || 0) + " visual · " +
+        (result.screenshot_pages || 0) + t(" pages · ") +
+        (result.screenshot_visuals || 0) + t(" visuals · ") +
         (result.screenshot_mobile || 0) + " mobile";
     }
     state.tsdOutputPath = result.output || state.tsdOutputPath;
@@ -3152,16 +1447,16 @@
     $("#openTsdFile").disabled = false;
     $("#tsdBar").style.width = "100%";
     $("#tsdRunPct").textContent = "100%";
-    toast("TSD dibuat: " + pages + " halaman / " + visuals + " visual");
+    toast("TSD dibuat: " + pages + t(" pages / ") + visuals + t(" visuals"));
   }
 
   function runTsd() {
     if (!apiReady()) return;
     if (state.jobId) {
-      toast("Pekerjaan lain masih berjalan");
+      toast(t("Another job is still running"));
       return;
     }
-    startTsdProgress("Menyiapkan dokumen TSD…");
+    startTsdProgress(t("Preparing the TSD document…"));
     startJob({
       kind: "tsd",
       path: "/api/tsd/run",
@@ -3177,7 +1472,7 @@
   function loadTsdReports() {
     var workspaceId = getSelectValue("shotWorkspace");
     if (!workspaceId || !apiReady()) {
-      setSelectOptions("shotReport", [], "Pilih report…");
+      setSelectOptions("shotReport", [], "Choose a report…");
       return Promise.resolve();
     }
     return api().get(
@@ -3187,7 +1482,7 @@
       state.tsdReports = data.reports || [];
       setSelectOptions("shotReport", state.tsdReports.map(function (item) {
         return { value: item.id, label: item.label, data: item };
-      }), "Pilih report…");
+      }), "Choose a report…");
       return data;
     }).catch(reportError);
   }
@@ -3195,25 +1490,25 @@
   function captureTsdScreenshots() {
     if (!apiReady()) return;
     if (!$("#shotEnabled").checked) {
-      toast("Centang 'Ambil screenshot' dulu");
+      toast(t("Check 'Capture screenshots' first"));
       return;
     }
     if (!getSelectValue("shotWorkspace") || !getSelectValue("shotReport")) {
-      toast("Pilih workspace dan report untuk screenshot");
+      toast(t("Choose a workspace and report for screenshots"));
       return;
     }
-    startTsdProgress("Mengambil screenshot report…");
+    startTsdProgress(t("Capturing report screenshots…"));
     startJob({
       kind: "tsd_capture",
       path: "/api/tsd/capture",
       body: tsdPayload(),
-      label: "Ambil screenshot report",
+      label: t("Capture report screenshots"),
       button: $("#captureScreenshots"),
       onDone: function (snapshot) {
         var result = snapshot.result || {};
         toast(
-          "Screenshot: " + (result.pages || 0) + " page / " +
-          (result.visuals || 0) + " visual"
+          "Screenshot: " + (result.pages || 0) + t(" pages / ") +
+          (result.visuals || 0) + t(" visuals")
         );
         inspectTsd();
       }
@@ -3222,10 +1517,10 @@
 
   function clearTsdCache() {
     if (!apiReady()) return;
-    if (!window.confirm("Hapus cache screenshot TSD untuk report ini?")) return;
+    if (!window.confirm(t("Clear the TSD screenshot cache for this report?"))) return;
     api().post("/api/tsd/cache/clear", tsdPayload()).then(function (data) {
       if (data.state) renderTsdState(data.state);
-      toast(data.removed ? "Cache screenshot dihapus" : "Cache belum ada");
+      toast(data.removed ? t("Screenshot cache cleared") : t("No cache yet"));
     }).catch(reportError);
   }
 
@@ -3233,7 +1528,7 @@
     var path = state.tsdOutputPath ||
       (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
     if (!path) {
-      toast("Belum ada dokumen TSD");
+      toast(t("No TSD document yet"));
       return;
     }
     window.open(
@@ -3248,7 +1543,7 @@
       (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
     var folder = path ? parentDir(path) : $("#tsdOutFolder").value.trim();
     if (!folder) {
-      toast("Folder output belum ditentukan");
+      toast(t("Output folder not set"));
       return;
     }
     api().post("/api/files/open", { path: folder, mode: "open" }).catch(reportError);
@@ -3262,9 +1557,9 @@
       $("#contextJson").value = data.path || path;
       state.tsdManualCustom = true;
       $("#contextStatus").textContent = data.exists
-        ? "Sidecar dimuat."
-        : "Sidecar belum ada; isi baru akan dibuat saat menyimpan.";
-      if (!quiet) toast(data.exists ? "Konteks manual dimuat" : "Sidecar belum ada");
+        ? t("Sidecar loaded.")
+        : t("No sidecar yet; new content is written when you save.");
+      if (!quiet) toast(data.exists ? t("Manual context loaded") : t("Sidecar not found"));
       scheduleTsdInspect();
       return data;
     }).catch(reportError);
@@ -3280,8 +1575,8 @@
       state.tsdManual = result.data || {};
       state.tsdManualCustom = true;
       $("#contextJson").value = result.path || path;
-      $("#contextStatus").textContent = "Sidecar disimpan.";
-      if (!quiet) toast("Konteks manual disimpan");
+      $("#contextStatus").textContent = t("Sidecar saved.");
+      if (!quiet) toast(t("Manual context saved"));
       scheduleTsdInspect();
       return result;
     }).catch(reportError);
@@ -3298,7 +1593,7 @@
     loadTsdManual(true).then(function () {
       $("#jsonDialogPath").textContent = tsdManualPath();
       $("#jsonEditor").value = JSON.stringify(state.tsdManual || {}, null, 2);
-      $("#jsonStatus").textContent = "JSON harus berupa objek. Simpan menulis sidecar di path di atas.";
+      $("#jsonStatus").textContent = t("JSON must be an object. Save writes a sidecar at the path above.");
       $("#jsonDialog").showModal();
       $("#jsonEditor").focus();
     });
@@ -3311,23 +1606,83 @@
       try {
         data = JSON.parse(text);
       } catch (error) {
-        $("#jsonStatus").textContent = "JSON tidak valid: " + error.message;
+        $("#jsonStatus").textContent = t("Invalid JSON: ") + error.message;
         return;
       }
     }
     if (data === null || typeof data !== "object" || Array.isArray(data)) {
-      $("#jsonStatus").textContent = "Isi JSON harus objek (bukan array/null).";
+      $("#jsonStatus").textContent = t("JSON content must be an object (not an array/null).");
       return;
     }
     saveTsdManualFile(data, true).then(function (result) {
       if (result) {
         $("#jsonDialog").close();
-        toast("Konteks manual disimpan");
+        toast(t("Manual context saved"));
       }
     });
   }
 
   // -- Analisa Semantic Model --------------------------------------------
+  var ANALYSIS_CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  var ANALYSIS_ICONS = {
+    table: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.6"/><path d="M3 9h18M9 9v11"/></svg>',
+    group: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+    column: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.6"/><path d="M9 4v16M15 4v16"/></svg>',
+    measure: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 19L18 5"/><path d="M6 5h3M15 19h3"/></svg>',
+    link: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13.5a4 4 0 0 1 0-5.7l2.4-2.4a4 4 0 0 1 5.7 5.7l-1.6 1.6"/><path d="M14 10.5a4 4 0 0 1 0 5.7l-2.4 2.4a4 4 0 0 1-5.7-5.7l1.6-1.6"/></svg>',
+    code: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg>',
+    query: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>',
+    page: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
+    report: '<svg class="row-ico is-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M8 13h8M8 17h5"/></svg>',
+    visual: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><rect x="7" y="12" width="3" height="5" rx=".6"/><rect x="12" y="8" width="3" height="9" rx=".6"/><rect x="17" y="5" width="3" height="12" rx=".6"/></svg>',
+    filter: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16l-6.4 7.4V19l-3.2-1.8v-3.8z"/></svg>',
+    hidden: '<svg class="row-ico is-hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 002.8 2.8"/><path d="M9.4 5.3A9.5 9.5 0 0112 5c5 0 9 4.5 9 7a12 12 0 01-2.4 3.6"/><path d="M6.2 6.2A13 13 0 003 12c0 2.5 4 7 9 7a9.6 9.6 0 004.3-1"/></svg>'
+  };
+  var ANALYSIS_TABS = {
+    all: {
+      placeholder: t("Column, measure, or table name"),
+      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"]],
+      unused: true,
+      expandable: true
+    },
+    tables: {
+      placeholder: t("Table, column, or measure name"),
+      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"]],
+      unused: true,
+      expandable: true
+    },
+    relationships: {
+      placeholder: t("Relationship or column name"),
+      filters: [["all", t("All statuses")], ["active", t("Active")], ["inactive", t("Inactive")]],
+      unused: false,
+      expandable: false
+    },
+    report: {
+      placeholder: t("Report, page, or workspace name"),
+      filters: [["all", t("All statuses")], ["used", t("Used")], ["unused", t("Unused")]],
+      unused: false,
+      expandable: true
+    },
+    dax: {
+      placeholder: t("Measure, calculated column, or DAX expression"),
+      filters: [["all", t("All types")], ["Measure", "Measure"], ["Calculated column", "Calculated column"]],
+      unused: false,
+      expandable: true
+    },
+    m: {
+      placeholder: t("Query, parameter, or M expression"),
+      filters: [["all", t("All types")], ["Tabel", t("Table")], ["M parameter", "M parameter"], ["Expression", "Expression"]],
+      unused: false,
+      expandable: true
+    }
+  };
+  var ANALYSIS_STATUS_ORDER = {
+    "Tidak dipakai": 0,
+    "Perlu dicek": 1,
+    "Dipakai": 2,
+    "Wajib dipertahankan": 3
+  };
+
   function analysisPayload() {
     return {
       workspace_id: getSelectValue("wsSelect"),
@@ -3341,9 +1696,21 @@
     var value = Number(bytes || 0);
     if (!value) return "0 B";
     var mb = value / 1048576;
-    if (mb >= 1024) return (mb / 1024).toFixed(2) + " GB";
-    if (mb >= 1) return mb.toFixed(1) + " MB";
+    if (mb >= 1024) return decimalText((mb / 1024).toFixed(2)) + " GB";
+    if (mb >= 1) return decimalText(mb.toFixed(1)) + " MB";
     return (value / 1024).toFixed(0) + " KB";
+  }
+
+  var ANALYSIS_STATUS_LABELS = {
+    "Tidak dipakai": "Unused",
+    "Perlu dicek": "Needs review",
+    "Dipakai": "Used",
+    "Wajib dipertahankan": "Must keep"
+  };
+
+  function tStatus(status) {
+    var english = ANALYSIS_STATUS_LABELS[status];
+    return english ? t(english) : status;
   }
 
   function analysisStatusChip(status) {
@@ -3354,7 +1721,7 @@
       "Wajib dipertahankan": "chip-accent"
     };
     return '<span class="chip ' + (map[status] || "chip-idle") +
-      '"><span class="dot"></span>' + escapeHtml(status || "-") + "</span>";
+      '"><span class="dot"></span>' + escapeHtml(tStatus(status) || "-") + "</span>";
   }
 
   function analysisReportUrl(workspaceId, reportId) {
@@ -3363,10 +1730,19 @@
       "/reports/" + encodeURIComponent(reportId);
   }
 
+  function analysisCoverageSuffix(result) {
+    if (!result) return "";
+    if (result.coverage_complete) return t(" · full coverage");
+    return result.coverage ? " · " + result.coverage : t(" · partial coverage");
+  }
+
+  function analysisTabConfig(name) {
+    return ANALYSIS_TABS[name] || ANALYSIS_TABS.all;
+  }
+
   function analysisApplyPrefs(settings) {
     state.analysisSettings = settings || {};
-    var objectFilter = settings.object_filter || "all";
-    setSelectValue("typeAnalyze", objectFilter);
+    state.analysisObjectFilter = settings.object_filter || "all";
     $("#unusedOnly").checked = Boolean(settings.unused_only);
     $("#includeOther").checked = settings.include_other_workspaces !== false;
     $("#includePersonal").checked = Boolean(settings.include_personal);
@@ -3377,7 +1753,8 @@
   function analysisSavePrefs() {
     if (!apiReady()) return Promise.resolve(null);
     return api().post("/api/analysis/preferences", {
-      object_filter: getSelectValue("typeAnalyze") || "all",
+      object_filter: ["all", "columns", "measures"].includes(state.analysisObjectFilter)
+        ? state.analysisObjectFilter : "all",
       unused_only: $("#unusedOnly").checked,
       include_other_workspaces: $("#includeOther").checked,
       include_personal: $("#includePersonal").checked,
@@ -3397,19 +1774,20 @@
       var options = (data.workspaces || []).map(function (item) {
         return { value: item.id, label: item.label, data: item };
       });
-      setSelectOptions("wsSelect", options, "Pilih workspace…");
+      setSelectOptions("wsSelect", options, "Choose a workspace…");
       analysisApplyPrefs(data.settings || {});
       var missing = data.credentials_missing || [];
       setChip(
         $("#spStatus"),
         missing.length ? "warn" : "ok",
-        missing.length ? "Kredensial belum lengkap" : "Service principal siap"
+        missing.length ? t("Credentials are incomplete") : t("Service principal ready")
       );
-      $("#modelSelect") && setSelectOptions("modelSelect", [], "Pilih semantic model…");
+      $("#modelSelect") && setSelectOptions("modelSelect", [], "Choose a semantic model…");
+      analysisApplyTabTools(state.analysisTab, false);
       analysisRender();
       return data;
     }).catch(function (error) {
-      addLog("Katalog analisa tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("Analysis catalog could not be read: ") + error.message, "warn");
     });
   }
 
@@ -3417,24 +1795,24 @@
     var workspaceId = getSelectValue("wsSelect");
     state.analysis = null;
     if (!workspaceId || !apiReady()) {
-      setSelectOptions("modelSelect", [], "Pilih semantic model…");
+      setSelectOptions("modelSelect", [], "Choose a semantic model…");
       analysisRender();
       return Promise.resolve();
     }
-    setSelectOptions("modelSelect", [], "Memuat dataset…");
-    $("#analyzeSummary").textContent = "Memuat semantic model…";
+    setSelectOptions("modelSelect", [], "Loading datasets…");
+    $("#analyzeSummary").textContent = t("Loading semantic models…");
     return api().get(
       "/api/analysis/workspaces/" + encodeURIComponent(workspaceId) + "/datasets"
     ).then(function (data) {
       setSelectOptions("modelSelect", (data.datasets || []).map(function (item) {
         return { value: item.id, label: item.name, data: item };
-      }), "Pilih semantic model…");
-      $("#analyzeSummary").textContent = "Pilih semantic model untuk dianalisa.";
+      }), "Choose a semantic model…");
+      $("#analyzeSummary").textContent = t("Choose a semantic model to analyze.");
       analysisRender();
       return data;
     }).catch(function (error) {
-      setSelectOptions("modelSelect", [], "Pilih semantic model…");
-      $("#analyzeSummary").textContent = error.message;
+      setSelectOptions("modelSelect", [], "Choose a semantic model…");
+      $("#analyzeSummary").textContent = tr(error.message);
       reportError(error);
     });
   }
@@ -3446,14 +1824,14 @@
       analysisRender();
       return Promise.resolve();
     }
-    $("#analyzeSummary").textContent = "Memuat hasil analisa tersimpan…";
+    $("#analyzeSummary").textContent = t("Loading saved analysis results…");
     return api().get(
       "/api/analysis/snapshot?dataset_id=" + encodeURIComponent(datasetId)
     ).then(function (data) {
       if (data.result) {
         var stamp = String(data.result.analyzed_at || "")
           .replace("T", " ").slice(0, 16);
-        analysisApply(data.result, "Hasil tersimpan " + (stamp || "-") + ".");
+        analysisApply(data.result, t("Saved results ") + (stamp || "-") + ".");
       } else {
         state.analysis = null;
         analysisRender();
@@ -3466,18 +1844,29 @@
     state.analysis = result;
     state.analysisNote = note || "";
     state.analysisOpen = {};
+    state.reportDetail = {};
+    state.reportLoading = {};
+    (result.tables || []).forEach(function (table) {
+      state.analysisOpen["tbl:" + table.name] = true;
+      state.analysisOpen["tbl:" + table.name + ":m"] = true;
+      state.analysisOpen["tbl:" + table.name + ":c"] = true;
+    });
+    state.analysisForceOpen = null;
+    state.relSelected = null;
     var totals = result.totals || {};
     $("#metricSize").textContent = analysisFmtBytes(totals.model_bytes);
-    var sizeNote =
-      "data " + analysisFmtBytes(totals.data_bytes) +
-      " · hierarki " + analysisFmtBytes(totals.hierarchy_bytes) +
-      " · dictionary " + analysisFmtBytes(totals.dictionary_bytes);
+    var sizeNote = (totals.tables || 0) + t(" tables in the model");
     $("#metricSizeNote").textContent = sizeNote;
-    $("#metricSizeNote").title = sizeNote;
+    $("#metricSizeNote").title =
+      "data " + analysisFmtBytes(totals.data_bytes) +
+      t(" · hierarchy ") + analysisFmtBytes(totals.hierarchy_bytes) +
+      " · dictionary " + analysisFmtBytes(totals.dictionary_bytes);
     $("#metricColumns").textContent = (totals.columns || 0);
-    $("#metricColumnsNote").textContent = "kolom pada model";
+    $("#metricColumnsNote").textContent = (totals.hidden_columns || 0) + t(" hidden columns");
     $("#metricMeasures").textContent = (totals.measures || 0);
-    $("#metricMeasuresNote").textContent = "measure pada model";
+    $("#metricMeasuresNote").textContent = totals.helper_measures
+      ? totals.helper_measures + t(" stored in _Measures")
+      : t("measures in the model");
     $("#metricUnusedColumns").textContent = (totals.unused_columns || 0);
     var pct = totals.model_bytes
       ? Math.round((totals.unused_bytes || 0) / totals.model_bytes * 100)
@@ -3486,272 +1875,1544 @@
     $("#metricUnusedColumnsNote").textContent = unusedNote;
     $("#metricUnusedColumnsNote").title = unusedNote;
     $("#metricUnusedMeasures").textContent = (totals.unused_measures || 0);
-    $("#metricUnusedMeasuresNote").textContent = "tidak direferensikan";
-    $("#metricReport").textContent =
-      (totals.reports_scanned || 0) + "/" + (totals.reports || 0);
-    $("#metricReportNote").textContent = result.coverage_complete
-      ? "cakupan lengkap"
-      : "cakupan belum lengkap";
+    $("#metricUnusedMeasuresNote").textContent = totals.measures
+      ? Math.round((totals.unused_measures || 0) / totals.measures * 100) + t("% of total measures")
+      : t("not referenced");
+    $("#metricReport").textContent = (totals.reports || 0) + t(" reports");
+    var reportNote = (totals.pages || 0) + t(" pages · ") + (totals.visuals || 0) + t(" visuals");
+    $("#metricReportNote").textContent = reportNote;
     $("#metricReportNote").title = result.coverage || "";
     setChip(
       $("#spStatus"),
       result.coverage_complete ? "ok" : "warn",
-      result.coverage_complete ? "Cakupan lengkap" : "Cakupan belum lengkap"
+      result.coverage_complete ? t("Full coverage") : t("Partial coverage")
     );
+    analysisApplyTabTools(state.analysisTab, false);
     analysisRender();
   }
 
-  function analysisRows() {
+  function analysisApplyTabTools(name, reset) {
+    var config = analysisTabConfig(name);
+    $("#searchAnalyze").placeholder = config.placeholder;
+    $("#toolTypeWrap").hidden = config.filters.length < 2;
+    $("#toolUnusedWrap").hidden = !config.unused;
+    $("#expandRows").hidden = !config.expandable;
+    $("#collapseRows").hidden = !config.expandable;
+    $("#relViewSwitch").hidden = name !== "relationships";
+    if (name === "relationships") analysisSyncRelView();
+    var options = config.filters.map(function (pair) {
+      return { value: pair[0], label: pair[1] };
+    });
+    setSelectOptions("typeAnalyze", options, null);
+    var desired = reset ? "all" : (state.analysisObjectFilter || "all");
+    var valid = options.some(function (item) { return item.value === desired; });
+    setSelectValue("typeAnalyze", valid ? desired : "all");
+  }
+
+  function analysisSyncRelView() {
+    $$("#relViewSwitch [data-rel-view]").forEach(function (button) {
+      button.setAttribute(
+        "aria-pressed",
+        button.getAttribute("data-rel-view") === state.relView ? "true" : "false"
+      );
+    });
+  }
+
+  function analysisCounts() {
     var result = state.analysis;
-    if (!result) return [];
-    var tab = state.analysisTab;
-    var rows = [];
-    if (tab === "all" || tab === "columns") {
-      (result.columns || []).forEach(function (row) {
-        rows.push(Object.assign({}, row, { kind: "column" }));
-      });
+    var counts = {
+      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0
+    };
+    if (!result) return counts;
+    var totals = result.totals || {};
+    counts.all = (totals.columns || 0) + (totals.measures || 0);
+    counts.tables = (result.tables || []).length;
+    counts.relationships = (result.relationships || []).length;
+    counts.report = (result.reports || []).length;
+    counts.dax = (result.measures || []).length + analysisCalculatedColumns().length;
+    counts.m = (result.m_queries || []).length;
+    return counts;
+  }
+
+  function analysisCalculatedColumns() {
+    return ((state.analysis && state.analysis.columns) || []).filter(function (column) {
+      return Boolean(column.expression) && Boolean(column.is_calculated);
+    });
+  }
+
+  function analysisTabCounts() {
+    var counts = analysisCounts();
+    $("#tabCountAll").textContent = state.analysis ? fmtInt(counts.all) : "";
+    $("#tabCountTables").textContent = state.analysis ? fmtInt(counts.tables) : "";
+    $("#tabCountRelationships").textContent = state.analysis ? fmtInt(counts.relationships) : "";
+    $("#tabCountReport").textContent = state.analysis ? fmtInt(counts.report) : "";
+    $("#tabCountDax").textContent = state.analysis ? fmtInt(counts.dax) : "";
+    $("#tabCountM").textContent = state.analysis ? fmtInt(counts.m) : "";
+  }
+
+  function analysisNameCell(name, icon, options) {
+    options = options || {};
+    var html = '<div class="name-cell">';
+    if (options.toggleId) {
+      html += '<button type="button" class="row-toggle" data-analysis-toggle="' +
+        escapeHtml(options.toggleId) + '" aria-expanded="' +
+        (options.open ? "true" : "false") + '" aria-label="' +
+        (options.open ? t("Collapse ") : t("Expand ")) + escapeHtml(name) + '">' +
+        ANALYSIS_CHEVRON + "</button>";
+    } else if (options.level) {
+      html += '<span class="row-toggle" aria-hidden="true"></span>';
     }
-    if (tab === "all" || tab === "measures") {
-      (result.measures || []).forEach(function (row) {
-        rows.push(Object.assign({}, row, { kind: "measure" }));
-      });
+    if (icon && ANALYSIS_ICONS[icon]) html += ANALYSIS_ICONS[icon];
+    if (options.hidden && ANALYSIS_ICONS.hidden) html += ANALYSIS_ICONS.hidden;
+    var label = options.href
+      ? '<a class="analysis-link" href="' + escapeHtml(options.href) +
+        '" target="_blank" rel="noopener">' + escapeHtml(name) + "</a>"
+      : escapeHtml(name);
+    html += '<span class="name-text" title="' + escapeHtml(name) + '">' +
+      label + "</span></div>";
+    return html;
+  }
+
+  function analysisIsOpen(id, defaultOpen, ignoreQuery) {
+    var query = ($("#searchAnalyze").value || "").trim();
+    if (query && !ignoreQuery) return true;
+    if (state.analysisForceOpen === true || state.analysisForceOpen === false) {
+      return state.analysisForceOpen;
     }
+    if (Object.prototype.hasOwnProperty.call(state.analysisOpen, id)) {
+      return Boolean(state.analysisOpen[id]);
+    }
+    return Boolean(defaultOpen);
+  }
+
+  function analysisTableSummary(used, total, statuses) {
+    var percent = total ? Math.round(used / total * 100) : 100;
+    var cls = used === total ? "chip-ok" : "chip-warn";
+    var detail = Object.keys(statuses || {}).map(function (key) {
+      return statuses[key] + " " + key;
+    }).join(" · ");
+    return '<span class="chip ' + cls + '" title="' + escapeHtml(detail) +
+      '"><span class="dot"></span>' + percent + "% (" + used + "/" + total +
+      t(") used</span>");
+  }
+
+  function analysisItemMatches(item, kind, query, type, unusedOnly) {
+    if (type === "columns" && kind !== "column") return false;
+    if (type === "measures" && kind !== "measure") return false;
+    if (unusedOnly && item.status !== "Tidak dipakai") return false;
+    if (!query) return true;
+    return [item.name, item.table, item.data_type, item.status, item.reason,
+      item.expression, kind].join(" ").toLowerCase().indexOf(query) !== -1;
+  }
+
+  function analysisTreeGroups() {
+    var result = state.analysis;
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var type = getSelectValue("typeAnalyze") || "all";
     var unusedOnly = $("#unusedOnly").checked;
+    var map = {};
+    var order = [];
+    function ensure(name) {
+      var key = name || t("(No table)");
+      if (!map[key]) {
+        map[key] = { name: key, columns: [], measures: [], info: null };
+        order.push(key);
+      }
+      return map[key];
+    }
+    (result.tables || []).forEach(function (table) {
+      var group = ensure(table.name);
+      group.info = table;
+      order = order.filter(function (name) { return name !== group.name; });
+      order.push(group.name);
+    });
+    (result.columns || []).forEach(function (column) {
+      ensure(column.table).columns.push(column);
+    });
+    (result.measures || []).forEach(function (measure) {
+      ensure(measure.table).measures.push(measure);
+    });
+    var groups = order.map(function (name) { return map[name]; });
+    groups.forEach(function (group) {
+      group.visibleColumns = (type === "measures" ? [] : group.columns.filter(function (column) {
+        return analysisItemMatches(column, "column", query, type, unusedOnly);
+      }));
+      group.visibleMeasures = (type === "columns" ? [] : group.measures.filter(function (measure) {
+        return analysisItemMatches(measure, "measure", query, type, unusedOnly);
+      }));
+    });
+    return groups.filter(function (group) {
+      return group.visibleColumns.length || group.visibleMeasures.length;
+    });
+  }
+
+  function analysisChildGroups(item, itemId) {
+    var rows = [];
+    (item.children || []).forEach(function (group, index) {
+      var groupId = itemId + ":g" + index;
+      var open = analysisIsOpen(groupId, false, true);
+      var groupCells = [];
+      for (var i = 0; i < 11; i += 1) groupCells.push("");
+      groupCells[0] = analysisNameCell(group.label + " (" + group.count + ")", group.icon || "group", {
+        level: 1, toggleId: groupId, open: open
+      });
+      rows.push({ level: 1, group: true, cells: groupCells });
+      if (!open) return;
+      (group.rows || []).forEach(function (child) {
+        var cells = [];
+        for (var j = 0; j < 11; j += 1) cells.push("");
+        Object.keys(child.cells || {}).forEach(function (key) {
+          cells[Number(key)] = escapeHtml(child.cells[key]);
+        });
+        cells[0] = analysisNameCell(child.name || "—", child.icon || "group", {
+          level: 2, href: child.href || ""
+        });
+        rows.push({ level: 2, cells: cells });
+      });
+    });
+    return rows;
+  }
+
+  function analysisFlatItems() {
+    var result = state.analysis;
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
-    rows = rows.filter(function (row) {
-      if (type === "columns" && row.kind !== "column") return false;
-      if (type === "measures" && row.kind !== "measure") return false;
-      if (unusedOnly && row.status !== "Tidak dipakai") return false;
+    var type = getSelectValue("typeAnalyze") || "all";
+    var unusedOnly = $("#unusedOnly").checked;
+    var items = [];
+    (result.columns || []).forEach(function (column) {
+      items.push({ kind: "column", data: column });
+    });
+    (result.measures || []).forEach(function (measure) {
+      items.push({ kind: "measure", data: measure });
+    });
+    items = items.filter(function (item) {
+      return analysisItemMatches(item.data, item.kind, query, type, unusedOnly);
+    });
+    if (state.analysisSort && state.analysisSort !== "default") {
+      return analysisSortItems(items.map(function (item) {
+        return item.data;
+      })).map(function (data) {
+        return {
+          kind: items.some(function (item) {
+            return item.kind === "measure" && item.data === data;
+          }) ? "measure" : "column",
+          data: data
+        };
+      });
+    }
+    var tableOrder = {};
+    (result.tables || []).forEach(function (table, index) {
+      tableOrder[table.name] = index;
+    });
+    return items.slice().sort(function (left, right) {
+      var a = tableOrder[left.data.table];
+      var b = tableOrder[right.data.table];
+      if (a == null) a = 9999;
+      if (b == null) b = 9999;
+      if (a !== b) return a - b;
+      if (left.kind !== right.kind) return left.kind === "column" ? -1 : 1;
+      return 0;
+    });
+  }
+
+  function analysisFlatRows() {
+    var result = state.analysis;
+    var items = analysisFlatItems();
+    var rows = [];
+    var unused = 0;
+    var columnCount = 0;
+    var measureCount = 0;
+    items.forEach(function (item) {
+      if (item.kind === "measure") measureCount += 1;
+      else columnCount += 1;
+      var data = item.data;
+      var id = "item:" + item.kind + ":" + data.table + ":" + data.name;
+      var showExpression = item.kind !== "measure" && Boolean(data.expression);
+      var expandable = showExpression || (data.children || []).length > 0;
+      var open = expandable && analysisIsOpen(id, false, true);
+      if (data.status === "Tidak dipakai") unused += 1;
+      rows.push({
+        level: 0,
+        group: true,
+        itemRow: true,
+        cells: [
+          analysisNameCell(data.name, item.kind === "measure" ? "measure" : "column", {
+            level: 0, toggleId: expandable ? id : "", open: open
+          }),
+          item.kind === "measure" ? "Measure" : "Kolom",
+          escapeHtml(data.table || "—"),
+          "Model",
+          escapeHtml(data.data_type || "—"),
+          item.kind === "measure" ? "0 B" : escapeHtml(data.size || "—"),
+          analysisStatusChip(data.status),
+          String(data.uses || 0),
+          escapeHtml(data.format_string || "—"),
+          data.has_error ? t("Yes") : t("No"),
+          escapeHtml(data.display_folder || "—")
+        ],
+        cls: data.status === "Tidak dipakai" ? "row-unused" : "",
+        numCols: [5, 7]
+      });
+      if (!open) return;
+      if (showExpression) rows.push({ kind: "code", code: data.expression });
+      rows = rows.concat(analysisChildGroups(data, id));
+    });
+    return {
+      headers: analysisTreeHeaders(false),
+      widths: ["24%", "7%", "9%", "6%", "7%", "7%", "13%", "7%", "8%", "5%", "7%"],
+      rows: rows,
+      summary: (state.analysisNote ? state.analysisNote + " " : "") + items.length +
+        t(" items · ") + columnCount + t(" columns · ") + measureCount + t(" measures · ") +
+        unused + t(" unused") + analysisCoverageSuffix(result)
+    };
+  }
+
+  function analysisTreeHeaders(tablesMode) {
+    if (tablesMode) {
+      return [
+        { label: t("Name") }, { label: t("Type") }, { label: t("Table") },
+        { label: t("Source") }, { label: t("Data type") }, { label: t("Size"), num: true },
+        { label: "Status" }, { label: t("# used"), num: true },
+        { label: "Mode" }, { label: t("Partitions"), num: true }
+      ];
+    }
+    return [
+      { label: t("Name"), key: "name" }, { label: t("Type"), key: "type" },
+      { label: t("Table / page"), key: "table" }, { label: t("Source") },
+      { label: t("Data type"), key: "data_type" },
+      { label: t("Size"), key: "size", num: true },
+      { label: "Status", key: "status" },
+      { label: t("# used"), key: "uses", num: true },
+      { label: "Format string", key: "format_string" },
+      { label: "Has error", key: "has_error" },
+      { label: "Display folder", key: "display_folder" }
+    ];
+  }
+
+  function analysisTreeView() {
+    var result = state.analysis;
+    var groups = analysisTreeGroups();
+    var rows = [];
+    var itemCount = 0;
+    var unused = 0;
+    groups.forEach(function (group) {
+      var info = group.info || {};
+      var fallbackItems = group.columns.concat(group.measures);
+      var totalItems = info.total_items != null
+        ? info.total_items : fallbackItems.length;
+      var usedItems = info.used_items != null
+        ? info.used_items
+        : fallbackItems.filter(function (item) { return item.status !== "Tidak dipakai"; }).length;
+      var statuses = info.statuses || fallbackItems.reduce(function (acc, item) {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+        return acc;
+      }, {});
+      var size = info.size || analysisFmtBytes(info.size_bytes || 0);
+      var tableId = "tbl:" + group.name;
+      var tableOpen = analysisIsOpen(tableId, false);
+      rows.push({
+        level: 0,
+        group: true,
+        cells: [
+          analysisNameCell(group.name, "table", {
+            level: 0, toggleId: tableId, open: tableOpen
+          }),
+          t("Table"), "—", "Model", "—", escapeHtml(size || "—"),
+          analysisTableSummary(usedItems, totalItems, statuses), String(usedItems),
+          escapeHtml(info.storage_mode || "—"), String(info.partition_count || 0)
+        ],
+        numCols: [5, 7, 9]
+      });
+      if (!tableOpen) return;
+      if (group.visibleMeasures.length) {
+        var measureId = tableId + ":m";
+        var measureOpen = analysisIsOpen(measureId, false);
+        rows.push({
+          level: 1,
+          group: true,
+          cells: [
+            analysisNameCell("Measure (" + group.visibleMeasures.length + ")", "group", {
+              level: 1, toggleId: measureId, open: measureOpen
+            }),
+            "Grup", escapeHtml(group.name), "Model", "—", "—", "—", "—", "—", "—"
+          ]
+        });
+        if (measureOpen) {
+          group.visibleMeasures.forEach(function (measure) {
+            itemCount += 1;
+            if (measure.status === "Tidak dipakai") unused += 1;
+            rows.push({
+              level: 2,
+              cells: [
+                analysisNameCell(measure.name, "measure", { level: 2 }),
+                "Measure", escapeHtml(group.name), "Model", "DAX", "0 B",
+                analysisStatusChip(measure.status), String(measure.uses || 0), "—", "—"
+              ],
+              cls: measure.status === "Tidak dipakai" ? "row-unused" : "",
+              numCols: [5, 7]
+            });
+          });
+        }
+      }
+      if (group.visibleColumns.length) {
+        var columnId = tableId + ":c";
+        var columnOpen = analysisIsOpen(columnId, false);
+        rows.push({
+          level: 1,
+          group: true,
+          cells: [
+            analysisNameCell(t("Columns (") + group.visibleColumns.length + ")", "group", {
+              level: 1, toggleId: columnId, open: columnOpen
+            }),
+            "Grup", escapeHtml(group.name), "Model", "—", "—", "—", "—", "—", "—"
+          ]
+        });
+        if (columnOpen) {
+          group.visibleColumns.forEach(function (column) {
+            itemCount += 1;
+            if (column.status === "Tidak dipakai") unused += 1;
+            rows.push({
+              level: 2,
+              cells: [
+                analysisNameCell(column.name, "column", { level: 2 }),
+                t("Column"), escapeHtml(group.name), "Model",
+                escapeHtml(column.data_type || "—"), escapeHtml(column.size || "—"),
+                analysisStatusChip(column.status), String(column.uses || 0), "—", "—"
+              ],
+              cls: column.status === "Tidak dipakai" ? "row-unused" : "",
+              numCols: [5, 7]
+            });
+          });
+        }
+      }
+    });
+    return {
+      headers: analysisTreeHeaders(true),
+      widths: ["27%", "7%", "8%", "8%", "8%", "6%", "15%", "7%", "7%", "7%"],
+      rows: rows,
+      summary: (state.analysisNote ? state.analysisNote + " " : "") +
+        itemCount + t(" items · ") + groups.length + t(" tables · ") +
+        unused + t(" unused") + analysisCoverageSuffix(result)
+    };
+  }
+
+  function analysisFilteredRelationships() {
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var type = getSelectValue("typeAnalyze") || "all";
+    return ((state.analysis && state.analysis.relationships) || []).filter(function (rel) {
+      if (type === "active" && !rel.is_active) return false;
+      if (type === "inactive" && rel.is_active) return false;
       if (!query) return true;
-      return [row.name, row.table, row.data_type, row.status, row.reason]
+      return [rel.name, rel.label, rel.from_table, rel.from_column, rel.to_table,
+        rel.to_column, rel.type, rel.cross, rel.cardinality, rel.auto, rel.status]
         .join(" ").toLowerCase().indexOf(query) !== -1;
     });
-    var key = state.analysisSort;
-    if (key && key !== "default") {
-      var desc = state.analysisSortDesc;
-      var statusOrder = {
-        "Tidak dipakai": 0,
-        "Perlu dicek": 1,
-        "Dipakai": 2,
-        "Wajib dipertahankan": 3
+  }
+
+  function analysisRelationshipRows() {
+    var items = analysisSortItems(analysisFilteredRelationships());
+    var rows = items.map(function (rel) {
+      var fromText = (rel.from_table || "—") + "[" + (rel.from_column || "—") + "]";
+      var toText = (rel.to_table || "—") + "[" + (rel.to_column || "—") + "]";
+      return {
+        level: 0,
+        cls: rel.is_active ? "" : "row-unused",
+        cells: [
+          analysisNameCell(rel.label || rel.name || t("(relationship)"), "link", { level: 0 }),
+          escapeHtml(rel.type || "—"),
+          escapeHtml(rel.cross || "—"),
+          escapeHtml(rel.cardinality || "—"),
+          rel.is_active
+            ? '<span class="chip chip-ok"><span class="dot"></span>' + t("Active") + "</span>"
+            : '<span class="chip chip-idle"><span class="dot"></span>' + t("Inactive") + "</span>",
+          escapeHtml(rel.auto || t("No")),
+          String(rel.used || 0),
+          '<span class="mono-trunc" title="' + escapeHtml(fromText) + '">' +
+            escapeHtml(fromText) + "</span>",
+          '<span class="mono-trunc" title="' + escapeHtml(toText) + '">' +
+            escapeHtml(toText) + "</span>"
+        ],
+        numCols: [6]
       };
-      rows.sort(function (left, right) {
-        var a = left[key];
-        var b = right[key];
-        if (key === "size") { a = left.size_bytes || 0; b = right.size_bytes || 0; }
-        else if (key === "uses") { a = left.uses || 0; b = right.uses || 0; }
-        else if (key === "status") {
-          a = statusOrder[left.status] == null ? 99 : statusOrder[left.status];
-          b = statusOrder[right.status] == null ? 99 : statusOrder[right.status];
-        } else if (key === "has_error") {
-          a = left.has_error ? 1 : 0;
-          b = right.has_error ? 1 : 0;
-        } else {
-          a = String(a == null ? "" : a).toLowerCase();
-          b = String(b == null ? "" : b).toLowerCase();
-        }
-        if (a < b) return desc ? 1 : -1;
-        if (a > b) return desc ? -1 : 1;
-        return 0;
+    });
+    var active = items.filter(function (rel) { return rel.is_active; }).length;
+    return {
+      headers: [
+        { label: t("Relationship name"), key: "label" }, { label: t("Type"), key: "type" },
+        { label: "Cross filter", key: "cross" },
+        { label: t("Cardinality"), key: "cardinality" },
+        { label: "Status", key: "status" },
+        {
+          label: "Auto create", key: "auto",
+          hint: t("Power BI automatic relationship (AutoDetected_ name or GUID)")
+        },
+        {
+          label: t("# used"), key: "used", num: true,
+          hint: t("Number of model objects that depend on the relationship (DMV DISCOVER_CALC_DEPENDENCY)")
+        },
+        { label: t("From column"), key: "from_column" },
+        { label: t("To column"), key: "to_column" }
+      ],
+      widths: ["28%", "7%", "8%", "9%", "11%", "8%", "7%", "11%", "11%"],
+      rows: rows,
+      summary: items.length + t(" relationships · ") + active + t(" active · ") +
+        (items.length - active) + t(" inactive") + analysisCoverageSuffix(state.analysis)
+    };
+  }
+
+  function analysisReportStatus(status) {
+    var map = {
+      ok: ["chip-ok", t("Succeeded")],
+      failed: ["chip-danger", t("Failed")],
+      skipped: ["chip-idle", t("Skipped")],
+      cached: ["chip-idle", t("From cache")],
+      unsupported: ["chip-idle", t("Unsupported")],
+      inaccessible: ["chip-warn", t("Inaccessible")],
+      personal: ["chip-warn", "Personal"],
+      app: ["chip-warn", "App"]
+    };
+    var item = map[status] || ["chip-idle", status || "—"];
+    return '<span class="chip ' + item[0] + '"><span class="dot"></span>' +
+      escapeHtml(item[1]) + "</span>";
+  }
+
+  function analysisLoadReportDetail(reportId) {
+    if (!reportId || state.reportDetail[reportId] || state.reportLoading[reportId]) return;
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId || !apiReady()) return;
+    state.reportLoading[reportId] = true;
+    api().get(
+      "/api/analysis/report-detail?dataset_id=" + encodeURIComponent(datasetId) +
+      "&report_id=" + encodeURIComponent(reportId)
+    ).then(function (data) {
+      state.reportDetail[reportId] = data;
+      state.reportLoading[reportId] = false;
+      analysisRender();
+    }).catch(function (error) {
+      state.reportLoading[reportId] = false;
+      addLog(t("Report details could not be loaded: ") + error.message, "warn");
+      analysisRender();
+    });
+  }
+
+  function analysisReportCells(nameHtml, type, source, visual, pages, theme, hidden) {
+    return [
+      nameHtml,
+      escapeHtml(type || "") +
+        (hidden ? ' <span class="chip chip-idle">Hidden</span>' : ""),
+      escapeHtml(source || ""),
+      visual == null ? "" : String(visual),
+      "-",
+      "-",
+      pages == null ? "-" : String(pages),
+      theme ? '<span title="' + escapeHtml(theme) + '">' + escapeHtml(theme) + "</span>" : "-",
+      "-"
+    ];
+  }
+
+  function analysisFilterRows(entry, baseId, level, sourceName, detail) {
+    var rows = [];
+    var filterId = baseId + ":filter";
+    var open = analysisIsOpen(filterId, false, true);
+    var hasColumns = (entry.columns || []).length > 0;
+    rows.push({
+      level: level,
+      group: hasColumns,
+      cells: analysisReportCells(
+        analysisNameCell(entry.name || entry.detail || "Filter", "filter", {
+          level: level, toggleId: hasColumns ? filterId : "", open: open
+        }),
+        entry.type || "Filter",
+        sourceName,
+        null, null, null
+      )
+    });
+    if (!hasColumns || !open) return rows;
+    var columnsId = filterId + ":columns";
+    var columnsOpen = analysisIsOpen(columnsId, false, true);
+    rows.push({
+      level: level + 1,
+      group: true,
+      cells: analysisReportCells(
+        analysisNameCell("Columns used (" + entry.columns.length + ")", "table", {
+          level: level + 1, toggleId: columnsId, open: columnsOpen
+        }),
+        "", "", null, null, null
+      )
+    });
+    if (!columnsOpen) return rows;
+    entry.columns.forEach(function (column) {
+      rows.push({
+        level: level + 2,
+        cells: analysisReportCells(
+          analysisNameCell(
+            (column.table ? column.table + "[" + column.field + "]" : column.field),
+            "column", { level: level + 2 }
+          ),
+          "Column", column.table || "—", null, null, null
+        )
       });
+    });
+    return rows;
+  }
+
+  function analysisPageRows(page, reportName, baseId, level) {
+    var rows = [];
+    var pageId = baseId + ":page:" + (page.page_id || page.page_name);
+    var open = analysisIsOpen(pageId, false, true);
+    rows.push({
+      level: level,
+      group: true,
+      cells: analysisReportCells(
+        analysisNameCell(page.page_name || page.page_id || t("(page)"), "page", {
+          level: level, toggleId: pageId, open: open, hidden: Boolean(page.is_hidden)
+        }),
+        "Page", reportName, page.visual_count || 0, null, null, Boolean(page.is_hidden)
+      )
+    });
+    if (!open) return rows;
+
+    var visuals = page.visuals || [];
+    var visualsId = pageId + ":visuals";
+    var visualsOpen = analysisIsOpen(visualsId, false, true);
+    if (visuals.length) {
+      rows.push({
+        level: level + 1,
+        group: true,
+        cells: analysisReportCells(
+          analysisNameCell("Visuals (" + visuals.length + ")", "visual", {
+            level: level + 1, toggleId: visualsId, open: visualsOpen
+          }),
+          "", "", null, null, null
+        )
+      });
+      if (visualsOpen) {
+        visuals.forEach(function (visual) {
+          var visualId = visualsId + ":" + (visual.visual_id || visual.visual_title);
+          var visualOpen = analysisIsOpen(visualId, false, true);
+          var expandable = (visual.artifacts || []).length > 0 ||
+            (visual.filters || []).length > 0;
+          rows.push({
+            level: level + 2,
+            group: expandable,
+            cells: analysisReportCells(
+              analysisNameCell(visual.visual_title || visual.visual_id || "(visual)", "visual", {
+                level: level + 2, toggleId: expandable ? visualId : "", open: visualOpen,
+                hidden: Boolean(visual.is_hidden)
+              }),
+              visual.visual_type || "visual",
+              page.page_name || reportName, null, null, null, Boolean(visual.is_hidden)
+            )
+          });
+          if (!expandable || !visualOpen) return;
+          var artifacts = visual.artifacts || [];
+          if (artifacts.length) {
+            var artifactsId = visualId + ":artifacts";
+            var artifactsOpen = analysisIsOpen(artifactsId, false, true);
+            rows.push({
+              level: level + 3,
+              group: true,
+              cells: analysisReportCells(
+                analysisNameCell("Artifacts used (" + artifacts.length + ")", "table", {
+                  level: level + 3, toggleId: artifactsId, open: artifactsOpen
+                }),
+                "", "", null, null, null
+              )
+            });
+            if (artifactsOpen) {
+              artifacts.forEach(function (artifact) {
+                rows.push({
+                  level: level + 4,
+                  cells: analysisReportCells(
+                    analysisNameCell(
+                      artifact.table
+                        ? artifact.table + "[" + artifact.field + "]"
+                        : artifact.field,
+                      artifact.kind === "Measure" ? "measure" : "column",
+                      { level: level + 4 }
+                    ),
+                    artifact.kind || "Column",
+                    artifact.table || "—", null, null, null
+                  )
+                });
+              });
+            }
+          }
+          var filters = visual.filters || [];
+          if (filters.length) {
+            var filtersId = visualId + ":filters";
+            var filtersOpen = analysisIsOpen(filtersId, false, true);
+            rows.push({
+              level: level + 3,
+              group: true,
+              cells: analysisReportCells(
+                analysisNameCell("Visual level filters (" + filters.length + ")", "filter", {
+                  level: level + 3, toggleId: filtersId, open: filtersOpen
+                }),
+                "", "", null, null, null
+              )
+            });
+            if (filtersOpen) {
+              filters.forEach(function (entry) {
+                rows = rows.concat(
+                  analysisFilterRows(entry, filtersId, level + 4, page.page_name || reportName)
+                );
+              });
+            }
+          }
+        });
+      }
+    }
+
+    var pageFilters = page.page_filters || [];
+    if (pageFilters.length) {
+      var pageFiltersId = pageId + ":pagefilters";
+      var pageFiltersOpen = analysisIsOpen(pageFiltersId, false, true);
+      rows.push({
+        level: level + 1,
+        group: true,
+        cells: analysisReportCells(
+          analysisNameCell("Page level filters (" + pageFilters.length + ")", "filter", {
+            level: level + 1, toggleId: pageFiltersId, open: pageFiltersOpen
+          }),
+          "", "", null, null, null
+        )
+      });
+      if (pageFiltersOpen) {
+        pageFilters.forEach(function (entry) {
+          rows = rows.concat(
+            analysisFilterRows(entry, pageFiltersId, level + 2, page.page_name || reportName)
+          );
+        });
+      }
     }
     return rows;
   }
 
-  function analysisHeaders() {
-    var columns = [
-      ["Nama", "name", ""],
-      ["Tipe", "type", ""],
-      ["Tabel", "table", ""],
-      ["Sumber", "source", ""],
-      ["Tipe data", "data_type", ""],
-      ["Ukuran", "size", "num"],
-      ["Status", "status", ""],
-      ["# dipakai", "uses", "num"],
-      ["Format string", "format_string", ""],
-      ["Error", "has_error", ""],
-      ["Display folder", "display_folder", ""]
-    ];
-    return "<tr>" + columns.map(function (item) {
-      var active = state.analysisSort === item[1];
-      var arrow = active ? (state.analysisSortDesc ? " \u25bc" : " \u25b2") : "";
-      return '<th scope="col" data-analysis-sort="' + item[1] + '"' +
-        (item[2] ? ' class="' + item[2] + '"' : "") + ">" +
-        item[0] + arrow + "</th>";
-    }).join("") + "</tr>";
-  }
+  function analysisReportRows() {
+    var result = state.analysis;
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var type = getSelectValue("typeAnalyze") || "all";
+    var rows = [];
+    var reportCount = 0;
+    var pageTotal = 0;
+    var visualTotal = 0;
+    var fieldTotal = 0;
 
-  function analysisDetailRows(row, id) {
-    var html = "";
-    if (row.reason) {
-      html += '<tr class="detail-row"><td colspan="11">' + escapeHtml(row.reason) + "</td></tr>";
-    }
-    if (row.expression) {
-      html += '<tr class="code-row"><td colspan="11"><pre>' + escapeHtml(row.expression) + "</pre></td></tr>";
-    }
-    (row.children || []).forEach(function (group) {
-      html += '<tr class="group-row"><td colspan="11">' +
-        escapeHtml(group.label) + " (" + (group.count || 0) + ")</td></tr>";
-      if (group.kind === "usage") {
-        (group.reports || []).forEach(function (report) {
-          var url = report.url || analysisReportUrl(report.workspace_id, report.report_id);
-          var name = escapeHtml(report.report_name || "(report)");
-          html += '<tr class="analysis-sub"><td colspan="11">' +
-            '<span class="analysis-mark">Report</span> ' +
-            (url ? '<a class="analysis-link" href="' + escapeHtml(url) +
-              '" target="_blank" rel="noopener">' + name + "</a>" : name) +
-            ' <span class="helper">' + (report.points || []).length + " titik</span></td></tr>";
-          (report.points || []).forEach(function (point) {
-            var parts = [];
-            if (point.page_name) parts.push(escapeHtml(point.page_name));
-            if (point.visual_title) parts.push(escapeHtml(point.visual_title));
-            if (point.aggregation) parts.push(escapeHtml(point.aggregation));
-            html += '<tr class="analysis-sub"><td colspan="11">' +
-              '<span class="analysis-mark">' + escapeHtml(point.usage_label) + "</span> " +
-              (parts.length ? parts.join(" \u00b7 ") : "\u2014") +
-              (point.is_hidden ? ' <span class="chip chip-idle">hidden</span>' : "") +
-              "</td></tr>";
-          });
+    ((result && result.reports) || []).forEach(function (report, index) {
+      var reportId = report.report_id || String(index);
+      var reportName = report.report_name || report.report_id || "(report)";
+      var allPages = report.pages || [];
+      var rootMatch = !query || [
+        reportName, report.workspace_name, report.format, report.status, report.message
+      ].join(" ").toLowerCase().indexOf(query) !== -1;
+      var visiblePages = allPages.filter(function (page) {
+        var used = (page.field_count || 0) > 0 || (page.visual_count || 0) > 0;
+        if (type === "used" && !used) return false;
+        if (type === "unused" && used) return false;
+        if (!query) return true;
+        return [page.page_name, reportName, report.workspace_name]
+          .join(" ").toLowerCase().indexOf(query) !== -1;
+      });
+      if (query && !rootMatch && !visiblePages.length) return;
+      if ((type === "used" || type === "unused") && !visiblePages.length) return;
+
+      reportCount += 1;
+      visiblePages.forEach(function (page) {
+        pageTotal += 1;
+        visualTotal += page.visual_count || 0;
+        fieldTotal += page.field_count || 0;
+      });
+
+      var rootId = "report:" + reportId;
+      var rootOpen = analysisIsOpen(rootId, false, true);
+      var isApp = /\[App\]/i.test(reportName);
+      rows.push({
+        level: 0,
+        group: true,
+        cells: analysisReportCells(
+          analysisNameCell(reportName, "report", {
+            level: 0, toggleId: rootId, open: rootOpen,
+            href: analysisReportUrl(report.workspace_id, report.report_id)
+          }),
+          isApp ? "Apps" : "Local report", report.format || report.workspace_name || "—",
+          report.visual_count || 0, report.page_count || 0, report.theme || "—"
+        )
+      });
+      if (!rootOpen) return;
+      analysisLoadReportDetail(report.report_id);
+      var detail = state.reportDetail[report.report_id];
+      if (!detail) {
+        rows.push({
+          kind: "html",
+          cls: "analysis-sub",
+          html: '<span class="helper">' +
+            (state.reportLoading[report.report_id] ? t("Loading report details…") : t("Details are not available yet.")) +
+            "</span>"
         });
-      } else {
-        (group.refs || []).forEach(function (ref) {
-          html += '<tr class="analysis-sub"><td colspan="11">' +
-            '<span class="analysis-mark">' + escapeHtml(ref.kind) + "</span> " +
-            escapeHtml(ref.object) +
-            (ref.detail ? ' <span class="helper">' + escapeHtml(ref.detail) + "</span>" : "") +
-            "</td></tr>";
+        return;
+      }
+      var detailPages = null;
+      var detailById = {};
+      (detail.pages || []).forEach(function (page) {
+        detailById[page.page_id] = page;
+      });
+      detailPages = visiblePages.map(function (page) {
+        return detailById[page.page_id] || page;
+      });
+
+      var hiddenPages = detailPages.filter(function (page) { return page.is_hidden; });
+      var normalPages = detailPages.filter(function (page) { return !page.is_hidden; });
+
+      if (hiddenPages.length) {
+        var hiddenId = rootId + ":hidden";
+        var hiddenOpen = analysisIsOpen(hiddenId, false, true);
+        var hiddenVisuals = hiddenPages.reduce(function (sum, page) {
+          return sum + (page.visual_count || 0);
+        }, 0);
+        rows.push({
+          level: 1,
+          group: true,
+          cells: analysisReportCells(
+            analysisNameCell("Hidden pages", "hidden", {
+              level: 1, toggleId: hiddenId, open: hiddenOpen
+            }),
+            "", "", null, null, null
+          )
+        });
+        if (hiddenOpen) {
+          hiddenPages.forEach(function (page) {
+            rows = rows.concat(analysisPageRows(page, reportName, hiddenId, 2));
+          });
+        }
+      }
+
+      var pagesId = rootId + ":pages";
+      var pagesOpen = analysisIsOpen(pagesId, false, true);
+      var normalVisuals = normalPages.reduce(function (sum, page) {
+        return sum + (page.visual_count || 0);
+      }, 0);
+      rows.push({
+        level: 1,
+        group: true,
+        cells: analysisReportCells(
+          analysisNameCell("Pages", "group", {
+            level: 1, toggleId: pagesId, open: pagesOpen
+          }),
+          "", "", null, null, null
+        )
+      });
+      if (pagesOpen) {
+        normalPages.forEach(function (page) {
+          rows = rows.concat(analysisPageRows(page, reportName, pagesId, 2));
+        });
+      }
+
+      var reportFilters = detail.report_filters || [];
+      if (reportFilters.length) {
+        var reportFiltersId = rootId + ":reportfilters";
+        var reportFiltersOpen = analysisIsOpen(reportFiltersId, false, true);
+        rows.push({
+          level: 1,
+          group: true,
+          cells: analysisReportCells(
+            analysisNameCell("Report level filters (" + reportFilters.length + ")", "filter", {
+              level: 1, toggleId: reportFiltersId, open: reportFiltersOpen
+            }),
+            "", "", null, null, null
+          )
+        });
+        if (reportFiltersOpen) {
+          reportFilters.forEach(function (entry) {
+            rows = rows.concat(
+              analysisFilterRows(entry, reportFiltersId, 2, reportName)
+            );
+          });
+        }
+      }
+      if (!normalPages.length && !hiddenPages.length) {
+        rows.push({
+          kind: "html",
+          cls: "analysis-sub",
+          html: '<span class="helper">Tidak ada halaman terbaca pada report ini.</span>'
         });
       }
     });
-    return html;
+
+    return {
+      headers: [
+        { label: t("Name") }, { label: t("Type") }, { label: t("Source") },
+        { label: t("Visuals"), num: true }, { label: t("Broken visuals"), num: true },
+        { label: "Views", num: true }, { label: t("Pages"), num: true },
+        { label: t("Theme") }, { label: t("Practice score") }
+      ],
+      widths: ["30%", "10%", "17%", "7%", "8%", "6%", "7%", "6%", "9%"],
+      rows: rows,
+      summary: reportCount + t(" reports · ") + pageTotal + t(" pages · ") +
+        visualTotal + t(" visuals · ") + fieldTotal + t(" fields") +
+        analysisCoverageSuffix(result)
+    };
+  }
+
+  function analysisDaxRows() {
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var type = getSelectValue("typeAnalyze") || "all";
+    var rows = [];
+    ((state.analysis && state.analysis.measures) || []).forEach(function (measure) {
+      rows.push({
+        kind: "measure",
+        name: measure.name,
+        table: measure.table,
+        type: measure.is_hidden ? "Measure (hidden)" : "Measure",
+        status: measure.status,
+        uses: measure.uses || 0,
+        has_error: Boolean(measure.has_error),
+        source: "Measure",
+        expression: measure.expression || "",
+        reason: measure.reason || ""
+      });
+    });
+    analysisCalculatedColumns().forEach(function (column) {
+      rows.push({
+        kind: "column",
+        name: column.name,
+        table: column.table,
+        type: "Calculated column",
+        status: column.status,
+        uses: column.uses || 0,
+        has_error: Boolean(column.has_error),
+        source: "Column",
+        expression: column.expression || "",
+        reason: column.reason || ""
+      });
+    });
+    if (type !== "all") {
+      rows = rows.filter(function (row) {
+        return row.type === type || row.type.indexOf(type + " ") === 0;
+      });
+    }
+    if (query) {
+      rows = rows.filter(function (row) {
+        return [row.name, row.table, row.type, row.status, row.expression]
+          .join(" ").toLowerCase().indexOf(query) !== -1;
+      });
+    }
+    var unused = rows.filter(function (row) { return row.status === "Tidak dipakai"; }).length;
+    rows = analysisSortItems(rows);
+    var viewRows = [];
+    rows.forEach(function (row) {
+      var id = "dax:" + row.kind + ":" + row.table + ":" + row.name;
+      var open = analysisIsOpen(id, false);
+      viewRows.push({
+        cells: [
+          analysisNameCell(row.name, row.kind === "measure" ? "measure" : "column", {
+            level: 0, toggleId: row.expression ? id : "", open: open
+          }),
+          escapeHtml(row.table),
+          escapeHtml(row.type),
+          analysisStatusChip(row.status),
+          String(row.uses),
+          row.has_error ? t("Yes") : t("No"),
+          escapeHtml(row.source)
+        ],
+        numCols: [4]
+      });
+      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression });
+    });
+    return {
+      headers: [
+        { label: t("Name / expression"), key: "name" }, { label: t("Table"), key: "table" },
+        { label: t("Type"), key: "type" }, { label: "Status", key: "status" },
+        { label: t("# used"), key: "uses", num: true },
+        { label: "Error", key: "has_error" }, { label: t("Source"), key: "source" }
+      ],
+      widths: ["37%", "13%", "11%", "15%", "8%", "6%", "10%"],
+      rows: viewRows,
+      summary: rows.length + t(" expressions · ") + unused + t(" unused") +
+        analysisCoverageSuffix(state.analysis)
+    };
+  }
+
+  function analysisMRows() {
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var type = getSelectValue("typeAnalyze") || "all";
+    var items = ((state.analysis && state.analysis.m_queries) || []).filter(function (row) {
+      if (type !== "all" && row.kind !== type) return false;
+      if (!query) return true;
+      return [row.name, row.kind, row.source, row.expression, row.detail]
+        .join(" ").toLowerCase().indexOf(query) !== -1;
+    });
+    items = analysisSortItems(items);
+    var viewRows = [];
+    items.forEach(function (row) {
+      var id = "m:" + row.kind + ":" + row.name;
+      var open = analysisIsOpen(id, false);
+      var warning = row.warning
+        ? '<span class="chip chip-warn"><span class="dot"></span>' + escapeHtml(row.warning) + "</span>"
+        : "—";
+      viewRows.push({
+        cells: [
+          analysisNameCell(row.name, row.kind === "Tabel" ? "query" : "code", {
+            level: 0, toggleId: row.expression ? id : "", open: open
+          }),
+          escapeHtml(row.kind || "—"),
+          escapeHtml([row.source, row.detail].filter(Boolean).join(" · ") || "—"),
+          warning
+        ]
+      });
+      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression });
+    });
+    return {
+      headers: [
+        { label: t("Name"), key: "name" }, { label: t("Type"), key: "kind" },
+        { label: t("Source"), key: "source" }, { label: "Peringatan", key: "warning" }
+      ],
+      widths: ["35%", "13%", "37%", "15%"],
+      rows: viewRows,
+      summary: items.length + t(" queries · ") +
+        items.filter(function (row) { return row.kind === "Tabel"; }).length +
+        t(" tables") + analysisCoverageSuffix(state.analysis)
+    };
+  }
+
+  function analysisSortItems(items) {
+    if (!state.analysisSort || state.analysisSort === "default") return items.slice();
+    var key = state.analysisSort;
+    var desc = state.analysisSortDesc;
+    return items.slice().sort(function (left, right) {
+      var a = left[key];
+      var b = right[key];
+      if (key === "size") {
+        a = Number(left.size_bytes || 0);
+        b = Number(right.size_bytes || 0);
+      } else if (["uses", "pages", "visuals", "fields", "unresolved", "used"].includes(key)) {
+        a = Number(a || 0);
+        b = Number(b || 0);
+      } else if (key === "status") {
+        a = ANALYSIS_STATUS_ORDER[left.status] == null ? 99 : ANALYSIS_STATUS_ORDER[left.status];
+        b = ANALYSIS_STATUS_ORDER[right.status] == null ? 99 : ANALYSIS_STATUS_ORDER[right.status];
+      } else if (key === "has_error" || key === "is_active") {
+        a = left[key] ? 1 : 0;
+        b = right[key] ? 1 : 0;
+      } else if (key === "type" && left.type == null) {
+        a = "relasi";
+        b = "relasi";
+      } else {
+        a = String(a == null ? "" : a).toLowerCase();
+        b = String(b == null ? "" : b).toLowerCase();
+      }
+      if (a < b) return desc ? 1 : -1;
+      if (a > b) return desc ? -1 : 1;
+      return 0;
+    });
+  }
+
+  function analysisHead(headers) {
+    return "<tr>" + headers.map(function (header) {
+      var cls = header.num ? ' class="num"' : "";
+      var sort = header.key ? ' data-analysis-sort="' + escapeHtml(header.key) + '"' : "";
+      var arrow = header.key && state.analysisSort === header.key
+        ? (state.analysisSortDesc ? " \u25bc" : " \u25b2") : "";
+      return "<th scope=\"col\"" + cls + sort + ' title="' +
+        escapeHtml(header.hint || header.label) + '">' + header.label + arrow + "</th>";
+    }).join("") + "</tr>";
+  }
+
+  function applyAnalysisCellTitles() {
+    $$("#analyzeBody td").forEach(function (cell) {
+      var nameText = cell.querySelector(".name-text");
+      var clipped = cell.scrollWidth > cell.clientWidth + 1;
+      var nameClipped = Boolean(
+        nameText && nameText.scrollWidth > nameText.clientWidth + 1
+      );
+      if (nameClipped) {
+        var longName = (nameText.textContent || "").trim();
+        if (longName) cell.title = longName;
+      } else if (clipped) {
+        var text = (cell.innerText || "").trim();
+        if (text) cell.title = text;
+      } else if (cell.title) {
+        cell.removeAttribute("title");
+      }
+    });
+  }
+
+  function analysisBody(headers, rows) {
+    return rows.map(function (row) {
+      if (row.kind === "subhead") {
+        return '<tr class="subhead-row">' + headers.map(function (header, index) {
+          var label = row.labels && row.labels[index] ? row.labels[index] : "";
+          return "<td>" + escapeHtml(label) + "</td>";
+        }).join("") + "</tr>";
+      }
+      if (row.kind === "detail") {
+        return '<tr class="detail-row"><td colspan="' + headers.length + '">' +
+          escapeHtml(row.text) + "</td></tr>";
+      }
+      if (row.kind === "code") {
+        return '<tr class="code-row"><td colspan="' + headers.length + '"><pre>' +
+          escapeHtml(row.code) + "</pre></td></tr>";
+      }
+      if (row.kind === "html") {
+        return '<tr class="' + (row.cls || "analysis-sub") + '"><td colspan="' +
+          headers.length + '">' + row.html + "</td></tr>";
+      }
+      var numeric = row.numCols || [];
+      var level = row.level || 0;
+      var classes = [];
+      if (row.group) classes.push("group-row");
+      if (row.itemRow) classes.push("item-row");
+      if (row.cls) classes.push(row.cls);
+      var attrs = classes.length ? ' class="' + classes.join(" ") + '"' : "";
+      if (row.group) attrs += ' data-level="' + level + '"';
+      var html = row.cells.map(function (cell, index) {
+        var tdClasses = [];
+        if (index === 0) tdClasses.push("cell-name");
+        if (numeric.indexOf(index) !== -1) tdClasses.push("num");
+        var style = index === 0 ? ' style="--depth:' + level + '"' : "";
+        var cls = tdClasses.length ? ' class="' + tdClasses.join(" ") + '"' : "";
+        return "<td" + cls + style + ">" + cell + "</td>";
+      }).join("");
+      return "<tr" + attrs + ">" + html + "</tr>";
+    }).join("");
   }
 
   function analysisRender() {
     var result = state.analysis;
-    var table = $("#analyzeTableWrap");
-    var empty = $("#analyzeEmpty");
-    $("#exportXlsx").disabled = !result;
-    $("#tabCountAll").textContent = result ? String((result.totals.columns || 0) + (result.totals.measures || 0)) : "";
-    $("#tabCountColumns").textContent = result ? String(result.totals.columns || 0) : "";
-    $("#tabCountMeasures").textContent = result ? String(result.totals.measures || 0) : "";
-    $("#tabCountReport").textContent = result ? String(result.totals.reports || 0) : "";
+    analysisTabCounts();
     $$("#analyzeTabs [role='tab']").forEach(function (tab) {
       var active = tab.getAttribute("data-analysis-tab") === state.analysisTab;
       tab.setAttribute("aria-selected", active ? "true" : "false");
       tab.tabIndex = active ? 0 : -1;
     });
+    $("#exportXlsx").disabled = !result;
+    var tableWrap = $("#analyzeTableWrap");
+    var graph = $("#relGraph");
+    var empty = $("#analyzeEmpty");
     if (!result) {
-      table.hidden = true;
+      tableWrap.hidden = true;
+      graph.hidden = true;
       empty.hidden = false;
-      $("#analyzeSummary").textContent = "Belum dianalisis";
-      $("#analyzeEmptyTitle").textContent = "Belum ada hasil analisa";
+      $("#analyzeSummary").textContent = t("Not analyzed yet");
+      $("#analyzeEmptyTitle").textContent = t("No analysis results yet");
       $("#analyzeEmptyText").textContent =
-        "Pilih workspace dan semantic model, lalu tekan Analisa. Hasil muncul di sini tanpa mengubah model.";
+        t("Choose a workspace and semantic model, then press Analyze. Results appear here without changing the model.");
       $("#analyzeFromEmpty").hidden = false;
       return;
     }
-    if (state.analysisTab === "report") {
-      analysisRenderReports(result);
+    var tab = state.analysisTab;
+    if (tab === "relationships" && state.relView === "graph") {
+      tableWrap.hidden = true;
+      $("#analyzeHead").innerHTML = "";
+      $("#analyzeBody").innerHTML = "";
+      analysisRenderGraph();
+      empty.hidden = true;
       return;
     }
-    var rows = analysisRows();
-    $("#analyzeHead").innerHTML = analysisHeaders();
-    var html = "";
-    rows.forEach(function (row, index) {
-      var id = row.kind + ":" + index;
-      var open = Boolean(state.analysisOpen[id]);
-      var expandable = (row.children || []).length > 0 || row.reason || row.expression;
-      var cells = [
-        '<div class="name-cell">' +
-          (expandable
-            ? '<button type="button" class="row-toggle" data-analysis-toggle="' + id +
-              '" aria-expanded="' + (open ? "true" : "false") + '">' + CHEVRON + "</button>"
-            : '<span class="row-toggle" aria-hidden="true"></span>') +
-          '<span class="name-text" title="' + escapeHtml(row.name) + '">' +
-          escapeHtml(row.name) + "</span></div>",
-        escapeHtml(row.type),
-        escapeHtml(row.table),
-        escapeHtml(row.source || "Model"),
-        escapeHtml(row.data_type),
-        escapeHtml(row.size || "-"),
-        analysisStatusChip(row.status),
-        String(row.uses == null ? 0 : row.uses),
-        escapeHtml(row.format_string || "-"),
-        row.has_error ? "Ya" : "Tidak",
-        escapeHtml(row.display_folder || "-")
-      ];
-      html += '<tr data-analysis-row="' + id + '"' +
-        (row.status === "Tidak dipakai" ? ' class="row-unused"' : "") + ">" +
-        cells.map(function (cell, cellIndex) {
-          var numeric = cellIndex === 5 || cellIndex === 7;
-          return "<td" + (numeric ? ' class="num"' : "") + ">" + cell + "</td>";
-        }).join("") + "</tr>";
-      if (open) html += analysisDetailRows(row, id);
-    });
-    if (!html) {
-      table.hidden = true;
+    graph.hidden = true;
+    var view;
+    if (tab === "all") view = analysisFlatRows();
+    else if (tab === "tables") view = analysisTreeView();
+    else if (tab === "relationships") view = analysisRelationshipRows();
+    else if (tab === "report") view = analysisReportRows();
+    else if (tab === "dax") view = analysisDaxRows();
+    else view = analysisMRows();
+    $("#analyzeCols").innerHTML = (view.widths || []).map(function (width) {
+      return '<col style="width:' + width + '">';
+    }).join("");
+    $("#analyzeHead").innerHTML = analysisHead(view.headers);
+    $("#analyzeBody").innerHTML = analysisBody(view.headers, view.rows);
+    $("#analyzeSummary").textContent = view.summary;
+    if (!view.rows.length) {
+      tableWrap.hidden = true;
       empty.hidden = false;
-      $("#analyzeEmptyTitle").textContent = "Tidak ada item yang cocok";
-      $("#analyzeEmptyText").textContent = "Ubah kata kunci atau filter untuk melihat item lain.";
+      $("#analyzeEmptyTitle").textContent = t("No matching items");
+      $("#analyzeEmptyText").textContent =
+        t("Change the keyword or filter to see other items in this tab.");
       $("#analyzeFromEmpty").hidden = true;
     } else {
-      $("#analyzeBody").innerHTML = html;
-      table.hidden = false;
+      tableWrap.hidden = false;
       empty.hidden = true;
     }
-    var unused = rows.filter(function (row) {
-      return row.status === "Tidak dipakai";
-    }).length;
-    $("#analyzeSummary").textContent =
-      (state.analysisNote ? state.analysisNote + " " : "") +
-      rows.length + " item \u00b7 " + unused + " tidak dipakai \u00b7 " +
-      (result.coverage || "");
+    if (!tableWrap.hidden) {
+      window.requestAnimationFrame(applyAnalysisCellTitles);
+    }
   }
 
-  function analysisRenderReports(result) {
-    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
-    var reports = (result.reports || []).filter(function (report) {
-      if (!query) return true;
-      return [report.report_name, report.workspace_name, report.status, report.message]
-        .join(" ").toLowerCase().indexOf(query) !== -1;
+  function analysisTableInfo(name) {
+    var tables = (state.analysis && state.analysis.tables) || [];
+    return tables.filter(function (table) { return table.name === name; })[0] || {
+      name: name, column_count: 0, measure_count: 0, size_bytes: 0,
+      storage_mode: "", partition_count: 0, total_items: 0
+    };
+  }
+
+  function analysisTruncate(text, size) {
+    var value = String(text || "");
+    return value.length > size ? value.slice(0, size - 1) + "…" : value;
+  }
+
+  var REL_NODE_W = 152;
+  var REL_NODE_H = 58;
+  var REL_COL_GAP = 88;
+  var REL_ROW_GAP = 22;
+  var REL_PAD = 30;
+  var REL_LANE_STEPS = [0, -12, 12, -24, 24, -36, 36, -48, 48, -60, 60, -72, 72, -90, 90, -108, 108, -126, 126];
+
+  function analysisRelPairs(list) {
+    var pairs = {};
+    list.forEach(function (rel) {
+      var key = (rel.from_table || "") + "|" + (rel.to_table || "");
+      if (!pairs[key]) {
+        pairs[key] = { key: key, from: rel.from_table, to: rel.to_table, rels: [] };
+      }
+      pairs[key].rels.push(rel);
     });
-    $("#analyzeHead").innerHTML =
-      "<tr><th>Report</th><th>Workspace</th><th>Format</th><th>Status</th>" +
-      "<th>Modified</th><th>Pesan</th></tr>";
-    $("#analyzeBody").innerHTML = reports.map(function (report) {
-      var url = analysisReportUrl(report.workspace_id, report.report_id);
-      var name = escapeHtml(report.report_name || report.report_id || "(report)");
-      var status = report.status === "ok"
-        ? '<span class="chip chip-ok"><span class="dot"></span>ok</span>'
-        : '<span class="chip chip-warn"><span class="dot"></span>' +
-          escapeHtml(report.status || "-") + "</span>";
-      return "<tr>" +
-        "<td>" + (url ? '<a class="analysis-link" href="' + escapeHtml(url) +
-          '" target="_blank" rel="noopener">' + name + "</a>" : name) + "</td>" +
-        "<td>" + escapeHtml(report.workspace_name || "-") + "</td>" +
-        "<td>" + escapeHtml(report.format || "-") + "</td>" +
-        "<td>" + status + "</td>" +
-        "<td>" + escapeHtml((report.modified_at || "").replace("T", " ").slice(0, 16)) + "</td>" +
-        "<td>" + escapeHtml(report.message || "-") + "</td></tr>";
-    }).join("");
-    if (!reports.length) {
-      $("#analyzeTableWrap").hidden = true;
-      $("#analyzeEmpty").hidden = false;
-      $("#analyzeEmptyTitle").textContent = "Tidak ada report";
-      $("#analyzeEmptyText").textContent = "Tidak ada report yang cocok dengan filter.";
-      $("#analyzeFromEmpty").hidden = true;
+    return pairs;
+  }
+
+  function analysisPairStatus(pair) {
+    var active = pair.rels.filter(function (rel) { return rel.is_active; }).length;
+    return { active: active, inactive: pair.rels.length - active };
+  }
+
+  function analysisRelTreeLayout() {
+    var tables = (state.analysis && state.analysis.tables) || [];
+    var names = tables.map(function (table) { return table.name; });
+    var outgoing = {};
+    var incoming = {};
+    names.forEach(function (name) {
+      outgoing[name] = [];
+      incoming[name] = [];
+    });
+    ((state.analysis && state.analysis.relationships) || []).forEach(function (rel) {
+      var a = rel.from_table;
+      var b = rel.to_table;
+      if (!a || !b || a === b) return;
+      if (!outgoing[a] || !incoming[b]) return;
+      if (outgoing[a].indexOf(b) === -1) outgoing[a].push(b);
+      if (incoming[b].indexOf(a) === -1) incoming[b].push(a);
+    });
+
+    var level = {};
+    names.forEach(function (name) { level[name] = 0; });
+    var guard = names.length * 2;
+    var changed = true;
+    while (changed && guard > 0) {
+      changed = false;
+      guard -= 1;
+      names.forEach(function (name) {
+        incoming[name].forEach(function (parent) {
+          if (level[parent] + 1 > level[name] && level[parent] + 1 < names.length) {
+            level[name] = level[parent] + 1;
+            changed = true;
+          }
+        });
+      });
+    }
+
+    var columns = [];
+    names.forEach(function (name) {
+      var index = level[name];
+      if (!columns[index]) columns[index] = [];
+      columns[index].push(name);
+    });
+
+    var maxRows = 1;
+    columns.forEach(function (column) { maxRows = Math.max(maxRows, column.length); });
+    var contentHeight = maxRows * REL_NODE_H + (maxRows - 1) * REL_ROW_GAP;
+    var height = Math.max(340, contentHeight + REL_PAD * 2);
+    var width = REL_PAD * 2 + columns.length * REL_NODE_W +
+      Math.max(0, columns.length - 1) * REL_COL_GAP;
+    var positions = {};
+
+    columns.forEach(function (column, columnIndex) {
+      var total = column.length * REL_NODE_H + (column.length - 1) * REL_ROW_GAP;
+      var startY = (height - total) / 2;
+      column.forEach(function (name, rowIndex) {
+        positions[name] = {
+          level: columnIndex,
+          x: REL_PAD + columnIndex * (REL_NODE_W + REL_COL_GAP),
+          y: startY + rowIndex * (REL_NODE_H + REL_ROW_GAP)
+        };
+      });
+    });
+
+    return { positions: positions, width: width, height: height, names: names };
+  }
+
+  function analysisRelRoutePath(x1, y1, x2, y2, laneY) {
+    var g1 = x1 + REL_COL_GAP / 2;
+    var g2 = x2 - REL_COL_GAP / 2;
+    return "M" + x1 + " " + y1 +
+      "C" + (x1 + (g1 - x1) * 0.7) + " " + y1 + ", " + (g1 - 12) + " " + laneY +
+      ", " + g1 + " " + laneY +
+      "L" + g2 + " " + laneY +
+      "C" + (g2 + 12) + " " + laneY + ", " + (g2 + (x2 - g2) * 0.4) + " " + y2 +
+      ", " + x2 + " " + y2;
+  }
+
+  function analysisLaneClear(positions, from, to, y) {
+    for (var column = from.level + 1; column < to.level; column += 1) {
+      var blocked = Object.keys(positions).some(function (name) {
+        var pos = positions[name];
+        return pos.level === column && y > pos.y - 8 && y < pos.y + REL_NODE_H + 8;
+      });
+      if (blocked) return false;
+    }
+    return true;
+  }
+
+  function analysisLaneY(positions, from, to, y2, usedLanes, limit) {
+    for (var i = 0; i < REL_LANE_STEPS.length; i += 1) {
+      var candidate = y2 + REL_LANE_STEPS[i];
+      if (candidate < 12 || candidate > limit - 12) continue;
+      if (!analysisLaneClear(positions, from, to, candidate)) continue;
+      var taken = usedLanes.some(function (value) {
+        return Math.abs(value - candidate) < 7;
+      });
+      if (taken) continue;
+      return candidate;
+    }
+    return 16;
+  }
+
+  function analysisGraphStat(label, value) {
+    return '<div class="rel-side-stat"><b>' + escapeHtml(String(value)) +
+      "</b><span>" + escapeHtml(label) + "</span></div>";
+  }
+
+  function analysisRelChip(label, cls) {
+    return '<span class="chip ' + (cls || "chip-idle") + '">' + escapeHtml(label) + "</span>";
+  }
+
+  function analysisPairCard(rel) {
+    return '<div class="rel-side-rel"><code>' +
+      escapeHtml((rel.from_table || "") + "[" + (rel.from_column || "") + "]") + " → " +
+      escapeHtml((rel.to_table || "") + "[" + (rel.to_column || "") + "]") + "</code>" +
+      '<div class="rel-meta">' +
+      analysisRelChip(tStatus(rel.status || "Dipakai"), rel.is_active ? "chip-ok" : "chip-idle") +
+      analysisRelChip(rel.type || "") +
+      analysisRelChip(rel.cross || "") +
+      analysisRelChip(rel.cardinality || "") +
+      analysisRelChip("auto: " + (rel.auto || t("No"))) +
+      "</div></div>";
+  }
+
+  function analysisGraphSide(selected, allPairs, visiblePairs, names) {
+    var side = $("#relGraphSide");
+    if (selected && selected.kind === "pair") {
+      var pair = allPairs[selected.value];
+      if (!pair) {
+        side.innerHTML = '<p class="helper">Relasi tidak ditemukan pada filter saat ini.</p>';
+        return;
+      }
+      var status = analysisPairStatus(pair);
+      side.innerHTML =
+        '<p class="rel-side-title">' + escapeHtml(pair.from) + " → " +
+        escapeHtml(pair.to) + "</p>" +
+        '<p class="rel-side-sub">' + pair.rels.length + t(" relationships · ") +
+        status.active + t(" active · ") + status.inactive + t(" inactive</p>") +
+        '<div class="rel-side-list">' + pair.rels.map(analysisPairCard).join("") + "</div>" +
+        '<button class="btn btn-sm rel-side-back" type="button" data-rel-back="' +
+        escapeHtml(pair.from) + '">' + t("View all relationships ") + escapeHtml(pair.from) + "</button>";
       return;
     }
-    $("#analyzeTableWrap").hidden = false;
-    $("#analyzeEmpty").hidden = true;
-    $("#analyzeSummary").textContent =
-      reports.length + " report \u00b7 " + (result.coverage || "");
+    if (selected && selected.kind === "table") {
+      var name = selected.value;
+      var info = analysisTableInfo(name);
+      var keys = Object.keys(visiblePairs).filter(function (key) {
+        return visiblePairs[key].from === name || visiblePairs[key].to === name;
+      });
+      var rels = [];
+      keys.forEach(function (key) { rels = rels.concat(visiblePairs[key].rels); });
+      var active = rels.filter(function (rel) { return rel.is_active; }).length;
+      side.innerHTML =
+        '<p class="rel-side-title">' + escapeHtml(name) + "</p>" +
+        '<p class="rel-side-sub">Tabel · ' + info.column_count + t(" columns · ") +
+        info.measure_count + t(" measures · ") + (info.rows || 0) + t(" rows</p>") +
+        '<div class="rel-side-stats">' +
+        analysisGraphStat(t("Relationships"), rels.length) +
+        analysisGraphStat(t("Active"), active) +
+        analysisGraphStat(t("Inactive"), rels.length - active) +
+        analysisGraphStat(t("Related tables"), keys.length) +
+        "</div>" +
+        (keys.length
+          ? '<div class="rel-side-list">' + keys.map(function (key) {
+            var pair = visiblePairs[key];
+            var target = pair.from === name ? pair.to : pair.from;
+            var pairStatus = analysisPairStatus(pair);
+            return '<button type="button" class="rel-side-item" data-rel-pair="' +
+              escapeHtml(key) + '"><strong>' + escapeHtml(target) + "</strong><span>" +
+              pair.rels.length + t(" relationships · ") + pairStatus.inactive +
+              t(" inactive</span></button>");
+          }).join("") + "</div>"
+          : '<p class="rel-side-note">' + t("No relationships match the current filter.") + "</p>") +
+        '<p class="rel-side-note">' + t("Click a line in the graph to see the relationship columns.") + "</p>";
+      return;
+    }
+    side.innerHTML = '<p class="rel-side-title">Grafik relasi</p>' +
+      '<p class="rel-side-sub">' + names.length + t(" tables · ") +
+      Object.keys(visiblePairs).length + t(" table pairs in this filter.</p>") +
+      '<p class="rel-side-note">Klik tabel atau garis untuk melihat detail relasi.</p>';
+  }
+
+  function applyAnalysisZoom() {
+    var svg = $("#relGraphSvg");
+    if (!svg) return;
+    var baseWidth = state.relGraphBaseWidth || 760;
+    var baseHeight = state.relGraphBaseHeight || 500;
+    var zoom = state.relZoom || 1;
+    var width = baseWidth / zoom;
+    var height = baseHeight / zoom;
+    var x = (baseWidth - width) / 2 + (state.relPanX || 0);
+    var y = (baseHeight - height) / 2 + (state.relPanY || 0);
+    svg.setAttribute(
+      "viewBox",
+      x + " " + y + " " + width + " " + height
+    );
+    var label = $("#relZoomValue");
+    if (label) label.textContent = Math.round(zoom * 100) + "%";
+    var out = $("#relZoomOut");
+    var inn = $("#relZoomIn");
+    if (out) out.disabled = zoom <= 0.6;
+    if (inn) inn.disabled = zoom >= 2.5;
+  }
+
+  function analysisSetZoom(value) {
+    state.relZoom = Math.max(0.6, Math.min(2.5, value));
+    applyAnalysisZoom();
+  }
+
+  function analysisRenderGraph() {
+    var layer = $("#relGraphLayer");
+    var relations = analysisFilteredRelationships();
+    var allPairs = analysisRelPairs((state.analysis && state.analysis.relationships) || []);
+    var visiblePairs = analysisRelPairs(relations);
+    var tree = analysisRelTreeLayout();
+    $("#relGraph").hidden = false;
+    $("#analyzeSummary").textContent = relations.length + t(" relationships · ") +
+      Object.keys(visiblePairs).length + t(" table pairs") +
+      analysisCoverageSuffix(state.analysis);
+    if (!relations.length) {
+      layer.innerHTML = "";
+      state.relGraphBaseWidth = 760;
+      state.relGraphBaseHeight = 220;
+      state.relPanX = 0;
+      state.relPanY = 0;
+      analysisSetZoom(1);
+      $("#relGraphSide").innerHTML =
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada relasi</div>' +
+        '<p class="empty-text">Ubah kata kunci atau filter status untuk melihat relasi lain.</p></div>';
+      return;
+    }
+
+    var names = tree.names;
+    var selected = state.relSelected;
+    if (selected && selected.kind === "table" && !tree.positions[selected.value]) {
+      selected = null;
+    }
+    if (selected && selected.kind === "pair" && !visiblePairs[selected.value]) {
+      selected = null;
+    }
+    if (!selected) {
+      selected = { kind: "table", value: names[0] };
+    }
+    state.relSelected = selected;
+    var selectedPair = selected.kind === "pair" ? selected.value : "";
+    var selectedTable = selected.kind === "table" ? selected.value : "";
+
+    var parts = [];
+    var usedLanes = [];
+    Object.keys(visiblePairs).forEach(function (key) {
+      var pair = visiblePairs[key];
+      var from = tree.positions[pair.from];
+      var to = tree.positions[pair.to];
+      if (!from || !to) return;
+      var x1 = from.x + REL_NODE_W;
+      var y1 = from.y + REL_NODE_H / 2;
+      var x2 = to.x;
+      var y2 = to.y + REL_NODE_H / 2;
+      if (x2 <= x1 + 6) {
+        x1 = from.x;
+        x2 = to.x + REL_NODE_W;
+      }
+      var path;
+      var badgeX;
+      var badgeY;
+      if (to.level - from.level > 1) {
+        var laneY = analysisLaneY(tree.positions, from, to, y2, usedLanes, tree.height);
+        usedLanes.push(laneY);
+        path = analysisRelRoutePath(x1, y1, x2, y2, laneY);
+        badgeX = (x1 + x2) / 2;
+        badgeY = laneY;
+      } else {
+        var mid = x1 + (x2 - x1) / 2;
+        path = "M" + x1 + " " + y1 + "C" + mid + " " + y1 + ", " + mid + " " +
+          y2 + ", " + x2 + " " + y2;
+        badgeX = (x1 + x2) / 2;
+        badgeY = (y1 + y2) / 2;
+      }
+      var status = analysisPairStatus(pair);
+      var isSelected = selectedPair === key;
+      var hot = isSelected ||
+        (selectedTable && (pair.from === selectedTable || pair.to === selectedTable));
+      var dim = !hot;
+      var cls = "rel-edge" + (status.active ? "" : " is-inactive") +
+        (hot ? " is-selected" : "");
+      parts.push('<path class="' + cls + '" d="' + path + '"' +
+        (dim ? ' opacity=".45"' : "") + ' marker-end="url(#' +
+        (hot ? "relArrowActive" : "relArrow") + ')" data-rel-pair="' +
+        escapeHtml(key) + '"><title>' + escapeHtml(pair.from + " → " + pair.to +
+          " · " + pair.rels.length + " relasi") + "</title></path>");
+      parts.push('<path class="rel-edge-hit" d="' + path + '" data-rel-pair="' +
+        escapeHtml(key) + '"></path>');
+      if (pair.rels.length > 1) {
+        parts.push('<g class="rel-edge-badge" aria-hidden="true">' +
+          '<rect x="' + (badgeX - 10) + '" y="' + (badgeY - 8) +
+          '" width="20" height="16" rx="8"></rect>' +
+          '<text x="' + badgeX + '" y="' + (badgeY + 3) + '">' +
+          pair.rels.length + "</text></g>");
+      }
+    });
+
+    Object.keys(tree.positions).forEach(function (name) {
+      var pos = tree.positions[name];
+      var info = analysisTableInfo(name);
+      var touches = Object.keys(visiblePairs).some(function (key) {
+        return visiblePairs[key].from === name || visiblePairs[key].to === name;
+      });
+      var isSelected = selectedTable === name;
+      var cls = "node rel-node" + (touches ? "" : " is-dim");
+      parts.push('<g class="' + cls + '" tabindex="0" role="button" data-rel-table="' +
+        escapeHtml(name) + '" aria-label="' + t("Table ") + escapeHtml(name) +
+        (touches ? t(", has relationships") : t(", no relationships")) + '" aria-current="' +
+        (isSelected ? "true" : "false") + '">' +
+        '<rect class="node-box' + (isSelected ? " sel" : "") + '" x="' + pos.x +
+        '" y="' + pos.y + '" width="' + REL_NODE_W + '" height="' + REL_NODE_H +
+        '" rx="6"></rect>' +
+        '<text class="node-type" x="' + (pos.x + 11) + '" y="' + (pos.y + 16) +
+        '">' + t("Table") + "</text>" +
+        '<text class="node-name" x="' + (pos.x + 11) + '" y="' + (pos.y + 33) +
+        '">' + escapeHtml(analysisTruncate(name, 20)) + "</text>" +
+        '<text class="rel-node-meta" x="' + (pos.x + 11) + '" y="' + (pos.y + 48) +
+        '">' + info.column_count + t(" columns · ") + info.measure_count +
+        t(" measures</text></g>"));
+    });
+
+    layer.innerHTML = parts.join("");
+    state.relGraphBaseWidth = tree.width;
+    state.relGraphBaseHeight = tree.height;
+    applyAnalysisZoom();
+    analysisGraphSide(selected, allPairs, visiblePairs, names);
   }
 
   function analysisSetTab(name) {
-    if (!["all", "columns", "measures", "report"].includes(name)) return;
+    if (!ANALYSIS_TABS[name]) return;
     state.analysisTab = name;
+    state.analysisForceOpen = null;
+    state.relSelected = null;
+    analysisApplyTabTools(name, true);
     analysisRender();
   }
 
@@ -3761,7 +3422,8 @@
       state.analysisSortDesc = !state.analysisSortDesc;
     } else {
       state.analysisSort = key;
-      state.analysisSortDesc = ["size", "uses", "has_error"].includes(key);
+      state.analysisSortDesc = ["size", "uses", "has_error", "pages", "visuals",
+        "fields", "unresolved", "is_active", "used"].includes(key);
     }
     analysisSavePrefs();
     analysisRender();
@@ -3770,11 +3432,11 @@
   function analysisRun() {
     if (!apiReady()) return;
     if (state.jobId) {
-      toast("Pekerjaan lain masih berjalan");
+      toast(t("Another job is still running"));
       return;
     }
     if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
-      toast("Pilih workspace dan semantic model lebih dulu");
+      toast(t("Choose a workspace and semantic model first"));
       return;
     }
     state.analysisRunning = true;
@@ -3783,7 +3445,7 @@
       kind: "analysis",
       path: "/api/analysis/run",
       body: analysisPayload(),
-      label: "Analisa Semantic Model",
+      label: t("Semantic Model Analysis"),
       button: $("#runAnalyze"),
       onDone: function (snapshot) {
         state.analysisRunning = false;
@@ -3796,19 +3458,19 @@
   function analysisStop() {
     if (!state.jobId || !apiReady()) return;
     api().post("/api/jobs/" + encodeURIComponent(state.jobId) + "/cancel", {})
-      .then(function () { toast("Permintaan berhenti dikirim"); })
+      .then(function () { toast(t("Stop request sent")); })
       .catch(reportError);
   }
 
   function analysisExport() {
     if (!apiReady() || !getSelectValue("modelSelect")) {
-      toast("Pilih semantic model lebih dulu");
+      toast(t("Choose a semantic model first"));
       return;
     }
     api().post("/api/analysis/export", {
       dataset_id: getSelectValue("modelSelect")
     }).then(function (data) {
-      toast("Ekspor: " + data.path);
+      toast(t("Export: ") + data.path);
       api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
     }).catch(reportError);
@@ -3821,7 +3483,7 @@
       state.lineageHasDb = Boolean(data.readable);
       state.depth = Number(data.depth || 3);
       state.direction = data.direction || "upstream";
-      var types = [{ value: "", label: "Semua tipe" }].concat(
+      var types = [{ value: "", label: t("All types") }].concat(
         (data.node_types || []).map(function (item) {
           return { value: item, label: item };
         })
@@ -3832,7 +3494,7 @@
       $("#lineageSearchBtn").disabled = !data.readable;
       $("#lineageWorkspace").disabled = !data.readable;
       $("#lineageType").disabled = !data.readable;
-      $("#depthVal").textContent = state.depth + " level";
+      $("#depthVal").textContent = state.depth + t(" levels");
       $("#depthMinus").disabled = true;
       $("#depthPlus").disabled = false;
       $("#dirUpstream").setAttribute("aria-pressed", String(state.direction === "upstream"));
@@ -3842,38 +3504,40 @@
           '<div class="empty" style="padding:18px 8px"><div class="empty-title">Database belum siap</div>' +
           '<p class="empty-text">' + escapeHtml(data.status || "") + "</p></div>";
         $("#lineageCount").textContent = "";
-        $("#lineageRootChip").innerHTML = '<span class="dot"></span>Belum ada akar';
+        $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + t("No root selected");
         $("#lineageDetail").innerHTML =
           '<p class="helper">' + escapeHtml(data.status || "") + "</p>";
         $("#exportCsv").disabled = true;
         return data;
       }
       $("#lineageResults").innerHTML =
-        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Belum ada pencarian</div>' +
-        '<p class="empty-text">Cari nama report, semantic model, tabel, atau measure.</p></div>';
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
+        t("No search yet") + '</div>' +
+        '<p class="empty-text">' +
+        t("Search for a report, semantic model, table, or measure.") + "</p></div>";
       $("#lineageCount").textContent =
-        (data.items || 0) + " item \u00b7 " + (data.workspaces || 0) + " workspace";
-      $("#lineageRootChip").innerHTML = '<span class="dot"></span>Belum ada akar';
+        (data.items || 0) + " item \u00b7 " + (data.workspaces || 0) + t(" workspaces");
+      $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + t("No root selected");
       $("#lineageDetail").innerHTML =
-        '<p class="helper">Pilih hasil pencarian untuk melihat lineage.</p>';
+        '<p class="helper">' + t("Choose a search result to view its lineage.") + "</p>";
       $("#exportCsv").disabled = true;
       return data;
     }).catch(function (error) {
-      addLog("Status lineage tidak bisa dibaca: " + error.message, "warn");
+      addLog(t("Lineage status could not be read: ") + error.message, "warn");
     });
   }
 
   function lineageSearch() {
     if (!apiReady()) return Promise.resolve();
     if (!state.lineageHasDb) {
-      toast("Database lineage belum siap; jalankan Sinkronisasi data");
+      toast(t("The lineage database is not ready; run Data sync first"));
       return Promise.resolve();
     }
     var query = $("#lineageSearch").value.trim();
     var workspace = $("#lineageWorkspace").value.trim();
     var type = getSelectValue("lineageType") || "";
     if (!query && !workspace && !type) {
-      toast("Isi kata kunci atau filter terlebih dahulu");
+      toast(t("Enter a keyword or filter first"));
       return Promise.resolve();
     }
     return api().get(
@@ -3898,7 +3562,7 @@
       box.innerHTML =
         '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada item</div>' +
         '<p class="empty-text">Ubah kata kunci atau filter workspace.</p></div>';
-      $("#lineageCount").textContent = "0 hasil";
+      $("#lineageCount").textContent = t("0 results");
       return;
     }
     box.innerHTML = rows.map(function (item) {
@@ -3912,7 +3576,7 @@
         '<span class="result-meta">' + escapeHtml(workspace) + "</span>" +
         '<span class="result-type chip chip-idle">' + escapeHtml(type) + "</span></button>";
     }).join("");
-    $("#lineageCount").textContent = rows.length + " hasil";
+    $("#lineageCount").textContent = rows.length + t(" results");
   }
 
   function lineageOpen(nodeId) {
@@ -3930,15 +3594,19 @@
       ((data.graph && data.graph.nodes) || []).forEach(function (node) {
         state.lineageNodesLive[node.id] = node;
       });
+      state.lineageZoom = 1;
+      state.lineagePanX = 0;
+      state.lineagePanY = 0;
+      state.lineageChainId = null;
       lineageRenderGraph();
       lineageRenderDetail(data.node || {});
       $("#lineageRootChip").innerHTML =
         '<span class="dot"></span>Akar: ' + escapeHtml((data.node && data.node.name) || nodeId);
       $("#lineageRootChip").title =
         "Upstream " + (data.upstream_count || 0) + " item \u00b7 downstream " +
-        (data.downstream_count || 0) + " item" +
-        (data.truncated ? " \u00b7 " + data.truncated + " node dipotong" : "");
-      $("#depthVal").textContent = state.depth + " level";
+        (data.downstream_count || 0) + t(" items") +
+        (data.truncated ? " \u00b7 " + data.truncated + t(" nodes truncated") : "");
+      $("#depthVal").textContent = state.depth + t(" levels");
       $("#depthMinus").disabled = state.depth <= 1;
       $("#depthPlus").disabled = state.depth >= 15;
       $("#exportCsv").disabled = false;
@@ -3949,12 +3617,73 @@
     }).catch(reportError);
   }
 
+  function applyLineageZoom() {
+    var svg = $("#lineageSvg");
+    if (!svg) return;
+    var baseWidth = state.lineageBaseWidth || 780;
+    var baseHeight = state.lineageBaseHeight || 280;
+    var zoom = state.lineageZoom || 1;
+    var width = baseWidth / zoom;
+    var height = baseHeight / zoom;
+    var x = (baseWidth - width) / 2 + (state.lineagePanX || 0);
+    var y = (baseHeight - height) / 2 + (state.lineagePanY || 0);
+    svg.setAttribute("viewBox", x + " " + y + " " + width + " " + height);
+    var label = $("#lineageZoomValue");
+    if (label) label.textContent = Math.round(zoom * 100) + "%";
+    var out = $("#lineageZoomOut");
+    var inn = $("#lineageZoomIn");
+    if (out) out.disabled = zoom <= 0.6;
+    if (inn) inn.disabled = zoom >= 2.5;
+  }
+
+  function setLineageZoom(value) {
+    state.lineageZoom = Math.max(0.6, Math.min(2.5, value));
+    applyLineageZoom();
+  }
+
+  function lineageChain(selectedId) {
+    var nodes = {};
+    var edges = {};
+    if (!selectedId || !state.lineageGraph) {
+      return { nodes: nodes, edges: edges };
+    }
+    var outgoing = {};
+    var incoming = {};
+    (state.lineageGraph.edges || []).forEach(function (edge, index) {
+      (outgoing[edge.source] = outgoing[edge.source] || []).push({
+        index: index, next: edge.target
+      });
+      (incoming[edge.target] = incoming[edge.target] || []).push({
+        index: index, next: edge.source
+      });
+    });
+    var queue = [selectedId];
+    nodes[selectedId] = true;
+    while (queue.length) {
+      var current = queue.shift();
+      [outgoing[current] || [], incoming[current] || []].forEach(function (list) {
+        list.forEach(function (item) {
+          edges[item.index] = true;
+          if (!nodes[item.next]) {
+            nodes[item.next] = true;
+            queue.push(item.next);
+          }
+        });
+      });
+    }
+    return { nodes: nodes, edges: edges };
+  }
+
   function lineageRenderGraph() {
     var graph = state.lineageGraph;
     var svg = $("#lineageSvg");
     if (!graph || !(graph.nodes || []).length) {
       $("#lineageLayer").innerHTML = "";
-      svg.setAttribute("viewBox", "0 0 780 280");
+      state.lineageBaseWidth = 780;
+      state.lineageBaseHeight = 280;
+      state.lineagePanX = 0;
+      state.lineagePanY = 0;
+      applyLineageZoom();
       return;
     }
     var nodes = graph.nodes;
@@ -3977,20 +3706,28 @@
     });
     var width = Math.max(780, 80 + (maxCol - minCol) * (nodeW + colGap) + nodeW);
     var height = Math.max(280, 68 + (maxRow - minRow) * (nodeH + rowGap) + nodeH);
-    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    state.lineageBaseWidth = width;
+    state.lineageBaseHeight = height;
+    var chain = state.lineageChainId ? lineageChain(state.lineageChainId) : null;
     var edges = "";
-    (graph.edges || []).forEach(function (edge) {
+    (graph.edges || []).forEach(function (edge, index) {
       var from = positions[edge.source];
       var to = positions[edge.target];
       if (!from || !to) return;
-      var x1 = from.x + nodeW / 2;
+      var forward = to.x > from.x;
+      var x1 = from.x + (forward ? nodeW : 0);
+      var x2 = to.x + (forward ? 0 : nodeW);
       var y1 = from.y + nodeH / 2;
-      var x2 = to.x + nodeW / 2;
       var y2 = to.y + nodeH / 2;
-      var selected = edge.source === state.selectedId || edge.target === state.selectedId;
-      edges += '<path class="edge' + (selected ? " is-selected" : "") +
-        '" d="M' + x1 + " " + y1 + "L" + x2 + " " + y2 +
-        '" marker-end="url(#arrow)"><title>' + escapeHtml(edge.type || "") + "</title></path>";
+      var mid = (x1 + x2) / 2;
+      var inChain = Boolean(chain && chain.edges[index]);
+      var selected = !chain && (edge.source === state.selectedId || edge.target === state.selectedId);
+      var marker = inChain ? "arrowChain" : "arrow";
+      edges += '<path class="edge' + (inChain ? " is-chain" : (selected ? " is-selected" : "")) +
+        '" d="M' + x1 + " " + y1 + " C" + mid + " " + y1 + ", " + mid + " " +
+        y2 + ", " + x2 + " " + y2 +
+        '" fill="none" marker-end="url(#' + marker + ')"><title>' +
+        escapeHtml(edge.type || "") + "</title></path>";
     });
     var markup = "";
     nodes.forEach(function (node) {
@@ -4004,9 +3741,12 @@
         ? workspace.slice(0, 23) + "\u2026"
         : workspace;
       var selected = node.id === state.selectedId ? " sel" : "";
-      var muted = node.side && node.side !== "root" && node.side !== state.direction
-        ? " is-muted" : "";
-      markup += '<g class="node lineage-node' + muted + '" tabindex="0" role="button" data-id="' +
+      var inChain = Boolean(chain && chain.nodes[node.id]);
+      var muted = chain
+        ? (inChain ? "" : " is-muted")
+        : (node.side && node.side !== "root" && node.side !== state.direction ? " is-muted" : "");
+      markup += '<g class="node lineage-node' + (inChain ? " is-chain" : "") + muted +
+        '" tabindex="0" role="button" data-id="' +
         escapeHtml(node.id) + '" aria-label="' + escapeHtml(name) + ", " +
         escapeHtml(type) + '">' +
         "<title>" + escapeHtml(name) + " \u00b7 " + escapeHtml(type) +
@@ -4024,12 +3764,13 @@
         "</g>";
     });
     $("#lineageLayer").innerHTML = edges + markup;
+    applyLineageZoom();
   }
 
   function lineageRenderDetail(node) {
     var selected = state.lineageNodesLive[state.selectedId] || {};
     var payload = selected.payload || node || {};
-    var name = payload.name || node.name || "(tanpa nama)";
+    var name = payload.name || node.name || t("(unnamed)");
     var type = payload.node_type || selected.type || node.node_type || "";
     var workspace = payload.workspace_name || selected.workspace || node.workspace_name || "";
     var neighbours = [];
@@ -4046,22 +3787,22 @@
       if (value === undefined || value === null || value === "") return;
       rows.push("<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(String(value)) + "</dd>");
     }
-    add("Tipe", type);
+    add(t("Type"), type);
     add("Workspace", workspace);
-    add("Pemilik", payload.owner);
+    add(t("Owner"), payload.owner);
     var modified = String(payload.last_modified_at || "").replace("T", " ").slice(0, 16);
-    add("Diubah", modified);
+    add(t("Modified"), modified);
     add("Endorsement", payload.endorsement && payload.endorsement !== "None" ? payload.endorsement : "");
-    add("Sensitivitas", payload.sensitivity_label);
-    add("Kedalaman", payload.depth);
-    add("Relasi", payload.edge_type);
-    add("Tipe sumber", payload.datasource_type);
+    add(t("Sensitivity"), payload.sensitivity_label);
+    add(t("Depth"), payload.depth);
+    add(t("Relationships"), payload.edge_type);
+    add(t("Source type"), payload.datasource_type);
     add("Server", payload.server);
     add("Database", payload.database_name);
     add("Path/URL", payload.path_or_url);
     add("Node ID", payload.node_id || state.selectedId);
     if (payload.is_active === 0 || payload.is_active === false) {
-      add("Status", "nonaktif (tidak terlihat pada scan terakhir)");
+      add("Status", t("inactive (not seen in the last scan)"));
     }
     var chips = neighbours.length
       ? neighbours.map(function (item) {
@@ -4083,9 +3824,9 @@
       '<div class="helper">' + escapeHtml(type) + (workspace ? " \u00b7 " + escapeHtml(workspace) : "") +
       "</div></div>" +
       (url ? '<a class="btn btn-sm" href="' + escapeHtml(url) +
-        '" target="_blank" rel="noopener">Buka report</a>' : "") +
+        '" target="_blank" rel="noopener">' + t("Open report") + "</a>" : "") +
       (state.selectedId !== state.rootId
-        ? '<button class="btn btn-sm" type="button" id="makeRoot">Jadikan akar</button>'
+        ? '<button class="btn btn-sm" type="button" id="makeRoot">' + t("Make root") + "</button>"
         : "") + "</div>" +
       '<dl class="kv">' + rows.join("") + "</dl>" +
       '<div class="dep-chips">' + chips + "</div>";
@@ -4093,7 +3834,7 @@
     if (makeRoot) {
       makeRoot.addEventListener("click", function () {
         lineageOpen(state.selectedId);
-        toast("Akar lineage diperbarui");
+        toast(t("Lineage root updated"));
       });
     }
     $$("#lineageDetail [data-lineage-node]").forEach(function (button) {
@@ -4106,6 +3847,7 @@
   function lineageSelectNode(nodeId) {
     if (!state.lineageNodesLive[nodeId]) return;
     state.selectedId = nodeId;
+    state.lineageChainId = nodeId;
     lineageRenderGraph();
     lineageRenderDetail(state.lineageNodesLive[nodeId].payload || {});
   }
@@ -4123,7 +3865,7 @@
     var value = Math.max(1, Math.min(15, state.depth + delta));
     if (value === state.depth) return;
     state.depth = value;
-    $("#depthVal").textContent = state.depth + " level";
+    $("#depthVal").textContent = state.depth + t(" levels");
     $("#depthMinus").disabled = state.depth <= 1;
     $("#depthPlus").disabled = state.depth >= 15;
     if (state.rootId) lineageOpen(state.rootId);
@@ -4131,7 +3873,7 @@
 
   function lineageExport() {
     if (!state.rootId) {
-      toast("Pilih node lineage lebih dulu");
+      toast(t("Choose a lineage node first"));
       return;
     }
     api().post("/api/lineage/export", {
@@ -4148,17 +3890,18 @@
   function init() {
     initComboEvents();
     enhanceAllSelects();
+    applyLanguage(state.language, { rerender: false });
     applyTheme(state.theme, false);
     applyMotion(state.motion, false);
     setSource(state.source);
 
-    $$(".nav-item").forEach(function (button) {
+    $$(".nav-item[data-view]").forEach(function (button) {
       button.addEventListener("click", function () {
         showView(button.dataset.view);
       });
     });
 
-    $$(".theme-card").forEach(function (card) {
+    $$(".theme-card[data-theme]").forEach(function (card) {
       card.addEventListener("click", function () {
         applyTheme(card.dataset.theme, true);
       });
@@ -4167,7 +3910,7 @@
           event.preventDefault();
           var next = state.theme === "dark" ? "light" : "dark";
           applyTheme(next, true);
-          var target = $$(".theme-card").filter(function (item) { return item.dataset.theme === next; })[0];
+          var target = $$(".theme-card[data-theme]").filter(function (item) { return item.dataset.theme === next; })[0];
           if (target) target.focus();
         }
       });
@@ -4177,6 +3920,22 @@
       applyMotion(event.target.checked, true);
     });
 
+    $$(".theme-card[data-language]").forEach(function (card) {
+      card.addEventListener("click", function () {
+        applyLanguage(card.dataset.language, { persist: true, announce: true });
+      });
+      card.addEventListener("keydown", function (event) {
+        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+        event.preventDefault();
+        var next = state.language === "en" ? "id" : "en";
+        applyLanguage(next, { persist: true });
+        var target = $$(".theme-card[data-language]").filter(function (item) {
+          return item.dataset.language === next;
+        })[0];
+        if (target) target.focus();
+      });
+    });
+
     $("#consoleToggle").addEventListener("click", function () {
       setConsole($("#consoleBody").hidden);
     });
@@ -4184,30 +3943,30 @@
     $("#clearLog").addEventListener("click", function () {
       state.logs = [];
       renderLog();
-      toast("Log konsol dibersihkan");
+      toast(t("Console log cleared"));
     });
 
     $("#srcBtnDesktop").addEventListener("click", function () { setSource("desktop"); });
     $("#srcBtnService").addEventListener("click", function () { setSource("service"); });
 
     $("#reloadDesktop").addEventListener("click", function () {
-      loadInstances().then(function () { toast("Daftar instance diperbarui"); });
+      loadInstances().then(function () { toast(t("Instance list refreshed")); });
     });
 
     $("#reloadWorkspaces").addEventListener("click", function () {
       loadWorkspaces().then(function () {
         if (getSelectValue("modelWorkspace")) loadModelContents();
         if (getSelectValue("reportWorkspace")) loadReportContents();
-        toast("Katalog workspace dimuat");
+        toast(t("Workspace catalog loaded"));
       });
     });
 
     $("#reloadReport").addEventListener("click", function () {
       if (!getSelectValue("reportWorkspace")) {
-        toast("Pilih workspace report lebih dulu");
+        toast(t("Choose a report workspace first"));
         return;
       }
-      loadReportContents().then(function () { toast("Daftar report dimuat"); });
+      loadReportContents().then(function () { toast(t("Report list loaded")); });
     });
 
     $("#pickPbix").addEventListener("click", function () {
@@ -4224,7 +3983,7 @@
     $("#modelWorkspace").addEventListener("change", function () {
       if (!this.value) {
         $("#xmlaEndpoint").value = "";
-        setSelectOptions("catalog", [], "Pilih dataset…");
+        setSelectOptions("catalog", [], "Choose a dataset…");
         $("#workspaceHint").textContent = "";
         return;
       }
@@ -4233,7 +3992,7 @@
 
     $("#reportWorkspace").addEventListener("change", function () {
       if (!this.value) {
-        setSelectOptions("serviceReport", [], "Pilih report…");
+        setSelectOptions("serviceReport", [], "Choose a report…");
         $("#reportHint").textContent = "";
         return;
       }
@@ -4268,7 +4027,7 @@
       openFolderPicker($("#outFolder").value, function (folder) {
         savePreference("extraction", { out_dir: folder }).then(function () {
           loadOutputs();
-          toast("Folder tujuan disimpan");
+          toast(t("Output folder saved"));
         });
       });
     });
@@ -4315,26 +4074,26 @@
     $("#openTsdFile").addEventListener("click", openTsdDocument);
     $("#openTsdFolder").addEventListener("click", openTsdFolder);
     $("#reloadShotWorkspace").addEventListener("click", function () {
-      loadWorkspaces().then(function () { toast("Katalog workspace dimuat"); });
+      loadWorkspaces().then(function () { toast(t("Workspace catalog loaded")); });
     });
     $("#reloadShotReport").addEventListener("click", function () {
       if (!getSelectValue("shotWorkspace")) {
-        toast("Pilih workspace screenshot lebih dulu");
+        toast(t("Choose a screenshot workspace first"));
         return;
       }
-      loadTsdReports().then(function () { toast("Daftar report dimuat"); });
+      loadTsdReports().then(function () { toast(t("Report list loaded")); });
     });
     $("#shotEnabled").addEventListener("change", function (event) {
       setChip(
         $("#shotChip"),
         event.target.checked ? "ok" : "idle",
-        event.target.checked ? "Aktif" : "Nonaktif"
+        event.target.checked ? t("Active") : t("Inactive")
       );
       scheduleTsdInspect();
     });
 
     $("#shotWorkspace").addEventListener("change", function () {
-      setSelectOptions("shotReport", [], "Pilih report…");
+      setSelectOptions("shotReport", [], "Choose a report…");
       loadTsdReports().then(function () { scheduleTsdInspect(); });
     });
     $("#shotReport").addEventListener("change", function () {
@@ -4368,11 +4127,14 @@
     $("#runAnalyze").addEventListener("click", analysisRun);
     $("#analyzeFromEmpty").addEventListener("click", analysisRun);
     $("#stopAnalyze").addEventListener("click", analysisStop);
-    $("#reloadWsAnalisa").addEventListener("click", function () {
-      analysisLoad().then(function () { toast("Katalog workspace dimuat"); });
-    });
-    $("#openSettingsFromAnalysis").addEventListener("click", function () {
-      window.openSettingsTab ? window.openSettingsTab() : showView("pengaturan");
+    $("#reloadModelAnalisa").addEventListener("click", function () {
+      if (!getSelectValue("wsSelect")) {
+        toast(t("Choose a workspace first"));
+        return;
+      }
+      analysisLoadDatasets().then(function () {
+        toast(t("Semantic model list reloaded"));
+      });
     });
     $("#wsSelect").addEventListener("change", function () {
       analysisLoadDatasets();
@@ -4387,7 +4149,11 @@
       if (state.analysis) analysisRender();
     });
     $("#typeAnalyze").addEventListener("change", function () {
-      analysisSavePrefs();
+      var value = getSelectValue("typeAnalyze") || "all";
+      if (["all", "columns", "measures"].includes(value)) {
+        state.analysisObjectFilter = value;
+        analysisSavePrefs();
+      }
       if (state.analysis) analysisRender();
     });
     $("#unusedOnly").addEventListener("change", function () {
@@ -4396,19 +4162,19 @@
     });
     $("#expandRows").addEventListener("click", function () {
       if (!state.analysis) {
-        toast("Jalankan analisa lebih dulu");
+        toast(t("Run the analysis first"));
         return;
       }
+      state.analysisForceOpen = true;
       state.analysisOpen = {};
-      if (state.analysisTab === "report") return;
-      analysisRows().forEach(function (row, index) {
-        if ((row.children || []).length || row.reason || row.expression) {
-          state.analysisOpen[row.kind + ":" + index] = true;
-        }
-      });
       analysisRender();
     });
     $("#collapseRows").addEventListener("click", function () {
+      if (!state.analysis) {
+        toast(t("Run the analysis first"));
+        return;
+      }
+      state.analysisForceOpen = false;
       state.analysisOpen = {};
       analysisRender();
     });
@@ -4423,51 +4189,120 @@
       var button = event.target.closest("[data-rel-view]");
       if (!button) return;
       state.relView = button.getAttribute("data-rel-view") === "table" ? "table" : "graph";
-      syncRelViewSwitch();
-      if (state.analyzed) renderAnalysis();
+      analysisSyncRelView();
+      analysisRender();
     });
     $("#relGraphSvg").addEventListener("click", function (event) {
-      var node = event.target.closest("[data-table]");
-      if (node) {
-        state.relSelected = "tbl:" + node.getAttribute("data-table");
-        renderRelationshipGraph();
+      if (state.relJustDragged) {
+        state.relJustDragged = false;
         return;
       }
-      var edge = event.target.closest("[data-pair]");
+      var node = event.target.closest("[data-rel-table]");
+      if (node) {
+        state.relSelected = { kind: "table", value: node.getAttribute("data-rel-table") };
+        analysisRender();
+        return;
+      }
+      var edge = event.target.closest("[data-rel-pair]");
       if (edge) {
-        state.relSelected = "pair:" + edge.getAttribute("data-pair");
-        renderRelationshipGraph();
+        state.relSelected = { kind: "pair", value: edge.getAttribute("data-rel-pair") };
+        analysisRender();
       }
     });
     $("#relGraphSvg").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
-      var node = event.target.closest("[data-table]");
+      var node = event.target.closest("[data-rel-table]");
       if (!node) return;
       event.preventDefault();
-      var name = node.getAttribute("data-table");
-      state.relSelected = "tbl:" + name;
-      renderRelationshipGraph();
-      var next = $("#relGraphSvg [data-table='" + name + "']");
+      var name = node.getAttribute("data-rel-table");
+      state.relSelected = { kind: "table", value: name };
+      analysisRender();
+      var next = $("#relGraphSvg [data-rel-table='" + name + "']");
       if (next) next.focus();
     });
     $("#relGraphSide").addEventListener("click", function (event) {
-      var back = event.target.closest("[data-rel-table]");
+      var back = event.target.closest("[data-rel-back]");
       if (back) {
-        var table = back.getAttribute("data-rel-table");
-        state.relSelected = "tbl:" + table;
-        renderRelationshipGraph();
-        var node = $("#relGraphSvg [data-table='" + table + "']");
+        state.relSelected = { kind: "table", value: back.getAttribute("data-rel-back") };
+        analysisRender();
+        return;
+      }
+      var tableButton = event.target.closest("[data-rel-table]");
+      if (tableButton) {
+        var table = tableButton.getAttribute("data-rel-table");
+        state.relSelected = { kind: "table", value: table };
+        analysisRender();
+        var node = $("#relGraphSvg [data-rel-table='" + table + "']");
         if (node) node.focus();
         return;
       }
       var item = event.target.closest("[data-rel-pair]");
       if (!item) return;
-      var key = item.getAttribute("data-rel-pair");
-      state.relSelected = "pair:" + key;
-      renderRelationshipGraph();
-      var next = $("#relGraphSide [data-rel-pair='" + key + "']");
-      if (next) next.focus();
+      state.relSelected = { kind: "pair", value: item.getAttribute("data-rel-pair") };
+      analysisRender();
     });
+    $("#relZoomIn").addEventListener("click", function () {
+      analysisSetZoom((state.relZoom || 1) * 1.25);
+    });
+    $("#relZoomOut").addEventListener("click", function () {
+      analysisSetZoom((state.relZoom || 1) / 1.25);
+    });
+    $("#relZoomReset").addEventListener("click", function () {
+      state.relPanX = 0;
+      state.relPanY = 0;
+      analysisSetZoom(1);
+    });
+
+    var relSvg = $("#relGraphSvg");
+    relSvg.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      state.relDrag = {
+        x: event.clientX, y: event.clientY,
+        panX: state.relPanX || 0, panY: state.relPanY || 0,
+        pointerId: event.pointerId, moved: false
+      };
+    });
+    relSvg.addEventListener("pointermove", function (event) {
+      var drag = state.relDrag;
+      if (!drag) return;
+      var dx = event.clientX - drag.x;
+      var dy = event.clientY - drag.y;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        relSvg.setPointerCapture(drag.pointerId);
+        relSvg.classList.add("is-panning");
+      }
+      var rect = relSvg.getBoundingClientRect();
+      var baseWidth = state.relGraphBaseWidth || 760;
+      var baseHeight = state.relGraphBaseHeight || 500;
+      var zoom = state.relZoom || 1;
+      var scaleX = rect.width ? (baseWidth / zoom) / rect.width : 1;
+      var scaleY = rect.height ? (baseHeight / zoom) / rect.height : 1;
+      state.relPanX = drag.panX - dx * scaleX;
+      state.relPanY = drag.panY - dy * scaleY;
+      var limitX = baseWidth * 0.8;
+      var limitY = baseHeight * 0.8;
+      state.relPanX = Math.max(-limitX, Math.min(limitX, state.relPanX));
+      state.relPanY = Math.max(-limitY, Math.min(limitY, state.relPanY));
+      applyAnalysisZoom();
+    });
+    function endRelDrag(event) {
+      if (!state.relDrag) return;
+      var moved = state.relDrag.moved;
+      var pointerId = state.relDrag.pointerId;
+      state.relDrag = null;
+      relSvg.classList.remove("is-panning");
+      if (relSvg.hasPointerCapture(pointerId)) {
+        relSvg.releasePointerCapture(pointerId);
+      }
+      if (moved) {
+        state.relJustDragged = true;
+        window.setTimeout(function () { state.relJustDragged = false; }, 0);
+      }
+    }
+    relSvg.addEventListener("pointerup", endRelDrag);
+    relSvg.addEventListener("pointercancel", endRelDrag);
 
     $("#analyzeHead").addEventListener("click", function (event) {
       var header = event.target.closest("[data-analysis-sort]");
@@ -4479,7 +4314,8 @@
       if (!toggle) return;
       event.preventDefault();
       var key = toggle.getAttribute("data-analysis-toggle");
-      state.analysisOpen[key] = !state.analysisOpen[key];
+      state.analysisForceOpen = null;
+      state.analysisOpen[key] = !analysisIsOpen(key, false);
       analysisRender();
     });
     $("#analyzeBody").addEventListener("keydown", function (event) {
@@ -4515,11 +4351,73 @@
     $("#depthPlus").addEventListener("click", function () {
       lineageSetDepth(1);
     });
+    $("#lineageZoomIn").addEventListener("click", function () {
+      setLineageZoom((state.lineageZoom || 1) * 1.25);
+    });
+    $("#lineageZoomOut").addEventListener("click", function () {
+      setLineageZoom((state.lineageZoom || 1) / 1.25);
+    });
+    $("#lineageZoomReset").addEventListener("click", function () {
+      state.lineagePanX = 0;
+      state.lineagePanY = 0;
+      setLineageZoom(1);
+    });
+
+    var lineageSvg = $("#lineageSvg");
+    lineageSvg.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      state.lineageDrag = {
+        x: event.clientX, y: event.clientY,
+        panX: state.lineagePanX || 0, panY: state.lineagePanY || 0,
+        pointerId: event.pointerId, moved: false
+      };
+    });
+    lineageSvg.addEventListener("pointermove", function (event) {
+      var drag = state.lineageDrag;
+      if (!drag) return;
+      var dx = event.clientX - drag.x;
+      var dy = event.clientY - drag.y;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        lineageSvg.setPointerCapture(drag.pointerId);
+        lineageSvg.classList.add("is-panning");
+      }
+      var rect = lineageSvg.getBoundingClientRect();
+      var baseWidth = state.lineageBaseWidth || 780;
+      var baseHeight = state.lineageBaseHeight || 280;
+      var zoom = state.lineageZoom || 1;
+      var scaleX = rect.width ? (baseWidth / zoom) / rect.width : 1;
+      var scaleY = rect.height ? (baseHeight / zoom) / rect.height : 1;
+      state.lineagePanX = drag.panX - dx * scaleX;
+      state.lineagePanY = drag.panY - dy * scaleY;
+      var limitX = baseWidth * 0.8;
+      var limitY = baseHeight * 0.8;
+      state.lineagePanX = Math.max(-limitX, Math.min(limitX, state.lineagePanX));
+      state.lineagePanY = Math.max(-limitY, Math.min(limitY, state.lineagePanY));
+      applyLineageZoom();
+    });
+    function endLineageDrag(event) {
+      if (!state.lineageDrag) return;
+      var moved = state.lineageDrag.moved;
+      var pointerId = state.lineageDrag.pointerId;
+      state.lineageDrag = null;
+      lineageSvg.classList.remove("is-panning");
+      if (lineageSvg.hasPointerCapture(pointerId)) {
+        lineageSvg.releasePointerCapture(pointerId);
+      }
+      if (moved) {
+        state.lineageJustDragged = true;
+        window.setTimeout(function () { state.lineageJustDragged = false; }, 0);
+      }
+    }
+    lineageSvg.addEventListener("pointerup", endLineageDrag);
+    lineageSvg.addEventListener("pointercancel", endLineageDrag);
     $("#visualLineage").addEventListener("click", function () {
       state.visual = !state.visual;
       $("#lineageLayout").classList.toggle("is-visual", state.visual);
       $("#visualLineage").setAttribute("aria-pressed", String(state.visual));
-      toast(state.visual ? "Mode visual lineage aktif" : "Mode visual lineage nonaktif");
+      toast(t(state.visual ? "Lineage visual mode on" : "Lineage visual mode off"));
     });
     $("#exportCsv").addEventListener("click", lineageExport);
 
@@ -4551,6 +4449,10 @@
       lineageOpen(item.dataset.id);
     });
     $("#lineageLayer").addEventListener("click", function (event) {
+      if (state.lineageJustDragged) {
+        state.lineageJustDragged = false;
+        return;
+      }
       var node = event.target.closest(".node");
       if (!node) return;
       lineageSelectNode(node.dataset.id);
@@ -4559,7 +4461,7 @@
       var node = event.target.closest(".node");
       if (!node) return;
       lineageOpen(node.dataset.id);
-      toast("Akar lineage diperbarui");
+      toast(t("Lineage root updated"));
     });
     $("#lineageLayer").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
@@ -4580,18 +4482,18 @@
       startJob({
         path: "/api/settings/test-token",
         body: {},
-        label: "Tes koneksi Power BI",
+        label: t("Power BI connection test"),
         button: $("#testConn"),
         onDone: function (snapshot) {
           var tokens = (snapshot.result && snapshot.result.tokens) || {};
           var parts = [];
           Object.keys(tokens).forEach(function (name) {
-            parts.push((tokens[name].ok ? "OK " : "GAGAL ") + name);
+            parts.push((tokens[name].ok ? "OK " : t("FAILED ")) + name);
           });
           $("#connResult").textContent = parts.length
             ? "Hasil tes: " + parts.join(" - ")
-            : "Tes selesai tanpa hasil token.";
-          toast(parts.join(" - ") || "Tes selesai");
+            : t("Test finished without a token result.");
+          toast(parts.join(" - ") || t("Test finished"));
         }
       });
     });
@@ -4613,8 +4515,8 @@
         state.secretDirty = false;
         renderSettings(data);
         $("#clientSecret").value = "";
-        addLog("Kredensial dan RLS default disimpan.", "ok");
-        toast("Pengaturan disimpan");
+        addLog(t("Credentials and default RLS saved."), "ok");
+        toast(t("Settings saved"));
       }).catch(reportError);
     });
 
@@ -4622,11 +4524,11 @@
       startJob({
         path: "/api/catalog/sync",
         body: {},
-        label: "Sinkronisasi katalog workspace",
+        label: t("Sync workspace catalog"),
         button: $("#syncCatalog"),
         onDone: function (snapshot) {
           var result = snapshot.result || {};
-          toast("Katalog: " + (result.workspace_count || 0) + " workspace");
+          toast("Katalog: " + (result.workspace_count || 0) + t(" workspaces"));
         }
       });
     });
@@ -4635,12 +4537,12 @@
       startJob({
         path: "/api/catalog/scan",
         body: { full: $("#fullScan").checked },
-        label: "Scan lineage Power BI",
+        label: t("Power BI lineage scan"),
         button: $("#scanLineage"),
         onDone: function (snapshot) {
           var result = snapshot.result || {};
-          toast("Lineage: " + (result.workspace_count || 0) + " workspace, " +
-            (result.node_count || 0) + " node");
+          toast("Lineage: " + (result.workspace_count || 0) + t(" workspaces, ") +
+            (result.node_count || 0) + t(" nodes"));
         }
       });
     });
@@ -4662,7 +4564,7 @@
         if (!data) return;
         state.formDirty = false;
         renderSettings(data);
-        toast("Path database disimpan");
+        toast(t("Database path saved"));
       });
     });
     $("#pickDb").addEventListener("click", function () {
@@ -4670,7 +4572,7 @@
         var target = folder.replace(/[\\/]+$/, "") + "\\bi_tools.db";
         $("#dbPath").value = target;
         savePreference("paths", { lineage_db: target }).then(function (data) {
-          if (data) toast("Path database disimpan");
+          if (data) toast(t("Database path saved"));
         });
       });
     });
@@ -4693,7 +4595,7 @@
       savePreference("extraction", payload);
     });
     $("#shutdownServer").addEventListener("click", function () {
-      if (!window.confirm("Hentikan server lokal? Tab ini tidak bisa dipakai lagi sampai aplikasi dijalankan ulang.")) return;
+      if (!window.confirm(t("Stop the local server? This tab cannot be used again until the application is restarted."))) return;
       api().post("/api/system/shutdown", {}).catch(function () {}).then(function () {
         window.setTimeout(function () {
           document.body.innerHTML =
@@ -4710,7 +4612,7 @@
       var value = $("#serverUrl").value;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(value).then(function () {
-          toast("Alamat server disalin");
+          toast(t("Server address copied"));
         }).catch(function () {
           toast("Salin manual: " + value);
         });
@@ -4739,132 +4641,16 @@
       if (event.target === event.currentTarget) $("#folderDialog").close();
     });
 
-    $("#partitionTable").addEventListener("change", function (event) {
-      if (state.partitionBusy) {
-        event.target.value = state.partitionTable;
-        return;
-      }
-      state.partitionTable = event.target.value;
-      state.partitionSelected = {};
-      state.partitionDetail = null;
-      loadPartitions();
+    window.addEventListener("resize", function () {
+      if (state.analysis) applyAnalysisCellTitles();
     });
-    $("#loadPartitions").addEventListener("click", loadPartitions);
-    $("#reloadPartitions").addEventListener("click", loadPartitions);
-    $("#partitionSearch").addEventListener("input", function () {
-      if (!state.partitionBusy) renderPartitions();
-    });
-    $("#partitionFilter").addEventListener("change", function (event) {
-      state.partitionFilter = event.target.value;
-      if (!state.partitionBusy) renderPartitions();
-    });
-    $("#exportPartitions").addEventListener("click", function () {
-      pendingFeature("Ekspor CSV partisi");
-    });
-    $("#partitionWorkspace").addEventListener("change", function () {
-      addLog("Workspace partisi diubah.", "info");
-      toast("Workspace diperbarui");
-    });
-    $("#partitionModel").addEventListener("change", function () {
-      addLog("Semantic model partisi diubah.", "info");
-      toast("Model diperbarui");
-    });
-
-    $("#partitionTableWrap").addEventListener("change", function (event) {
-      var target = event.target;
-      if (target.id === "partitionSelectAll") {
-        filteredPartitions().forEach(function (partition) {
-          state.partitionSelected[partition.name] = target.checked;
-        });
-        renderPartitions();
-        return;
-      }
-      if (target.classList.contains("partition-check") && target.getAttribute("data-partition-check")) {
-        var name = target.getAttribute("data-partition-check");
-        if (target.checked) state.partitionSelected[name] = true;
-        else delete state.partitionSelected[name];
-        syncPartitionSelection();
-      }
-    });
-
-    function selectPartitionRow(row) {
-      var name = row.getAttribute("data-partition");
-      state.partitionDetail = name;
-      renderPartitions();
-      var next = $("#partitionBody tr[data-partition='" + name + "']");
-      if (next) next.focus();
-    }
-
-    $("#partitionBody").addEventListener("click", function (event) {
-      if (event.target.closest("input")) return;
-      var row = event.target.closest("tr[data-partition]");
-      if (row) selectPartitionRow(row);
-    });
-    $("#partitionBody").addEventListener("keydown", function (event) {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      if (event.target.closest("input")) return;
-      var row = event.target.closest("tr[data-partition]");
-      if (!row) return;
-      event.preventDefault();
-      selectPartitionRow(row);
-    });
-
-    $("#partitionDetail").addEventListener("click", function (event) {
-      if (event.target.closest("#processPartitionDetail")) {
-        openPartitionDialog([state.partitionDetail]);
-        return;
-      }
-      if (event.target.closest("#copyPartitionSource")) {
-        var partition = partitionInfo().partitions.filter(function (item) {
-          return item.name === state.partitionDetail;
-        })[0];
-        if (!partition) return;
-        var text = partitionExpression(state.partitionTable, partition);
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).catch(function () {});
-        }
-        toast("Ekspresi sumber disalin");
-      }
-    });
-
-    $("#processSelectedPartitions").addEventListener("click", function () {
-      var names = selectedPartitionNames();
-      if (names.length) openPartitionDialog(names);
-    });
-    $("#closePartitionDialog").addEventListener("click", closePartitionDialog);
-    $("#cancelPartitionProcess").addEventListener("click", closePartitionDialog);
-    $("#partitionMode").addEventListener("change", updatePartitionModeHelp);
-    $("#partitionChecklist").addEventListener("change", function () {
-      var any = $$(".partition-dialog-check", $("#partitionChecklist")).some(function (input) {
-        return input.checked;
-      });
-      $("#runPartitionProcess").disabled = !any;
-    });
-    $("#runPartitionProcess").addEventListener("click", function () {
-      var names = $$(".partition-dialog-check", $("#partitionChecklist")).filter(function (input) {
-        return input.checked;
-      }).map(function (input) {
-        return input.value;
-      });
-      if (!names.length) {
-        toast("Pilih minimal satu partisi");
-        return;
-      }
-      var mode = $("#partitionMode").value;
-      closePartitionDialog();
-      processPartitions(names, mode);
-    });
-    $("#partitionDialog").addEventListener("close", function () {
-      var trigger = state.partitionDialogTrigger;
-      if (trigger && document.contains(trigger)) trigger.focus();
-    });
-    $("#partitionDialog").addEventListener("click", function (event) {
-      if (event.target === event.currentTarget) closePartitionDialog();
+    applySidebar(state.sidebarCollapsed, false);
+    $("#sidebarToggle").addEventListener("click", function () {
+      applySidebar(!state.sidebarCollapsed, true);
     });
 
     renderLog();
-    renderAnalysis();
-    renderPartitions();
+    analysisRender();
   }
 
   init();

@@ -60,17 +60,48 @@ def fake_result() -> SimpleNamespace:
         "visual_type": "tableEx",
         "field_kind": "Column",
         "aggregation": "",
+        "detail": "Values",
         "is_hidden": False,
     }
-    ref = SimpleNamespace(
-        kind="relationship", object="Dim Customer[Customer Name]", detail="Relasi", blocking=True
-    )
+    page_filter = dict(record, usage_kind="filter-page", detail="Categorical", visual_title="")
+    refs = [
+        SimpleNamespace(
+            kind="relationship",
+            object="'Fact Sales'[Customer Name]",
+            detail="relasi ke 'Fact Sales'[Customer Name]",
+            blocking=True,
+        ),
+        SimpleNamespace(
+            kind="measure",
+            object="'Fact Sales'[Total Sales]",
+            detail="measure 'Fact Sales'[Total Sales] (kedalaman 1)",
+            blocking=False,
+        ),
+        SimpleNamespace(
+            kind="RLS",
+            object="role 'HO'",
+            detail="filter RLS role 'HO' pada tabel 'Dim Customer'",
+            blocking=True,
+        ),
+        SimpleNamespace(
+            kind="sort by",
+            object="'Dim Customer'[Customer Name]",
+            detail="mengurutkan 'Dim Customer'[Customer Name]",
+            blocking=True,
+        ),
+        SimpleNamespace(
+            kind="field parameter",
+            object="'Parameter Posisi'",
+            detail="field parameter 'Parameter Posisi'",
+            blocking=True,
+        ),
+    ]
     column = SimpleNamespace(
         column=column_stat,
         status="Tidak dipakai",
         reason="Tidak ada referensi.",
-        report_records=[record],
-        model_refs=[ref],
+        report_records=[record, page_filter],
+        model_refs=refs,
     )
     measure_stat = SimpleNamespace(
         measure="Total Sales",
@@ -89,7 +120,22 @@ def fake_result() -> SimpleNamespace:
         report_records=[],
         model_refs=[],
     )
-    stats = SimpleNamespace(data_bytes=600, hierarchy_bytes=300, dictionary_bytes=124)
+    stats = SimpleNamespace(
+        data_bytes=600,
+        hierarchy_bytes=300,
+        dictionary_bytes=124,
+        tables=[
+            SimpleNamespace(
+                table="Dim Customer",
+                column_count=1,
+                rows=1000,
+                size_total_bytes=1024,
+                storage_mode="Import",
+                measure_count=0,
+                partition_count=1,
+            )
+        ],
+    )
     return SimpleNamespace(
         dataset_id=DATASET,
         dataset_name="Model Uji",
@@ -109,8 +155,40 @@ def fake_result() -> SimpleNamespace:
                 "status": "ok",
                 "message": "",
                 "modified_at": "2026-11-17T10:00:00",
+                "page_count": 3,
+                "visual_count": 12,
+                "field_count": 40,
+                "unresolved_count": 1,
             }
         ],
+        relationships=[
+            {
+                "name": "Rel",
+                "from_table": "Fact Sales",
+                "from_column": "Customer Name",
+                "to_table": "Dim Customer",
+                "to_column": "Customer Name",
+                "cross_filtering": "oneDirection",
+                "is_active": True,
+                "is_auto": True,
+                "dependent_count": 2,
+                "from_cardinality": "many",
+                "to_cardinality": "one",
+            }
+        ],
+        m_queries=[
+            {"name": "Fact Sales", "kind": "Tabel", "detail": "2 partisi"}
+        ],
+        report_pages={
+            "bbbbbbbb-cccc-dddd-eeee-ffffffffffff": [
+                {
+                    "page_id": "p1",
+                    "page_name": "Halaman 1",
+                    "visual_count": 2,
+                    "field_count": 5,
+                }
+            ]
+        },
         report_total=1,
         report_scanned=1,
         report_skipped=0,
@@ -149,10 +227,69 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["totals"]["columns"], 1)
         self.assertEqual(data["totals"]["unused_bytes"], 1024)
         self.assertEqual(data["columns"][0]["name"], "Customer Name")
-        self.assertEqual(data["columns"][0]["children"][0]["label"], "Dipakai di visual")
-        self.assertEqual(data["columns"][0]["children"][1]["kind"], "model")
+        groups = data["columns"][0]["children"]
+        self.assertEqual(
+            [group["label"] for group in groups],
+            [
+                "Used in artifacts",
+                "Used in visuals",
+                "Used as key column",
+                "Used in relationships",
+                "Used in row/object level security",
+                "Used in page level filters",
+                "Used in column sorting",
+                "Used in field parameters",
+            ],
+        )
+        artifacts = groups[0]
+        self.assertEqual(artifacts["count"], 1)
+        self.assertEqual(
+            [column["index"] for column in artifacts["columns"]],
+            [1, 2, 3, 4, 5, 6, 7, 8, 10],
+        )
+        self.assertEqual(artifacts["columns"][0]["label"], "Type")
+        self.assertEqual(artifacts["rows"][0]["name"], "'Fact Sales'[Total Sales]")
+        self.assertEqual(artifacts["rows"][0]["cells"]["1"], "Measure")
+        self.assertEqual(artifacts["rows"][0]["cells"]["4"], "Double")
+        self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Dipakai")
+        visuals = groups[1]
+        self.assertEqual(
+            [(column["index"], column["label"]) for column in visuals["columns"]],
+            [(1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")],
+        )
+        self.assertEqual(visuals["rows"][0]["cells"]["2"], "Halaman 1")
+        self.assertEqual(visuals["rows"][0]["cells"]["10"], "Values")
+        self.assertEqual(groups[2]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[2]["rows"][0]["cells"]["5"], "1,0 KB")
+        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Fact Sales")
+        self.assertEqual(groups[4]["rows"][0]["cells"]["1"], "RLS")
+        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[5]["rows"][0]["cells"]["1"], "Categorical")
+        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Halaman 1")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["4"], "Text")
+        self.assertEqual(groups[7]["rows"][0]["name"], "Parameter Posisi")
+        self.assertEqual(groups[7]["rows"][0]["cells"]["1"], "Field parameter")
+        self.assertEqual(data["measures"][0]["children"], [])
         self.assertEqual(data["measures"][0]["expression"], "SUM(Fact[Amount])")
         self.assertEqual(data["reports"][0]["report_name"], "Report Uji")
+        self.assertEqual(data["reports"][0]["page_count"], 3)
+        self.assertEqual(data["reports"][0]["pages"][0]["page_name"], "Halaman 1")
+        self.assertEqual(data["reports"][0]["pages"][0]["field_count"], 5)
+        self.assertEqual(data["tables"][0]["storage_mode"], "Import")
+        self.assertEqual(data["tables"][0]["partition_count"], 1)
+        relation = data["relationships"][0]
+        self.assertEqual(relation["name"], "Rel")
+        self.assertEqual(relation["label"], "'Fact Sales'[Customer Name] N \u2190 1 'Dim Customer'[Customer Name]")
+        self.assertEqual(relation["type"], "Active")
+        self.assertEqual(relation["cross"], "Single")
+        self.assertEqual(relation["cardinality"], "N \u2190 1")
+        self.assertEqual(relation["status"], "Dipakai")
+        self.assertEqual(relation["auto"], "Ya")
+        self.assertEqual(relation["used"], 2)
+        self.assertEqual(data["m_queries"][0]["kind"], "Tabel")
+        self.assertEqual(data["totals"]["pages"], 3)
+        self.assertEqual(data["totals"]["tables"], 1)
 
     def test_preferences_validation_and_roundtrip(self) -> None:
         saved = presenter.save_preferences(
@@ -174,6 +311,9 @@ class AnalysisPresenterTests(unittest.TestCase):
             presenter.save_preferences(self.store, {"object_filter": "ngawur"})
         with self.assertRaises(ExtractionError):
             presenter.save_preferences(self.store, {"sort_column": "ngawur"})
+        for key in ("format", "source", "warning", "security_filtering"):
+            saved = presenter.save_preferences(self.store, {"sort_column": key})
+            self.assertEqual(saved["sort_column"], key)
 
     def test_state_empty_catalog(self) -> None:
         state = presenter.build_state(self.store)
@@ -255,6 +395,20 @@ class AnalysisEndpointTests(unittest.TestCase):
         response = self.client.get("/api/analysis/state")
         self.assertEqual(response.status_code, 200)
         self.assertIn("settings", response.json())
+
+    def test_report_detail_endpoint(self) -> None:
+        with patch.object(
+            presenter,
+            "report_detail_payload",
+            return_value={"pages": [], "report_filters": []},
+        ) as mock:
+            response = self.client.get(
+                f"/api/analysis/report-detail?dataset_id={DATASET}&report_id=r1"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"pages": [], "report_filters": []})
+        self.assertEqual(mock.call_args.args[1], DATASET)
+        self.assertEqual(mock.call_args.args[2], "r1")
 
     def test_datasets_endpoint_delegates(self) -> None:
         with patch.object(

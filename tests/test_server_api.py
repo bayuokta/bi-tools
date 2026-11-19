@@ -129,6 +129,12 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(good.json()["ui"]["theme"], "light")
         self.assertFalse(good.json()["ui"]["motion"])
 
+        self.assertEqual(self.client.get("/api/settings").json()["ui"]["language"], "en")
+        bad_language = self.client.put("/api/settings/ui", json={"language": "fr"})
+        self.assertEqual(bad_language.status_code, 400)
+        language = self.client.put("/api/settings/ui", json={"language": "id"})
+        self.assertEqual(language.json()["ui"]["language"], "id")
+
     def test_extraction_scope_and_out_dir(self) -> None:
         bad = self.client.put(
             "/api/settings/extraction", json={"scope_local": "sebagian"}
