@@ -21,13 +21,9 @@
       </div>
       <nav class="side-nav" aria-label="Application sections" data-i18n-aria-label="Application sections">
         <div class="nav-label" data-i18n="Tools">Tools</div>
-        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction" data-i18n-title="Extraction">
+        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction &amp; TSD" data-i18n-title="Extraction &amp; TSD">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
-          <span class="label" data-i18n="Metadata extraction">Metadata extraction</span>
-        </button>
-        <button class="nav-item" type="button" data-view="tsd" title="Generate TSD">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
-          <span class="label">Generate TSD</span>
+          <span class="label" data-i18n="Extraction &amp; TSD">Extraction &amp; TSD</span>
         </button>
         <button class="nav-item" type="button" data-view="analisa" title="Model analysis" data-i18n-title="Model analysis">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
@@ -62,9 +58,9 @@
         <section class="view" id="view-ekstraksi" aria-labelledby="titleEkstraksi">
           <div class="view-head">
             <div>
-              <div class="view-eyebrow" data-i18n="Workflow · step 1">Workflow · step 1</div>
-              <h1 class="view-title" id="titleEkstraksi" tabindex="-1" data-i18n="Metadata extraction">Metadata extraction</h1>
-              <p class="view-sub" data-i18n="Pull report and semantic model definitions into Excel workbooks, then continue to Generate TSD.">Pull report and semantic model definitions into Excel workbooks, then continue to Generate TSD.</p>
+              <div class="view-eyebrow" data-i18n="Workflow · metadata">Workflow · metadata</div>
+              <h1 class="view-title" id="titleEkstraksi" tabindex="-1" data-i18n="Extraction &amp; TSD">Extraction &amp; TSD</h1>
+              <p class="view-sub" data-i18n="One workflow: choose the source and scope, extract metadata to workbooks, then render the TSD document from the results.">One workflow: choose the source and scope, extract metadata to workbooks, then render the TSD document from the results.</p>
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runExtract" type="button">
@@ -73,6 +69,27 @@
               </button>
             </div>
           </div>
+
+          <ol class="meta-steps" id="metaSteps" aria-label="Metadata workflow steps" data-i18n-aria-label="Metadata workflow steps">
+            <li>
+              <button class="meta-step is-active" type="button" data-meta-step="extract" aria-current="step">
+                <span class="meta-step-num" aria-hidden="true">1</span>
+                <span class="meta-step-text">
+                  <span class="meta-step-title" data-i18n="Metadata extraction">Metadata extraction</span>
+                  <span class="meta-step-state" id="stepStateExtract" data-i18n="Not run yet">Not run yet</span>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button class="meta-step is-locked" type="button" data-meta-step="tsd" aria-disabled="true">
+                <span class="meta-step-num" aria-hidden="true">2</span>
+                <span class="meta-step-text">
+                  <span class="meta-step-title" data-i18n="Generate TSD">Generate TSD</span>
+                  <span class="meta-step-state" id="stepStateTsd" data-i18n="Waiting for extraction">Waiting for extraction</span>
+                </span>
+              </button>
+            </li>
+          </ol>
 
           <div class="layout-split">
             <div class="od-stack" style="--od-gap:16px">
@@ -212,7 +229,7 @@
                       <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>
                       <span data-i18n="Open folder">Open folder</span>
                     </button>
-                    <button class="btn btn-sm" id="goTsd" type="button" data-i18n="Create TSD from results">Create TSD from results</button>
+                    <button class="btn btn-sm" id="goTsd" type="button" data-i18n="Continue to Generate TSD">Continue to Generate TSD</button>
                     <span class="helper" data-i18n="Generate TSD uses the workbooks above.">Generate TSD uses the workbooks above.</span>
                   </div>
                 </div>
@@ -269,26 +286,32 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div class="panel">
-                <div class="panel-head"><span class="panel-title" data-i18n="Next steps">Next steps</span></div>
-                <div class="panel-body">
-                  <p class="helper" style="font-size:12.5px" data-i18n="Once both workbooks are ready, render the TSD document with the template and manual context.">Once both workbooks are ready, render the TSD document with the template and manual context.</p>
-                  <button class="btn" id="sideToTsd" type="button" data-i18n="Open Generate TSD">Open Generate TSD</button>
-                </div>
+          <div class="panel meta-lock" id="tsdLock">
+            <div class="panel-body meta-lock-body">
+              <span class="meta-lock-icon" aria-hidden="true">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              </span>
+              <div>
+                <div class="meta-lock-title" data-i18n="Step 2 · Generate TSD is waiting for extraction">Step 2 · Generate TSD is waiting for extraction</div>
+                <p class="helper" data-i18n="Run the metadata extraction first. The resulting workbooks are used as the source for the TSD document in the next step.">Run the metadata extraction first. The resulting workbooks are used as the source for the TSD document in the next step.</p>
               </div>
             </div>
           </div>
         </section>
 
-        <section class="view" id="view-tsd" aria-labelledby="titleTsd" hidden="">
-          <div class="view-head">
-            <div>
-              <div class="view-eyebrow" data-i18n="Workflow · step 2">Workflow · step 2</div>
-              <h1 class="view-title" id="titleTsd" tabindex="-1">Generate TSD</h1>
+        <section class="view view--step" id="view-tsd" aria-labelledby="titleTsd" hidden="">
+          <div class="step-head">
+            <span class="step-head-num" aria-hidden="true">2</span>
+            <div class="step-head-text">
+              <div class="view-eyebrow" data-i18n="Step 2 · document">Step 2 · document</div>
+              <h2 class="step-head-title" id="titleTsd" tabindex="-1">Generate TSD</h2>
               <p class="view-sub" data-i18n="Combine the metadata workbooks, template, and manual context into a delivery-ready TSD document.">Combine the metadata workbooks, template, and manual context into a delivery-ready TSD document.</p>
             </div>
             <div class="view-actions">
+              <button class="btn btn-sm" id="backToExtract" type="button" data-i18n="Back to step 1">Back to step 1</button>
               <button class="btn btn-primary" id="runTsd" type="button">
                 <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path></svg>
                 Generate TSD
@@ -769,9 +792,6 @@
                     <defs>
                       <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                         <path class="edge-arrow" d="M0 0L8 4L0 8z"></path>
-                      </marker>
-                      <marker id="arrowChain" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                        <path class="edge-arrow-chain" d="M0 0L8 4L0 8z"></path>
                       </marker>
                     </defs>
                     <g id="lineageLayer"></g>

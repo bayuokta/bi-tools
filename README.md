@@ -98,13 +98,15 @@ python -m server --no-browser --port 8800
 - Pekerjaan panjang berjalan di thread server dengan log live (SSE); refresh halaman tidak memutus pekerjaan.
 - Berkas dan folder dipilih lewat penjelajah di halaman (server yang membaca disk lokal), bukan dialog native browser.
 - Preferensi disimpan di `data\settings.json` (fallback `%LOCALAPPDATA%\BI Tools\data`). Saat pertama dijalankan, nilai QSettings 0.3.x dimigrasikan sekali (termasuk `lineage/*` → `auth/*`/`paths/*`); nilai baru tidak ditimpa. Pilihan sesi (workspace/report/dataset/instance) tetap dikosongkan setiap server dimulai.
-- Status pengembangan 0.4.3: **Ekstraksi metadata**, **Generate TSD**, **Analisa Semantic Model**, **Partisi**, **Lineage**, dan **Pengaturan** sudah tersambung penuh — sumber Service/Desktop, cakupan, pemilih `.pbix`/folder, instance Desktop, workspace model + workspace report, dataset/report dari katalog, job dengan log live, kartu output, serta ringkasan halaman/tabel/kolom/measure. Halaman **Generate TSD** memakai desain terbaru dan sudah berfungsi (sumber metadata, konteks manual, opsi render, screenshot + cache, output, pratinjau, checklist). Halaman **Partisi** membaca inventaris via XMLA dan bisa me-refresh partisi terpilih (jalur tulis dengan konfirmasi).
+- Status pengembangan 0.4.4: **Extraction & TSD**, **Analisa Semantic Model**, **Partisi**, **Lineage**, dan **Pengaturan** sudah tersambung penuh — sumber Service/Desktop, cakupan, pemilih `.pbix`/folder, instance Desktop, workspace model + workspace report, dataset/report dari katalog, job dengan log live, kartu output, serta ringkasan halaman/tabel/kolom/measure. **Extraction & TSD** adalah satu alur dua langkah: ekstraksi metadata lalu render TSD inline. Halaman **Partisi** membaca inventaris via XMLA dan bisa me-refresh partisi terpilih (jalur tulis dengan konfirmasi).
 - **Ekstraksi dari web**:
   - **Service**: pilih **workspace model** dan **workspace report** secara terpisah (boleh berbeda). Workspace model menentukan endpoint XMLA dan daftar Catalog; workspace report menentukan daftar report. Memilih report tidak mengubah Catalog, karena report bisa memakai dataset di workspace lain. Combo memakai komponen desain prototype: tombol select-like dengan chevron yang membuka popup berisi kolom pencarian + daftar pilihan (semua `<select>` di halaman ikut di-enhance). Report PBIR-Legacy (satu `report.json`) ditolak dengan pesan agar disimpan ulang sebagai PBIR; report paginated (RDL) ditandai dan tidak diekstrak.
   - **Desktop**: pilih file `.pbix` lewat penjelajah (bukan dialog browser). Jenis sumber dideteksi otomatis; live connection hanya mengekstrak report. Instance Power BI Desktop dipilih otomatis hanya bila tepat satu terbuka; cakupan report saja tidak memerlukan instance.
   - Cakupan `Report + semantic model`, `Report saja`, atau `Semantic model saja` disimpan per sumber. Cakupan model memerlukan instance Desktop (lokal) atau endpoint + catalog (Service).
   - Tombol **Jalankan ekstraksi** memulai job; log live muncul di konsol, kartu output menampilkan waktu/ukuran berkas, dan ringkasan menampilkan halaman/tabel/kolom/measure. File dibuka di aplikasi default lewat tombol **Buka**.
-- **Generate TSD dari web**:
+- **Extraction & TSD dari web** (satu alur dua langkah):
+  - Stepper di atas halaman: **1 Metadata extraction** dan **2 Generate TSD**. Langkah 2 tampil inline di bawah langkah 1 dan terbuka setelah ekstraksi sukses atau bila `Report_Metadata.xlsx` sudah tersedia. Selama terkunci, panel **Langkah 2 menunggu ekstraksi** ditampilkan dan tombol langkah 2 memberi pesan.
+  - Setelah ekstraksi sukses, workbook report/model otomatis diisi ke langkah 2, status stepper diperbarui, dan tombol **Continue to Generate TSD** menggulir ke langkah 2. Tombol **Back to step 1** kembali ke langkah 1.
   - Pilih **Report workbook** (`Report_Metadata.xlsx`) dan opsional **Model workbook**; template default `templates\tsd.template.html`. Pemilih berkas memakai penjelajah server.
   - **Konteks manual** (`TSD_<nama>.json`) dimuat/disimpan lewat tombol **Muat/Simpan** atau diedit langsung lewat **Edit JSON…**. Generate ulang mempertahankan isi sidecar.
   - **Opsi render**: nama report, tanggal dokumen, mode draft (field kosong menjadi TODO), buka semua panel expand.
@@ -129,7 +131,7 @@ python -m server --no-browser --port 8800
 - **Bahasa antarmuka**: Inggris (bawaan) atau Indonesia, dipilih di **Pengaturan → Tampilan → Language**. Pilihan disimpan di preferensi server dan diterapkan tanpa reload; angka mengikuti locale. Sort dengan klik header tersedia di tab datar (Semua hasil, Relationships, Report results, DAX expressions, M queries); tab Tables mengikuti urutan model. Kolom mockup yang tidak punya sumber data (views, tema, skor praktik, visual rusak, auto-create relationship) ditampilkan `-`. Halaman **Analisa** tetap read-only; **Partisi** adalah satu-satunya jalur tulis ke model.
 - **Lineage dari web**:
   - Cari item (kata kunci, workspace, tipe) dari `data\bi_tools.db`. Pencarian hanya menampilkan daftar; klik hasil untuk menjadikannya akar (tidak ada auto-buka hasil pertama). Database belum ada → pencarian dinonaktifkan dan diarahkan ke **Sinkronisasi data** di Pengaturan.
-  - Kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan, dengan panah tipe relasi, node berwarna per tipe (band + ikon), serta **zoom −/+/Fit** dan **drag untuk menggeser** (seperti grafik Relationships). Klik node menyalakan seluruh jalur hulu–hilir dan meredupkan node lain; tetangga langsung diberi sorotan. Tombol **Upstream/Downstream** meredupkan sisi lain; **Kedalaman** 1–15; klik node menampilkan detail (owner, modified, endorsement, datasource, node ID), klik dua kali menjadikannya akar, dan tombol **Jadikan akar** tersedia di panel detail. Tautan **Buka report** tersedia untuk node Report.
+  - Kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan, dengan panah tipe relasi, node berwarna per tipe (band + ikon), serta **zoom −/+/Fit** dan **drag untuk menggeser** (seperti grafik Relationships). Klik node memilih node itu, menampilkan detail, dan menyorot tetangga langsung beserta edge-nya; node lain tidak ikut menyala. Tombol **Upstream/Downstream** meredupkan sisi lain; **Kedalaman** 1–15; klik dua kali node menjadikannya akar, dan tombol **Jadikan akar** tersedia di panel detail. Tautan **Buka report** tersedia untuk node Report.
   - **Export CSV** menulis `Lineage_<nama>.csv` ke `outputs\` (UTF-8 BOM, header Inggris) dan membuka filenya. Tidak ada scan dari tab ini; scan tetap dijalankan dari Pengaturan.
 
 ## Perintah baris
@@ -192,9 +194,9 @@ python -m cli partition --workspace-id <ws> --dataset-id <ds> `
 
 Refresh memerlukan XMLA **Read Write**, service principal sebagai Member/Admin workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
 
-## Generate TSD
+## Generate TSD (langkah 2)
 
-Dokumen TSD (Technical Specification Design) dibuat dari workbook metadata memakai template Confluence di `..\template-tsd`. Template disalin apa adanya ke `templates\tsd.template.html`; perubahan template dilakukan di repo `template-tsd` lebih dulu.
+Dokumen TSD (Technical Specification Design) dibuat dari workbook metadata memakai template Confluence di `..\template-tsd`. Di web, langkah ini ada di halaman **Extraction & TSD** dan terbuka setelah ekstraksi atau bila workbook report sudah tersedia. Template disalin apa adanya ke `templates\tsd.template.html`; perubahan template dilakukan di repo `template-tsd` lebih dulu.
 
 ```powershell
 python extract_tsd.py                        # workbook di outputs\ -> TSD_<nama>.html

@@ -7,6 +7,31 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-19 - Rilis 0.4.4
+
+Menggabungkan halaman metadata dan TSD menjadi satu alur, serta memperbaiki
+perilaku klik node di Lineage.
+
+### Extraction & TSD
+
+- Sidebar kini punya satu item **Extraction & TSD**. Langkah 1 (ekstraksi
+  metadata) dan langkah 2 (Generate TSD) tampil inline di halaman yang sama
+  dengan stepper dua langkah dan panel pengunci.
+- Langkah 2 terbuka setelah ekstraksi sukses atau bila `Report_Metadata.xlsx`
+  sudah tersedia. Setelah ekstraksi, path workbook report/model otomatis diisi
+  dan status stepper diperbarui.
+- Tombol **Continue to Generate TSD** dan **Back to step 1** memakai
+  `setMetaStep()` untuk menggulir ke bagian yang dituju. Navigasi sidebar
+  `Generate TSD` yang terpisah dihapus.
+
+### Lineage
+
+- Klik node tidak lagi menyalakan seluruh komponen terhubung (semua node
+  kuning). Hanya node terpilih, tetangga langsung, dan edge yang menyentuh node
+  terpilih yang disorot; node lain tetap redup hanya karena filter arah.
+- Node tetap bisa diklik (mouse dan keyboard), klik dua kali menjadikan root,
+  dan panel detail mengikuti node yang dipilih.
+
 ## 2026-11-19 - Rilis 0.4.3
 
 Memperbaiki ekstraksi model yang gagal karena cache ADOMD, mengisolasi TOM dari

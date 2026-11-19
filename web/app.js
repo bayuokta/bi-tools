@@ -52,6 +52,7 @@
     source: "service",
     running: false,
     tsdRunning: false,
+    metaStep: "extract",
     extractReady: false,
     tsdReady: false,
     logs: [],
@@ -120,7 +121,6 @@
     lineageBaseHeight: 280,
     lineageDrag: null,
     lineageJustDragged: false,
-    lineageChainId: null,
     instances: [],
     workspaces: [],
     reports: [],
@@ -245,6 +245,7 @@
     if (state.tsd) renderTsdState(state.tsd);
     if (state.analysis !== undefined) analysisRender();
     if (state.partitions !== null) partitionRender();
+    applyMetaSteps();
     if (state.lineageGraph) {
       lineageRenderGraph();
       if (state.selectedId && state.lineageNodesLive[state.selectedId]) {
@@ -292,6 +293,7 @@
     if (!name || !$("#view-" + name)) return;
     state.view = name;
     $$(".view").forEach(function (section) {
+      if (section.id === "view-tsd") return;
       section.hidden = section.id !== "view-" + name;
     });
     $$(".nav-item").forEach(function (button) {
@@ -304,11 +306,65 @@
     $("#viewScroll").scrollTop = 0;
     var heading = $("#view-" + name + " .view-title");
     if (heading) heading.focus({ preventScroll: true });
+    applyMetaSteps();
     if (name === "lineage" && state.lineageHasDb && !state.lineageData) {
       lineageLoadState();
     }
     if (name === "partisi" && !state.partitionStateLoaded) {
       partitionLoadState();
+    }
+  }
+
+  function tsdUnlocked() {
+    if (state.extractReady) return true;
+    var checklist = (state.tsd && state.tsd.checklist) || {};
+    return Boolean(checklist.report);
+  }
+
+  function applyMetaSteps() {
+    var unlocked = tsdUnlocked();
+    var tsdButton = $('#metaSteps [data-meta-step="tsd"]');
+    if (tsdButton) {
+      tsdButton.classList.toggle("is-locked", !unlocked);
+      if (unlocked) tsdButton.removeAttribute("aria-disabled");
+      else tsdButton.setAttribute("aria-disabled", "true");
+    }
+    $$("#metaSteps [data-meta-step]").forEach(function (button) {
+      var active = button.dataset.metaStep === state.metaStep;
+      button.classList.toggle("is-active", active);
+      if (active) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+    var lock = $("#tsdLock");
+    if (lock) lock.hidden = unlocked;
+    var tsdView = $("#view-tsd");
+    if (tsdView) tsdView.hidden = !(state.view === "ekstraksi" && unlocked);
+    var tsdState = $("#stepStateTsd");
+    if (tsdState && !state.tsdRunning) {
+      if (!unlocked) tsdState.textContent = t("Waiting for extraction");
+      else if (state.tsdLastResult) tsdState.textContent = t("Document ready");
+      else tsdState.textContent = t("Ready");
+    }
+  }
+
+  function setMetaStep(name, scroll) {
+    if (name === "tsd" && !tsdUnlocked()) {
+      toast(t("Run the metadata extraction first"));
+      return;
+    }
+    state.metaStep = name;
+    applyMetaSteps();
+    if (scroll === false) return;
+    var target = name === "tsd" ? $("#view-tsd") : $("#view-ekstraksi");
+    if (target && target.scrollIntoView) {
+      target.scrollIntoView({
+        behavior: state.motion ? "smooth" : "auto",
+        block: "start"
+      });
+    }
+    if (name === "tsd") {
+      var heading = $("#titleTsd");
+      if (heading) heading.focus({ preventScroll: true });
     }
   }
 
@@ -572,8 +628,13 @@
       state.extractTimer = null;
     }
     if (options.kind === "metadata") {
-      if (status === "error") setChip($("#outputState"), "error", t("Failed"));
-      else if (status === "cancelled") setChip($("#outputState"), "idle", t("Cancelled"));
+      if (status === "error") {
+        setChip($("#outputState"), "error", t("Failed"));
+        $("#stepStateExtract").textContent = t("Not run yet");
+      } else if (status === "cancelled") {
+        setChip($("#outputState"), "idle", t("Cancelled"));
+        $("#stepStateExtract").textContent = t("Not run yet");
+      }
       window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
     }
     if (options.kind === "analysis") {
@@ -589,6 +650,7 @@
         window.clearInterval(state.tsdTimer);
         state.tsdTimer = null;
       }
+      if (status !== "done") state.tsdRunning = false;
       window.setTimeout(function () { $("#tsdRun").hidden = true; }, 900);
       if (status === "done") inspectTsd();
     }
@@ -1213,13 +1275,25 @@
       setChip($("#outputState"), "idle", t("No results"));
       return;
     }
-    setChip($("#outputState"), "ok", "Selesai");
+    state.extractReady = Boolean(result.report_out);
+    if (result.report_out) $("#reportWorkbook").value = result.report_out;
+    if (result.model_out) $("#modelWorkbook").value = result.model_out;
+    setChip($("#outputState"), "ok", t("Done"));
     $("#extractDone").hidden = false;
     var notes = [];
     if (report) notes.push((report.pages || 0) + t(" pages"));
     if (model) notes.push((model.tables || 0) + t(" tables"));
     $("#extractDoneText").textContent = notes.join(" · ") ||
       t("Workbooks saved to the output folder.");
+    var stepParts = [];
+    if (model) {
+      stepParts.push((model.tables || 0) + t(" tables"));
+      stepParts.push((model.columns || 0) + t(" columns"));
+    } else if (report) {
+      stepParts.push((report.pages || 0) + t(" pages"));
+    }
+    $("#stepStateExtract").textContent = t("Done · ") + stepParts.join(" · ");
+    setMetaStep("extract", false);
     $("#summaryEmpty").hidden = true;
     $("#summaryBody").hidden = false;
     $("#sumTables").textContent = model ? model.tables : "—";
@@ -1232,6 +1306,8 @@
     $("#sumPages").textContent = report ? report.pages : "—";
     $("#sumRelations").textContent = model ? model.relationships : "—";
     if (result.model_error) addLog(t("Note: ") + result.model_error, "warn");
+    // Workbook paths now exist; refresh TSD checklist and unlock step 2.
+    inspectTsd();
   }
 
   function runExtraction() {
@@ -1246,6 +1322,7 @@
     $("#extractBar").style.width = "6%";
     $("#extractRunPct").textContent = "";
     $("#extractRunLabel").textContent = t("Preparing extraction…");
+    $("#stepStateExtract").textContent = t("Running…");
     setChip($("#outputState"), "warn", t("Running"));
     var progress = 6;
     state.extractTimer = window.setInterval(function () {
@@ -1392,6 +1469,7 @@
       $("#openTsdFile").disabled = true;
       state.tsdOutputPath = paths.out_file || "";
     }
+    applyMetaSteps();
   }
 
   function loadTsdState() {
@@ -1421,6 +1499,8 @@
   }
 
   function startTsdProgress(label) {
+    state.tsdRunning = true;
+    $("#stepStateTsd").textContent = t("Running…");
     $("#tsdRun").hidden = false;
     $("#tsdBar").style.width = "8%";
     $("#tsdRunPct").textContent = "";
@@ -1463,6 +1543,8 @@
     $("#openTsdFile").disabled = false;
     $("#tsdBar").style.width = "100%";
     $("#tsdRunPct").textContent = "100%";
+    state.tsdRunning = false;
+    $("#stepStateTsd").textContent = t("Document ready");
     toast("TSD dibuat: " + pages + t(" pages / ") + visuals + t(" visuals"));
   }
 
@@ -3939,7 +4021,6 @@
       state.lineageZoom = 1;
       state.lineagePanX = 0;
       state.lineagePanY = 0;
-      state.lineageChainId = null;
       lineageRenderGraph();
       lineageRenderDetail(data.node || {});
       $("#lineageRootChip").innerHTML =
@@ -3983,39 +4064,6 @@
     applyLineageZoom();
   }
 
-  function lineageChain(selectedId) {
-    var nodes = {};
-    var edges = {};
-    if (!selectedId || !state.lineageGraph) {
-      return { nodes: nodes, edges: edges };
-    }
-    var outgoing = {};
-    var incoming = {};
-    (state.lineageGraph.edges || []).forEach(function (edge, index) {
-      (outgoing[edge.source] = outgoing[edge.source] || []).push({
-        index: index, next: edge.target
-      });
-      (incoming[edge.target] = incoming[edge.target] || []).push({
-        index: index, next: edge.source
-      });
-    });
-    var queue = [selectedId];
-    nodes[selectedId] = true;
-    while (queue.length) {
-      var current = queue.shift();
-      [outgoing[current] || [], incoming[current] || []].forEach(function (list) {
-        list.forEach(function (item) {
-          edges[item.index] = true;
-          if (!nodes[item.next]) {
-            nodes[item.next] = true;
-            queue.push(item.next);
-          }
-        });
-      });
-    }
-    return { nodes: nodes, edges: edges };
-  }
-
   function lineageRenderGraph() {
     var graph = state.lineageGraph;
     var svg = $("#lineageSvg");
@@ -4050,12 +4098,6 @@
     var height = Math.max(280, 68 + (maxRow - minRow) * (nodeH + rowGap) + nodeH);
     state.lineageBaseWidth = width;
     state.lineageBaseHeight = height;
-    var chain = state.lineageChainId ? lineageChain(state.lineageChainId) : null;
-    var neighbours = {};
-    (graph.edges || []).forEach(function (edge) {
-      if (edge.source === state.selectedId) neighbours[edge.target] = true;
-      if (edge.target === state.selectedId) neighbours[edge.source] = true;
-    });
     var edges = "";
     (graph.edges || []).forEach(function (edge, index) {
       var from = positions[edge.source];
@@ -4067,13 +4109,10 @@
       var y1 = from.y + nodeH / 2;
       var y2 = to.y + nodeH / 2;
       var mid = (x1 + x2) / 2;
-      var inChain = Boolean(chain && chain.edges[index]);
-      var selected = !chain && (edge.source === state.selectedId || edge.target === state.selectedId);
-      var marker = inChain ? "arrowChain" : "arrow";
-      edges += '<path class="edge' + (inChain ? " is-chain" : (selected ? " is-selected" : "")) +
+      edges += '<path class="edge" data-edge="' + index +
         '" d="M' + x1 + " " + y1 + " C" + mid + " " + y1 + ", " + mid + " " +
         y2 + ", " + x2 + " " + y2 +
-        '" fill="none" marker-end="url(#' + marker + ')"><title>' +
+        '" fill="none" marker-end="url(#arrow)"><title>' +
         escapeHtml(edge.type || "") + "</title></path>";
     });
     var markup = "";
@@ -4083,24 +4122,15 @@
       var type = String(node.type || "");
       var workspace = String(node.workspace || "");
       var hue = nodeHue(type);
-      var selected = node.id === state.selectedId;
-      var near = !selected && Boolean(neighbours[node.id]);
-      var inChain = Boolean(chain && chain.nodes[node.id]);
-      var muted = chain
-        ? (inChain ? "" : " is-muted")
-        : (node.side && node.side !== "root" && node.side !== state.direction ? " is-muted" : "");
-      var classes = "node lineage-node" + (selected ? " is-sel" : "") +
-        (near ? " is-near" : "") + (inChain ? " is-chain" : "") + muted;
-      markup += '<g class="' + classes + '" data-hue="' + hue +
+      markup += '<g class="node lineage-node" data-hue="' + hue +
+        '" data-side="' + escapeHtml(node.side || "") +
         '" tabindex="0" role="button" data-id="' + escapeHtml(node.id) +
         '" aria-current="' + (node.id === state.rootId ? "true" : "false") +
         '" aria-label="' + escapeHtml(name) + ", " + escapeHtml(type) + '">' +
         "<title>" + escapeHtml(name) + " \u00b7 " + escapeHtml(type) +
         (workspace ? " \u00b7 " + escapeHtml(workspace) : "") + "</title>" +
-        (selected
-          ? '<rect class="node-halo" x="' + (pos.x - 3) + '" y="' + (pos.y - 3) +
-            '" width="' + (nodeW + 6) + '" height="' + (nodeH + 6) + '" rx="10"></rect>'
-          : "") +
+        '<rect class="node-halo" x="' + (pos.x - 3) + '" y="' + (pos.y - 3) +
+        '" width="' + (nodeW + 6) + '" height="' + (nodeH + 6) + '" rx="10"></rect>' +
         '<rect class="node-box" x="' + pos.x + '" y="' + pos.y +
         '" width="' + nodeW + '" height="' + nodeH + '" rx="8"></rect>' +
         '<rect class="node-band" x="' + (pos.x + 1) + '" y="' + (pos.y + 1) +
@@ -4119,7 +4149,34 @@
         "</g>";
     });
     $("#lineageLayer").innerHTML = edges + markup;
+    lineageApplySelection();
     applyLineageZoom();
+  }
+
+  function lineageApplySelection() {
+    var graph = state.lineageGraph;
+    if (!graph) return;
+    var neighbours = {};
+    (graph.edges || []).forEach(function (edge, index) {
+      var selected = edge.source === state.selectedId || edge.target === state.selectedId;
+      if (selected) {
+        neighbours[edge.source] = true;
+        neighbours[edge.target] = true;
+      }
+      var path = document.querySelector('#lineageLayer .edge[data-edge="' + index + '"]');
+      if (path) path.classList.toggle("is-selected", selected);
+    });
+    $$("#lineageLayer .lineage-node").forEach(function (element) {
+      var id = element.getAttribute("data-id");
+      var side = element.getAttribute("data-side") || "";
+      element.classList.toggle("is-sel", id === state.selectedId);
+      element.classList.toggle(
+        "is-near", id !== state.selectedId && Boolean(neighbours[id])
+      );
+      element.classList.toggle(
+        "is-muted", Boolean(side && side !== "root" && side !== state.direction)
+      );
+    });
   }
 
   function lineageRenderDetail(node) {
@@ -4203,8 +4260,7 @@
   function lineageSelectNode(nodeId) {
     if (!state.lineageNodesLive[nodeId]) return;
     state.selectedId = nodeId;
-    state.lineageChainId = nodeId;
-    lineageRenderGraph();
+    lineageApplySelection();
     lineageRenderDetail(state.lineageNodesLive[nodeId].payload || {});
   }
 
@@ -4370,9 +4426,14 @@
     $("#runExtract").addEventListener("click", runExtraction);
     $("#runTsd").addEventListener("click", runTsd);
 
-    $("#goTsd").addEventListener("click", function () { showView("tsd"); });
-    $("#sideToTsd").addEventListener("click", function () { showView("tsd"); });
-    $("#doneToTsd").addEventListener("click", function () { showView("tsd"); });
+    $("#goTsd").addEventListener("click", function () { setMetaStep("tsd"); });
+    $("#doneToTsd").addEventListener("click", function () { setMetaStep("tsd"); });
+    $("#backToExtract").addEventListener("click", function () { setMetaStep("extract"); });
+    $$("#metaSteps [data-meta-step]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        setMetaStep(button.dataset.metaStep);
+      });
+    });
 
     $("#openReport").addEventListener("click", function () { openOutput("report"); });
     $("#openModel").addEventListener("click", function () { openOutput("model"); });
