@@ -117,7 +117,7 @@ python -m server --no-browser --port 8800
   - Pilih workspace (katalog) dan semantic model (daftar dataset workspace lewat REST). Analisa **tidak** berjalan otomatis: tekan **Analyze now** di panel hasil atau **Analysis** di kanan atas. Tidak ada snapshot lama yang dimuat dari database. Checkbox **Include report usage (pages, visuals, filters)** (default aktif) mengatur apakah definisi report ikut diunduh; mematikannya membuat analisa ±6 detik dan kolom/measure tanpa referensi menjadi **Perlu dicek**. Mengubah checkbox setelah ada hasil hanya memunculkan pengingat untuk menjalankan analisa lagi.
   - Hasil disimpan hanya di **sesi in-memory** server (satu koneksi SQLite per dataset). `data\bi_tools.db` tidak lagi menerima tabel `usage_*` dari halaman ini, sehingga tidak ada data basi; setelah server di-restart, detail report dan ekspor meminta analisa ulang.
   - **Analisa** mengukur ukuran kolom (data + hierarki + dictionary) dan memindai pemakaian report; **Hentikan** mengirim pembatalan dan menyimpan hasil parsial dengan cakupan belum lengkap.
-  - Kartu ringkasan menampilkan ukuran dataset, jumlah kolom/measure, kolom/measure tidak dipakai beserta ukuran, serta report/halaman/visual dan cakupan report. Tujuh tab: **Semua hasil**, **Tables**, **Relationships**, **Report results**, **DAX expressions**, **M queries**, dan **Health**.
+  - Kartu ringkasan menampilkan ukuran dataset, jumlah kolom/measure, kolom/measure tidak dipakai beserta ukuran, serta report/halaman/visual dan cakupan report. Delapan tab: **Semua hasil**, **Tables**, **Relationships**, **Report results**, **DAX expressions**, **M queries**, **Health**, dan **Best practice**.
   - **Semua hasil** adalah daftar datar kolom + measure. Baris measure tidak menampilkan ekspresi DAX (sudah ada di tab **DAX expressions**), sedangkan calculated column tetap menampilkannya. Tiap baris dapat dibuka menjadi kelompok pemakaian: **Used in artifacts**, **Used in visuals**, **Used as key column**, **Used in relationships**, **Used in row/object level security**, **Used in page level filters**, **Used in column sorting**, dan **Used in field parameters**. Kelompok kosong tidak muncul. Tidak ada sub-header per grup; header utama 11 kolom dipakai untuk semua nilai baris anak.
   - **Tables** tetap hierarki per tabel (grup Measure/Kolom) dan menambahkan **Mode** serta **Partisi**. **Relationships** punya tampilan tabel 9 kolom (Nama relasi, Tipe, Cross filter, Kardinalitas, Status, Auto create, # dipakai, Dari kolom, Ke kolom) dan grafik tree per kolom mengikuti arah relasi: edge per pasangan tabel dengan lane routing, badge jumlah, zoom Fit/−/+, **drag untuk menggeser kanvas**, serta panel samping statistik. `# dipakai` dihitung dari DMV `DISCOVER_CALC_DEPENDENCY` (jumlah objek model yang bergantung pada relasi); `Auto create` dideteksi dari nama relasi `AutoDetected_`/GUID. **Report results** bertingkat seperti prototype: report → **Hidden pages/Pages** → halaman → **Visuals** → visual → **Artifacts used** + **Visual level filters** → **Columns used**, plus **Page level filters** dan **Report level filters**. Detail dimuat lazy per report; kolom **Views** ditampilkan `-` karena butuh activity events, sedangkan **Visual rusak** dan **Skor praktik** diisi dari payload health, tema diambil dari definisi report. Tiap baris memakai ikon penanda; halaman/visual tersembunyi ditandai ikon eye-off dan chip **Hidden**. **DAX expressions** menampilkan measure + calculated column; **M queries** menampilkan M tabel + parameter/ekspresi. Tab **Health** merangkum temuan model/report dengan filter severity dan klik baris untuk membuka detail/lineage.
   - Pencarian, filter tipe/status, **Hanya tidak dipakai**, expand/collapse, dan **Export XLSX** tersedia. Sel yang terpotong menampilkan teks lengkap saat di-hover (tooltip).
@@ -322,6 +322,7 @@ Ukuran diambil dari DMV VertiPaq lewat XMLA (`DISCOVER_STORAGE_TABLE_COLUMN_SEGM
 - **Data** = jumlah `USED_SIZE` segmen `BASIC_DATA` kolom tersebut.
 - **Hierarki** = segmen `POS_TO_ID`/`ID_TO_POS` yang diatribusikan ke kolom lewat `TABLE_ID` (`H$Tabel (22)$Kolom (16923)`).
 - **Dictionary** = `DICTIONARY_SIZE` per kolom (satu baris `BASIC_DATA` per atribut, tidak dobel dengan hierarki).
+- **Cardinality** = `Statistics_DistinctStates` dari `TMSCHEMA_COLUMN_STORAGES`, ditampilkan sebagai baris di **Column details**. Ini metrik VertiPaq (bukan `COUNTROWS(DISTINCT(...))`); kolom yang belum resident bisa bernilai 0 dan ditampilkan `—`.
 - **Size** di tree = data + hierarki + dictionary; tooltip memuat rinciannya.
 - Kolom `rowNumber` internal tidak ditampilkan; jumlah baris tabel dihitung dari `RECORDS_COUNT` terbesar di antara kolomnya.
 
@@ -404,6 +405,24 @@ Klik baris membuka detail kolom/measure, lineage tabel, atau tab **Report result
 
 Masing-masing dibatasi 30/15/20 poin; rincian penalti muncul sebagai tooltip. Skor ini **heuristik**, bukan standar resmi, dan report yang tidak dipindai tetap `-`. Tema dan halaman tersembunyi sengaja tidak mengurangi skor karena keduanya bisa merupakan pilihan desain (mis. halaman tooltip).
 
+### Best practice model
+
+Tab **Best practice** memakai katalog resmi **Microsoft / Tabular Editor Best Practice Analyzer** dari `rules\BPARules.json` (71 aturan; Performance 24, Formatting 15, DAX Expressions 12, Maintenance 9, Error Prevention 8, Naming Conventions 3).
+
+- **54 aturan dievaluasi** dengan data analisa; **17 aturan** ditampilkan sebagai **Not evaluated** beserta alasannya (RLS/role, perspective, data source, referential integrity, annotation `Vertipaq_*`, nama partisi, SourceColumn tidak andal di PBIP).
+- Setiap aturan punya status `Violation`, `Pass`, `Not evaluated`, atau `Needs coverage` (untuk aturan yang butuh cakupan report lengkap). Katalog lengkap bisa dibuka lewat tombol **Rules**.
+- Tabel menampilkan aturan yang dilanggar dan bisa di-expand untuk melihat objeknya; klik objek membuka detail/lineage.
+- Skor model memakai penskalaan logaritmik:
+
+```
+skor aturan = round(severity × jumlah objek × log10(N))
+```
+
+dengan `N` = jumlah objek model yang dianalisa (kolom + measure + tabel + relasi + M query; minimal 10). Total skor = jumlah skor aturan.
+- Verdict model: `<50 Power BI Pro`, `50–200 Good`, `201–400 Ok`, `401–600 Poor`, `601–800 Awful`, `≥800 Power BI Criminal`.
+
+Ekspor XLSX menambah sheet `10_BestPractice_Model` (temuan) dan `11_BestPractice_Model_Rules` (status 71 aturan). Aturan report-level (13 aturan Measure Killer/PBI-Inspector) belum termasuk di versi ini.
+
 ### Batasan
 
 - Subscription, alert, Excel/ad-hoc (Analyze in Excel), Q&A, dan personalisasi user tidak terdeteksi.
@@ -434,6 +453,8 @@ Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Di web, datas
 | `07_Unresolved` | field yang tidak bisa dipetakan (report, halaman, visual, queryRef, alasan) |
 | `08_Measures` | semua measure + data type, status, pemakaian, format, DAX, alasan |
 | `09_Health` | temuan kesehatan model/report (severity, area, aturan, objek, ukuran, detail) |
+| `10_BestPractice_Model` | temuan Best Practice model + skor per aturan |
+| `11_BestPractice_Model_Rules` | status 71 aturan katalog (Violation/Pass/Not evaluated/Needs coverage) |
 
 ## Paket dan rilis
 

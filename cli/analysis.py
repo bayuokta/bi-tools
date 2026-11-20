@@ -17,6 +17,7 @@ from pathlib import Path
 from core.auth import ServicePrincipal
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB
+from core.best_practice import build_best_practice
 from core.model_health import build_health
 from core.pbix import ROOT
 from core.requests import AnalysisRequest
@@ -148,6 +149,14 @@ def main(argv: list[str] | None = None) -> int:
             f"{health['counts']['critical']} critical · "
             f"{health['counts']['warning']} warning · "
             f"{health['counts']['info']} info"
+        )
+        best_practice = build_best_practice(result)
+        print(
+            "Best practice     : "
+            f"score {best_practice.get('score', 0)} · "
+            f"{best_practice.get('verdict', '-')} · "
+            f"{best_practice.get('evaluated', 0)}/"
+            f"{best_practice.get('rule_count', 0)} rules evaluated"
         )
         print(f"Workbook          : {path}")
         return 0

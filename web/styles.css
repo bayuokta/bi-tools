@@ -389,6 +389,26 @@ html[data-theme="light"] .segmented button[aria-pressed="true"]{ box-shadow:0 1p
 .health-rule-meta dt{ color:var(--text-3); }
 .health-rule-meta dd{ margin:0; overflow-wrap:anywhere; }
 .health-rule-formula{ margin:0 0 8px; padding-left:18px; color:var(--text-2); }
+.bp-summary{
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:12px 14px; margin:0 0 10px; border:1px solid var(--border);
+  border-radius:var(--r-md); background:var(--surface-2);
+}
+.bp-score{ display:flex; flex-direction:column; gap:2px; }
+.bp-score-value{ font-family:var(--font-mono); font-size:24px; font-weight:600; line-height:1; }
+.bp-verdict{
+  display:inline-flex; align-items:center; gap:8px; padding:6px 12px;
+  border:1px solid var(--border); border-radius:999px; background:var(--surface);
+  font-weight:600;
+}
+.bp-verdict .dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
+.bp-verdict[data-verdict="pro"]{ color:var(--ok); }
+.bp-verdict[data-verdict="good"]{ color:var(--ok); }
+.bp-verdict[data-verdict="ok"]{ color:var(--warn); }
+.bp-verdict[data-verdict="poor"]{ color:var(--warn); }
+.bp-verdict[data-verdict="awful"]{ color:var(--danger); }
+.bp-verdict[data-verdict="criminal"]{ color:var(--danger); }
+.bp-meta{ color:var(--text-2); font-size:12px; }
 
 .stat-list{ display:flex; flex-direction:column; }
 .stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed var(--border); }

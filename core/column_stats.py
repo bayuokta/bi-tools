@@ -36,6 +36,7 @@ Log = Callable[[str], None]
 STORAGE_DMV = "DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS"
 STORAGE_COLUMNS_DMV = "DISCOVER_STORAGE_TABLE_COLUMNS"
 STORAGE_TABLES_DMV = "DISCOVER_STORAGE_TABLES"
+COLUMN_STORAGES_DMV = "TMSCHEMA_COLUMN_STORAGES"
 
 BASIC_COLUMN_TYPES = {"BASIC_DATA"}
 ARTIFACT_IDS = {"POS_TO_ID", "ID_TO_POS", "INDEX"}
@@ -258,6 +259,13 @@ class ColumnStat:
     rows: int
     error_message: str = ""
     size_dictionary_bytes: int = 0
+    cardinality: int = 0
+    data_category: str = ""
+    summarize_by: str = ""
+    is_key: bool = False
+    is_available_in_mdx: bool = True
+    source_column: str = ""
+    description: str = ""
 
     @property
     def size_total_bytes(self) -> int:
@@ -289,6 +297,10 @@ class TableStat:
     storage_mode: str = ""
     measure_count: int = 0
     partition_count: int = 0
+    is_hidden: bool = False
+    data_category: str = ""
+    description: str = ""
+    is_calculated_table: bool = False
 
     @property
     def size_total_bytes(self) -> int:
@@ -311,6 +323,7 @@ class MeasureStat:
     is_hidden: bool = False
     expression: str = ""
     error_message: str = ""
+    description: str = ""
 
     @property
     def key(self) -> tuple[str, str]:
@@ -355,15 +368,32 @@ class ModelStats:
         return {column.key: column for column in self.columns}
 
 
+def column_cardinality(
+    rows: Iterable[dict[str, Any]] | None,
+) -> dict[int, int]:
+    """Peta ``COLUMN_ID -> Statistics_DistinctStates`` dari TMSCHEMA."""
+    counts: dict[int, int] = {}
+    for row in rows or []:
+        raw_id = row.get("ColumnID", row.get("COLUMN_ID"))
+        _name, column_id = storage_key(raw_id)
+        if column_id is None:
+            continue
+        value = _size(row.get("Statistics_DistinctStates"))
+        counts[column_id] = max(counts.get(column_id, 0), value)
+    return counts
+
+
 def build_model_stats(
     model: LiveModel,
     segments: list[dict[str, Any]],
     storage_columns: list[dict[str, Any]] | None = None,
     *,
+    column_storages: list[dict[str, Any]] | None = None,
     note: str = "",
 ) -> ModelStats:
     """Susun :class:`ModelStats` dari ``LiveModel`` + baris DMV storage."""
     sizes = aggregate_segments(segments, storage_columns)
+    cardinalities = column_cardinality(column_storages)
     columns, _excluded, _warnings = build_columns(model)
     tables = build_tables(model)
     measures = build_measures(model)
@@ -393,6 +423,13 @@ def build_model_stats(
                 rows=sizes.row_count(column_id),
                 error_message=str(raw.get("ErrorMessage") or ""),
                 size_dictionary_bytes=sizes.dictionary(column_id),
+                cardinality=cardinalities.get(column_id, 0),
+                data_category=str(row.get("data_category") or ""),
+                summarize_by=str(row.get("summarize_by") or ""),
+                is_key=bool(row.get("is_key")),
+                is_available_in_mdx=bool(row.get("is_available_in_mdx", True)),
+                source_column=str(row.get("source_column") or ""),
+                description=str(row.get("description") or ""),
             )
         )
         columns_by_table.setdefault(str(row["table"]), []).append(column_id)
@@ -416,6 +453,10 @@ def build_model_stats(
                 storage_mode=str(row.get("storage_mode") or ""),
                 measure_count=int(row.get("measure_count") or 0),
                 partition_count=int(row.get("partition_count") or 0),
+                is_hidden=bool(row.get("is_hidden")),
+                data_category=str(row.get("data_category") or ""),
+                description=str(row.get("description") or ""),
+                is_calculated_table=bool(row.get("is_calculated_table")),
             )
         )
 
@@ -438,6 +479,7 @@ def build_model_stats(
                 is_hidden=bool(row.get("is_hidden")),
                 expression=str(row.get("expression") or ""),
                 error_message=str(row.get("error_message") or ""),
+                description=str(row.get("description") or ""),
             )
             for row in measures
         ],
@@ -475,6 +517,7 @@ def read_model_stats(
 
     segments: list[dict[str, Any]] = []
     storage_columns: list[dict[str, Any]] = []
+    column_storages: list[dict[str, Any]] = []
     notes: list[str] = []
     try:
         segments = client.query(STORAGE_DMV)
@@ -484,6 +527,10 @@ def read_model_stats(
         storage_columns = client.query(STORAGE_COLUMNS_DMV)
     except Exception as exc:  # noqa: BLE001
         notes.append(f"{STORAGE_COLUMNS_DMV}: {str(exc).splitlines()[0]}")
+    try:
+        column_storages = client.query(COLUMN_STORAGES_DMV)
+    except Exception as exc:  # noqa: BLE001
+        notes.append(f"{COLUMN_STORAGES_DMV}: {str(exc).splitlines()[0]}")
 
     if not segments:
         notes.append(
@@ -495,5 +542,9 @@ def read_model_stats(
         f"{len(segments)} segmen storage."
     )
     return build_model_stats(
-        model, segments, storage_columns, note="; ".join(notes)
+        model,
+        segments,
+        storage_columns,
+        column_storages=column_storages,
+        note="; ".join(notes),
     )

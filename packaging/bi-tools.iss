@@ -4,7 +4,7 @@
 ;   ISCC.exe /DMyAppVersion=0.2.0 packaging\bi-tools.iss
 ;
 ; Sumber file: ..\dist\BI Tools\ (hasil PyInstaller onedir, sudah memuat
-; templates\, libs\, dan web\ di samping exe).
+; templates\, libs\, web\, dan rules\ di samping exe).
 ;
 ; Catatan penting:
 ; - Default pemasangan per pengguna ({autopf} = %LOCALAPPDATA%\Programs) supaya

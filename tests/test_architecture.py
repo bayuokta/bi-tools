@@ -466,9 +466,9 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 
-    def test_web_analysis_has_seven_tabs_and_no_mock_model_data(self) -> None:
+    def test_web_analysis_has_eight_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        for tab in ("all", "tables", "relationships", "report", "dax", "m", "health"):
+        for tab in ("all", "tables", "relationships", "report", "dax", "m", "health", "bestpractice"):
             self.assertIn(f'data-analysis-tab="{tab}"', html)
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
@@ -493,6 +493,9 @@ class WebLayerTests(unittest.TestCase):
             "analysisHealthRows",
             "analysisHealthOpen",
             "analysisPracticeTitle",
+            "analysisBestPracticeRows",
+            "analysisRenderBestPracticeSummary",
+            "analysisOpenBpRules",
         ):
             self.assertEqual(
                 js.count(f"function {name}("),
@@ -559,6 +562,36 @@ class WebLayerTests(unittest.TestCase):
                 js,
                 f"aturan {rule} belum punya entri bantuan di UI",
             )
+
+
+    def test_best_practice_tab_and_catalog_dialog(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        for marker in (
+            'id="bpSummary"',
+            'id="bpScore"',
+            'id="bpVerdict"',
+            'id="bpRulesInfo"',
+            'id="analysisBpRulesDialog"',
+            'id="analysisBpRulesBody"',
+            'id="closeBpRules"',
+            'id="doneBpRules"',
+        ):
+            self.assertIn(marker, html)
+        for name in (
+            "analysisBestPracticeRows",
+            "analysisRenderBestPracticeSummary",
+            "analysisBpRulesMarkup",
+            "analysisOpenBpRules",
+        ):
+            self.assertEqual(
+                js.count(f"function {name}("),
+                1,
+                f"helper {name} harus dideklarasikan tepat satu kali",
+            )
+        self.assertIn(
+            '$("#bpRulesInfo").addEventListener("click", analysisOpenBpRules)', js
+        )
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ def column_fixture() -> tuple[SimpleNamespace, SimpleNamespace]:
         size_data_bytes=1024,
         size_hierarchy_bytes=512,
         size_dictionary_bytes=512,
+        cardinality=1234,
     )
     analysis = SimpleNamespace(
         column=column,
@@ -103,6 +104,7 @@ class ColumnDetailsTests(unittest.TestCase):
         self.assertEqual(details["table_name"], "Sales")
         self.assertEqual(details["type"], "Column")
         self.assertEqual(details["size"], 2048)
+        self.assertEqual(details["cardinality"], 1234)
         self.assertEqual(details["id"], 10)
         self.assertEqual(details["is_used"], "Used")
         self.assertTrue(details["is_used_relationships"])

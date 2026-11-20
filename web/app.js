@@ -1951,6 +1951,20 @@
       ],
       unused: false,
       expandable: false
+    },
+    bestpractice: {
+      placeholder: t("Rule, object, or category"),
+      filters: [
+        ["all", t("All categories")],
+        ["Performance", t("Performance")],
+        ["DAX Expressions", t("DAX Expressions")],
+        ["Error Prevention", t("Error Prevention")],
+        ["Maintenance", t("Maintenance")],
+        ["Formatting", t("Formatting")],
+        ["Naming Conventions", t("Naming Conventions")]
+      ],
+      unused: false,
+      expandable: true
     }
   };
   var ANALYSIS_STATUS_ORDER = {
@@ -2184,6 +2198,7 @@
     $("#collapseRows").hidden = !config.expandable;
     $("#relViewSwitch").hidden = name !== "relationships";
     $("#healthRulesInfo").hidden = name !== "health";
+    $("#bpRulesInfo").hidden = name !== "bestpractice";
     if (name === "relationships") analysisSyncRelView();
     var options = config.filters.map(function (pair) {
       return { value: pair[0], label: pair[1] };
@@ -2206,7 +2221,8 @@
   function analysisCounts() {
     var result = state.analysis;
     var counts = {
-      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0, health: 0
+      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0, health: 0,
+      bestpractice: 0
     };
     if (!result) return counts;
     var totals = result.totals || {};
@@ -2217,6 +2233,7 @@
     counts.dax = (result.measures || []).length + analysisCalculatedColumns().length;
     counts.m = (result.m_queries || []).length;
     counts.health = ((result.health && result.health.items) || []).length;
+    counts.bestpractice = ((result.best_practice && result.best_practice.items) || []).length;
     return counts;
   }
 
@@ -2235,6 +2252,8 @@
     $("#tabCountDax").textContent = state.analysis ? fmtInt(counts.dax) : "";
     $("#tabCountM").textContent = state.analysis ? fmtInt(counts.m) : "";
     $("#tabCountHealth").textContent = state.analysis ? fmtInt(counts.health) : "";
+    $("#tabCountBestPractice").textContent = state.analysis
+      ? fmtInt(counts.bestpractice) : "";
   }
 
   function analysisNameCell(name, icon, options) {
@@ -3269,6 +3288,7 @@
     ];
     if (!measure) {
       rows.splice(6, 0,
+        [t("Cardinality"), details.cardinality ? fmtInt(details.cardinality) : "—"],
         [t("Data size"), analysisFmtBytes(details.size_data)],
         [t("Hierarchy size"), analysisFmtBytes(details.size_hierarchy)],
         [t("Dictionary size"), analysisFmtBytes(details.size_dictionary)]
@@ -5407,6 +5427,206 @@
     }
   }
 
+  function analysisBestPracticeIcon(kind) {
+    var icons = {
+      column: "column", measure: "measure", table: "table", relationship: "link",
+      expression: "code", model: "group"
+    };
+    return icons[kind] || "group";
+  }
+
+  function analysisBestPracticeSeverity(severity) {
+    var value = Number(severity) || 1;
+    var cls = value >= 3 ? "chip-danger" : (value === 2 ? "chip-warn" : "chip-info");
+    var label = value >= 3 ? "High" : (value === 2 ? "Medium" : "Low");
+    return '<span class="chip ' + cls + '"><span class="dot"></span>' +
+      escapeHtml(t(label)) + "</span>";
+  }
+
+  function analysisRenderBestPracticeSummary() {
+    var bp = ((state.analysis && state.analysis.best_practice) || {});
+    if (!$("#bpSummary")) return;
+    $("#bpScore").textContent = bp.available === false
+      ? "—" : fmtInt(bp.score || 0);
+    var verdict = $("#bpVerdict");
+    verdict.setAttribute("data-verdict", bp.verdict_key || "pro");
+    $("#bpVerdictText").textContent = bp.available === false
+      ? t("Catalog unavailable") : t(bp.verdict || "—");
+    var counts = bp.counts || {};
+    $("#bpMeta").textContent = bp.available === false
+      ? tr(bp.error || "")
+      : t("{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated")
+        .replace("{v}", fmtInt(counts.violations || 0))
+        .replace("{r}", fmtInt(counts.rules || 0))
+        .replace("{e}", fmtInt(bp.evaluated || 0))
+        .replace("{n}", fmtInt(bp.rule_count || 0))
+        .replace("{u}", fmtInt(bp.not_evaluated || 0));
+  }
+
+  function analysisBestPracticeRows() {
+    var bp = ((state.analysis && state.analysis.best_practice) || {});
+    var items = bp.items || [];
+    var rules = bp.rules || [];
+    if (bp.available === false) {
+      return { headers: [], widths: [], rows: [], summary: tr(bp.error || "") };
+    }
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var category = getSelectValue("typeAnalyze") || "all";
+    var byRule = {};
+    items.forEach(function (item) {
+      var filtered = category === "all" || item.category === category;
+      if (!filtered) return;
+      if (query) {
+        var haystack = [
+          item.rule_name, item.object, item.detail, item.category, item.table,
+          item.name
+        ].join(" ").toLowerCase();
+        if (haystack.indexOf(query) === -1) return;
+      }
+      var key = item.rule_id;
+      if (!byRule[key]) byRule[key] = [];
+      byRule[key].push(item);
+    });
+    var ruleMap = {};
+    rules.forEach(function (rule) { ruleMap[rule.id] = rule; });
+    var rows = [];
+    Object.keys(byRule).sort(function (left, right) {
+      var a = ruleMap[left] || {};
+      var b = ruleMap[right] || {};
+      return (b.score || 0) - (a.score || 0) ||
+        String(a.name || "").localeCompare(String(b.name || ""));
+    }).forEach(function (ruleId) {
+      var rule = ruleMap[ruleId] || { id: ruleId, name: ruleId, severity: 1 };
+      var groupId = "bp:" + ruleId;
+      var open = analysisIsOpen(groupId, false, true);
+      var findings = byRule[ruleId];
+      rows.push({
+        level: 0,
+        group: true,
+        cells: [
+          analysisNameCell(rule.name, "group", {
+            level: 0, toggleId: groupId, open: open
+          }),
+          fmtInt(rule.score || 0),
+          analysisBestPracticeSeverity(rule.severity),
+          fmtInt(findings.length)
+        ],
+        numCols: [1, 3]
+      });
+      if (!open) return;
+      findings.forEach(function (item) {
+        var isModel = item.kind === "column" || item.kind === "measure" ||
+          item.kind === "table";
+        var nameCell = analysisNameCell(
+          item.object || "—", analysisBestPracticeIcon(item.kind), { level: 1 }
+        );
+        if (item.detail) {
+          nameCell += ' <span class="helper">' + escapeHtml(item.detail) + "</span>";
+        }
+        var row = {
+          level: 1,
+          cells: [nameCell, "", "", ""],
+          healthTarget: item.target || {}
+        };
+        if (isModel) {
+          row.item = {
+            kind: item.kind,
+            table: item.table || "",
+            name: item.kind === "table" ? (item.table || "") : (item.name || "")
+          };
+        }
+        rows.push(row);
+      });
+    });
+    return {
+      headers: [
+        { label: t("Rule") },
+        { label: t("Violation score") },
+        { label: t("Severity") },
+        { label: t("Objects") }
+      ],
+      widths: ["55%", "13%", "14%", "18%"],
+      rows: rows,
+      summary: t("{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated")
+        .replace("{v}", fmtInt((bp.counts || {}).violations || 0))
+        .replace("{r}", fmtInt((bp.counts || {}).rules || 0))
+        .replace("{e}", fmtInt(bp.evaluated || 0))
+        .replace("{n}", fmtInt(bp.rule_count || 0))
+        .replace("{u}", fmtInt(bp.not_evaluated || 0))
+    };
+  }
+
+  var BP_STATUS_LABELS = {
+    violation: "Violation",
+    pass: "Pass",
+    not_evaluated: "Not evaluated",
+    needs_coverage: "Needs coverage"
+  };
+
+  function analysisBpRulesMarkup() {
+    var bp = ((state.analysis && state.analysis.best_practice) || {});
+    var rules = bp.rules || [];
+    var categories = [];
+    rules.forEach(function (rule) {
+      if (categories.indexOf(rule.category) === -1) categories.push(rule.category);
+    });
+    categories.sort();
+    var parts = [];
+    categories.forEach(function (category) {
+      var groupRows = rules.filter(function (rule) {
+        return rule.category === category;
+      }).sort(function (left, right) {
+        return (right.score || 0) - (left.score || 0) ||
+          String(left.name).localeCompare(String(right.name));
+      });
+      parts.push(
+        '<section class="health-rule-group"><h3 class="health-rule-group-title">' +
+        '<span class="chip chip-idle">' + escapeHtml(t(category)) + "</span>" +
+        '<span class="helper">' + fmtInt(groupRows.length) + " " + t("rules") +
+        "</span></h3>"
+      );
+      groupRows.forEach(function (rule) {
+        var status = String(rule.status || "");
+        var cls = status === "violation" ? "chip-danger"
+          : (status === "pass" ? "chip-ok" : "chip-idle");
+        parts.push(
+          '<article class="health-rule"><div class="health-rule-head"><h4>' +
+          escapeHtml(rule.name) + "</h4>" +
+          '<span class="chip ' + cls + '"><span class="dot"></span>' +
+          escapeHtml(t(BP_STATUS_LABELS[status] || status)) + "</span>" +
+          '<span class="helper">' + fmtInt(rule.score || 0) + "</span></div>" +
+          '<p class="health-rule-desc">' + escapeHtml(rule.description || "") + "</p>" +
+          '<dl class="health-rule-meta">' +
+          "<dt>" + escapeHtml(t("Severity")) + "</dt><dd>" +
+          escapeHtml(t(rule.severity_label || "")) + "</dd>" +
+          (rule.expression
+            ? "<dt>" + escapeHtml(t("Expression")) + "</dt><dd><code>" +
+              escapeHtml(rule.expression) + "</code></dd>"
+            : "") +
+          (rule.fix_expression
+            ? "<dt>" + escapeHtml(t("Suggested fix")) + "</dt><dd><code>" +
+              escapeHtml(rule.fix_expression) + "</code></dd>"
+            : "") +
+          (rule.reason
+            ? "<dt>" + escapeHtml(t("Reason")) + "</dt><dd>" +
+              escapeHtml(tr(rule.reason)) + "</dd>"
+            : "") +
+          "</dl></article>"
+        );
+      });
+      parts.push("</section>");
+    });
+    return parts.join("");
+  }
+
+  function analysisOpenBpRules() {
+    var dialog = $("#analysisBpRulesDialog");
+    if (!dialog) return;
+    $("#analysisBpRulesBody").innerHTML = analysisBpRulesMarkup();
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+  }
+
   function analysisSortItems(items) {
     if (!state.analysisSort || state.analysisSort === "default") return items.slice();
     var key = state.analysisSort;
@@ -5538,9 +5758,11 @@
     var tableWrap = $("#analyzeTableWrap");
     var graph = $("#relGraph");
     var empty = $("#analyzeEmpty");
+    var bpSummary = $("#bpSummary");
     if (!result) {
       tableWrap.hidden = true;
       graph.hidden = true;
+      if (bpSummary) bpSummary.hidden = true;
       empty.hidden = false;
       var hasModel = Boolean(getSelectValue("modelSelect"));
       $("#analyzeSummary").textContent = hasModel
@@ -5554,6 +5776,8 @@
       return;
     }
     var tab = state.analysisTab;
+    if (bpSummary) bpSummary.hidden = tab !== "bestpractice";
+    if (tab === "bestpractice") analysisRenderBestPracticeSummary();
     if (tab === "relationships" && state.relView === "graph") {
       tableWrap.hidden = true;
       $("#analyzeHead").innerHTML = "";
@@ -5571,6 +5795,7 @@
     else if (tab === "dax") view = analysisDaxRows();
     else if (tab === "m") view = analysisMRows();
     else if (tab === "health") view = analysisHealthRows();
+    else if (tab === "bestpractice") view = analysisBestPracticeRows();
     else view = analysisFlatRows();
     $("#analyzeCols").innerHTML = (view.widths || []).map(function (width) {
       return '<col style="width:' + width + '">';
@@ -5585,6 +5810,16 @@
         $("#analyzeEmptyTitle").textContent = t("Report usage not included");
         $("#analyzeEmptyText").textContent = t(
           "Enable “Include report usage” and run the analysis again to see pages, visuals, and filters.");
+      } else if (tab === "bestpractice") {
+        if (result.best_practice && result.best_practice.available === false) {
+          $("#analyzeEmptyTitle").textContent = t("Catalog unavailable");
+          $("#analyzeEmptyText").textContent =
+            tr(result.best_practice.error || "");
+        } else {
+          $("#analyzeEmptyTitle").textContent = t("No best practice violations");
+          $("#analyzeEmptyText").textContent = t(
+            "Every evaluated rule passed. Open Rules to review the full catalog and unsupported rules.");
+        }
       } else {
         $("#analyzeEmptyTitle").textContent = t("No matching items");
         $("#analyzeEmptyText").textContent =
@@ -7543,6 +7778,18 @@
     });
     $("#healthRulesInfo").addEventListener("click", function () {
       analysisOpenHealthRules();
+    });
+    $("#bpRulesInfo").addEventListener("click", analysisOpenBpRules);
+    $("#closeBpRules").addEventListener("click", function () {
+      $("#analysisBpRulesDialog").close();
+    });
+    $("#doneBpRules").addEventListener("click", function () {
+      $("#analysisBpRulesDialog").close();
+    });
+    $("#analysisBpRulesDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) {
+        $("#analysisBpRulesDialog").close();
+      }
     });
     $("#closeHealthRules").addEventListener("click", function () {
       $("#analysisHealthRulesDialog").close();

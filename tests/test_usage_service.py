@@ -1092,6 +1092,8 @@ class WriteWorkbookTests(unittest.TestCase):
                 "07_Unresolved",
                 "08_Measures",
                 "09_Health",
+                "10_BestPractice_Model",
+                "11_BestPractice_Model_Rules",
             ],
         )
         columns = pd.read_excel(book, "02_Columns")
@@ -1103,6 +1105,16 @@ class WriteWorkbookTests(unittest.TestCase):
         health = pd.read_excel(book, "09_Health", keep_default_na=False)
         self.assertEqual(list(health.columns)[:3], ["Severity", "Area", "Rule"])
         self.assertIn("isolated_table", list(health["Rule"]))
+        bp_rules = pd.read_excel(
+            book, "11_BestPractice_Model_Rules", keep_default_na=False
+        )
+        self.assertEqual(len(bp_rules), 71)
+        self.assertIn("Rule ID", list(bp_rules.columns))
+        self.assertIn("Status", list(bp_rules.columns))
+        bp_model = pd.read_excel(
+            book, "10_BestPractice_Model", keep_default_na=False
+        )
+        self.assertIn("Rule ID", list(bp_model.columns))
 
 
 class ModelReferenceTests(unittest.TestCase):

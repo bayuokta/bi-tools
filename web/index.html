@@ -624,6 +624,7 @@
               <button role="tab" id="tab-dax" data-analysis-tab="dax" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">DAX expressions<span class="tab-count" id="tabCountDax"></span></button>
               <button role="tab" id="tab-m" data-analysis-tab="m" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">M queries<span class="tab-count" id="tabCountM"></span></button>
               <button role="tab" id="tab-health" data-analysis-tab="health" aria-controls="analyzePanel" aria-selected="false" tabindex="-1"><span data-i18n="Health">Health</span><span class="tab-count" id="tabCountHealth"></span></button>
+              <button role="tab" id="tab-bestpractice" data-analysis-tab="bestpractice" aria-controls="analyzePanel" aria-selected="false" tabindex="-1"><span data-i18n="Best practice">Best practice</span><span class="tab-count" id="tabCountBestPractice"></span></button>
             </div>
             <div role="tabpanel" id="analyzePanel" aria-labelledby="tab-all">
               <div class="table-tools">
@@ -650,8 +651,20 @@
                   <button class="btn btn-sm" id="expandRows" type="button">Expand</button>
                   <button class="btn btn-sm" id="collapseRows" type="button">Collapse</button>
                   <button class="btn btn-sm" id="healthRulesInfo" type="button" hidden data-i18n="Rules" aria-label="Health rules" data-i18n-aria-label="Health rules">Rules</button>
+                  <button class="btn btn-sm" id="bpRulesInfo" type="button" hidden data-i18n="Rules" aria-label="Best practice rules" data-i18n-aria-label="Best practice rules">Rules</button>
                   <button class="btn btn-sm" id="exportXlsx" type="button" data-i18n="Export XLSX">Export XLSX</button>
                 </div>
+              </div>
+              <div class="bp-summary" id="bpSummary" hidden>
+                <div class="bp-score">
+                  <span class="bp-score-value" id="bpScore">0</span>
+                  <span class="helper" data-i18n="Violation score">Violation score</span>
+                </div>
+                <div class="bp-verdict" id="bpVerdict" data-verdict="pro">
+                  <span class="dot"></span>
+                  <span id="bpVerdictText">—</span>
+                </div>
+                <div class="bp-meta" id="bpMeta"></div>
               </div>
               <div class="table-scroll" id="analyzeTableWrap" hidden="">
                 <table class="data" id="analyzeTable">
@@ -1396,6 +1409,24 @@
     <span class="spacer"></span>
     <span class="helper mono" data-i18n="Rules v1">Rules v1</span>
     <button class="btn btn-primary" id="doneHealthRules" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
+<dialog class="dialog dialog--health-rules" id="analysisBpRulesDialog" aria-labelledby="analysisBpRulesTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisBpRulesTitle" data-i18n="Best practice rules">Best practice rules</h2>
+      <p class="helper" data-i18n="Microsoft / Tabular Editor Best Practice Analyzer catalog.">Microsoft / Tabular Editor Best Practice Analyzer catalog.</p>
+    </div>
+    <button class="dialog-close" id="closeBpRules" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body health-rules" id="analysisBpRulesBody"></div>
+  <div class="dialog-foot">
+    <span class="helper" data-i18n="Rules from BPARules.json.">Rules from BPARules.json.</span>
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="doneBpRules" type="button" data-i18n="Close">Close</button>
   </div>
 </dialog>
 

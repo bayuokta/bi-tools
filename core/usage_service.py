@@ -56,6 +56,7 @@ from .metadata_common import (
     strip_dax_literals,
     write_sheet,
 )
+from .best_practice import build_best_practice
 from .model_health import build_health
 from .model import (
     LiveModel,
@@ -143,6 +144,14 @@ MEASURE_COLUMNS = [
 HEALTH_COLUMNS = [
     "Severity", "Area", "Rule", "Object", "Table", "Column", "Measure",
     "Report", "Page", "Visual", "Size", "Detail", "Metrics",
+]
+BEST_PRACTICE_COLUMNS = [
+    "Rule ID", "Rule", "Category", "Severity", "Object", "Table", "Name",
+    "Kind", "Detail", "Size", "Rule score",
+]
+BEST_PRACTICE_RULE_COLUMNS = [
+    "Rule ID", "Rule", "Category", "Severity", "Status", "Findings",
+    "Score", "Reason",
 ]
 
 
@@ -1859,6 +1868,10 @@ def model_snapshot(
                 "storage_mode": table.storage_mode,
                 "measure_count": table.measure_count,
                 "partition_count": table.partition_count,
+                "is_hidden": table.is_hidden,
+                "data_category": table.data_category,
+                "description": table.description,
+                "is_calculated_table": table.is_calculated_table,
             }
             for table in stats.tables
         ],
@@ -1922,6 +1935,13 @@ def snapshot_from_connection(
             size_dictionary_bytes=int(
                 row.get("size_dictionary_bytes") or 0
             ),
+            cardinality=int(row.get("cardinality") or 0),
+            data_category=str(row.get("data_category") or ""),
+            summarize_by=str(row.get("summarize_by") or ""),
+            is_key=bool(row.get("is_key")),
+            is_available_in_mdx=bool(row.get("is_available_in_mdx", 1)),
+            source_column=str(row.get("source_column") or ""),
+            description=str(row.get("description") or ""),
         )
         for row in rows
     ]
@@ -1938,6 +1958,10 @@ def snapshot_from_connection(
             storage_mode=str(item.get("storage_mode") or ""),
             measure_count=int(item.get("measure_count") or 0),
             partition_count=int(item.get("partition_count") or 0),
+            is_hidden=bool(item.get("is_hidden")),
+            data_category=str(item.get("data_category") or ""),
+            description=str(item.get("description") or ""),
+            is_calculated_table=bool(item.get("is_calculated_table")),
         )
         for item in meta.get("tables") or []
     ]
@@ -1976,6 +2000,7 @@ def snapshot_from_connection(
             is_hidden=bool(row.get("is_hidden")),
             expression=str(row.get("expression") or ""),
             error_message=str(row.get("error_message") or ""),
+            description=str(row.get("description") or ""),
         )
         for row in measure_data
     ]
@@ -2133,6 +2158,7 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
     """Tulis hasil analisa ke workbook XLSX (header Inggris)."""
     path = Path(target).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
+    best_practice = build_best_practice(result)
 
     summary_rows = [
         ("Dataset", result.dataset_name),
@@ -2159,6 +2185,12 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
         ("Report list", result.method),
         ("Coverage", result.coverage),
         ("Coverage complete", "Yes" if result.coverage_complete else "No"),
+        ("Best practice score", best_practice.get("score", 0)),
+        ("Best practice verdict", best_practice.get("verdict", "-")),
+        (
+            "Best practice rules",
+            f"{best_practice.get('evaluated', 0)}/{best_practice.get('rule_count', 0)} evaluated",
+        ),
     ]
     for status, count in sorted(result.status_counts.items()):
         summary_rows.append((f"Status column {status}", count))
@@ -2381,6 +2413,70 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             pd.DataFrame(health_rows, columns=HEALTH_COLUMNS),
             "09_Health",
             {"Object": 40, "Detail": 56, "Metrics": 40},
+        )
+        best_practice_rows = [
+            {
+                "Rule ID": str(item.get("rule_id") or ""),
+                "Rule": str(item.get("rule_name") or ""),
+                "Category": str(item.get("category") or ""),
+                "Severity": int(item.get("severity") or 0),
+                "Object": str(item.get("object") or ""),
+                "Table": str(item.get("table") or ""),
+                "Name": str(item.get("name") or ""),
+                "Kind": str(item.get("kind") or ""),
+                "Detail": str(item.get("detail") or ""),
+                "Size": format_bytes(int(item.get("size_bytes") or 0))
+                if int(item.get("size_bytes") or 0)
+                else "",
+                "Rule score": int(item.get("rule_score") or 0),
+            }
+            for item in best_practice.get("items", [])
+        ]
+        write_sheet(
+            writer,
+            pd.DataFrame(best_practice_rows, columns=BEST_PRACTICE_COLUMNS),
+            "10_BestPractice_Model",
+            {"Rule": 44, "Object": 44, "Detail": 40},
+        )
+        status_labels = {
+            "violation": "Violation",
+            "pass": "Pass",
+            "not_evaluated": "Not evaluated",
+            "needs_coverage": "Needs coverage",
+        }
+        best_practice_rule_rows = [
+            {
+                "Rule ID": str(row.get("id") or ""),
+                "Rule": str(row.get("name") or ""),
+                "Category": str(row.get("category") or ""),
+                "Severity": int(row.get("severity") or 0),
+                "Status": status_labels.get(
+                    str(row.get("status") or ""), str(row.get("status") or "")
+                ),
+                "Findings": int(row.get("count") or 0),
+                "Score": int(row.get("score") or 0),
+                "Reason": str(row.get("reason") or ""),
+            }
+            for row in best_practice.get("rules", [])
+        ]
+        if not best_practice_rule_rows and best_practice.get("error"):
+            best_practice_rule_rows = [
+                {
+                    "Rule ID": "",
+                    "Rule": "Catalog unavailable",
+                    "Category": "",
+                    "Severity": 0,
+                    "Status": "Not evaluated",
+                    "Findings": 0,
+                    "Score": 0,
+                    "Reason": str(best_practice.get("error") or ""),
+                }
+            ]
+        write_sheet(
+            writer,
+            pd.DataFrame(best_practice_rule_rows, columns=BEST_PRACTICE_RULE_COLUMNS),
+            "11_BestPractice_Model_Rules",
+            {"Rule": 50, "Reason": 56},
         )
     return path
 

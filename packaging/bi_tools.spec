@@ -8,10 +8,11 @@ Dua executable dibangun dari satu kumpulan dependensi:
 
 Mode **onedir** dipakai dengan sengaja. ``core/paths.py`` menentukan folder
 aplikasi dari folder ``.exe``, dan ``core/pbix.py``/``core/tsd.py``/
-``core/xmla_client.py`` mencari ``templates/`` serta ``libs/`` **di samping
-exe**, bukan di ``sys._MEIPASS``. Aset ``web/`` juga dicari lewat
-``core/paths.APP_DIR``. Karena itu ketiga folder itu disalin ke akar folder
-hasil setelah COLLECT (bukan lewat ``datas`` yang masuk ke ``_internal``).
+``core/xmla_client.py``/``core/best_practice.py`` mencari ``templates/``,
+``libs/``, serta ``rules/`` **di samping exe**, bukan di ``sys._MEIPASS``.
+Aset ``web/`` juga dicari lewat ``core/paths.APP_DIR``. Karena itu keempat
+folder itu disalin ke akar folder hasil setelah COLLECT (bukan lewat ``datas``
+yang masuk ke ``_internal``).
 Mode onefile akan memutus pencarian itu; jangan diubah tanpa menyesuaikan
 ``core/paths.py``.
 
@@ -32,7 +33,7 @@ sys.path.insert(0, str(ROOT))
 from core.version import APP_NAME, __version__, version_tuple  # noqa: E402
 
 ICON_PATH = ROOT / "packaging" / "bi-tools.ico"
-ASSET_DIRS = ("templates", "libs", "web")
+ASSET_DIRS = ("templates", "libs", "web", "rules")
 
 for asset in ASSET_DIRS:
     if not (ROOT / asset).is_dir():

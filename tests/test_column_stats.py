@@ -7,6 +7,7 @@ import unittest
 from core.column_stats import (
     aggregate_segments,
     attribute_id,
+    column_cardinality,
     is_artifact,
     storage_key,
     table_rows,
@@ -121,6 +122,22 @@ class AggregateSegmentsTests(unittest.TestCase):
 
         self.assertEqual(sizes.data(5), 2048)
         self.assertEqual(sizes.segment_bytes, 0)
+
+
+class ColumnCardinalityTests(unittest.TestCase):
+    def test_reads_distinct_states_with_both_id_keys(self) -> None:
+        rows = [
+            {"ColumnID": 10, "Statistics_DistinctStates": 1234},
+            {"ColumnID": "Kolom (11)", "Statistics_DistinctStates": "56"},
+            {"ColumnID": 10, "Statistics_DistinctStates": 1230},
+            {"ColumnID": None, "Statistics_DistinctStates": 9},
+            {"ColumnID": "POS_TO_ID", "Statistics_DistinctStates": 9},
+        ]
+        self.assertEqual(column_cardinality(rows), {10: 1234, 11: 56})
+
+    def test_missing_rows_give_empty_map(self) -> None:
+        self.assertEqual(column_cardinality(None), {})
+        self.assertEqual(column_cardinality([]), {})
 
 
 if __name__ == "__main__":

@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS usage_column (
   sort_by_column TEXT, expression TEXT,
   size_data_bytes INTEGER DEFAULT 0, size_hierarchy_bytes INTEGER DEFAULT 0,
   size_dictionary_bytes INTEGER DEFAULT 0,
+  cardinality INTEGER DEFAULT 0, data_category TEXT, summarize_by TEXT,
+  is_key INTEGER DEFAULT 0, is_available_in_mdx INTEGER DEFAULT 1,
+  source_column TEXT, description TEXT,
   row_count INTEGER DEFAULT 0, error_message TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, column_name)
 );
@@ -102,7 +105,7 @@ CREATE TABLE IF NOT EXISTS usage_measure (
   dataset_id TEXT, table_name TEXT, measure_name TEXT,
   data_type TEXT, format_string TEXT, display_folder TEXT,
   is_hidden INTEGER DEFAULT 0, expression TEXT, error_message TEXT,
-  refs_json TEXT, analyzed_at TEXT,
+  description TEXT, refs_json TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, measure_name)
 );
 CREATE TABLE IF NOT EXISTS usage_m_query (
@@ -132,6 +135,16 @@ MIGRATIONS = {
     "usage_column": {
         "error_message": "TEXT",
         "size_dictionary_bytes": "INTEGER DEFAULT 0",
+        "cardinality": "INTEGER DEFAULT 0",
+        "data_category": "TEXT",
+        "summarize_by": "TEXT",
+        "is_key": "INTEGER DEFAULT 0",
+        "is_available_in_mdx": "INTEGER DEFAULT 1",
+        "source_column": "TEXT",
+        "description": "TEXT",
+    },
+    "usage_measure": {
+        "description": "TEXT",
     },
     "usage_report": {
         "theme": "TEXT",
@@ -641,8 +654,10 @@ def save_columns(
           dataset_id, table_name, column_name, column_id, column_type, data_type,
           format_string, display_folder, is_hidden, is_calculated,
           sort_by_column, expression, size_data_bytes, size_hierarchy_bytes,
-          size_dictionary_bytes, row_count, error_message, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          size_dictionary_bytes, cardinality, data_category, summarize_by,
+          is_key, is_available_in_mdx, source_column, description,
+          row_count, error_message, analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -661,6 +676,13 @@ def save_columns(
                 int(column.size_data_bytes),
                 int(column.size_hierarchy_bytes),
                 int(column.size_dictionary_bytes),
+                int(getattr(column, "cardinality", 0) or 0),
+                getattr(column, "data_category", ""),
+                getattr(column, "summarize_by", ""),
+                1 if getattr(column, "is_key", False) else 0,
+                1 if getattr(column, "is_available_in_mdx", True) else 0,
+                getattr(column, "source_column", ""),
+                getattr(column, "description", ""),
                 int(column.rows),
                 column.error_message,
                 stamp,
@@ -707,6 +729,7 @@ def save_measures(
                 1 if measure.is_hidden else 0,
                 measure.expression,
                 measure.error_message,
+                getattr(measure, "description", ""),
                 json.dumps((refs or {}).get(key, []), ensure_ascii=False),
                 stamp,
             )
@@ -717,9 +740,9 @@ def save_measures(
             """
             INSERT OR REPLACE INTO usage_measure (
               dataset_id, table_name, measure_name, data_type, format_string,
-              display_folder, is_hidden, expression, error_message, refs_json,
-              analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              display_folder, is_hidden, expression, error_message, description,
+              refs_json, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )

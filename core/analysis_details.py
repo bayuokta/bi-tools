@@ -261,6 +261,7 @@ def item_details(
         "size_data": int(getattr(node, "size_data_bytes", 0) or 0),
         "size_hierarchy": int(getattr(node, "size_hierarchy_bytes", 0) or 0),
         "size_dictionary": int(getattr(node, "size_dictionary_bytes", 0) or 0),
+        "cardinality": int(getattr(node, "cardinality", 0) or 0),
         "rows": int(getattr(node, "rows", 0) or 0),
         "id": None if is_measure else int(getattr(node, "column_id", 0) or 0),
         "data_type": None,

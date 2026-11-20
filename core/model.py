@@ -522,8 +522,14 @@ def build_tables(model: LiveModel) -> list[dict[str, Any]]:
                 "query_group": query_group,
                 "refresh_policy": "Yes" if table_id in refresh_by_table else "No",
                 "is_calculation_group": table.get("CalculationGroupID") is not None,
+                "is_calculated_table": any(
+                    label(part.get("Type"), PARTITION_SOURCE_TYPE, "sourceType")
+                    == "calculated"
+                    for part in partitions
+                ),
                 "lineage_tag": str(table.get("LineageTag") or ""),
                 "description": str(table.get("Description") or ""),
+                "data_category": str(table.get("DataCategory") or ""),
                 "annotations": model.ann(3, table_id),
             }
         )
@@ -555,6 +561,9 @@ def build_columns(model: LiveModel) -> tuple[list[dict[str, Any]], int, list[dic
                 "summarize_by": label(column.get("SummarizeBy"), AGGREGATE_FUNCTION, "summarizeBy"),
                 "sort_by_column": sort_by,
                 "source_column": str(column.get("SourceColumn") or ""),
+                "data_category": str(column.get("DataCategory") or ""),
+                "is_key": bool(column.get("IsKey")),
+                "is_available_in_mdx": bool(column.get("IsAvailableInMDX")),
                 "is_hidden": bool(column.get("IsHidden")),
                 "display_folder": str(column.get("DisplayFolder") or ""),
                 "description": str(column.get("Description") or ""),

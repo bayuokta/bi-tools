@@ -38,6 +38,7 @@ def app_dir() -> Path:
 APP_DIR = app_dir()
 OUTPUTS_DIR = APP_DIR / OUTPUTS_DIR_NAME
 DATA_DIR = APP_DIR / DATA_DIR_NAME
+RULES_DIR = APP_DIR / "rules"
 
 
 def _writable(base: Path) -> bool:

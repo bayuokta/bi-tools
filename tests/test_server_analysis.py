@@ -284,6 +284,10 @@ class AnalysisPresenterTests(unittest.TestCase):
             "missing_theme",
             [item["rule"] for item in data["health"]["items"]],
         )
+        self.assertTrue(data["best_practice"]["available"])
+        self.assertEqual(data["best_practice"]["rule_count"], 71)
+        self.assertGreaterEqual(data["best_practice"]["evaluated"], 1)
+        self.assertIn("score", data["best_practice"])
         self.assertEqual(data["tables"][0]["storage_mode"], "Import")
         self.assertEqual(data["tables"][0]["partition_count"], 1)
         relation = data["relationships"][0]

@@ -16,6 +16,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tanpa relasi, relasi dua arah/many-to-many/tidak aktif/otomatis, dictionary
   kolom besar, halaman tanpa visual, halaman tersembunyi, report tanpa tema,
   dan calculated column tidak dipakai.
+- Tab **Best practice** (model) memakai katalog Microsoft/Tabular Editor
+  `rules\BPARules.json` (71 aturan): 54 dievaluasi, 17 ditandai
+  `Not evaluated` dengan alasan. Skor logaritmik per aturan, verdict model,
+  ekspansi objek, filter kategori, dan dialog katalog lengkap.
+- Ekspor XLSX menambah `10_BestPractice_Model` dan
+  `11_BestPractice_Model_Rules`; CLI menampilkan skor dan verdict.
+- **Column details** menampilkan `Cardinality` dari
+  `TMSCHEMA_COLUMN_STORAGES.Statistics_DistinctStates` sebagai baris baru.
 - Tombol **Rules** (dan ikon `i` di sel Rule) membuka dialog yang menjelaskan
   setiap aturan: sumber data, ambang, dan saran tindakan, termasuk rincian
   rumus skor praktik.

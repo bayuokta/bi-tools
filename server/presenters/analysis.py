@@ -15,6 +15,7 @@ from typing import Any, Mapping
 
 from core.auth import EntraTokens, ServicePrincipal
 from core.analysis_details import item_details
+from core.best_practice import build_best_practice
 from core.analysis_export import (
     dependency_rows,
     write_dependencies_csv,
@@ -953,6 +954,7 @@ def serialize_result(
         "measures": measure_rows,
         "reports": reports,
         "health": health,
+        "best_practice": build_best_practice(result),
         "tables": table_rows,
         "relationships": relationship_rows,
         "m_queries": [

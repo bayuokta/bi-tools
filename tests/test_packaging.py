@@ -130,7 +130,7 @@ class PackagingAssetsTests(unittest.TestCase):
         self.assertIn('collect_all("playwright")', text)
         self.assertIn('collect_submodules("server")', text)
         self.assertIn('collect_submodules("uvicorn")', text)
-        for asset in ("templates", "libs", "web"):
+        for asset in ("templates", "libs", "web", "rules"):
             self.assertIn(asset, text)
         self.assertIn("COLLECT(", text)
 
