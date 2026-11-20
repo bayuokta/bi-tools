@@ -3103,16 +3103,23 @@
       var seed = node.side === "root";
       var stroke = seed ? palette.accent : palette.border;
       var strokeWidth = seed ? 2 : 1;
-      var context = analysisLineageContext(node);
-      var kind = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
-      var sub = kind + (context ? " \u00b7 " + context : "");
-      var status = node.status ? String(tStatus(node.status)).toUpperCase() : "";
+      var text = analysisLineageCardText(node);
+      var statusColor = text.status === "Tidak dipakai"
+        ? "#c42b1c"
+        : text.status === "Wajib dipertahankan"
+          ? "#d4a017"
+          : text.status === "Perlu dicek"
+            ? "#d67500"
+            : text.status
+              ? "#107c10"
+              : "";
       var count = Number(node.count) > 1 ? String(Number(node.count)) : "";
       var step = Number(node.step) > 0
         ? String(Number(node.step)).padStart(2, "0")
         : "";
-      var title = analysisLineageSvgClip(node.label, 28);
-      var detail = analysisLineageSvgClip(sub, 40);
+      var title = analysisLineageSvgClip(text.title, 28);
+      var detail = analysisLineageSvgClip(text.sub, 40);
+      var note = analysisLineageSvgClip(text.note, 40);
       return '<g transform="translate(' + node.x + ',' + node.y + ')">' +
         '<rect width="' + node.w + '" height="' + node.h +
         '" rx="8" fill="' + palette.surface + '" stroke="' + stroke +
@@ -3130,19 +3137,23 @@
         'font-family="Segoe UI, Arial, sans-serif" ' +
         'font-size="12.5" font-weight="600" fill="' + palette.text + '">' +
         escapeHtml(title) + '</text>' +
-        '<text x="14" y="40" font-family="Segoe UI, Arial, sans-serif" ' +
+        '<text x="14" y="39" font-family="Segoe UI, Arial, sans-serif" ' +
         'font-size="10.5" fill="' + palette.text3 + '">' +
         escapeHtml(detail) + '</text>' +
-        (status
-          ? '<text x="14" y="55" font-family="Segoe UI, Arial, sans-serif" ' +
-            'font-size="9.5" font-weight="600" letter-spacing="0.5" fill="' +
-            palette.text3 + '">' + escapeHtml(status) + '</text>'
+        (note
+          ? '<text x="14" y="53" font-family="Segoe UI, Arial, sans-serif" ' +
+            'font-size="10" fill="' + palette.text3 + '">' +
+            escapeHtml(note) + '</text>'
+          : "") +
+        (statusColor
+          ? '<circle cx="' + (node.w - 12) + '" cy="14" r="4" fill="' +
+            statusColor + '"/>'
           : "") +
         (count
-          ? '<rect x="' + (node.w - 32) + '" y="10" width="22" height="16" ' +
-            'rx="8" fill="' + palette.surface3 + '"/>' +
-            '<text x="' + (node.w - 21) + '" y="21" text-anchor="middle" ' +
-            'font-family="Segoe UI, Arial, sans-serif" font-size="10" fill="' +
+          ? '<rect x="' + (node.w - 36) + '" y="10" width="20" height="15" ' +
+            'rx="7" fill="' + palette.surface3 + '"/>' +
+            '<text x="' + (node.w - 26) + '" y="21" text-anchor="middle" ' +
+            'font-family="Segoe UI, Arial, sans-serif" font-size="9.5" fill="' +
             palette.text3 + '">' + escapeHtml(count) + '</text>'
           : "") +
         "</g>";
@@ -4039,22 +4050,56 @@
       ) + "</div></div>";
   }
 
+  function analysisLineageCardText(node) {
+    var kindLabel = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
+    var context = analysisLineageContext(node);
+    var detail = String(node.detail || "").trim();
+    var title = String(node.label || "");
+    var sub = kindLabel;
+    var note = "";
+    if (node.kind === "mstep") {
+      title = String(node.detail || node.label || "");
+      sub = String(node.context || kindLabel);
+      note = String(node.label || "");
+      if (note === title) note = "";
+    } else if (node.kind === "mquery") {
+      sub = t("M query");
+      note = context;
+    } else if (node.group === "usage" || node.group === "more") {
+      sub = t("Used in") + " " + kindLabel.toLowerCase() +
+        (detail ? " (" + detail + ")" : "");
+    } else if (
+      context && (
+        node.kind === "column" || node.kind === "measure" ||
+        node.kind === "table" || node.kind === "datasource"
+      )
+    ) {
+      note = context;
+    } else if (context) {
+      sub = kindLabel + " \u00b7 " + context;
+    }
+    return {
+      title: title,
+      sub: sub,
+      note: note,
+      status: String(node.status || "")
+    };
+  }
+
+  function analysisLineageStatusClass(status) {
+    if (status === "Tidak dipakai") return "is-unused";
+    if (status === "Wajib dipertahankan") return "is-blocker";
+    if (status === "Perlu dicek") return "is-check";
+    return "is-used";
+  }
+
   function analysisLineageNodeMarkup(node) {
     var iconKey = LINEAGE_KIND_ICONS[node.kind] || "group";
     var icon = ANALYSIS_ICONS[iconKey] || "";
-    var kindLabel = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
-    var parts = [kindLabel];
-    var context = analysisLineageContext(node);
-    var detail = String(node.detail || "").trim();
-    var isUsage = node.group === "usage" || node.group === "more";
-    if (isUsage) {
-      if (detail) parts[0] = kindLabel + " (" + detail + ")";
-    } else if (context) {
-      parts.push(context);
-    }
-    var sub = parts.join(" \u00b7 ");
-    var status = node.status
-      ? '<span class="ln-status">' + escapeHtml(tStatus(node.status)) + "</span>"
+    var text = analysisLineageCardText(node);
+    var status = text.status
+      ? '<span class="ln-status ' + analysisLineageStatusClass(text.status) +
+        '" title="' + escapeHtml(tStatus(text.status)) + '"></span>'
       : "";
     var count = Number(node.count) > 1
       ? '<span class="ln-count">' + Number(node.count) + "</span>"
@@ -4062,7 +4107,7 @@
     var step = Number(node.step) > 0
       ? '<span class="ln-step">' + String(Number(node.step)).padStart(2, "0") + "</span>"
       : "";
-    var title = node.label + (node.context ? " \u00b7 " + node.context : "");
+    var title = text.title + (node.context ? " \u00b7 " + node.context : "");
     var classes = ["lineage-node", "group-" + (node.group || "model")];
     if (node.side === "root") classes.push("is-seed");
     return '<button type="button" class="' + classes.join(" ") + '"' +
@@ -4076,9 +4121,12 @@
       "px;height:" + node.h + 'px"' +
       ' title="' + escapeHtml(title) + '">' +
       step + '<span class="ln-icon">' + icon + "</span>" +
-      '<span class="ln-text"><span class="ln-title">' + escapeHtml(node.label) +
-      '</span><span class="ln-sub">' + escapeHtml(sub) + "</span>" + status +
-      "</span>" + count + "</button>";
+      '<span class="ln-text"><span class="ln-title">' + escapeHtml(text.title) +
+      '</span><span class="ln-sub">' + escapeHtml(text.sub) + "</span>" +
+      (text.note
+        ? '<span class="ln-note">' + escapeHtml(text.note) + "</span>"
+        : "") +
+      '</span><span class="ln-flags">' + status + count + "</span></button>";
   }
 
   function analysisLineageOutlineMarkup(graph) {
@@ -4150,13 +4198,52 @@
     (graph.nodes || []).forEach(function (node) {
       byId[node.id] = node;
     });
+    var artifacts = graph.artifacts || [];
+    var byArtifact = {};
+    artifacts.forEach(function (artifact) {
+      byArtifact[artifact.id] = artifact;
+    });
+    var reports = artifacts.filter(function (artifact) {
+      return artifact.kind === "report";
+    }).slice().sort(function (left, right) {
+      return left.x - right.x;
+    });
+    var reportIndex = {};
+    reports.forEach(function (report, index) {
+      reportIndex[report.id] = index;
+    });
+    var topY = reports.length
+      ? Math.max(8, Math.min.apply(null, reports.map(function (report) {
+        return report.y;
+      })) - 18)
+      : 8;
     var routes = {};
     analysisLineageEdges(graph).forEach(function (edge, index) {
       var source = byId[edge.from];
       var target = byId[edge.to];
-      if (source && target) {
-        routes[index] = analysisLineageEdgePath(source, target);
+      if (!source || !target) return;
+      var targetArtifact = byArtifact[target.container_id];
+      var sourceArtifact = byArtifact[source.container_id];
+      var targetIsReportHead = target.role === "artifact-head" ||
+        target.kind === "report";
+      var needsCorridor = targetArtifact && targetArtifact.kind === "report" &&
+        (targetIsReportHead || reportIndex[targetArtifact.id] > 0) &&
+        (!sourceArtifact || sourceArtifact.id !== targetArtifact.id);
+      if (needsCorridor) {
+        var x1 = source.x + source.w;
+        var y1 = source.y + source.h / 2;
+        var x2 = target.x;
+        var y2 = target.y + target.h / 2;
+        var laneX = x1 + 20;
+        var targetLane = targetArtifact.x - 14;
+        if (targetLane > laneX) {
+          routes[index] = "M" + x1 + " " + y1 +
+            " H" + laneX + " V" + topY +
+            " H" + targetLane + " V" + y2 + " H" + x2;
+          return;
+        }
       }
+      routes[index] = analysisLineageEdgePath(source, target);
     });
     return routes;
   }
@@ -4175,6 +4262,9 @@
         );
       }
       if (notice.code === "edges_collapsed") {
+        if (notice.level === "report") {
+          return t("Graph simplified: edges point to reports");
+        }
         return t("Graph simplified: edges point to pages");
       }
       if (notice.code === "no_dependencies") {
@@ -4229,6 +4319,7 @@
     var graph = state.analysisLineage;
     var wrap = $("#analysisLineageCanvasWrap");
     if (!graph || !wrap) return;
+    var graphWidth = Math.max(1, Number(graph.width) || 1);
     var seed = null;
     var minX = Infinity;
     (graph.nodes || []).forEach(function (node) {
@@ -4240,9 +4331,16 @@
       analysisLineageApplyZoom();
       return;
     }
-    var span = Math.max(1, seed.x + seed.w - minX);
-    var fit = (wrap.clientWidth - 40) / span;
-    state.analysisLineageZoom = Math.max(0.12, Math.min(0.8, fit));
+    if (graphWidth <= 2200) {
+      state.analysisLineageZoom = Math.max(
+        0.35,
+        Math.min(0.8, (wrap.clientWidth - 40) / graphWidth)
+      );
+    } else {
+      var span = Math.max(1, seed.x + seed.w - minX);
+      var fit = (wrap.clientWidth - 40) / span;
+      state.analysisLineageZoom = Math.max(0.12, Math.min(0.8, fit));
+    }
     analysisLineageApplyZoom();
     wrap.scrollLeft = 0;
     wrap.scrollTop = Math.max(
@@ -4276,6 +4374,24 @@
         if (!keep[previous]) {
           keep[previous] = true;
           stack.push(previous);
+        }
+      });
+    }
+    // Edge yang dipadatkan berhenti di header halaman/report: sorot anggotanya.
+    var groupMembers = {};
+    (graph.groups || []).forEach(function (group) {
+      if (group.head_id) groupMembers[group.head_id] = group.members || [];
+    });
+    (graph.artifacts || []).forEach(function (artifact) {
+      if (artifact.head_id) groupMembers[artifact.head_id] = artifact.members || [];
+    });
+    stack = Object.keys(keep);
+    while (stack.length) {
+      var head = stack.pop();
+      (groupMembers[head] || []).forEach(function (member) {
+        if (!keep[member]) {
+          keep[member] = true;
+          stack.push(member);
         }
       });
     }

@@ -647,6 +647,8 @@
   "DAX and model objects": "DAX dan objek model",
   "Semantic Model": "Semantic Model",
   "Graph simplified: edges point to pages": "Graf disederhanakan: garis menuju halaman",
+  "Graph simplified: edges point to reports": "Graf disederhanakan: garis menuju report",
+  "Used in": "Dipakai di",
   "Report usage": "Pemakaian report",
   "Selected": "Terpilih",
   "Loading lineage…": "Memuat lineage…",

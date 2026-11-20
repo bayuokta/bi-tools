@@ -85,12 +85,14 @@ def usage(
     title: str = "",
     detail: str = "",
     hidden: bool = False,
+    order: int = 0,
 ) -> dict:
     return {
         "report_id": report,
         "report_name": report,
         "page_id": page,
         "page_name": page,
+        "page_order": order,
         "visual_id": visual,
         "visual_title": title or visual,
         "visual_type": "tableEx",
@@ -468,6 +470,11 @@ in
             group for group in data["groups"] if group["kind"] == "mquery"
         )
         self.assertEqual(mquery_group["label"], "Sales")
+        self.assertEqual(nodes["mquery:Sales"]["role"], "group-head")
+        self.assertEqual(nodes["mquery:Sales"]["group_id"], mquery_group["id"])
+        seed = nodes["col:Sales:Total Amount"]
+        self.assertEqual(seed["group_id"], mquery_group["id"])
+        self.assertNotIn("step", seed)
         self.assertTrue(
             all(
                 node["group_id"] == mquery_group["id"]
@@ -475,6 +482,21 @@ in
                 if node["kind"] in {"mquery", "mstep"}
             )
         )
+
+    def test_mquery_without_steps_becomes_model_card(self) -> None:
+        result = make_result(
+            columns=[column_analysis("Sales", "Amount")],
+            m_queries=[
+                {"name": "Sales", "kind": "Tabel", "source": "Import"}
+            ],
+        )
+        data = build_lineage(result, kind="column", table="Sales", name="Amount")
+        nodes = {node["id"]: node for node in data["nodes"]}
+        self.assertFalse(
+            any(group["kind"] == "mquery" for group in data["groups"])
+        )
+        self.assertEqual(nodes["mquery:Sales"]["role"], "card")
+        self.assertEqual(nodes["mquery:Sales"]["group_id"], "model")
 
     def test_grouped_layout_artifacts_and_groups(self) -> None:
         base = measure_analysis("M", "Base")
@@ -594,7 +616,7 @@ in
             node["id"] for node in data["nodes"] if node["kind"] == "report"
         )), semantic)
 
-    def test_many_pages_use_grid(self) -> None:
+    def test_pages_single_column_and_reports_side_by_side(self) -> None:
         records = [
             usage(page=f"P{index}", visual=f"V{index}")
             for index in range(1, 7)
@@ -607,23 +629,177 @@ in
             group for group in data["groups"] if group["kind"] == "page"
         ]
         self.assertEqual(len(page_groups), 6)
-        self.assertEqual(len({group["x"] for group in page_groups}), 2)
+        self.assertEqual(len({group["x"] for group in page_groups}), 1)
+        report = next(
+            artifact for artifact in data["artifacts"]
+            if artifact["kind"] == "report"
+        )
+        for group in page_groups:
+            self.assertGreaterEqual(group["y"], report["y"])
+            self.assertLessEqual(
+                group["y"] + group["h"], report["y"] + report["h"]
+            )
+        ordered = sorted(page_groups, key=lambda group: group["y"])
+        self.assertEqual(
+            [group["label"] for group in ordered],
+            [f"P{index}" for index in range(1, 7)],
+        )
 
-        nine = [
-            usage(page=f"Q{index}", visual=f"W{index}")
-            for index in range(1, 10)
-        ]
+        # Dua report berdampingan, bukan ditumpuk.
+        first = measure_analysis(
+            "M",
+            "First",
+            refs=[
+                ModelReference(
+                    kind="measure",
+                    object="'M'[Second]",
+                    detail="",
+                    blocking=False,
+                    source_table="M",
+                    source_measure="Second",
+                )
+            ],
+            records=[usage(report="R1", page="A1")],
+        )
+        second = measure_analysis(
+            "M", "Second", records=[usage(report="R2", page="B1")]
+        )
         data = build_lineage(
-            make_result(measures=[measure_analysis("M", "Nine", records=nine)]),
+            make_result(measures=[first, second]),
             kind="measure",
             table="M",
-            name="Nine",
+            name="First",
         )
-        page_groups = [
-            group for group in data["groups"] if group["kind"] == "page"
+        reports = sorted(
+            (
+                artifact for artifact in data["artifacts"]
+                if artifact["kind"] == "report"
+            ),
+            key=lambda artifact: artifact["x"],
+        )
+        self.assertEqual(len(reports), 2)
+        self.assertEqual({artifact["y"] for artifact in reports}, {reports[0]["y"]})
+        self.assertLess(reports[0]["x"] + reports[0]["w"], reports[1]["x"])
+
+    def test_page_order_uses_report_order(self) -> None:
+        records = [
+            usage(page="Z", visual="VZ", order=3),
+            usage(page="A", visual="VA", order=1),
+            usage(page="M", visual="VM", order=2),
         ]
-        self.assertEqual(len(page_groups), 9)
-        self.assertEqual(len({group["x"] for group in page_groups}), 3)
+        data = build_lineage(
+            make_result(
+                measures=[measure_analysis("M", "Ordered", records=records)]
+            ),
+            kind="measure",
+            table="M",
+            name="Ordered",
+        )
+        page_groups = sorted(
+            (
+                group for group in data["groups"]
+                if group["kind"] == "page"
+            ),
+            key=lambda group: group["y"],
+        )
+        self.assertEqual(
+            [group["label"] for group in page_groups], ["A", "M", "Z"]
+        )
+
+    def test_canvas_edges_are_collapsed_when_dense(self) -> None:
+        def edges_for(measures, max_nodes=250):
+            data = build_lineage(
+                make_result(measures=measures),
+                kind="measure",
+                table="M",
+                name=measures[0].measure.measure,
+                max_nodes=max_nodes,
+            )
+            notice = next(
+                (
+                    item for item in data["notices"]
+                    if item.get("code") == "edges_collapsed"
+                ),
+                {},
+            )
+            return data, str(notice.get("level") or "usage")
+
+        # 3 measure x 7 halaman x 8 visual = 168 edge langsung -> level page.
+        medium = []
+        for index in range(3):
+            refs = []
+            if index < 2:
+                refs = [
+                    ModelReference(
+                        kind="measure",
+                        object=f"'M'[M{index + 1}]",
+                        detail="",
+                        blocking=False,
+                        source_table="M",
+                        source_measure=f"M{index + 1}",
+                    )
+                ]
+            records = [
+                usage(page=f"P{page}", visual=f"{index}-{page}-{visual}")
+                for page in range(7)
+                for visual in range(8)
+            ]
+            medium.append(
+                measure_analysis("M", f"M{index}", refs=refs, records=records)
+            )
+        data, level = edges_for(medium)
+        self.assertEqual(level, "page")
+        targets = {edge["to"] for edge in data["canvas_edges"]}
+        page_ids = {
+            node["id"] for node in data["nodes"] if node["kind"] == "page"
+        }
+        self.assertTrue(targets.issubset(
+            page_ids
+            | {
+                node["id"] for node in data["nodes"]
+                if node["kind"] not in {"visual", "filter", "sort", "usage", "more"}
+            }
+        ))
+
+        # 25 measure x 10 halaman = 250 edge halaman -> level report.
+        dense = []
+        for index in range(25):
+            records = [
+                usage(page=f"Q{page}", visual=f"{index}-{page}")
+                for page in range(10)
+            ]
+            dense.append(
+                measure_analysis("M", f"N{index}", records=records)
+            )
+        dense[0] = measure_analysis(
+            "M",
+            "N0",
+            refs=[
+                ModelReference(
+                    kind="measure",
+                    object=f"'M'[N{index}]",
+                    detail="",
+                    blocking=False,
+                    source_table="M",
+                    source_measure=f"N{index}",
+                )
+                for index in range(1, 25)
+            ],
+            records=[
+                usage(page=f"Q{page}", visual=f"0-{page}")
+                for page in range(10)
+            ],
+        )
+        data, level = edges_for(dense, max_nodes=400)
+        self.assertEqual(level, "report")
+        report_ids = {
+            node["id"] for node in data["nodes"] if node["kind"] == "report"
+        }
+        targets = {edge["to"] for edge in data["canvas_edges"]}
+        self.assertTrue(report_ids & targets)
+        self.assertFalse(
+            any(target.startswith(("usage:", "page:")) for target in targets)
+        )
 
     def test_outline_has_upstream_and_report_tree(self) -> None:
         base = measure_analysis(

@@ -21,9 +21,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - **Lineage graph bergrup**: dialog lineage kolom/measure dan tabel sekarang
   menampilkan artifact **Semantic Model** dan **Report**, grup **Model
   dependencies**, **M query**, dan tiap **Page**, dengan report/page sebagai
-  header grup. Kartu disusun di dalam grup, langkah M bernomor, report/page
-  dikeluarkan dari edge kanvas (`canvas_edges` memadatkan owner → visual), dan
-  garis memakai kurva bezier. Ekspor SVG/PNG ikut menggambar artifact/grup.
+  header grup. Halaman disusun satu kolom dan report berbeda tampil
+  berdampingan; urutan halaman mengikuti urutan report. Jika ada langkah M,
+  seed menjadi output terakhir rantai M dan kartu tabel menjadi header grup;
+  tanpa langkah M kartu tabel pindah ke Model dependencies. Graf padat
+  dipadatkan otomatis ke header halaman/report, edge ke report kedua memakai
+  koridor di atas artifact, dan ekspor SVG/PNG ikut menggambar artifact/grup.
 
 ### Kebijakan API
 

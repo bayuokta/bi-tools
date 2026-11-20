@@ -14,7 +14,6 @@ semua edge mengalir dari kiri ke kanan.
 
 from __future__ import annotations
 
-import math
 import re
 from collections import defaultdict, deque
 from typing import Any, Iterable, Mapping
@@ -72,8 +71,8 @@ ART_PAD = 18
 ART_HEAD = 52
 ART_GAP = 72
 BAND_GAP = 28
-PAGE_ROWS = 8
-MAX_CANVAS_EDGES = 600
+DIRECT_EDGE_LIMIT = 160
+PAGE_EDGE_LIMIT = 220
 
 REPORT_KINDS = {
     "field": "visual",
@@ -232,6 +231,14 @@ class _Graph:
                     page_name = page_name or str(record.get("page_name") or "")
                     page_id = page_id or str(record.get("page_id") or "")
                 page_node_id = f"page:{report_node_id}:{page_id or page_name or '?'}"
+                page_order = 0
+                for record in page_records:
+                    try:
+                        candidate = int(record.get("page_order") or 0)
+                    except (TypeError, ValueError):
+                        candidate = 0
+                    if candidate and (not page_order or candidate < page_order):
+                        page_order = candidate
                 if not self.add(
                     {
                         "id": page_node_id,
@@ -243,6 +250,7 @@ class _Graph:
                         "role": "group-head",
                         "container": container_id,
                         "group_key": page_node_id,
+                        "order": page_order,
                         "side": "downstream",
                         "level": base_depth + 2,
                     }
@@ -386,6 +394,35 @@ def _group_kind(group_id: str) -> str:
     return "model"
 
 
+def _finalize_mquery_groups(
+    graph: _Graph, seed_id: str, seed_mquery_group: str | None
+) -> None:
+    """Tentukan peran kartu tabel M: header rantai langkah atau kartu model.
+
+    Rantai langkah M menjadikan tabel + langkah + seed satu grup, dan kartu
+    tabel menjadi header grup. Tanpa langkah, kartu tabel pindah ke grup model
+    agar tidak ada grup M kosong yang menggantung.
+    """
+    step_groups = {
+        str(node.get("group_key") or "")
+        for node in graph.nodes.values()
+        if str(node.get("kind") or "") == "mstep"
+    }
+    for node in graph.nodes.values():
+        if str(node.get("kind") or "") != "mquery":
+            continue
+        group_key = str(node.get("group_key") or "")
+        if group_key in step_groups:
+            node["role"] = "group-head"
+        else:
+            node["group_key"] = "model"
+            node["role"] = "card"
+    if seed_mquery_group and seed_mquery_group in step_groups:
+        seed = graph.nodes.get(seed_id)
+        if seed is not None:
+            seed["group_key"] = seed_mquery_group
+
+
 def _layout_group_cards(group: dict[str, Any]) -> None:
     """Hitung ukuran grup dan posisi kartu relatif terhadap grup."""
     nodes = list(group["nodes"])
@@ -396,12 +433,10 @@ def _layout_group_cards(group: dict[str, Any]) -> None:
         group["h"] = GROUP_HEAD + GROUP_PAD
         return
     if group["kind"] == "page":
-        # Halaman memakai satu kolom kartu; dua kolom bila isinya sangat banyak.
+        # Halaman memakai satu kolom kartu agar edge tidak melompati kolom.
         ordered = sorted(nodes, key=_node_sort_key)
-        columns = 1 if len(ordered) <= PAGE_ROWS else 2
         for index, node in enumerate(ordered):
-            row, col = divmod(index, columns)
-            node["_col"], node["_row"] = col, row
+            node["_col"], node["_row"] = 0, index
     else:
         columns = sorted({int(node.get("column") or 0) for node in nodes})
         buckets: dict[int, list[dict[str, Any]]] = {
@@ -445,31 +480,34 @@ def _layout_container(container: dict[str, Any]) -> None:
 
     groups = list(container["groups"].values())
     if kind == "report":
+        def page_key(group: dict[str, Any]) -> tuple[Any, ...]:
+            head = group.get("head") or {}
+            try:
+                order = int(head.get("order") or 0)
+            except (TypeError, ValueError):
+                order = 0
+            return (
+                order if order > 0 else 10**9,
+                str(group.get("label") or "").casefold(),
+                str(group.get("id") or ""),
+            )
+
         pages = sorted(
             (group for group in groups if group["kind"] == "page"),
-            key=lambda group: (group["label"].casefold(), group["id"]),
+            key=page_key,
         )
         if not pages:
             container["w"] = NODE_W + 2 * ART_PAD
             container["h"] = ART_HEAD + ART_PAD
             return
-        columns = 1 if len(pages) <= 4 else 2 if len(pages) <= 8 else 3
         cell_w = max(group["w"] for group in pages)
-        cell_h = max(group["h"] for group in pages)
-        rows = math.ceil(len(pages) / columns)
-        for index, group in enumerate(pages):
-            row, col = divmod(index, columns)
-            group["_gx"] = ART_PAD + col * (cell_w + GROUP_GAP)
-            group["_gy"] = ART_HEAD + row * (cell_h + GROUP_GAP)
-        container["w"] = (
-            2 * ART_PAD + columns * cell_w + (columns - 1) * GROUP_GAP
-        )
-        container["h"] = (
-            ART_HEAD
-            + rows * cell_h
-            + (rows - 1) * GROUP_GAP
-            + ART_PAD
-        )
+        y = ART_HEAD
+        for group in pages:
+            group["_gx"] = ART_PAD
+            group["_gy"] = y
+            y += group["h"] + GROUP_GAP
+        container["w"] = cell_w + 2 * ART_PAD
+        container["h"] = y - GROUP_GAP + ART_PAD
         return
 
     # Artifact model: pita M query di kiri, lalu grup dependensi model.
@@ -481,41 +519,64 @@ def _layout_container(container: dict[str, Any]) -> None:
         (group for group in groups if group["kind"] == "model"),
         key=lambda group: group["id"],
     )
-    y = ART_HEAD
-    m_width = 0
+    m_width = max((group["w"] for group in mquery_groups), default=0)
+    m_total = (
+        sum(group["h"] for group in mquery_groups)
+        + GROUP_GAP * max(0, len(mquery_groups) - 1)
+    )
+    model_width = max((group["w"] for group in model_groups), default=0)
+    model_total = (
+        sum(group["h"] for group in model_groups)
+        + GROUP_GAP * max(0, len(model_groups) - 1)
+    )
+    content_height = max(m_total, model_total)
+    m_start = ART_HEAD + max(0, (content_height - m_total) // 2)
+    model_start = ART_HEAD + max(0, (content_height - model_total) // 2)
+    model_x = ART_PAD + (m_width + BAND_GAP if mquery_groups else 0)
+    y = m_start
     for group in mquery_groups:
         group["_gx"] = ART_PAD
         group["_gy"] = y
         y += group["h"] + GROUP_GAP
-        m_width = max(m_width, group["w"])
-    m_height = max(0, y - GROUP_GAP - ART_HEAD) if mquery_groups else 0
-    model_x = ART_PAD + (m_width + BAND_GAP if mquery_groups else 0)
-    y = ART_HEAD
+    y = model_start
     for group in model_groups:
         group["_gx"] = model_x
         group["_gy"] = y
         y += group["h"] + GROUP_GAP
-    model_height = max(0, y - GROUP_GAP - ART_HEAD) if model_groups else 0
-    model_width = max((group["w"] for group in model_groups), default=0)
+    if not mquery_groups and not model_groups:
+        container["w"] = NODE_W + 2 * ART_PAD
+        container["h"] = ART_HEAD + ART_PAD
+        return
     container["w"] = model_x + model_width + ART_PAD
-    container["h"] = ART_HEAD + max(m_height, model_height) + ART_PAD
+    container["h"] = ART_HEAD + content_height + ART_PAD
 
 
 def _canvas_edges(
     graph: _Graph,
-) -> tuple[list[dict[str, str]], bool]:
-    """Edge kanvas: report/page dipadatkan menjadi owner -> kartu visual."""
+) -> tuple[list[dict[str, str]], str]:
+    """Edge kanvas dengan tingkat detail adaptif.
+
+    Graf normal memakai ``owner -> kartu visual``. Graf padat dipadatkan ke
+    header halaman, lalu ke header report, supaya garis tidak menjadi jaring.
+    """
     outgoing: dict[str, list[str]] = defaultdict(list)
     incoming: dict[str, list[str]] = defaultdict(list)
     for edge in graph.edges.values():
         outgoing[edge["from"]].append(edge["to"])
         incoming[edge["to"]].append(edge["from"])
 
+    def node_of(node_id: str) -> dict[str, Any]:
+        return graph.nodes.get(node_id) or {}
+
     def kind_of(node_id: str) -> str:
-        return str(graph.nodes.get(node_id, {}).get("kind") or "")
+        return str(node_of(node_id).get("kind") or "")
 
     def is_head(node_id: str) -> bool:
-        return kind_of(node_id) in {"report", "page"}
+        role = str(node_of(node_id).get("role") or "")
+        return role in {"artifact-head", "group-head"} or kind_of(node_id) in {
+            "report",
+            "page",
+        }
 
     def add(
         target: dict[tuple[str, str], dict[str, str]],
@@ -535,71 +596,89 @@ def _canvas_edges(
             "kind": kind or "depend",
         })
 
-    direct: dict[tuple[str, str], dict[str, str]] = {}
+    base: dict[tuple[str, str], dict[str, str]] = {}
+    usage: dict[tuple[str, str], dict[str, str]] = {}
     for edge in graph.edges.values():
-        if is_head(edge["from"]) or is_head(edge["to"]):
+        source = edge["from"]
+        target = edge["to"]
+        if is_head(source) or is_head(target):
             continue
-        add(direct, edge["from"], edge["to"], edge["kind"])
+        if kind_of(target) in {"visual", "filter", "sort", "usage", "more"}:
+            add(usage, source, target, kind_of(target))
+        else:
+            add(base, source, target, edge["kind"])
 
     reports = [
         node_id for node_id, node in graph.nodes.items()
         if str(node.get("kind") or "") == "report"
     ]
     for report_id in sorted(reports):
-        owners = [item for item in incoming.get(report_id, []) if not is_head(item)]
+        owners = [
+            item for item in incoming.get(report_id, []) if not is_head(item)
+        ]
         pages = [
             item for item in outgoing.get(report_id, [])
             if kind_of(item) == "page"
         ]
         report_usage = [
             item for item in outgoing.get(report_id, [])
-            if str(graph.nodes.get(item, {}).get("role") or "") == "card"
+            if str(node_of(item).get("role") or "") == "card"
         ]
         anchor = pages or report_usage
         for owner in owners:
             if not anchor:
-                add(direct, owner, report_id, "usage")
+                add(usage, owner, report_id, "usage")
                 continue
             for child in anchor:
                 usages = [
                     item for item in outgoing.get(child, [])
-                    if str(graph.nodes.get(item, {}).get("role") or "") == "card"
+                    if str(node_of(item).get("role") or "") == "card"
                 ]
                 if usages:
-                    for usage in usages:
-                        add(direct, owner, usage, kind_of(usage))
+                    for item in usages:
+                        add(usage, owner, item, kind_of(item))
                 else:
-                    add(direct, owner, child, "usage")
+                    add(usage, owner, child, "usage")
 
-    collapsed = False
-    if len(direct) > MAX_CANVAS_EDGES:
-        # Graf sangat besar: cukup satu edge ke tiap halaman agar tetap terbaca.
-        fallback: dict[tuple[str, str], dict[str, str]] = {}
-        for edge in graph.edges.values():
-            if is_head(edge["from"]) or is_head(edge["to"]):
-                continue
-            add(fallback, edge["from"], edge["to"], edge["kind"])
-        for report_id in sorted(reports):
-            owners = [
-                item for item in incoming.get(report_id, []) if not is_head(item)
-            ]
-            anchor = [
-                item for item in outgoing.get(report_id, [])
-                if kind_of(item) == "page"
-            ] or [report_id]
-            for owner in owners:
-                for child in anchor:
-                    add(fallback, owner, child, "usage")
-        direct = fallback
-        collapsed = True
+    level = "usage"
+    chosen = usage
+    if len(usage) > DIRECT_EDGE_LIMIT:
+        page_edges: dict[tuple[str, str], dict[str, str]] = {}
+        for source, consumer in usage:
+            page_id = str(node_of(consumer).get("group_key") or "")
+            if kind_of(page_id) == "page":
+                add(page_edges, source, page_id, "usage")
+            else:
+                add(page_edges, source, consumer, "usage")
+        if len(page_edges) <= PAGE_EDGE_LIMIT:
+            level = "page"
+            chosen = page_edges
+        else:
+            report_head = {
+                str(node.get("container") or ""): node_id
+                for node_id, node in graph.nodes.items()
+                if str(node.get("kind") or "") == "report"
+            }
+            report_edges: dict[tuple[str, str], dict[str, str]] = {}
+            for source, consumer in usage:
+                container = str(node_of(consumer).get("container") or "")
+                target = report_head.get(container)
+                if target:
+                    add(report_edges, source, target, "usage")
+                else:
+                    add(report_edges, source, consumer, "usage")
+            level = "report"
+            chosen = report_edges
 
+    combined = dict(base)
+    combined.update(chosen)
     rows = sorted(
-        direct.values(),
+        combined.values(),
         key=lambda edge: (
             edge["from"], edge["to"], edge["kind"]
         ),
     )
-    return rows, collapsed
+    return rows, level
 
 
 def _layout_graph(
@@ -616,7 +695,7 @@ def _layout_graph(
     int,
     int,
     list[dict[str, str]],
-    bool,
+    str,
 ]:
     """Susun tata letak bergrup: artifact -> grup -> kartu."""
     for node_id, node in graph.nodes.items():
@@ -724,8 +803,8 @@ def _layout_graph(
                 )
                 if source is not None:
                     group["label"] = str(source.get("label") or "")
-                    group["sub"] = str(source.get("context") or "")
                 group["sub_key"] = "M query"
+                group["sub"] = ""
             elif group["kind"] == "page":
                 head = group["head"]
                 group["label"] = (
@@ -734,9 +813,7 @@ def _layout_graph(
                     else "(no page)"
                 )
                 group["sub_key"] = "Page"
-                group["sub"] = (
-                    str(head.get("context") or "") if head is not None else ""
-                )
+                group["sub"] = ""
 
     for group in groups.values():
         _layout_group_cards(group)
@@ -755,14 +832,21 @@ def _layout_graph(
         (c for c in containers.values() if c["kind"] == "report"),
         key=lambda c: (c["label"].casefold(), c["id"]),
     )
+    label_counts: dict[str, int] = {}
+    for container in reports:
+        label = str(container.get("label") or "")
+        label_counts[label] = label_counts.get(label, 0) + 1
+    for container in reports:
+        label = str(container.get("label") or "")
+        if label_counts.get(label, 0) > 1:
+            head = container.get("head") or {}
+            short = str(head.get("context") or "").strip()
+            if not short:
+                short = str(container.get("id") or "").rsplit(":", 1)[-1][:8]
+            container["label"] = f"{label} ({short})"
+    reports.sort(key=lambda c: (c["label"].casefold(), c["id"]))
 
-    y = PAD
-    for container in sources:
-        container["x"] = PAD
-        container["y"] = y
-        y += container["h"] + ART_GAP
-    source_width = sources[0]["w"] if sources else 0
-
+    source_width = NODE_W + 2 * ART_PAD if sources else 0
     model_x = PAD + (source_width + ART_GAP if sources else 0)
     y = PAD
     for container in model_containers:
@@ -771,12 +855,30 @@ def _layout_graph(
         y += container["h"] + ART_GAP
     model_width = max((c["w"] for c in model_containers), default=0)
 
-    report_x = model_x + model_width + ART_GAP
-    y = PAD
-    for container in reports:
-        container["x"] = report_x
+    # Datasource disejajarkan dengan kartu pertama grup M (atau baris seed).
+    anchor_y = PAD + ART_HEAD + GROUP_HEAD
+    if model_containers:
+        model = model_containers[0]
+        mquery_groups = [
+            group for group in model["groups"].values()
+            if group["kind"] == "mquery"
+        ]
+        if mquery_groups:
+            first = min(mquery_groups, key=lambda group: group["_gy"])
+            anchor_y = model["y"] + int(first["_gy"]) + GROUP_HEAD
+        else:
+            anchor_y = model["y"] + ART_HEAD + GROUP_HEAD
+    y = max(PAD, anchor_y - ART_HEAD)
+    for container in sources:
+        container["x"] = PAD
         container["y"] = y
         y += container["h"] + ART_GAP
+
+    cursor = model_x + model_width + ART_GAP
+    for container in reports:
+        container["x"] = cursor
+        container["y"] = PAD
+        cursor += container["w"] + ART_GAP
 
     max_right = max(
         (c["x"] + c["w"] for c in containers.values()), default=PAD + NODE_W
@@ -915,7 +1017,7 @@ def _layout_graph(
             }
         )
 
-    canvas_edges, collapsed = _canvas_edges(graph)
+    canvas_edges, edge_level = _canvas_edges(graph)
     return (
         node_rows,
         artifact_rows,
@@ -923,7 +1025,7 @@ def _layout_graph(
         int(width),
         int(height),
         canvas_edges,
-        collapsed,
+        edge_level,
     )
 
 
@@ -1226,6 +1328,7 @@ def build_lineage(
     m_edges: list[tuple[str, str]] = []
     m_step_truncated = 0
     m_lineage_meta: dict[str, Any] | None = None
+    seed_mquery_group: str | None = None
     if wanted == "column":
         seed_column = column_analyses[seed_id].column
         seed_table = seed_column.table
@@ -1287,6 +1390,7 @@ def build_lineage(
                     own_steps = own_steps[-MAX_M_STEPS:]
                 own_ids = [step_node(step) for step in own_steps]
                 if own_ids:
+                    seed_mquery_group = _mquery_id(seed_table)
                     branches: list[list[str]] = []
                     used_names = list(
                         getattr(column_lineage, "columns_used", []) or []
@@ -1529,6 +1633,8 @@ def build_lineage(
             if edge["from"] in allowed_ids and edge["to"] in allowed_ids
         }
 
+    _finalize_mquery_groups(graph, seed_id, seed_mquery_group)
+
     (
         nodes,
         artifacts,
@@ -1536,7 +1642,7 @@ def build_lineage(
         width,
         height,
         canvas_edges,
-        edges_collapsed,
+        edge_level,
     ) = _layout_graph(
         graph,
         sides,
@@ -1556,8 +1662,14 @@ def build_lineage(
         notices.append(
             {"code": "m_steps_truncated", "count": m_step_truncated}
         )
-    if edges_collapsed:
-        notices.append({"code": "edges_collapsed"})
+    if edge_level != "usage":
+        notices.append(
+            {
+                "code": "edges_collapsed",
+                "level": edge_level,
+                "count": len(canvas_edges),
+            }
+        )
     if len(graph.edges) == 0:
         notices.append({"code": "no_dependencies"})
 
@@ -1821,6 +1933,8 @@ def build_table_lineage(
                         report_names=report_names,
                     )
 
+    _finalize_mquery_groups(graph, seed_id, None)
+
     (
         nodes,
         artifacts,
@@ -1828,7 +1942,7 @@ def build_table_lineage(
         width,
         height,
         canvas_edges,
-        edges_collapsed,
+        edge_level,
     ) = _layout_graph(
         graph,
         sides,
@@ -1844,8 +1958,14 @@ def build_table_lineage(
         notices.append({"code": "reports_excluded"})
     if graph.truncated:
         notices.append({"code": "truncated", "count": graph.truncated})
-    if edges_collapsed:
-        notices.append({"code": "edges_collapsed"})
+    if edge_level != "usage":
+        notices.append(
+            {
+                "code": "edges_collapsed",
+                "level": edge_level,
+                "count": len(canvas_edges),
+            }
+        )
     if len(graph.edges) == 0:
         notices.append({"code": "no_dependencies"})
 

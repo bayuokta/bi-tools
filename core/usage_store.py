@@ -407,9 +407,11 @@ def field_usage(
     rows = conn.execute(
         """
         SELECT f.*, r.name AS report_name, r.workspace_id AS report_workspace,
-               r.report_format, r.modified_at
+               r.report_format, r.modified_at, p.order_index AS page_order
           FROM usage_field f
           JOIN usage_report r ON r.report_id = f.report_id
+          LEFT JOIN usage_page p
+            ON p.report_id = f.report_id AND p.page_id = f.page_id
          WHERE f.dataset_id = ? AND r.is_active = 1
         """,
         (dataset_id,),
