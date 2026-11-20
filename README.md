@@ -73,7 +73,8 @@ TSD_assets\                     cache screenshot page/visual/mobile (TIDAK di-co
 .env.example                    contoh kredensial CLI lineage dan screenshot (RLS)
 packaging\                      bi_tools.spec (PyInstaller onedir), bi-tools.iss (Inno Setup),
                                 build.ps1, make_icon.py + bi-tools.ico
-.github\workflows\              ci.yml (flake8 + uji) dan release.yml (tag v* -> installer + rilis)
+.github\workflows\              ci.yml (flake8 + uji), web-smoke.yml (smoke browser
+                                Playwright), dan release.yml (tag v* -> installer + rilis)
 *<nama report>.pbix               salinan sumber (TIDAK di-commit)
 requirements.txt
 ```
@@ -525,6 +526,16 @@ Uji model live (butuh Power BI Desktop terbuka):
 ```powershell
 $env:RUN_LIVE_TESTS = "1"; python -m unittest discover -s tests -t .
 ```
+
+Smoke test browser (Playwright) memeriksa antarmuka nyata: semua view, langkah TSD, pergantian bahasa, aset gagal, dan overflow. Butuh Chromium dan tidak dijalankan di CI utama:
+
+```powershell
+python -m pip install playwright
+python -m playwright install chromium
+$env:RUN_WEB_SMOKE = "1"; python -m unittest tests.test_web_smoke -v
+```
+
+Workflow `.github\workflows\web-smoke.yml` menjalankan uji yang sama saat `web\`, `server\`, atau berkas smoke berubah. Endpoint daftar instance Desktop dipalsukan di uji ini supaya tidak bergantung pada Power BI Desktop yang terbuka.
 
 ## Catatan
 

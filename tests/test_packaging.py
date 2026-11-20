@@ -218,6 +218,19 @@ class PackagingAssetsTests(unittest.TestCase):
         self.assertIn("unittest discover", text)
         self.assertIn("flake8", text)
 
+    def test_web_smoke_workflow_is_separate_and_path_filtered(self) -> None:
+        path = ROOT / ".github" / "workflows" / "web-smoke.yml"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("actions/checkout@v7", text)
+        self.assertIn("actions/setup-python@v7", text)
+        self.assertIn("playwright install chromium", text)
+        self.assertIn("RUN_WEB_SMOKE", text)
+        self.assertIn("tests.test_web_smoke", text)
+        self.assertIn('      - "web/**"', text)
+        self.assertIn('      - "server/**"', text)
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertNotIn("playwright", ci.lower())
+
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

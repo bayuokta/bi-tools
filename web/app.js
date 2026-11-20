@@ -5149,7 +5149,8 @@
         rows.push({
           kind: "html",
           cls: "analysis-sub",
-          html: '<span class="helper">Tidak ada halaman terbaca pada report ini.</span>'
+          html: '<span class="helper">' +
+            t("No pages could be read from this report.") + "</span>"
         });
       }
     });
@@ -6000,7 +6001,8 @@
     if (selected && selected.kind === "pair") {
       var pair = allPairs[selected.value];
       if (!pair) {
-        side.innerHTML = '<p class="helper">Relasi tidak ditemukan pada filter saat ini.</p>';
+        side.innerHTML = '<p class="helper">' +
+        t("No relationships match the current filter.") + "</p>";
         return;
       }
       var status = analysisPairStatus(pair);
@@ -6047,10 +6049,11 @@
         '<p class="rel-side-note">' + t("Click a line in the graph to see the relationship columns.") + "</p>";
       return;
     }
-    side.innerHTML = '<p class="rel-side-title">Grafik relasi</p>' +
+    side.innerHTML = '<p class="rel-side-title">' + t("Relationship graph") + "</p>" +
       '<p class="rel-side-sub">' + names.length + t(" tables · ") +
       Object.keys(visiblePairs).length + t(" table pairs in this filter.</p>") +
-      '<p class="rel-side-note">Klik tabel atau garis untuk melihat detail relasi.</p>';
+      '<p class="rel-side-note">' +
+      t("Click a table or line to see relationship details.") + "</p>";
   }
 
   function applyAnalysisZoom() {
@@ -6098,8 +6101,11 @@
       state.relPanY = 0;
       analysisSetZoom(1);
       $("#relGraphSide").innerHTML =
-        '<div class="empty" style="padding:18px 8px"><div class="empty-title">Tidak ada relasi</div>' +
-        '<p class="empty-text">Ubah kata kunci atau filter status untuk melihat relasi lain.</p></div>';
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
+        t("No relationships") + "</div>" +
+        '<p class="empty-text">' +
+        t("Change the keyword or status filter to see other relationships.") +
+        "</p></div>";
       return;
     }
 
@@ -8231,8 +8237,10 @@
             '<main style="font-family:Segoe UI,sans-serif;background:#0e1116;color:#e9edf3;' +
             'min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0">' +
             '<div style="max-width:32rem;padding:2rem;border:1px solid #28303d;border-radius:8px;background:#151a22">' +
-            "<h1 style=\"font-size:1.1rem;margin:0 0 .5rem\">Server dihentikan</h1>" +
-            '<p style="color:#b9c2d0;line-height:1.6;margin:0">Jalankan BI Tools lagi untuk membuka antarmuka web.</p>' +
+            "<h1 style=\"font-size:1.1rem;margin:0 0 .5rem\">" +
+            t("Server stopped") + "</h1>" +
+            '<p style="color:#b9c2d0;line-height:1.6;margin:0">' +
+            t("Run BI Tools again to open the web interface.") + "</p>" +
             "</div></main>";
         }, 400);
       });

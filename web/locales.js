@@ -901,7 +901,14 @@
   "Ok": "Cukup",
   "Poor": "Buruk",
   "Awful": "Sangat buruk",
-  "Power BI Criminal": "Kriminal Power BI"
+  "Power BI Criminal": "Kriminal Power BI",
+  "No pages could be read from this report.": "Tidak ada halaman yang terbaca pada report ini.",
+  "Relationship graph": "Grafik relasi",
+  "Click a table or line to see relationship details.": "Klik tabel atau garis untuk melihat detail relasi.",
+  "No relationships": "Tidak ada relasi",
+  "Change the keyword or status filter to see other relationships.": "Ubah kata kunci atau filter status untuk melihat relasi lain.",
+  "Server stopped": "Server dihentikan",
+  "Run BI Tools again to open the web interface.": "Jalankan BI Tools lagi untuk membuka antarmuka web."
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

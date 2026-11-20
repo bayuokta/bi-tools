@@ -28,6 +28,23 @@ INDONESIAN_LEFTOVERS = (
     "Ambil screenshot",
 )
 
+# Frasa UI Indonesia yang tidak boleh ditulis langsung di app.js. Nilai kanonik
+# seperti "Tidak dipakai" dikecualikan karena sengaja dipakai sebagai data.
+SCRIPT_INDONESIAN_LEFTOVERS = (
+    "Tidak ada halaman",
+    "Tidak ada relasi",
+    "Ubah kata kunci",
+    "Relasi tidak ditemukan",
+    "Grafik relasi",
+    "Klik tabel atau garis",
+    "Server dihentikan",
+    "Jalankan BI Tools lagi",
+    "Pilih workspace",
+    "Muat ulang",
+    "Ambil screenshot",
+    "Belum dibuat",
+)
+
 
 def read_dictionary() -> dict[str, str]:
     text = (ROOT / "web" / "locales.js").read_text(encoding="utf-8")
@@ -81,8 +98,18 @@ class DictionaryTests(unittest.TestCase):
     def test_every_script_literal_exists_in_dictionary(self) -> None:
         script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         keys = set(re.findall(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*\)', script))
+        keys |= set(re.findall(r"\bt\(\s*`((?:[^`\\]|\\.)*)`\s*\)", script))
         missing = sorted(key for key in keys if key not in self.dictionary)
         self.assertEqual(missing, [], "kunci t() tanpa terjemahan")
+
+    def test_no_indonesian_ui_phrases_in_script(self) -> None:
+        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        for phrase in SCRIPT_INDONESIAN_LEFTOVERS:
+            self.assertNotIn(
+                phrase,
+                script,
+                f"teks UI Indonesia di app.js: {phrase!r}; pakai t()",
+            )
 
     def test_health_rule_help_exists_in_dictionary(self) -> None:
         script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")

@@ -9,6 +9,16 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ## Belum dirilis
 
+### Pengujian & antarmuka
+
+- Smoke test browser (`tests\test_web_smoke.py`, `RUN_WEB_SMOKE=1`) menjalankan
+  server uvicorn nyata dan Chromium untuk memeriksa semua view, langkah TSD,
+  pergantian bahasa + reload, aset gagal, dan overflow. Workflow terpisah
+  `.github\workflows\web-smoke.yml` menjalankannya saat `web\`/`server\` berubah.
+- Tes i18n memindai literal `` t(`...`) `` dan frasa UI Indonesia yang tidak
+  boleh ditulis langsung di `app.js`; sisa teks Indonesia di empty state relasi,
+  halaman report, dan layar "server berhenti" dipindahkan ke kamus.
+
 ### Analisa Semantic Model
 
 - Tab **Health** memeriksa model dan report tanpa request tambahan: error
