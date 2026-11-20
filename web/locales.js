@@ -740,7 +740,21 @@
   "Report level filters": "Filter level report",
   "Loading preview…": "Memuat preview…",
   "Preview could not be loaded": "Preview tidak bisa dimuat",
-  "Annotation": "Anotasi"
+  "Annotation": "Anotasi",
+  "See Raw JSON": "Lihat JSON mentah",
+  "Default label": "Default label",
+  "Visual calculations": "Visual calculation",
+  "Mobile layout": "Layout mobile",
+  "Paginated reports": "Report paginated",
+  "Excel": "Excel",
+  "Dynamic parameters": "Parameter dinamis",
+  "Change detection": "Change detection",
+  "User-defined functions": "Fungsi buatan pengguna",
+  "Calendars": "Kalender",
+  "Group-by columns": "Kolom group-by",
+  "Model extension": "Ekstensi model",
+  "Build dependency ignore": "Abaikan dependensi build",
+  "Another job is still running. Try again.": "Pekerjaan lain masih berjalan. Coba lagi."
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan
@@ -759,6 +773,7 @@
   "Node lineage belum dipilih.": "No lineage node selected.",
   "Node tidak ditemukan di database lineage. Jalankan scan ulang.": "Node not found in the lineage database. Run the scan again.",
   "Dataset dan report harus dipilih.": "Choose a dataset and report.",
+  "Format ekspor harus csv, json, atau all.": "Export format must be csv, json, or all.",
   "Semantic model belum dipilih.": "No semantic model selected.",
   "Belum ada cache": "No cache yet",
   "Belum ada cache.": "No cache yet.",
@@ -789,6 +804,10 @@
   "Hanya dirujuk measure lain; cakupan report belum lengkap.": "Only referenced by other measures; report coverage is incomplete."
 };
   var serverPatterns = [
+    [new RegExp("^Tidak bisa menulis berkas ekspor: (.*)\\. Tutup file yang sedang dibuka lalu coba lagi\\.$"), "Could not write export file: $1. Close the file that is open and try again."],
+    [new RegExp("^Metadata TMSCHEMA tidak bisa dibaca: (.*)$"), "TMSCHEMA metadata could not be read: $1"],
+    [new RegExp("^Baris (TMSCHEMA_[A-Z_]+) untuk '(.*)'\\[(.*)\\] tidak ditemukan\\. Jalankan analisa ulang atau periksa nama objek\\.$"), "$1 row for '$2'[$3] was not found. Run the analysis again or check the object name."],
+    [new RegExp("^Query data mentah gagal: (.*)$"), "Preview query failed: $1"],
     [new RegExp("^Dipakai di (\\d+) titik pada (\\d+) report\\.$"), "Used at $1 points across $2 reports."],
     [new RegExp("^Dipakai objek model: (.*)\\.$"), "Used by model objects: $1."],
     [new RegExp("^Dipakai measure/model: (.*)\\.$"), "Used by measures/model: $1."],

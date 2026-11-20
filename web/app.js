@@ -109,7 +109,9 @@
     analysisItemTarget: null,
     analysisItemTab: "properties",
     analysisItemRaw: null,
+    analysisItemRawError: "",
     analysisRawMeta: null,
+    analysisRawMetaTarget: null,
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -686,8 +688,10 @@
     } else if (options.onDone) {
       options.onDone(snapshot || {});
     }
-    loadCatalogStatus();
-    loadSettings();
+    if (!options.silent) {
+      loadCatalogStatus();
+      loadSettings();
+    }
   }
 
   function pollJob(jobId, options) {
@@ -716,11 +720,12 @@
       return;
     }
     if (state.jobId) {
-      toast(t("Another job is still running"));
+      if (options.onBusy) options.onBusy();
+      else toast(t("Another job is still running"));
       return;
     }
     state.jobLogCount = 0;
-    setConsole(true);
+    if (!options.silent) setConsole(true);
     addLog((options.label || t("Job")) + t(" started."), "info");
     if (options.button) options.button.disabled = true;
     api().post(options.path, options.body || {}).then(function (data) {
@@ -1874,6 +1879,29 @@
     is_used_power_query: "Power Query",
     is_used_key: "Key column"
   };
+  var UNSUPPORTED_LABELS = {
+    is_used_default_label: "Default label",
+    is_used_visual_calculations: "Visual calculations",
+    is_used_mobile: "Mobile layout",
+    is_used_paginated: "Paginated reports",
+    is_used_excel: "Excel",
+    is_used_dynamic_param: "Dynamic parameters",
+    is_used_change_detection: "Change detection",
+    is_used_udf: "User-defined functions",
+    is_used_calendars: "Calendars",
+    is_used_group_by_columns: "Group-by columns",
+    is_used_model_extension: "Model extension",
+    ignored_in_build_dependencies: "Build dependency ignore",
+    default_label_dependencies: "Default label",
+    mobile_layout_dependencies: "Mobile layout",
+    visual_calculations_dependencies: "Visual calculations",
+    dynamic_param_dependencies: "Dynamic parameters",
+    change_detection_dependencies: "Change detection",
+    udf_dependencies: "User-defined functions",
+    calendar_dependencies: "Calendars",
+    group_by_columns_dependencies: "Group-by columns",
+    model_extension_dependencies: "Model extension"
+  };
   var ANALYSIS_TABS = {
     all: {
       placeholder: t("Column, measure, or table name"),
@@ -2804,6 +2832,10 @@
       name: target.name
     }).then(function (data) {
       if (!data.path) return;
+      if (!data.rows) {
+        toast(t("No dependencies"));
+        return;
+      }
       toast(t("Export: ") + data.path);
       api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
     }).catch(reportError);
@@ -2886,6 +2918,11 @@
       },
       label: t("Preview values"),
       button: $("#analysisRawLoad"),
+      silent: true,
+      onBusy: function () {
+        $("#analysisRawStatus").textContent =
+          t("Another job is still running. Try again.");
+      },
       onDone: function (snapshot) {
         if (snapshot.result) analysisRenderPreview(snapshot.result);
       },
@@ -2935,6 +2972,7 @@
     };
     state.analysisItem = null;
     state.analysisItemRaw = null;
+    state.analysisItemRawError = "";
     state.analysisItemTab = "properties";
     $("#analysisItemTitle").textContent = target.kind === "measure"
       ? t("Measure details") : t("Column details");
@@ -2976,9 +3014,11 @@
       pane.innerHTML = analysisItemUsageMarkup(details);
     } else if (state.analysisItemTab === "dependencies") {
       pane.innerHTML = analysisItemDependenciesMarkup(details);
-    } else if (state.analysisItemRaw && state.analysisItemRaw.error) {
+    } else if (state.analysisItemRawError) {
       pane.innerHTML = '<p class="helper">' +
-        escapeHtml(state.analysisItemRaw.error) + "</p>";
+        escapeHtml(state.analysisItemRawError) + "</p>" +
+        '<p><button class="btn btn-sm" type="button" data-item-raw-retry>' +
+        escapeHtml(t("Reload")) + "</button></p>";
     } else if (state.analysisItemRaw) {
       pane.innerHTML = '<pre class="detail-code">' +
         escapeHtml(analysisPrettyJson(state.analysisItemRaw)) + "</pre>";
@@ -3004,7 +3044,10 @@
       [t("Hidden"), details.is_hidden ? t("Yes") : t("No")],
       [t("Status"), tStatus(details.status)],
       [t("Reason"), tr(details.reason)],
-      [t("Lineage tag"), details.lineage_tag || "\u2014"],
+      [t("Lineage tag"), details.lineage_tag ||
+        (state.analysisItemRaw
+          ? (state.analysisItemRaw.LineageTag || "\u2014")
+          : t("See Raw JSON"))],
       [t("Annotation"), details.annotation]
     ];
     if (!measure) {
@@ -3050,8 +3093,13 @@
       : '<span class="helper">' + escapeHtml(t("No usage detected")) + "</span>") +
       "</div>";
     if ((details.unsupported || []).length) {
+      var unsupported = [];
+      (details.unsupported || []).forEach(function (key) {
+        var label = t(UNSUPPORTED_LABELS[key] || key);
+        if (unsupported.indexOf(label) === -1) unsupported.push(label);
+      });
       html += '<p class="item-note">' + escapeHtml(t("Not detected by this tool")) +
-        ": " + escapeHtml((details.unsupported || []).join(", ")) + "</p>";
+        ": " + escapeHtml(unsupported.join(", ")) + "</p>";
     }
     return html;
   }
@@ -3120,11 +3168,12 @@
   function analysisLoadItemRaw() {
     var target = state.analysisItemTarget;
     if (!target || state.analysisItemRaw) return;
+    state.analysisItemRawError = "";
     analysisFetchRawMetadata(target, function (payload) {
       state.analysisItemRaw = payload.row;
       if (state.analysisItemTab === "raw") analysisRenderItemDetails();
     }, function (message) {
-      state.analysisItemRaw = { error: tr(message) };
+      state.analysisItemRawError = tr(message);
       if (state.analysisItemTab === "raw") analysisRenderItemDetails();
     });
   }
@@ -3147,6 +3196,10 @@
         name: target.name
       },
       label: t("Raw data"),
+      silent: true,
+      onBusy: function () {
+        if (onError) onError(t("Another job is still running. Try again."));
+      },
       onDone: function (snapshot) {
         if (snapshot.result) onDone(snapshot.result);
         else if (onError) onError(t("Metadata could not be loaded"));
@@ -3161,11 +3214,25 @@
     var dialog = $("#analysisRawMetaDialog");
     if (!dialog) return;
     state.analysisRawMeta = null;
+    state.analysisRawMetaTarget = {
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    };
     $("#analysisRawMetaSub").textContent = "'" + target.table + "'[" + target.name + "]";
     $("#analysisRawMetaStatus").textContent = t("Loading metadata…");
     $("#analysisRawMetaJson").textContent = "";
     if (dialog.open) dialog.close();
     dialog.showModal();
+    analysisReloadRawMetadata();
+  }
+
+  function analysisReloadRawMetadata() {
+    var target = state.analysisRawMetaTarget;
+    if (!target) return;
+    state.analysisRawMeta = null;
+    $("#analysisRawMetaStatus").textContent = t("Loading metadata…");
+    $("#analysisRawMetaJson").textContent = "";
     analysisFetchRawMetadata(target, function (payload) {
       state.analysisRawMeta = payload.row;
       $("#analysisRawMetaStatus").textContent =
@@ -3179,6 +3246,7 @@
 
   function analysisResetRawMetadata() {
     state.analysisRawMeta = null;
+    state.analysisRawMetaTarget = null;
     $("#analysisRawMetaSub").textContent = "";
     $("#analysisRawMetaStatus").textContent = "";
     $("#analysisRawMetaJson").textContent = "";
@@ -6640,6 +6708,13 @@
       analysisItemTabs();
       analysisRenderItemDetails();
     });
+    $("#analysisItemPane").addEventListener("click", function (event) {
+      var retry = event.target.closest("[data-item-raw-retry]");
+      if (!retry) return;
+      state.analysisItemRaw = null;
+      state.analysisItemRawError = "";
+      analysisRenderItemDetails();
+    });
     $("#analysisItemTabs").addEventListener("keydown", function (event) {
       var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
       if (keys.indexOf(event.key) === -1) return;
@@ -6669,6 +6744,7 @@
       state.analysisItem = null;
       state.analysisItemTarget = null;
       state.analysisItemRaw = null;
+      state.analysisItemRawError = "";
       state.analysisItemTab = "properties";
       $("#analysisItemPane").innerHTML = "";
     });
@@ -6683,6 +6759,7 @@
         copyTextValue(analysisPrettyJson(state.analysisRawMeta));
       }
     });
+    $("#analysisRawMetaReload").addEventListener("click", analysisReloadRawMetadata);
     $("#analysisRawMetaDialog").addEventListener("click", function (event) {
       if (event.target === event.currentTarget) $("#analysisRawMetaDialog").close();
     });
