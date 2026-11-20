@@ -412,6 +412,7 @@ class AnalysisPresenterTests(unittest.TestCase):
                 "Total",
                 direction="downstream",
                 depth=3,
+                category="measures",
             )
         self.assertEqual(data["nodes"], [])
         kwargs = build.call_args.kwargs
@@ -420,6 +421,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(kwargs["name"], "Total")
         self.assertEqual(kwargs["direction"], "downstream")
         self.assertEqual(kwargs["depth"], 3)
+        self.assertEqual(kwargs["category"], "measures")
 
     def test_lineage_invalid_seed_is_extraction_error(self) -> None:
         presenter._session(DATASET)
@@ -496,6 +498,7 @@ class AnalysisEndpointTests(unittest.TestCase):
                     "name": "Total",
                     "direction": "downstream",
                     "depth": 3,
+                    "category": "reports",
                 },
             )
         self.assertEqual(response.status_code, 200)
@@ -507,6 +510,7 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.assertEqual(args[4], "Total")
         self.assertEqual(mock.call_args.kwargs["direction"], "downstream")
         self.assertEqual(mock.call_args.kwargs["depth"], 3)
+        self.assertEqual(mock.call_args.kwargs["category"], "reports")
 
     def test_lineage_endpoint_rejects_bad_depth(self) -> None:
         response = self.client.get(

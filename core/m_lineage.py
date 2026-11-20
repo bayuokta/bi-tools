@@ -34,6 +34,16 @@ from typing import Any
 # Struktur hasil
 # ---------------------------------------------------------------------------
 @dataclass
+class StepLink:
+    """Satu langkah M yang membentuk/mengubah kolom (untuk graph lineage)."""
+
+    step: str
+    function: str
+    column: str
+    from_column: str = ""
+
+
+@dataclass
 class ColumnLineage:
     """Lineage satu kolom hasil akhir M."""
 
@@ -48,6 +58,7 @@ class ColumnLineage:
     step: str = ""
     detail: str = ""
     logic: str = ""
+    steps: list[StepLink] = field(default_factory=list)
 
     def chain_text(self) -> str:
         return " -> ".join(self.chain) if self.chain else ""
@@ -506,6 +517,23 @@ def _confidence_for(origin: str) -> str:
     return "medium"
 
 
+def _record_step(
+    column: ColumnLineage,
+    step: str,
+    function: str,
+    name: str,
+    from_name: str = "",
+) -> None:
+    """Catat satu langkah M pada kolom tanpa menduplikasi langkah yang sama."""
+    if column.steps:
+        last = column.steps[-1]
+        if last.step == step and last.column == name:
+            return
+    column.steps.append(
+        StepLink(step=step, function=function, column=name, from_column=from_name)
+    )
+
+
 def _ensure_column(state: State, name: str, step: str, warnings: list[Warning]) -> ColumnLineage:
     """Ambil kolom; bila belum ada, buat sebagai kolom langsung dari sumber."""
     if name in state.columns:
@@ -519,6 +547,7 @@ def _ensure_column(state: State, name: str, step: str, warnings: list[Warning]) 
         confidence=_confidence_for(state.origin),
         chain=[name],
         step=step,
+        steps=[StepLink(step=step, function="", column=name)],
     )
     if state.columns_known:
         column.status = "orphan_rename"
@@ -545,6 +574,7 @@ def _derived_column(
     step: str,
     detail: str = "",
     logic: str = "",
+    function: str = "",
 ) -> ColumnLineage:
     used: list[str] = []
     for ref in refs:
@@ -565,6 +595,7 @@ def _derived_column(
         step=step,
         detail=detail,
         logic=logic,
+        steps=[StepLink(step=step, function=function, column=name)],
     )
 
 
@@ -617,6 +648,7 @@ def _apply_function(
                 chain=[column_name],
                 step=step,
                 detail="Kolom didefinisikan langsung di dalam M (tabel inline).",
+                steps=[StepLink(step=step, function=name, column=column_name)],
             )
         return state
 
@@ -637,6 +669,7 @@ def _apply_function(
                     confidence="high",
                     chain=[column_name],
                     step=step,
+                    steps=[StepLink(step=step, function=name, column=column_name)],
                 )
         return state
 
@@ -656,6 +689,7 @@ def _apply_function(
         chosen: dict[str, ColumnLineage] = {}
         for column_name in selected:
             column = _ensure_column(state, column_name, step, warnings)
+            _record_step(column, step, "Table.SelectColumns", column_name, column_name)
             chosen[column_name] = column
         state.columns = chosen
         state.columns_known = True
@@ -698,6 +732,7 @@ def _apply_function(
             if not column.chain:
                 column.chain = [old]
             column.chain.append(new)
+            _record_step(column, step, "Table.RenameColumns", new, old)
             state.columns[new] = column
         return state
 
@@ -717,6 +752,14 @@ def _apply_function(
         duplicate.step = step
         duplicate.chain = list(source.chain) + [new_name]
         duplicate.logic = f"Duplicate of [{source_name}]"
+        duplicate.steps = list(source.steps) + [
+            StepLink(
+                step=step,
+                function="Table.DuplicateColumn",
+                column=new_name,
+                from_column=source_name,
+            )
+        ]
         state.columns[new_name] = duplicate
         return state
 
@@ -735,7 +778,7 @@ def _apply_function(
         elif lowered == "table.addindexcolumn":
             logic = "Index column"
         state.columns[new_name] = _derived_column(
-            state, new_name, refs, step, logic=logic
+            state, new_name, refs, step, logic=logic, function=name
         )
         return state
 
@@ -752,7 +795,7 @@ def _apply_function(
             state.columns.pop(column_name, None)
         logic = _strip_outer(args[2]).strip() if len(args) >= 3 else ""
         state.columns[new_name] = _derived_column(
-            state, new_name, used, step, logic=logic
+            state, new_name, used, step, logic=logic, function=name
         )
         return state
 
@@ -779,6 +822,7 @@ def _apply_function(
                 _extract_refs(parts[1]),
                 step,
                 logic=_strip_outer(parts[1]).strip(),
+                function=name,
             )
         state.columns = grouped
         state.columns_known = True
@@ -801,9 +845,13 @@ def _apply_function(
             if key not in kept:
                 kept[key] = _ensure_column(state, key, step, warnings)
         if attribute:
-            kept[attribute] = _derived_column(state, attribute, [], step)
+            kept[attribute] = _derived_column(
+                state, attribute, [], step, function=name
+            )
         if value_name:
-            kept[value_name] = _derived_column(state, value_name, [], step)
+            kept[value_name] = _derived_column(
+                state, value_name, [], step, function=name
+            )
         state.columns = kept
         state.columns_known = True
         return state
@@ -819,7 +867,9 @@ def _apply_function(
             return state
         for index, new_name in enumerate(new_names):
             refs = [old_names[index]] if old_names and index < len(old_names) else []
-            column = _derived_column(state, new_name, refs, step, "Kolom hasil expand.")
+            column = _derived_column(
+                state, new_name, refs, step, "Kolom hasil expand.", function=name
+            )
             column.confidence = "medium"
             state.columns[new_name] = column
         return state

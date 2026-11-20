@@ -970,6 +970,7 @@ def lineage_payload(
     *,
     direction: str = "both",
     depth: int = 4,
+    category: str = "all",
 ) -> dict[str, Any]:
     """Graph lineage satu kolom/measure dari sesi analisa in-memory."""
     dataset = str(dataset_id or "").strip()
@@ -996,6 +997,7 @@ def lineage_payload(
             name=name,
             direction=direction,
             depth=depth,
+            category=category,
         )
     except ValueError as exc:
         raise ExtractionError(str(exc)) from exc

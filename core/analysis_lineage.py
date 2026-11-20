@@ -17,11 +17,35 @@ import re
 from collections import defaultdict, deque
 from typing import Any, Iterable, Mapping
 
+from core.m_lineage import build_lineage as build_m_lineage
+
 MAX_NODES = 250
 MAX_USAGE_PER_PAGE = 8
 MAX_DEPTH = 8
+MAX_M_STEPS = 8
 
 DIRECTIONS = ("both", "upstream", "downstream")
+CATEGORIES = (
+    "all",
+    "measures",
+    "columns",
+    "relationships",
+    "sorting",
+    "security",
+    "field-parameters",
+    "reports",
+    "calculations",
+)
+CATEGORY_KINDS = {
+    "measures": {"measure"},
+    "columns": {"column"},
+    "relationships": {"relationship"},
+    "sorting": {"sort"},
+    "security": {"security"},
+    "field-parameters": {"field-parameter"},
+    "reports": {"report", "page", "visual", "filter"},
+    "calculations": {"calculation", "kpi", "table"},
+}
 
 # Urutan dalam satu kolom layout: sumber M dulu, lalu model, lalu report.
 GROUP_ORDER = {"mquery": 0, "model": 1, "report": 2, "page": 3, "usage": 4, "more": 5}
@@ -301,6 +325,57 @@ class _Graph:
                 self.link(page_node_id, node_id, "usage")
 
 
+def _build_outline(graph: _Graph, seed_id: str) -> dict[str, Any]:
+    """Struktur pohon upstream/downstream untuk tampilan outline."""
+    incoming: dict[str, set[str]] = defaultdict(set)
+    outgoing: dict[str, set[str]] = defaultdict(set)
+    for edge in graph.edges.values():
+        outgoing[edge["from"]].add(edge["to"])
+        incoming[edge["to"]].add(edge["from"])
+
+    def sort_key(node_id: str) -> tuple[Any, ...]:
+        node = graph.nodes[node_id]
+        return (
+            GROUP_ORDER.get(str(node.get("group") or ""), 9),
+            str(node.get("kind") or ""),
+            str(node.get("label") or "").casefold(),
+            node_id,
+        )
+
+    def build(
+        node_id: str,
+        adjacency: Mapping[str, set[str]],
+        level: int,
+        seen: set[str],
+    ) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for child_id in sorted(adjacency.get(node_id, ()), key=sort_key):
+            node = graph.nodes.get(child_id)
+            if node is None:
+                continue
+            item = {
+                "id": child_id,
+                "kind": str(node.get("kind") or ""),
+                "label": str(node.get("label") or ""),
+                "context": str(node.get("context") or ""),
+                "status": str(node.get("status") or ""),
+                "count": int(node.get("count") or 0),
+                "children": [],
+            }
+            if child_id in seen:
+                item["repeat"] = True
+            elif level <= 10:
+                seen.add(child_id)
+                item["children"] = build(child_id, adjacency, level + 1, seen)
+            items.append(item)
+        return items
+
+    return {
+        "upstream": build(seed_id, incoming, 1, {seed_id}),
+        "downstream": build(seed_id, outgoing, 1, {seed_id}),
+    }
+
+
 def build_lineage(
     result: Any,
     *,
@@ -310,6 +385,7 @@ def build_lineage(
     direction: str = "both",
     depth: int = 4,
     max_nodes: int = MAX_NODES,
+    category: str = "all",
 ) -> dict[str, Any]:
     """Susun graph lineage satu kolom/measure dari ``AnalysisResult``.
 
@@ -327,6 +403,9 @@ def build_lineage(
         limit = max(1, min(MAX_DEPTH, int(depth or 4)))
     except (TypeError, ValueError) as exc:
         raise ValueError("Kedalaman lineage harus angka 1-8.") from exc
+    scope = str(category or "all").strip().lower()
+    if scope not in CATEGORIES:
+        raise ValueError("Kategori dependensi tidak dikenal.")
 
     column_analyses: dict[str, Any] = {}
     measure_analyses: dict[str, Any] = {}
@@ -503,22 +582,119 @@ def build_lineage(
                 if node_id:
                     depend(node_id, owner_id)
 
-    # Tabel M untuk kolom seed yang bukan hasil kalkulasi.
-    mqueries = {
-        str(item.get("name") or ""): str(item.get("source") or "")
-        for item in (getattr(result, "m_queries", []) or [])
-        if isinstance(item, Mapping) and str(item.get("kind") or "") == "Tabel"
-    }
+    # Tabel M + langkah M untuk kolom seed yang bukan hasil kalkulasi.
+    mqueries: dict[str, dict[str, str]] = {}
+    for item in getattr(result, "m_queries", []) or []:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("kind") or "") != "Tabel":
+            continue
+        table_name = str(item.get("name") or "")
+        if table_name:
+            mqueries[table_name] = {
+                "source": str(item.get("source") or ""),
+                "expression": str(item.get("expression") or ""),
+            }
+    m_edges: list[tuple[str, str]] = []
+    m_step_truncated = 0
     if wanted == "column":
-        seed_table = column_analyses[seed_id].column.table
-        if seed_table in mqueries:
+        seed_column = column_analyses[seed_id].column
+        seed_table = seed_column.table
+        table_query = mqueries.get(seed_table)
+        if table_query is not None:
             mquery = add_extra(
                 _mquery_id(seed_table),
                 kind="mquery",
                 label=seed_table,
-                context=mqueries.get(seed_table, ""),
+                context=table_query.get("source", ""),
             )
-            depend(seed_id, mquery)
+            expression = table_query.get("expression", "")
+            datasource: str | None = None
+            has_steps = False
+            if expression:
+                parsed = build_m_lineage(expression)
+                aliases: dict[str, Any] = {}
+                for key, parsed_column in (parsed.columns or {}).items():
+                    for alias in [
+                        key,
+                        parsed_column.source_column,
+                        *(parsed_column.chain or []),
+                    ]:
+                        if alias:
+                            aliases.setdefault(str(alias).casefold(), parsed_column)
+
+                def step_node(step: Any) -> str:
+                    step_id = (
+                        f"mstep:{seed_table}:{step.step or 'step'}:"
+                        f"{step.column or ''}"
+                    )
+                    add_extra(
+                        step_id,
+                        kind="mstep",
+                        label=str(step.step or step.column or "M step"),
+                        context=str(step.function or ""),
+                        detail=str(step.column or ""),
+                        group="mquery",
+                    )
+                    return step_id
+
+                column_lineage = aliases.get(seed_column.column.casefold())
+                own_steps = (
+                    list(getattr(column_lineage, "steps", []) or [])
+                    if column_lineage is not None
+                    else []
+                )
+                if len(own_steps) > MAX_M_STEPS:
+                    m_step_truncated += len(own_steps) - MAX_M_STEPS
+                    own_steps = own_steps[-MAX_M_STEPS:]
+                own_ids = [step_node(step) for step in own_steps]
+                if own_ids:
+                    branches: list[list[str]] = []
+                    used_names = list(
+                        getattr(column_lineage, "columns_used", []) or []
+                    )[:3]
+                    for used_name in used_names:
+                        source_column = aliases.get(str(used_name).casefold())
+                        if source_column is None:
+                            continue
+                        source_steps = list(
+                            getattr(source_column, "steps", []) or []
+                        )[-4:]
+                        ids = [step_node(step) for step in source_steps]
+                        if ids:
+                            branches.append(ids)
+                    for branch in branches:
+                        for previous, current in zip(branch, branch[1:]):
+                            m_edges.append((previous, current))
+                        m_edges.append((branch[-1], own_ids[0]))
+                    for previous, current in zip(own_ids, own_ids[1:]):
+                        m_edges.append((previous, current))
+                    if branches:
+                        for branch in branches:
+                            m_edges.append((mquery, branch[0]))
+                    else:
+                        m_edges.append((mquery, own_ids[0]))
+                    m_edges.append((own_ids[-1], seed_id))
+                    has_steps = True
+                if parsed.origin or parsed.source_object:
+                    datasource = add_extra(
+                        f"datasource:{seed_table}",
+                        kind="datasource",
+                        label=str(
+                            parsed.source_object or parsed.origin or "Datasource"
+                        ),
+                        context=str(parsed.origin or ""),
+                        group="mquery",
+                    )
+            if not has_steps:
+                m_edges.append((mquery, seed_id))
+            if datasource:
+                m_edges.append((datasource, mquery))
+            for provider, consumer in m_edges:
+                depend(consumer, provider)
+            if has_steps:
+                deps[seed_id].discard(mquery)
+                users[mquery].discard(seed_id)
 
     def walk(adjacency: Mapping[str, set[str]]) -> dict[str, int]:
         found = {seed_id: 0}
@@ -551,6 +727,24 @@ def build_lineage(
             if current and current[0] == "upstream" and current[1] == level:
                 continue
             sides[node_id] = ("downstream", level)
+
+    # Rantai langkah M melewati batas `depth` model agar tetap utuh.
+    if m_edges and mode in {"both", "upstream"}:
+        levels = {seed_id: 0}
+        for _pass in range(len(m_edges) + 4):
+            changed = False
+            for provider, consumer in m_edges:
+                if consumer not in levels:
+                    continue
+                need = levels[consumer] + 1
+                if levels.get(provider, 0) < need:
+                    levels[provider] = need
+                    changed = True
+            if not changed:
+                break
+        for node_id, level in levels.items():
+            if node_id != seed_id:
+                sides[node_id] = ("upstream", max(1, level))
 
     def node_payload(node_id: str) -> dict[str, Any] | None:
         if node_id in column_analyses:
@@ -641,6 +835,28 @@ def build_lineage(
                 report_names=report_names,
             )
 
+    # --- filter kategori dependensi (submenu View dependencies) -----------
+    if scope != "all":
+        allowed = set(CATEGORY_KINDS[scope])
+        seed_kind = str(graph.nodes.get(seed_id, {}).get("kind") or "")
+        if seed_kind:
+            allowed.add(seed_kind)
+        allowed_ids = {
+            node_id
+            for node_id, node in graph.nodes.items()
+            if node_id == seed_id or node.get("kind") in allowed
+        }
+        graph.nodes = {
+            node_id: node
+            for node_id, node in graph.nodes.items()
+            if node_id in allowed_ids
+        }
+        graph.edges = {
+            key: edge
+            for key, edge in graph.edges.items()
+            if edge["from"] in allowed_ids and edge["to"] in allowed_ids
+        }
+
     # --- tata letak: upstream negatif, seed 0, downstream positif ---------
     for node_id, node in graph.nodes.items():
         if node_id in sides:
@@ -717,6 +933,10 @@ def build_lineage(
         notices.append({"code": "reports_excluded"})
     if graph.truncated:
         notices.append({"code": "truncated", "count": graph.truncated})
+    if m_step_truncated:
+        notices.append(
+            {"code": "m_steps_truncated", "count": m_step_truncated}
+        )
     if len(graph.edges) == 0:
         notices.append({"code": "no_dependencies"})
 
@@ -729,8 +949,10 @@ def build_lineage(
         },
         "direction": mode,
         "depth": limit,
+        "category": scope,
         "nodes": nodes,
         "edges": list(graph.edges.values()),
+        "outline": _build_outline(graph, seed_id),
         "groups": [
             {"id": "mquery", "label": "M query"},
             {"id": "model", "label": "Model dependencies"},

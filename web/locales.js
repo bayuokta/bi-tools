@@ -657,7 +657,28 @@
   "Calculation": "Kalkulasi",
   "KPI": "KPI",
   "More": "Lainnya",
-  "Node": "Node"
+  "Node": "Node",
+  "Lineage view": "Tampilan lineage",
+  "Graph": "Grafik",
+  "Outline": "Daftar",
+  "Dependencies": "Dependensi",
+  "All dependencies": "Semua dependensi",
+  "Measures": "Measure",
+  "Sorting": "Pengurutan",
+  "Field parameters": "Field parameter",
+  "Reports & visuals": "Report & visual",
+  "Calculations": "Kalkulasi",
+  "Depends on": "Bergantung pada",
+  "Used by": "Dipakai oleh",
+  "M step": "Langkah M",
+  "Datasource": "Sumber data",
+  "SQL Server": "SQL Server",
+  "Power BI Dataflow": "Power BI Dataflow",
+  "File": "File",
+  "OData": "OData",
+  "SharePoint": "SharePoint",
+  "Inline table": "Tabel inline",
+  "Truncated M steps: {n}": "Langkah M dipotong: {n}"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

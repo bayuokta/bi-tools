@@ -38,8 +38,15 @@ database.
   zoom/Fit, pan, sorot lineage, dan double-click untuk root baru. Arah
   Both/Upstream/Downstream memuat ulang graph; mode model-only menampilkan
   notice tanpa sisi report.
-- Item lineage daftar, raw data, dependensi, opsi tabel/model, dan ekspor masih
-  badge **Soon** dan akan diisi bertahap.
+- **View column lineage** membuka mode **Outline** (pohon upstream/downstream)
+  dengan tombol Graph/Outline di dialog yang sama.
+- **View dependencies** kini membuka submenu kategori (semua, measure, kolom,
+  relasi, sorting, security, field parameter, report & visual, kalkulasi) dan
+  menampilkan graph terfilter.
+- Kolom dengan query M menampilkan **sumber data → tabel M → langkah M**
+  (rename/select/derive) sebelum kolom model; `core\m_lineage.py` mencatat
+  langkah per kolom (`StepLink`) dan pemotongan langkah dilaporkan lewat notice.
+- Item raw data, opsi tabel/model, dan ekspor masih badge **Soon**.
 
 ## 2026-11-19 - Rilis 0.4.4
 

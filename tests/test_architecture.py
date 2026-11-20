@@ -391,6 +391,9 @@ class WebLayerTests(unittest.TestCase):
             'id="analysisLineageNodes"',
             'id="analysisLineageEdges"',
             'id="analysisLineageDirection"',
+            'id="analysisLineageView"',
+            'id="analysisLineageOutline"',
+            'id="analysisSubmenu"',
         ):
             self.assertIn(marker, html)
             self.assertEqual(
@@ -399,10 +402,14 @@ class WebLayerTests(unittest.TestCase):
         for marker in (
             "function analysisLineageOpen(",
             "function analysisLineageRender(",
+            "function analysisLineageOutlineMarkup(",
             "function analysisLineageEdgePath(",
             "function analysisLineageSelect(",
+            "function analysisOpenSubmenu(",
+            "function analysisLineageReroot(",
             "/api/analysis/lineage",
             "data-node-id",
+            "data-menu-submenu",
             "node.x",
             "data-node-kind",
         ):

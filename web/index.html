@@ -1220,6 +1220,7 @@
 </dialog>
 
 <div class="context-menu" id="analysisMenu" role="menu" aria-label="Item actions" data-i18n-aria-label="Item actions" hidden></div>
+<div class="context-menu context-menu--sub" id="analysisSubmenu" role="menu" aria-label="Dependencies" data-i18n-aria-label="Dependencies" hidden></div>
 
 <dialog class="dialog dialog--details" id="analysisDetailsDialog" aria-labelledby="analysisDetailsTitle">
   <div class="dialog-head">
@@ -1258,6 +1259,10 @@
       <button type="button" data-lineage-direction="upstream" aria-pressed="false" data-i18n="Upstream">Upstream</button>
       <button type="button" data-lineage-direction="downstream" aria-pressed="false" data-i18n="Downstream">Downstream</button>
     </div>
+    <div class="segmented" id="analysisLineageView" role="group" aria-label="Lineage view" data-i18n-aria-label="Lineage view">
+      <button type="button" data-lineage-view="graph" aria-pressed="true" data-i18n="Graph">Graph</button>
+      <button type="button" data-lineage-view="outline" aria-pressed="false" data-i18n="Outline">Outline</button>
+    </div>
     <div class="graph-zoom" role="group" aria-label="Lineage graph zoom" data-i18n-aria-label="Lineage graph zoom">
       <button class="btn btn-sm graph-zoom-btn" id="analysisLineageZoomOut" type="button" aria-label="Zoom out" data-i18n-aria-label="Zoom out">−</button>
       <span class="graph-zoom-value" id="analysisLineageZoomValue">100%</span>
@@ -1284,6 +1289,7 @@
         </div>
       </div>
     </div>
+    <div class="lineage-outline" id="analysisLineageOutline" hidden></div>
     <div class="empty" id="analysisLineageEmpty" hidden>
       <div class="empty-title" id="analysisLineageEmptyTitle" data-i18n="No lineage data">No lineage data</div>
       <p class="empty-text" id="analysisLineageEmptyText"></p>

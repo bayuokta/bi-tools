@@ -1135,3 +1135,44 @@ tr.is-menu-open .row-menu-btn,
   .dialog--lineage{ width:calc(100vw - 16px); height:calc(100vh - 24px); }
   .lineage-search{ max-width:none; }
 }
+
+.context-menu--sub{ z-index:150; }
+.lineage-outline{
+  flex:1; min-height:0; overflow:auto; padding:14px 18px; background:var(--surface);
+}
+.lo-section + .lo-section{ margin-top:18px; }
+.lo-section h3{
+  margin:0 0 8px; font-size:10.5px; font-weight:600; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--text-3);
+}
+.lo-list{ list-style:none; margin:0; padding-left:14px; border-left:1px dashed var(--border); }
+.lo-section > .lo-list{ padding-left:0; border-left:0; }
+.lo-list li{ margin:2px 0; }
+.lo-row{
+  display:flex; align-items:center; gap:8px; width:100%; padding:5px 8px;
+  border-radius:var(--r-sm); cursor:pointer; min-width:0;
+}
+.lo-row:hover{ background:var(--row-hover); }
+.lo-row.is-muted{ opacity:.35; }
+.lo-row.is-hit{ outline:1px solid var(--accent); background:var(--accent-soft); }
+.lo-icon{ flex:none; display:grid; place-items:center; color:var(--text-3); }
+.lo-icon .row-ico{ width:14px; height:14px; }
+.lo-text{ min-width:0; flex:1; display:flex; flex-direction:column; }
+.lo-title{ font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lo-sub{ font-size:10.5px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lo-count{
+  flex:none; padding:0 5px; border-radius:999px; background:var(--surface-3);
+  color:var(--text-3); font-size:10px; line-height:16px;
+}
+.lo-repeat{ flex:none; color:var(--text-3); font-size:12px; }
+.lo-branch > summary{ list-style:none; cursor:pointer; }
+.lo-branch > summary::-webkit-details-marker{ display:none; }
+.lo-branch > summary .lo-row::before{
+  content:"\25B8"; flex:none; width:10px; color:var(--text-3); font-size:10px;
+}
+.lo-branch[open] > summary .lo-row::before{ content:"\25BE"; }
+
+.lo-status{
+  flex:none; font-size:9px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--text-3);
+}

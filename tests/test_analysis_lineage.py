@@ -404,6 +404,111 @@ class LineageBuilderTests(unittest.TestCase):
         edges = {(edge["from"], edge["to"]) for edge in data["edges"]}
         self.assertIn(("measure:M:B", "measure:M:A"), edges)
 
+    def test_m_steps_and_datasource(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Removed Other Columns" = Table.SelectColumns(dbo_Sales, {"Amount", "Qty"}),
+    #"Renamed Columns" = Table.RenameColumns(#"Removed Other Columns", {{"Amount", "Total Amount"}})
+in
+    #"Renamed Columns"
+"""
+        amount = column_analysis("Sales", "Total Amount")
+        result = make_result(
+            columns=[amount],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(
+            result, kind="column", table="Sales", name="Total Amount"
+        )
+        nodes = {node["id"]: node for node in data["nodes"]}
+        steps = [node for node in data["nodes"] if node["kind"] == "mstep"]
+        self.assertGreaterEqual(len(steps), 2)
+        self.assertIn("mquery:Sales", nodes)
+        datasource = next(
+            node for node in data["nodes"] if node["kind"] == "datasource"
+        )
+        self.assertEqual(datasource["label"], "dbo.Sales")
+        self.assertEqual(datasource["context"], "sql")
+        edges = {(edge["from"], edge["to"]) for edge in data["edges"]}
+        self.assertNotIn(("mquery:Sales", "col:Sales:Total Amount"), edges)
+        self.assertIn((datasource["id"], "mquery:Sales"), edges)
+        ordered_steps = sorted(steps, key=lambda node: node["column"])
+        self.assertTrue(
+            any(edge[0] == "mquery:Sales" for edge in edges)
+        )
+        self.assertIn(
+            (ordered_steps[-1]["id"], "col:Sales:Total Amount"),
+            edges,
+        )
+        self.assertTrue(
+            any("Removed Other Columns" in step["label"] for step in steps)
+        )
+
+    def test_outline_has_upstream_and_report_tree(self) -> None:
+        base = measure_analysis(
+            "M",
+            "Base",
+            refs=[ModelReference(kind="measure", object="'M'[Calc]", detail="")],
+        )
+        calc = measure_analysis(
+            "M",
+            "Calc",
+            records=[usage(title="Sales by Month")],
+        )
+        result = make_result(measures=[base, calc])
+        data = build_lineage(result, kind="measure", table="M", name="Calc")
+        outline = data["outline"]
+        self.assertEqual(outline["upstream"][0]["id"], "measure:M:Base")
+        report = outline["downstream"][0]
+        self.assertEqual(report["kind"], "report")
+        self.assertEqual(report["children"][0]["kind"], "page")
+        self.assertEqual(report["children"][0]["children"][0]["kind"], "visual")
+
+    def test_category_filters_nodes(self) -> None:
+        column = column_analysis(
+            "T",
+            "C",
+            refs=[
+                ModelReference(kind="relationship", object="'D'[Id]", detail=""),
+                ModelReference(kind="sort by", object="'T'[Code]", detail=""),
+                ModelReference(
+                    kind="measure", object="'M'[Total]", detail="", blocking=False
+                ),
+            ],
+            records=[usage()],
+        )
+        measure = measure_analysis("M", "Total")
+        result = make_result(columns=[column], measures=[measure])
+
+        related = build_lineage(
+            result, kind="column", table="T", name="C", category="relationships"
+        )
+        self.assertEqual(
+            {node["kind"] for node in related["nodes"]},
+            {"column", "relationship"},
+        )
+        report_only = build_lineage(
+            result, kind="column", table="T", name="C", category="reports"
+        )
+        self.assertEqual(
+            {node["kind"] for node in report_only["nodes"]},
+            {"column", "report", "page", "visual"},
+        )
+        self.assertTrue(report_only["edges"])
+        with self.assertRaises(ValueError):
+            build_lineage(
+                result, kind="column", table="T", name="C", category="ngawur"
+            )
+
     def test_layout_is_deterministic_and_spaced(self) -> None:
         measure = measure_analysis(
             "M",
