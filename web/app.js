@@ -104,7 +104,7 @@
     analysisLineageZoom: 1,
     analysisLineageDrag: null,
     analysisLineageItemDrag: null,
-    analysisLineageSuppressClick: false,
+    analysisLineageSuppressClick: 0,
     analysisLineageHighlight: null,
     analysisSubmenuTarget: null,
     analysisSubmenuAnchor: null,
@@ -3064,6 +3064,16 @@
         '" stroke-width="1.4"' + dash +
         ' marker-end="url(#lineageExportArrow)"/>';
     }).join("");
+    var exportById = {};
+    (graph.nodes || []).forEach(function (node) { exportById[node.id] = node; });
+    var treeEdges = analysisLineageTreeEdges(graph).map(function (edge) {
+      var source = exportById[edge.from];
+      var target = exportById[edge.to];
+      if (!source || !target) return "";
+      return '<path d="' + analysisLineageTreePath(source, target) +
+        '" fill="none" stroke="' + palette.borderStrong +
+        '" stroke-width="1.1" stroke-opacity="0.7"/>';
+    }).join("");
     function header(x, y, meta, color) {
       var title = analysisLineageTitle(meta);
       return '<g transform="translate(' + x + ',' + y + ')">' +
@@ -3168,7 +3178,7 @@
       "</marker></defs>" +
       '<rect width="' + width + '" height="' + height + '" fill="' +
       palette.background + '"/>' +
-      "<g>" + artifacts + groups + "</g><g>" + edges +
+      "<g>" + artifacts + groups + "</g><g>" + treeEdges + edges +
       "</g><g>" + cards + "</g></svg>";
   }
 
@@ -3759,7 +3769,7 @@
     state.analysisLineage = null;
     state.analysisLineageHighlight = null;
     state.analysisLineageItemDrag = null;
-    state.analysisLineageSuppressClick = false;
+    state.analysisLineageSuppressClick = 0;
     state.analysisLineageZoom = 1;
     state.analysisLineageDirection = "both";
     state.analysisLineageView = view === "outline" ? "outline" : "graph";
@@ -3769,6 +3779,7 @@
     $("#analysisLineageSearch").value = "";
     $("#analysisLineageNodes").innerHTML = "";
     $("#analysisLineageEdges").innerHTML = "";
+    $("#analysisLineageTreeEdges").innerHTML = "";
     $("#analysisLineageArtifacts").innerHTML = "";
     $("#analysisLineageGroups").innerHTML = "";
     $("#analysisLineageOutline").innerHTML = "";
@@ -3861,6 +3872,7 @@
     if (!target || !datasetId || !apiReady()) return;
     $("#analysisLineageNodes").innerHTML = "";
     $("#analysisLineageEdges").innerHTML = "";
+    $("#analysisLineageTreeEdges").innerHTML = "";
     $("#analysisLineageNotice").textContent = "";
     analysisLineageShowEmpty(t("Loading lineage…"), "");
     var path = "/api/analysis/lineage?dataset_id=" + encodeURIComponent(datasetId) +
@@ -3892,6 +3904,63 @@
     return (graph && (graph.canvas_edges || graph.edges)) || [];
   }
 
+  function analysisLineageTreeEdges(graph) {
+    return (graph && graph.tree_edges) || [];
+  }
+
+  function analysisLineageTreePath(parent, child) {
+    var px = Number(parent.x) || 0;
+    var py = Number(parent.y) || 0;
+    var pw = Number(parent.w) || 0;
+    var ph = Number(parent.h) || 0;
+    var cx = Number(child.x) || 0;
+    var cy = Number(child.y) || 0;
+    var cw = Number(child.w) || 0;
+    var ch = Number(child.h) || 0;
+    var childCenterY = cy + ch / 2;
+    var childCenterX = cx + cw / 2;
+    if (cy >= py + ph - 1) {
+      // Anak di bawah header: spine vertikal di padding grup.
+      var spineX = Math.max(4, px - 8);
+      return "M" + px + " " + (py + ph / 2) +
+        " H" + spineX + " V" + childCenterY + " H" + cx;
+    }
+    if (cx >= px + pw - 1) {
+      // Anak di kanan parent.
+      var midX = px + pw + Math.max(10, (cx - px - pw) / 2);
+      return "M" + (px + pw) + " " + (py + ph / 2) +
+        " H" + midX + " V" + childCenterY + " H" + cx;
+    }
+    return "M" + (px + pw / 2) + " " + (py + ph / 2) +
+      " L" + childCenterX + " " + childCenterY;
+  }
+
+  function analysisLineageTreeMarkup(graph, byId) {
+    return analysisLineageTreeEdges(graph).map(function (edge) {
+      var source = byId[edge.from];
+      var target = byId[edge.to];
+      if (!source || !target) return "";
+      return '<path class="lineage-tree-edge" data-tree-from="' +
+        escapeHtml(edge.from) + '" data-tree-to="' + escapeHtml(edge.to) +
+        '" d="' + analysisLineageTreePath(source, target) + '"></path>';
+    }).join("");
+  }
+
+  function analysisLineageResizeCanvas() {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    var width = Math.max(1, Number(graph.width) || 1);
+    var height = Math.max(1, Number(graph.height) || 1);
+    var canvas = $("#analysisLineageCanvas");
+    var svg = $("#analysisLineageSvg");
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    analysisLineageApplyZoom();
+  }
+
   function analysisLineageRender() {
     var graph = state.analysisLineage;
     if (!graph || !(graph.nodes || []).length) {
@@ -3917,6 +3986,7 @@
     });
     var edges = analysisLineageEdges(graph);
     var routes = analysisLineageEdgeRoutes(graph);
+    $("#analysisLineageTreeEdges").innerHTML = analysisLineageTreeMarkup(graph, byId);
     $("#analysisLineageEdges").innerHTML = edges.map(function (edge, index) {
       var source = byId[edge.from];
       var target = byId[edge.to];
@@ -3943,7 +4013,7 @@
     state.analysisLineageZoom = 1;
     state.analysisLineageHighlight = null;
     state.analysisLineageItemDrag = null;
-    state.analysisLineageSuppressClick = false;
+    state.analysisLineageSuppressClick = 0;
     $("#analysisLineageNotice").textContent = analysisLineageNotice(graph);
     analysisLineageRenderM(graph.m_lineage);
     analysisLineageFocusSeed();
@@ -4440,8 +4510,8 @@
     });
     var limitX = Math.max(0, Number(graph.width) || 0);
     var limitY = Math.max(0, Number(graph.height) || 0);
-    var moveX = Math.max(-bounds.minX, Math.min(dx, limitX - bounds.maxX));
-    var moveY = Math.max(-bounds.minY, Math.min(dy, limitY - bounds.maxY));
+    var moveX = Math.max(-bounds.minX, dx);
+    var moveY = Math.max(-bounds.minY, dy);
     ["nodes", "groups", "artifacts"].forEach(function (key) {
       Object.keys(drag.scope[key]).forEach(function (id) {
         var item = drag.scope[key][id];
@@ -4462,6 +4532,20 @@
       artifact.head_x = Math.round(base.headX + moveX);
       artifact.head_y = Math.round(base.headY + moveY);
     });
+    var neededX = 0;
+    var neededY = 0;
+    ["nodes", "groups", "artifacts"].forEach(function (key) {
+      Object.keys(drag.scope[key]).forEach(function (id) {
+        var item = drag.scope[key][id];
+        neededX = Math.max(neededX, (Number(item.x) || 0) + (Number(item.w) || 0));
+        neededY = Math.max(neededY, (Number(item.y) || 0) + (Number(item.h) || 0));
+      });
+    });
+    if (neededX + 48 > limitX || neededY + 48 > limitY) {
+      graph.width = Math.max(limitX, Math.ceil(neededX + 48));
+      graph.height = Math.max(limitY, Math.ceil(neededY + 48));
+      analysisLineageResizeCanvas();
+    }
     analysisLineageApplyPositions();
     analysisLineageRefreshEdges();
   }
@@ -4504,6 +4588,21 @@
     $$("#analysisLineageEdges .lineage-edge").forEach(function (element, index) {
       if (routes[index]) element.setAttribute("d", routes[index]);
     });
+    analysisLineageRefreshTreeEdges();
+  }
+
+  function analysisLineageRefreshTreeEdges() {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) { byId[node.id] = node; });
+    $$("#analysisLineageTreeEdges .lineage-tree-edge").forEach(function (element) {
+      var source = byId[element.getAttribute("data-tree-from")];
+      var target = byId[element.getAttribute("data-tree-to")];
+      if (source && target) {
+        element.setAttribute("d", analysisLineageTreePath(source, target));
+      }
+    });
   }
 
   function analysisLineageFocusSeed() {
@@ -4537,6 +4636,13 @@
     wrap.scrollTop = Math.max(
       0, seed.y * state.analysisLineageZoom - wrap.clientHeight / 2 + seed.h / 2
     );
+  }
+
+  function analysisLineageConsumeDragClick() {
+    if (!state.analysisLineageSuppressClick) return false;
+    var active = Date.now() <= state.analysisLineageSuppressClick;
+    state.analysisLineageSuppressClick = 0;
+    return active;
   }
 
   function analysisLineageLineageSet(graph, start) {
@@ -4658,6 +4764,14 @@
         "marker-end", on ? "url(#lineageArrowHot)" : "url(#lineageArrow)"
       );
     });
+    $$("#analysisLineageTreeEdges .lineage-tree-edge").forEach(function (element) {
+      var on = Boolean(
+        keep[element.getAttribute("data-tree-from")] &&
+        keep[element.getAttribute("data-tree-to")]
+      );
+      element.classList.toggle("is-hot", on);
+      element.classList.toggle("is-muted", !on);
+    });
   }
 
   function analysisLineageSelect(nodeId) {
@@ -4702,6 +4816,9 @@
     $$("#analysisLineageEdges .lineage-edge").forEach(function (element) {
       element.classList.remove("is-muted", "is-hot");
       element.setAttribute("marker-end", "url(#lineageArrow)");
+    });
+    $$("#analysisLineageTreeEdges .lineage-tree-edge").forEach(function (element) {
+      element.classList.remove("is-muted", "is-hot");
     });
     analysisLineageApplySearch();
   }
@@ -8510,7 +8627,9 @@
       $("#analysisLineageDialog").close();
     });
     $("#analysisLineageDialog").addEventListener("click", function (event) {
-      if (event.target === event.currentTarget) $("#analysisLineageDialog").close();
+      if (event.target !== event.currentTarget) return;
+      if (analysisLineageConsumeDragClick()) return;
+      $("#analysisLineageDialog").close();
     });
     $("#analysisLineageDialog").addEventListener("close", function () {
       state.analysisLineage = null;
@@ -8521,6 +8640,7 @@
       $("#analysisLineageSearch").value = "";
       $("#analysisLineageNodes").innerHTML = "";
       $("#analysisLineageEdges").innerHTML = "";
+      $("#analysisLineageTreeEdges").innerHTML = "";
       $("#analysisLineageOutline").innerHTML = "";
     });
     $("#analysisRawLoad").addEventListener("click", analysisRunPreview);
@@ -8681,10 +8801,7 @@
       analysisLoadLineage();
     });
     $("#analysisLineageCanvas").addEventListener("click", function (event) {
-      if (state.analysisLineageSuppressClick) {
-        state.analysisLineageSuppressClick = false;
-        return;
-      }
+      if (analysisLineageConsumeDragClick()) return;
       var node = event.target.closest("[data-node-id]");
       if (node) {
         analysisLineageSelect(node.getAttribute("data-node-id"));
@@ -8761,7 +8878,7 @@
             moved: false,
             pointerId: event.pointerId
           };
-          state.analysisLineageSuppressClick = false;
+          state.analysisLineageSuppressClick = 0;
           wrap.classList.add("is-dragging-item");
           return undefined;
         }
@@ -8816,7 +8933,7 @@
           return undefined;
         }
         if (itemDrag.moved) {
-          state.analysisLineageSuppressClick = true;
+          state.analysisLineageSuppressClick = Date.now() + 350;
           analysisLineageRefreshEdges();
         }
         return undefined;
@@ -8846,7 +8963,7 @@
       var wrap = $("#analysisLineageCanvasWrap");
       if (wrap) wrap.classList.remove("is-dragging-item");
       if (itemDrag.moved) {
-        state.analysisLineageSuppressClick = true;
+        state.analysisLineageSuppressClick = Date.now() + 350;
         analysisLineageRefreshEdges();
       }
     });

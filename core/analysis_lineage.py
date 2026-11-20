@@ -824,6 +824,7 @@ def _layout_graph(
     int,
     list[dict[str, str]],
     list[dict[str, str]],
+    list[dict[str, str]],
     str,
 ]:
     """Susun tata letak bergrup: artifact -> grup -> kartu."""
@@ -1147,6 +1148,42 @@ def _layout_graph(
         )
 
     canvas_edges, edge_level, highlight_edges = _canvas_edges(graph)
+
+    # Garis pohon induk-anak untuk header grup yang tidak muncul di canvas_edges.
+    tree_rows: list[dict[str, str]] = []
+    tree_seen: set[tuple[str, str]] = set()
+
+    def add_tree(parent: str, child: str) -> None:
+        if not parent or not child or parent == child:
+            return
+        if (parent, child) in tree_seen:
+            return
+        if parent not in graph.nodes or child not in graph.nodes:
+            return
+        tree_seen.add((parent, child))
+        tree_rows.append({"from": parent, "to": child, "kind": "tree"})
+
+    for container in containers.values():
+        head = container["head"]
+        if container["kind"] != "report" or head is None:
+            continue
+        for group in container["groups"].values():
+            if group["kind"] == "page" and group["head"] is not None:
+                add_tree(str(head["id"]), str(group["head"]["id"]))
+    for group in groups.values():
+        head = group["head"]
+        if head is None:
+            continue
+        node_ids = {str(node["id"]) for node in group["nodes"]}
+        _outgoing, incoming = _group_edges(graph, node_ids)
+        roots = sorted(
+            str(node["id"]) for node in group["nodes"]
+            if not incoming.get(str(node["id"]))
+        )
+        for child in roots:
+            add_tree(str(head["id"]), child)
+    tree_rows.sort(key=lambda edge: (edge["from"], edge["to"]))
+
     return (
         node_rows,
         artifact_rows,
@@ -1155,6 +1192,7 @@ def _layout_graph(
         int(height),
         canvas_edges,
         highlight_edges,
+        tree_rows,
         edge_level,
     )
 
@@ -1810,6 +1848,7 @@ def build_lineage(
         height,
         canvas_edges,
         highlight_edges,
+        tree_edges,
         edge_level,
     ) = _layout_graph(
         graph,
@@ -1860,6 +1899,7 @@ def build_lineage(
         "edges": list(graph.edges.values()),
         "canvas_edges": canvas_edges,
         "highlight_edges": highlight_edges,
+        "tree_edges": tree_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),
@@ -2116,6 +2156,7 @@ def build_table_lineage(
         height,
         canvas_edges,
         highlight_edges,
+        tree_edges,
         edge_level,
     ) = _layout_graph(
         graph,
@@ -2158,6 +2199,7 @@ def build_table_lineage(
         "edges": list(graph.edges.values()),
         "canvas_edges": canvas_edges,
         "highlight_edges": highlight_edges,
+        "tree_edges": tree_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),

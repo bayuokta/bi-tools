@@ -1216,6 +1216,71 @@ in
         self.assertIsNotNone(notice)
         self.assertEqual(notice["count"], 1)
 
+    def test_tree_edges_connect_report_pages_and_visuals(self) -> None:
+        records = [
+            usage(report="R1", page="P1", visual="V1"),
+            usage(report="R1", page="P1", visual="V2"),
+            usage(report="R1", page="P2", visual="V3"),
+        ]
+        data = build_lineage(
+            make_result(measures=[measure_analysis("M", "Calc", records=records)]),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+        report = next(node for node in data["nodes"] if node["kind"] == "report")
+        pages = [
+            group for group in data["groups"] if group["kind"] == "page"
+        ]
+        self.assertEqual(len(pages), 2)
+        tree = {(edge["from"], edge["to"]) for edge in data["tree_edges"]}
+        for page in pages:
+            self.assertIn((report["id"], page["head_id"]), tree)
+            visuals = [
+                node["id"] for node in data["nodes"]
+                if node["group_id"] == page["id"] and node["role"] == "card"
+            ]
+            self.assertTrue(visuals)
+            for visual_id in visuals:
+                self.assertIn((page["head_id"], visual_id), tree)
+        self.assertTrue(all(edge["kind"] == "tree" for edge in data["tree_edges"]))
+
+    def test_tree_edges_connect_mquery_head_to_steps(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Renamed Columns" = Table.RenameColumns(dbo_Sales, {{"Amount", "Total"}})
+in
+    #"Renamed Columns"
+"""
+        result = make_result(
+            columns=[column_analysis("Sales", "Total")],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(result, kind="column", table="Sales", name="Total")
+        group = next(
+            group for group in data["groups"] if group["kind"] == "mquery"
+        )
+        steps = [
+            node["id"] for node in data["nodes"]
+            if node["kind"] == "mstep" and node["group_id"] == group["id"]
+        ]
+        self.assertTrue(steps)
+        tree = {(edge["from"], edge["to"]) for edge in data["tree_edges"]}
+        targets = {
+            to for (frm, to) in tree if frm == group["head_id"]
+        }
+        self.assertTrue(targets)
+        self.assertTrue(targets.issubset(set(steps)))
+
     def test_highlight_edges_keep_direct_visuals_when_dense(self) -> None:
         records = [
             usage(page=f"P{page}", visual=f"{page}-{visual}")

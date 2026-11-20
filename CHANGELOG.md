@@ -29,11 +29,13 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   koridor di atas artifact, dan ekspor SVG/PNG ikut menggambar artifact/grup.
 - **Hierarki dan drag lineage**: kartu di dalam grup disusun sebagai pohon
   (induk di tengah anak-anaknya) dan rantai M kolom upstream ikut tampil untuk
-  measure (maksimal 3 kolom, 8 langkah per rantai). Klik kartu kini menyorot
-  lineage langsung kartu itu lewat `highlight_edges`, bukan seluruh report.
-  Kartu, grup, dan artifact bisa digeser; edge mengikuti posisi baru, pan tetap
-  hanya di area kosong, dan posisi kembali ke layout otomatis saat graph dimuat
-  ulang.
+  measure (maksimal 3 kolom, 8 langkah per rantai). Header **Report** terhubung
+  ke tiap **Page** dan header **Page** ke kartu visual/filter lewat garis pohon
+  ortogonal. Klik kartu kini menyorot lineage langsung kartu itu lewat
+  `highlight_edges`, bukan seluruh report. Kartu, grup, dan artifact bisa
+  digeser; kanvas memanjang otomatis ke kanan/bawah saat item melewati batas
+  awal, edge mengikuti posisi baru, pan tetap hanya di area kosong, dan posisi
+  kembali ke layout otomatis saat graph dimuat ulang.
 
 ### Kebijakan API
 
