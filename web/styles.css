@@ -1176,3 +1176,10 @@ tr.is-menu-open .row-menu-btn,
   flex:none; font-size:9px; font-weight:600; letter-spacing:.04em;
   text-transform:uppercase; color:var(--text-3);
 }
+
+.dialog--raw{ width:min(900px, calc(100vw - 32px)); }
+.raw-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+#analysisRawTableWrap{ max-height:420px; }
+#analysisRawTable td{ font-family:var(--font-mono); font-size:11.5px; white-space:nowrap; }
+#analysisRawTable td.cell-null{ color:var(--text-3); }
+#analysisRawQueryWrap summary{ cursor:pointer; font-size:12px; color:var(--text-2); }

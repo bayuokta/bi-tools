@@ -315,8 +315,11 @@ class XmlaClient:
     catalog_info: dict[str, Any] = field(default_factory=dict)
 
     # -- query -------------------------------------------------------------
-    def query_sql(self, sql: str) -> list[dict[str, Any]]:
-        reader = self.command_cls(sql, self.connection).ExecuteReader()
+    def query_sql(self, sql: str, timeout: int | None = None) -> list[dict[str, Any]]:
+        command = self.command_cls(sql, self.connection)
+        if timeout is not None:
+            command.CommandTimeout = int(timeout)
+        reader = command.ExecuteReader()
         try:
             names = [reader.GetName(index) for index in range(reader.FieldCount)]
             rows: list[dict[str, Any]] = []

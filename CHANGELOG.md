@@ -46,7 +46,15 @@ database.
 - Kolom dengan query M menampilkan **sumber data → tabel M → langkah M**
   (rename/select/derive) sebelum kolom model; `core\m_lineage.py` mencatat
   langkah per kolom (`StepLink`) dan pemotongan langkah dilaporkan lewat notice.
-- Item raw data, opsi tabel/model, dan ekspor masih badge **Soon**.
+- **Table options** (details, show in analysis, copy table name), **Model
+  options** (details, copy model name, run analysis again, open settings), dan
+  **Exports** (CSV node/edge, JSON, Mermaid, dependencies CSV) kini berfungsi.
+  Ekspor menulis hanya format yang diminta dan memberi pesan bila berkas sedang
+  dibuka aplikasi lain.
+- **Raw data** (kolom/measure) membaca langsung dari semantic model dengan
+  service principal, maksimal 100 baris dan timeout 60 detik. Dialog menampilkan
+  peringatan bahwa RLS pengguna tidak berlaku dan memuat data hanya setelah
+  tombol **Load data**; query asli dapat dilihat di bagian **Query**.
 
 ## 2026-11-19 - Rilis 0.4.4
 

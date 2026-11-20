@@ -13,8 +13,19 @@ import threading
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.auth import ServicePrincipal
+from core.auth import EntraTokens, ServicePrincipal
+from core.analysis_export import (
+    dependency_rows,
+    write_dependencies_csv,
+    write_lineage_files,
+)
 from core.analysis_lineage import build_lineage
+from core.analysis_query import (
+    DEFAULT_ROWS,
+    QUERY_TIMEOUT,
+    build_raw_query,
+    raw_payload as build_raw_payload,
+)
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
 from core.usage_store import initialize as initialize_usage, report_detail
@@ -29,6 +40,7 @@ from core.usage_service import (
     snapshot_from_connection,
     write_workbook,
 )
+from core.xmla_client import XmlaError, open_client, workspace_endpoint
 
 from .. import settings as keys
 from ..settings_store import SettingsStore
@@ -1001,6 +1013,156 @@ def lineage_payload(
         )
     except ValueError as exc:
         raise ExtractionError(str(exc)) from exc
+
+
+def _session_result(dataset_id: str) -> Any:
+    dataset = str(dataset_id or "").strip()
+    if not dataset:
+        raise ExtractionError("Dataset harus dipilih.")
+    session = _session(dataset, create=False)
+    if session is None:
+        raise ExtractionError(
+            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
+            "(hasil tidak disimpan ke database)."
+        )
+    with session.lock:
+        result = snapshot_from_connection(session.conn, dataset)
+    if result is None:
+        raise ExtractionError(
+            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
+            "dulu (hasil tidak disimpan ke database)."
+        )
+    return result
+
+
+def _find_analysis(result: Any, kind: str, table: str, name: str) -> Any:
+    wanted_kind = "measure" if str(kind).lower() == "measure" else "column"
+    wanted_table = str(table or "").casefold()
+    wanted_name = str(name or "").casefold()
+    items = getattr(
+        result, "measures" if wanted_kind == "measure" else "columns", []
+    ) or []
+    for item in items:
+        node = getattr(item, "measure", None) or getattr(item, "column", None)
+        if node is None:
+            continue
+        node_name = getattr(node, "measure", "") or getattr(node, "column", "")
+        if (
+            str(getattr(node, "table", "")).casefold() == wanted_table
+            and str(node_name).casefold() == wanted_name
+        ):
+            return item
+    raise ExtractionError(
+        "Kolom/measure tidak ditemukan di hasil analisa. Jalankan analisa ulang."
+    )
+
+
+def raw_payload(
+    store: SettingsStore,
+    dataset_id: str,
+    kind: str,
+    table: str,
+    name: str,
+    *,
+    limit: int = DEFAULT_ROWS,
+) -> dict[str, Any]:
+    """Ambil data mentah satu kolom/measure (read-only, job thread)."""
+    result = _session_result(dataset_id)
+    analysis = _find_analysis(result, kind, table, name)
+    node = getattr(analysis, "measure", None) or getattr(analysis, "column", None)
+    node_table = str(getattr(node, "table", "") or table)
+    node_name = str(
+        getattr(node, "measure", "") or getattr(node, "column", "") or name
+    )
+    principal: ServicePrincipal = store.principal()
+    principal.validate()
+    query = build_raw_query(
+        "measure" if str(kind).lower() == "measure" else "column",
+        node_table,
+        node_name,
+        limit=limit,
+    )
+    tokens = EntraTokens(principal)
+    endpoint = workspace_endpoint(
+        principal.tenant_id or "myorg", result.workspace_name
+    )
+    try:
+        client = open_client(
+            endpoint=endpoint,
+            catalog=result.dataset_name,
+            tokens=tokens,
+        )
+    except XmlaError as exc:
+        raise ExtractionError(
+            f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
+            f"{exc}\nPastikan XMLA Read aktif dan service principal punya akses."
+        ) from exc
+    try:
+        rows = client.query_sql(query, timeout=QUERY_TIMEOUT)
+    except XmlaError as exc:
+        raise ExtractionError(f"Query data mentah gagal: {exc}") from exc
+    finally:
+        client.close()
+    return build_raw_payload(rows, query=query, limit=limit)
+
+
+def export_lineage(
+    store: SettingsStore, payload: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Tulis node/edge/JSON lineage ke ``outputs``."""
+    dataset_id = str(payload.get("dataset_id") or "").strip()
+    kind = str(payload.get("kind") or "column").strip().lower()
+    table = str(payload.get("table") or "")
+    name = str(payload.get("name") or "")
+    direction = str(payload.get("direction") or "both").strip().lower()
+    category = str(payload.get("category") or "all").strip().lower()
+    export_format = str(payload.get("format") or "all").strip().lower()
+    if export_format not in {"all", "csv", "json"}:
+        raise ExtractionError("Format ekspor harus csv, json, atau all.")
+    result = _session_result(dataset_id)
+    try:
+        data = build_lineage(
+            result,
+            kind=kind,
+            table=table,
+            name=name,
+            direction=direction,
+            category=category,
+        )
+    except ValueError as exc:
+        raise ExtractionError(str(exc)) from exc
+    formats = {"csv", "json"} if export_format == "all" else {export_format}
+    try:
+        return write_lineage_files(
+            data, outputs_dir(), table=table, name=name, formats=formats
+        )
+    except OSError as exc:
+        raise ExtractionError(
+            f"Tidak bisa menulis berkas ekspor: {exc}. Tutup file yang sedang "
+            "dibuka lalu coba lagi."
+        ) from exc
+
+
+def export_dependencies(
+    store: SettingsStore, payload: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Tulis dependensi model + pemakaian report ke ``outputs``."""
+    dataset_id = str(payload.get("dataset_id") or "").strip()
+    kind = str(payload.get("kind") or "column").strip().lower()
+    table = str(payload.get("table") or "")
+    name = str(payload.get("name") or "")
+    result = _session_result(dataset_id)
+    rows = dependency_rows(result, kind=kind, table=table, name=name)
+    try:
+        path = write_dependencies_csv(
+            rows, outputs_dir(), table=table, name=name
+        )
+    except OSError as exc:
+        raise ExtractionError(
+            f"Tidak bisa menulis berkas ekspor: {exc}. Tutup file yang sedang "
+            "dibuka lalu coba lagi."
+        ) from exc
+    return {"path": str(path), "rows": len(rows)}
 
 
 def run_job(

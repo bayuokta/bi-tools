@@ -61,6 +61,45 @@ def lineage(
     )
 
 
+@router.post("/lineage/export")
+def lineage_export(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return presenter.export_lineage(settings_of(request), payload or {})
+
+
+@router.post("/dependencies/export")
+def dependencies_export(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return presenter.export_dependencies(settings_of(request), payload or {})
+
+
+@router.post("/raw", status_code=202)
+def raw(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    store = settings_of(request)
+    data = payload or {}
+    dataset_id = str(data.get("dataset_id") or "").strip()
+    table = str(data.get("table") or "").strip()
+    name = str(data.get("name") or "").strip()
+    kind = str(data.get("kind") or "column").strip().lower()
+    if not dataset_id or not table or not name:
+        raise HTTPException(
+            status_code=400, detail="Pilih kolom atau measure terlebih dahulu."
+        )
+    if kind not in {"column", "measure"}:
+        raise HTTPException(status_code=400, detail="Jenis item harus column/measure.")
+    limit = data.get("limit", 100)
+    return submit_job(
+        request,
+        "analysis-raw",
+        "Data mentah",
+        lambda log, cancel: presenter.raw_payload(
+            store, dataset_id, kind, table, name, limit=limit
+        ),
+    )
+
+
 @router.post("/run", status_code=202)
 def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     store = settings_of(request)

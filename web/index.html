@@ -1306,6 +1306,38 @@
   </div>
 </dialog>
 
+<dialog class="dialog dialog--raw" id="analysisRawDialog" aria-labelledby="analysisRawTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisRawTitle" data-i18n="Raw data">Raw data</h2>
+      <p class="helper mono" id="analysisRawSub"></p>
+    </div>
+    <button class="dialog-close" id="closeAnalysisRaw" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <p class="helper" data-i18n="Read directly from the semantic model with the service principal. User RLS does not apply. Maximum 100 rows.">Read directly from the semantic model with the service principal. User RLS does not apply. Maximum 100 rows.</p>
+    <div class="raw-actions">
+      <button class="btn btn-primary" id="analysisRawLoad" type="button" data-i18n="Load data">Load data</button>
+      <span class="helper" id="analysisRawStatus"></span>
+    </div>
+    <div class="table-scroll" id="analysisRawTableWrap" hidden>
+      <table class="data" id="analysisRawTable">
+        <thead id="analysisRawHead"></thead>
+        <tbody id="analysisRawBody"></tbody>
+      </table>
+    </div>
+    <details id="analysisRawQueryWrap" hidden>
+      <summary data-i18n="Query">Query</summary>
+      <pre class="detail-code" id="analysisRawQuery"></pre>
+    </details>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="doneAnalysisRaw" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
 <div class="combo-popup" id="comboPopup" hidden>
   <input class="input combo-search" id="comboSearch" type="search" placeholder="Search options." autocomplete="off" aria-label="Search options" data-i18n-placeholder="Search options." data-i18n-aria-label="Search options">
   <div class="combo-list" id="comboList" role="listbox"></div>

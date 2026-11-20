@@ -103,6 +103,8 @@
     analysisLineageDrag: null,
     analysisLineageHighlight: null,
     analysisSubmenuTarget: null,
+    analysisSubmenuAnchor: null,
+    analysisRawTarget: null,
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -671,9 +673,11 @@
       var message = (snapshot && snapshot.error) || t("Job failed.");
       addLog(message, "error");
       toast(message);
+      if (options.onError) options.onError(snapshot || {}, message);
     } else if (status === "cancelled") {
       addLog(t("Job cancelled."), "warn");
       toast(t("Job cancelled"));
+      if (options.onError) options.onError(snapshot || {}, t("Job cancelled"));
     } else if (options.onDone) {
       options.onDone(snapshot || {});
     }
@@ -1763,6 +1767,8 @@
     table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.8"/><path d="M3 9h18M3 14h18M9 9v11"/></svg>',
     model: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>',
     export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.3M17.6 15.2l2.2 1.3M4.2 16.5l2.2-1.3M17.6 8.8l2.2-1.3"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
   };
   var LINEAGE_KIND_LABELS = {
@@ -2276,8 +2282,7 @@
       {
         id: "raw",
         label: isMeasure ? t("Measure raw data") : t("Column raw data"),
-        icon: "raw",
-        soon: true
+        icon: "raw"
       },
       {
         id: "dependencies",
@@ -2289,22 +2294,19 @@
         id: "table-options",
         label: t("Table options"),
         icon: "table",
-        soon: true,
-        submenu: true
+        submenu: "table"
       },
       {
         id: "model-options",
         label: t("Model options"),
         icon: "model",
-        soon: true,
-        submenu: true
+        submenu: "model"
       },
       {
         id: "exports",
         label: t("Exports"),
         icon: "export",
-        soon: true,
-        submenu: true
+        submenu: "exports"
       }
     );
     return entries;
@@ -2339,12 +2341,64 @@
     }).join("");
   }
 
-  function analysisSubmenuMarkup() {
-    return LINEAGE_CATEGORIES.map(function (item) {
+  function analysisSubmenuEntries(action) {
+    if (action === "dependencies") {
+      return LINEAGE_CATEGORIES.map(function (item) {
+        return {
+          action: "lineage-graph:" + item[0],
+          label: item[1],
+          icon: "graph"
+        };
+      });
+    }
+    if (action === "table") {
+      return [
+        { action: "table-details", label: "Table details", icon: "details" },
+        { action: "table-show", label: "Show in analysis", icon: "table" },
+        { action: "table-copy", label: "Copy table name", icon: "copy" }
+      ];
+    }
+    if (action === "model") {
+      return [
+        { action: "model-details", label: "Model details", icon: "details" },
+        { action: "model-copy", label: "Copy model name", icon: "copy" },
+        { action: "model-rerun", label: "Run analysis again", icon: "refresh" },
+        { action: "model-settings", label: "Open settings", icon: "settings" }
+      ];
+    }
+    if (action === "exports") {
+      return [
+        {
+          action: "export-lineage-csv",
+          label: "Lineage nodes & edges (CSV)",
+          icon: "export"
+        },
+        {
+          action: "export-lineage-json",
+          label: "Lineage JSON",
+          icon: "code"
+        },
+        {
+          action: "copy-lineage-mermaid",
+          label: "Copy as Mermaid",
+          icon: "copy"
+        },
+        {
+          action: "export-dependencies-csv",
+          label: "Dependencies (CSV)",
+          icon: "table"
+        }
+      ];
+    }
+    return [];
+  }
+
+  function analysisSubmenuMarkup(action) {
+    return analysisSubmenuEntries(action).map(function (entry) {
       return '<div class="menu-item" role="menuitem" tabindex="-1" data-menu-action="' +
-        escapeHtml("lineage-graph:" + item[0]) + '">' +
-        '<span class="menu-icon">' + MENU_ICONS.graph + "</span>" +
-        '<span class="menu-label">' + escapeHtml(t(item[1])) + "</span></div>";
+        escapeHtml(entry.action) + '">' +
+        '<span class="menu-icon">' + (MENU_ICONS[entry.icon] || "") + "</span>" +
+        '<span class="menu-label">' + escapeHtml(t(entry.label)) + "</span></div>";
     }).join("");
   }
 
@@ -2371,9 +2425,12 @@
 
   function analysisOpenSubmenu(action, anchorEl) {
     var submenu = $("#analysisSubmenu");
-    if (!submenu || action !== "dependencies" || !anchorEl) return;
+    if (!submenu || !analysisSubmenuEntries(action).length || !anchorEl) {
+      return;
+    }
     state.analysisSubmenuTarget = action;
-    submenu.innerHTML = analysisSubmenuMarkup();
+    state.analysisSubmenuAnchor = anchorEl;
+    submenu.innerHTML = analysisSubmenuMarkup(action);
     analysisSubmenuPlace(anchorEl);
     var first = submenu.querySelector("[role='menuitem']");
     if (first) first.focus({ preventScroll: true });
@@ -2381,13 +2438,14 @@
 
   function analysisCloseSubmenu(restoreFocus) {
     var submenu = $("#analysisSubmenu");
+    var anchor = state.analysisSubmenuAnchor;
+    state.analysisSubmenuAnchor = null;
     if (!submenu || submenu.hidden) return;
     submenu.hidden = true;
     submenu.innerHTML = "";
     state.analysisSubmenuTarget = null;
-    if (restoreFocus) {
-      var parent = $("#analysisMenu [data-menu-submenu]");
-      if (parent) parent.focus({ preventScroll: true });
+    if (restoreFocus && anchor && document.contains(anchor)) {
+      anchor.focus({ preventScroll: true });
     }
   }
 
@@ -2500,6 +2558,43 @@
       analysisLineageOpen(target, view, category);
       return;
     }
+    if (action === "raw") {
+      analysisCloseMenu(false);
+      analysisOpenRaw(target);
+      return;
+    }
+    if (action === "table-details" || action === "table-show" ||
+        action === "table-copy") {
+      analysisCloseMenu(action === "table-copy");
+      if (action === "table-details") analysisOpenTableDetails(target);
+      else if (action === "table-show") analysisShowTable(target);
+      else copyTextValue(target.table);
+      return;
+    }
+    if (action === "model-details" || action === "model-copy" ||
+        action === "model-rerun" || action === "model-settings") {
+      analysisCloseMenu(false);
+      if (action === "model-details") analysisOpenModelDetails();
+      else if (action === "model-copy") analysisCopyModelName();
+      else if (action === "model-rerun") analysisRun();
+      else showView("pengaturan");
+      return;
+    }
+    if (action === "export-lineage-csv" || action === "export-lineage-json") {
+      analysisCloseMenu(false);
+      analysisExportLineage(target, action === "export-lineage-json" ? "json" : "csv");
+      return;
+    }
+    if (action === "copy-lineage-mermaid") {
+      analysisCloseMenu(false);
+      analysisCopyMermaid(target);
+      return;
+    }
+    if (action === "export-dependencies-csv") {
+      analysisCloseMenu(false);
+      analysisExportDependencies(target);
+      return;
+    }
     analysisCloseMenu(true);
   }
 
@@ -2526,6 +2621,251 @@
     } catch (error) {
       toast(t("Copy failed"));
     }
+  }
+
+  function analysisOpenInfoDialog(title, sub, html) {
+    var dialog = $("#analysisDetailsDialog");
+    if (!dialog) return;
+    $("#analysisDetailsTitle").textContent = title;
+    $("#analysisDetailsSub").textContent = sub || "";
+    $("#analysisDetailsBody").innerHTML = html;
+    $("#copyAnalysisExpression").hidden = true;
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+  }
+
+  function analysisOpenTableDetails(target) {
+    var info = (state.analysis.tables || []).filter(function (table) {
+      return table.name === target.table;
+    })[0] || {};
+    var query = (state.analysis.m_queries || []).filter(function (item) {
+      return item.kind === "Tabel" && item.name === target.table;
+    })[0] || {};
+    var rows = [
+      [t("Table"), target.table],
+      [t("Mode"), info.storage_mode || "\u2014"],
+      [t("Partitions"), info.partition_count || 0],
+      [t("Rows"), info.rows || 0],
+      [t("Size"), info.size || analysisFmtBytes(info.size_bytes || 0)],
+      [t("Columns"), info.column_count || 0],
+      [t("Measures"), info.measure_count || 0],
+      [t("Source"), query.source || "\u2014"],
+      [t("Query"), query.detail || "\u2014"]
+    ];
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    if (query.expression) {
+      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+        '</h3><pre class="detail-code">' + escapeHtml(query.expression) + "</pre>";
+    }
+    analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html);
+  }
+
+  function analysisOpenModelDetails() {
+    var result = state.analysis;
+    if (!result) {
+      toast(t("Run the analysis first"));
+      return;
+    }
+    var dataset = result.dataset || {};
+    var totals = result.totals || {};
+    var rows = [
+      [t("Model"), dataset.name || ""],
+      [t("Workspace"), dataset.workspace_name || ""],
+      [t("Dataset ID"), dataset.id || ""],
+      [t("Analyzed at"), String(result.analyzed_at || "").replace("T", " ").slice(0, 19)],
+      [t("Method"), result.method || ""],
+      [t("Coverage"), result.coverage || ""],
+      [t("Model size"), analysisFmtBytes(totals.model_bytes || 0)],
+      [t("Tables"), totals.tables || 0],
+      [t("Columns"), totals.columns || 0],
+      [t("Measures"), totals.measures || 0],
+      [t("Reports"), totals.reports || 0],
+      [t("Pages"), totals.pages || 0],
+      [t("Visuals"), totals.visuals || 0],
+      [t("Report usage"), result.reports_included === false
+        ? t("Not included") : t("Included")]
+    ];
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    analysisOpenInfoDialog(t("Model details"), dataset.name || "", html);
+  }
+
+  function analysisCopyModelName() {
+    var result = state.analysis;
+    if (!result) {
+      toast(t("Run the analysis first"));
+      return;
+    }
+    var dataset = result.dataset || {};
+    copyTextValue(
+      "'" + (dataset.workspace_name || "") + "' / '" + (dataset.name || "") + "'"
+    );
+  }
+
+  function analysisShowTable(target) {
+    if (!state.analysis) return;
+    state.analysisObjectFilter = "all";
+    var type = $("#typeAnalyze");
+    if (type) type.value = "all";
+    $("#unusedOnly").checked = false;
+    $("#searchAnalyze").value = target.table;
+    analysisSetTab("all");
+    var wrap = $("#analyzeTableWrap");
+    if (wrap) wrap.scrollIntoView({ block: "nearest" });
+  }
+
+  function analysisExportLineage(target, format) {
+    if (!apiReady()) return;
+    api().post("/api/analysis/lineage/export", {
+      dataset_id: getSelectValue("modelSelect"),
+      kind: target.kind,
+      table: target.table,
+      name: target.name,
+      direction: "both",
+      category: "all",
+      format: format === "json" ? "json" : "csv"
+    }).then(function (data) {
+      var paths = data.paths || [];
+      var path = paths.filter(function (item) {
+        return format === "json"
+          ? /\.json$/i.test(item) : /_nodes\.csv$/i.test(item);
+      })[0] || paths[0];
+      if (!path) return;
+      toast(t("Export: ") + path);
+      api().post("/api/files/open", { path: path, mode: "open" }).catch(function () {});
+    }).catch(reportError);
+  }
+
+  function analysisExportDependencies(target) {
+    if (!apiReady()) return;
+    api().post("/api/analysis/dependencies/export", {
+      dataset_id: getSelectValue("modelSelect"),
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    }).then(function (data) {
+      if (!data.path) return;
+      toast(t("Export: ") + data.path);
+      api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
+    }).catch(reportError);
+  }
+
+  function analysisLineageMermaid(graph) {
+    var ids = {};
+    var lines = ["flowchart LR"];
+    (graph.nodes || []).forEach(function (node, index) {
+      var id = "n" + index;
+      ids[node.id] = id;
+      var label = String(node.label || "");
+      var context = analysisLineageContext(node);
+      if (context) label += " (" + context + ")";
+      lines.push('  ' + id + '["' + label.replace(/"/g, "#quot;") + '"]');
+    });
+    (graph.edges || []).forEach(function (edge) {
+      var from = ids[edge.from];
+      var to = ids[edge.to];
+      if (from && to) lines.push("  " + from + " --> " + to);
+    });
+    return lines.join("\n");
+  }
+
+  function analysisCopyMermaid(target) {
+    if (!apiReady()) return;
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId) return;
+    var path = "/api/analysis/lineage?dataset_id=" + encodeURIComponent(datasetId) +
+      "&kind=" + encodeURIComponent(target.kind) +
+      "&table=" + encodeURIComponent(target.table) +
+      "&name=" + encodeURIComponent(target.name) +
+      "&direction=both&category=all&depth=4";
+    api().get(path).then(function (graph) {
+      copyTextValue(analysisLineageMermaid(graph));
+    }).catch(reportError);
+  }
+
+  function analysisResetRaw() {
+    state.analysisRawTarget = null;
+    $("#analysisRawSub").textContent = "";
+    $("#analysisRawStatus").textContent = "";
+    $("#analysisRawTableWrap").hidden = true;
+    $("#analysisRawQueryWrap").hidden = true;
+    $("#analysisRawQuery").textContent = "";
+    $("#analysisRawHead").innerHTML = "";
+    $("#analysisRawBody").innerHTML = "";
+    $("#analysisRawLoad").disabled = false;
+  }
+
+  function analysisOpenRaw(target) {
+    var dialog = $("#analysisRawDialog");
+    if (!dialog) return;
+    analysisResetRaw();
+    state.analysisRawTarget = {
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    };
+    $("#analysisRawSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    $("#analysisRawStatus").textContent = t("Not loaded");
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+  }
+
+  function analysisRunRaw() {
+    var target = state.analysisRawTarget;
+    var datasetId = getSelectValue("modelSelect");
+    if (!target || !datasetId) return;
+    $("#analysisRawStatus").textContent = t("Loading raw data…");
+    startJob({
+      kind: "analysis-raw",
+      path: "/api/analysis/raw",
+      body: {
+        dataset_id: datasetId,
+        kind: target.kind,
+        table: target.table,
+        name: target.name,
+        limit: 100
+      },
+      label: t("Raw data"),
+      button: $("#analysisRawLoad"),
+      onDone: function (snapshot) {
+        if (snapshot.result) analysisRenderRaw(snapshot.result);
+      },
+      onError: function (_snapshot, message) {
+        $("#analysisRawStatus").textContent =
+          tr(message || t("Raw data could not be loaded"));
+      }
+    });
+  }
+
+  function analysisRenderRaw(payload) {
+    var rows = payload.rows || [];
+    var columns = payload.columns || [];
+    $("#analysisRawHead").innerHTML = columns.length
+      ? "<tr>" + columns.map(function (column) {
+        return "<th>" + escapeHtml(column) + "</th>";
+      }).join("") + "</tr>"
+      : "";
+    $("#analysisRawBody").innerHTML = rows.map(function (row) {
+      return "<tr>" + columns.map(function (_column, index) {
+        var value = row[index];
+        var empty = value === "" || value === null || value === undefined;
+        return '<td' + (empty ? ' class="cell-null"' : "") + ">" +
+          escapeHtml(empty ? "\u2014" : String(value)) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("#analysisRawTableWrap").hidden = rows.length === 0;
+    var status = rows.length
+      ? rows.length + " " + t("rows")
+      : t("No rows returned");
+    if (payload.truncated) {
+      status += " \u00b7 " + t("first {n} rows").replace("{n}", payload.limit);
+    }
+    $("#analysisRawStatus").textContent = status;
+    $("#analysisRawQueryWrap").hidden = !payload.query;
+    $("#analysisRawQuery").textContent = payload.query || "";
   }
 
   function analysisDetailRow(label, value) {
@@ -5966,6 +6306,17 @@
       $("#analysisLineageEdges").innerHTML = "";
       $("#analysisLineageOutline").innerHTML = "";
     });
+    $("#analysisRawLoad").addEventListener("click", analysisRunRaw);
+    $("#closeAnalysisRaw").addEventListener("click", function () {
+      $("#analysisRawDialog").close();
+    });
+    $("#doneAnalysisRaw").addEventListener("click", function () {
+      $("#analysisRawDialog").close();
+    });
+    $("#analysisRawDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#analysisRawDialog").close();
+    });
+    $("#analysisRawDialog").addEventListener("close", analysisResetRaw);
     $("#analysisLineageSearch").addEventListener("input", analysisLineageApplySearch);
     $("#analysisLineageZoomIn").addEventListener("click", function () {
       analysisLineageZoomBy(1.25);

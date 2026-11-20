@@ -434,6 +434,96 @@ class AnalysisPresenterTests(unittest.TestCase):
                 )
         self.assertIn("tidak ditemukan", str(ctx.exception))
 
+    def test_raw_payload_queries_model_read_only(self) -> None:
+        presenter._session(DATASET)
+        client = SimpleNamespace(
+            query_sql=lambda sql, timeout=None: [{"Customer Name": "Budi"}],
+            close=lambda: None,
+        )
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(presenter, "open_client", return_value=client) as opened, patch.object(
+            presenter, "EntraTokens", return_value=object()
+        ):
+            data = presenter.raw_payload(
+                self.store,
+                DATASET,
+                "column",
+                "Dim Customer",
+                "Customer Name",
+                limit=10,
+            )
+        query = opened.call_args.kwargs["endpoint"]
+        self.assertIn("Workspace%20Uji", query)
+        self.assertEqual(opened.call_args.kwargs["catalog"], "Model Uji")
+        self.assertEqual(data["columns"], ["Customer Name"])
+        self.assertEqual(data["rows"], [["Budi"]])
+        self.assertEqual(data["limit"], 10)
+        self.assertIn("TOPN(10,", data["query"])
+
+    def test_raw_payload_rejects_unknown_item(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(presenter, "open_client") as opened:
+            with self.assertRaises(ExtractionError):
+                presenter.raw_payload(
+                    self.store, DATASET, "column", "T", "TidakAda"
+                )
+        opened.assert_not_called()
+
+    def test_export_lineage_writes_files(self) -> None:
+        presenter._session(DATASET)
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(
+                presenter, "snapshot_from_connection", return_value=fake_result()
+            ), patch.object(presenter, "outputs_dir", return_value=Path(tmp)):
+                data = presenter.export_lineage(
+                    self.store,
+                    {
+                        "dataset_id": DATASET,
+                        "kind": "column",
+                        "table": "Dim Customer",
+                        "name": "Customer Name",
+                    },
+                )
+            self.assertEqual(len(data["paths"]), 3)
+            for path in data["paths"]:
+                self.assertTrue(Path(path).exists())
+            with patch.object(
+                presenter, "snapshot_from_connection", return_value=fake_result()
+            ), patch.object(presenter, "outputs_dir", return_value=Path(tmp)):
+                only_json = presenter.export_lineage(
+                    self.store,
+                    {
+                        "dataset_id": DATASET,
+                        "kind": "column",
+                        "table": "Dim Customer",
+                        "name": "Customer Name",
+                        "format": "json",
+                    },
+                )
+            self.assertEqual(len(only_json["paths"]), 1)
+            self.assertTrue(only_json["paths"][0].endswith(".json"))
+
+    def test_export_dependencies_writes_csv(self) -> None:
+        presenter._session(DATASET)
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(
+                presenter, "snapshot_from_connection", return_value=fake_result()
+            ), patch.object(presenter, "outputs_dir", return_value=Path(tmp)):
+                data = presenter.export_dependencies(
+                    self.store,
+                    {
+                        "dataset_id": DATASET,
+                        "kind": "column",
+                        "table": "Dim Customer",
+                        "name": "Customer Name",
+                    },
+                )
+            self.assertGreater(data["rows"], 0)
+            self.assertTrue(Path(data["path"]).exists())
+
 
 class AnalysisEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -552,6 +642,73 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.assertEqual(
             self.client.get(f"/api/jobs/{job_id}").json()["result"], {"ok": True}
         )
+
+    def test_raw_endpoint_requires_item(self) -> None:
+        response = self.client.post(
+            "/api/analysis/raw", json={"dataset_id": DATASET, "kind": "column"}
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_raw_endpoint_starts_job(self) -> None:
+        def fake_raw(store, dataset_id, kind, table, name, limit=100):
+            return {"columns": ["A"], "rows": [[1]], "limit": limit}
+
+        with patch.object(presenter, "raw_payload", fake_raw):
+            response = self.client.post(
+                "/api/analysis/raw",
+                json={
+                    "dataset_id": DATASET,
+                    "kind": "column",
+                    "table": "Sales",
+                    "name": "Amount",
+                    "limit": 10,
+                },
+            )
+            self.assertEqual(response.status_code, 202)
+            job_id = response.json()["job_id"]
+            self.assertTrue(
+                wait_until(
+                    lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
+                    != "running"
+                )
+            )
+        result = self.client.get(f"/api/jobs/{job_id}").json()["result"]
+        self.assertEqual(result["limit"], 10)
+        self.assertEqual(result["rows"], [[1]])
+
+    def test_lineage_export_endpoint_delegates(self) -> None:
+        with patch.object(
+            presenter, "export_lineage", return_value={"paths": ["a.csv"]}
+        ) as mock:
+            response = self.client.post(
+                "/api/analysis/lineage/export",
+                json={
+                    "dataset_id": DATASET,
+                    "kind": "column",
+                    "table": "Sales",
+                    "name": "Amount",
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["paths"], ["a.csv"])
+        self.assertEqual(mock.call_args.args[1]["table"], "Sales")
+
+    def test_dependencies_export_endpoint_delegates(self) -> None:
+        with patch.object(
+            presenter, "export_dependencies", return_value={"path": "d.csv"}
+        ) as mock:
+            response = self.client.post(
+                "/api/analysis/dependencies/export",
+                json={
+                    "dataset_id": DATASET,
+                    "kind": "measure",
+                    "table": "KPI",
+                    "name": "Total",
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["path"], "d.csv")
+        self.assertEqual(mock.call_args.args[1]["kind"], "measure")
 
     def test_export_endpoint(self) -> None:
         with patch.object(

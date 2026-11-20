@@ -394,6 +394,9 @@ class WebLayerTests(unittest.TestCase):
             'id="analysisLineageView"',
             'id="analysisLineageOutline"',
             'id="analysisSubmenu"',
+            'id="analysisRawDialog"',
+            'id="analysisRawTable"',
+            'id="analysisRawLoad"',
         ):
             self.assertIn(marker, html)
             self.assertEqual(
@@ -407,13 +410,24 @@ class WebLayerTests(unittest.TestCase):
             "function analysisLineageSelect(",
             "function analysisOpenSubmenu(",
             "function analysisLineageReroot(",
+            "function analysisOpenRaw(",
+            "function analysisRunRaw(",
+            "function analysisOpenTableDetails(",
+            "function analysisOpenModelDetails(",
+            "function analysisExportLineage(",
+            "function analysisExportDependencies(",
+            "function analysisCopyMermaid(",
             "/api/analysis/lineage",
+            "/api/analysis/raw",
             "data-node-id",
             "data-menu-submenu",
             "node.x",
             "data-node-kind",
         ):
             self.assertIn(marker, js)
+        self.assertIn("def raw_payload(", presenter)
+        self.assertIn("def export_lineage(", presenter)
+        self.assertIn("def export_dependencies(", presenter)
         self.assertIn("def lineage_payload(", presenter)
         self.assertIn("build_lineage", presenter)
         self.assertIn("def build_lineage(", core)
