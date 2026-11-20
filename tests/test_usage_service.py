@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -29,6 +30,8 @@ from core.usage_service import (
     STATUS_USED,
     FORMAT_RDL,
     AnalysisResult,
+    DefinitionLoader,
+    DEFINITION_POLL_WAIT,
     ColumnAnalysis,
     MeasureAnalysis,
     ModelReference,
@@ -56,6 +59,7 @@ from core.usage_service import (
 from core.usage_store import (
     field_usage,
     initialize,
+    reports as stored_reports,
     save_columns,
     save_m_queries,
     save_measures,
@@ -700,6 +704,119 @@ class ScanReportsTests(unittest.TestCase):
         counters = self.scan(entries=[], loader=lambda _entry: definition())
 
         self.assertEqual(counters.total, 0)
+
+    def _many(self, count: int = 6) -> list[ReportEntry]:
+        return [
+            ReportEntry(
+                report_id=f"r{index}",
+                name=f"Report {index}",
+                workspace_id="ws",
+                report_format="PBIR",
+                modified_at="2026-01-01T00:00:00Z",
+            )
+            for index in range(1, count + 1)
+        ]
+
+    def test_parallel_scan_matches_serial_result(self) -> None:
+        entries = self._many()
+        calls: list[str] = []
+
+        def loader(entry: ReportEntry) -> ReportDefinition:
+            calls.append(entry.report_id)
+            time.sleep(0.002)
+            return definition(prop="Customer")
+
+        serial = self.scan(entries=entries, loader=loader, scan_workers=1)
+        serial_usage = field_usage(self.conn, "ds")
+        serial_reports = stored_reports(self.conn, "ds")
+        self.assertEqual(serial.scanned, len(entries))
+
+        for table in ("usage_field", "usage_report", "usage_page"):
+            self.conn.execute(f"DELETE FROM {table}")
+        self.conn.commit()
+        calls.clear()
+
+        parallel = self.scan(entries=entries, loader=loader, scan_workers=3)
+        self.assertEqual(parallel.scanned, len(entries))
+        self.assertEqual(parallel.failed, 0)
+        self.assertEqual(parallel.workers, 3)
+        self.assertEqual(sorted(calls), sorted(entry.report_id for entry in entries))
+        self.assertGreater(parallel.fetch_ms, 0)
+
+        def without_stamp(rows: list[dict]) -> list[dict]:
+            return [
+                {key: value for key, value in row.items() if key != "scanned_at"}
+                for row in rows
+            ]
+
+        self.assertEqual(field_usage(self.conn, "ds"), serial_usage)
+        self.assertEqual(
+            without_stamp(stored_reports(self.conn, "ds")),
+            without_stamp(serial_reports),
+        )
+
+    def test_worker_count_is_clamped_and_budget_limits_prefetch(self) -> None:
+        self.assertEqual(self.scan(scan_workers=9).workers, 4)
+        self.assertEqual(self.scan(scan_workers=0).workers, 1)
+        self.conn.execute("DELETE FROM usage_report")
+        self.conn.commit()
+        calls: list[str] = []
+
+        def loader(entry: ReportEntry) -> ReportDefinition:
+            calls.append(entry.report_id)
+            return definition()
+
+        counters = self.scan(
+            entries=self._many(4), loader=loader, max_reports=2, scan_workers=4
+        )
+        self.assertEqual(counters.workers, 4)
+        self.assertEqual(counters.scanned, 2)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(counters.incomplete, 2)
+
+    def test_report_cache_is_not_prefetched(self) -> None:
+        entries = self._many(3)
+        calls: list[str] = []
+
+        def loader(entry: ReportEntry) -> ReportDefinition:
+            calls.append(entry.report_id)
+            return definition()
+
+        self.scan(entries=entries, loader=loader, scan_workers=1)
+        calls.clear()
+        counters = self.scan(entries=entries, loader=loader, scan_workers=3)
+
+        self.assertEqual(counters.skipped, len(entries))
+        self.assertEqual(calls, [])
+
+
+class DefinitionLoaderTests(unittest.TestCase):
+    def test_reuses_one_client_per_thread_and_closes(self) -> None:
+        entry = ReportEntry(
+            report_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            name="Report A",
+            workspace_id="11111111-2222-3333-4444-555555555555",
+            report_format="PBIR",
+            modified_at="2026-01-01T00:00:00Z",
+        )
+        with patch("core.usage_service.FabricReportClient") as client_cls, patch(
+            "core.usage_service.fabric_provider", return_value=object()
+        ):
+            client = client_cls.return_value
+            client.get_report_definition.return_value = definition()
+            loader = DefinitionLoader(None)  # type: ignore[arg-type]
+            try:
+                loader(entry)
+                loader(entry)
+            finally:
+                loader.close()
+
+        self.assertEqual(client_cls.call_count, 1)
+        self.assertEqual(
+            client_cls.call_args.kwargs["poll_wait"], DEFINITION_POLL_WAIT
+        )
+        self.assertEqual(client.get_report_definition.call_count, 2)
+        client.close.assert_called_once()
 
 
 class BuildAnalysisTests(unittest.TestCase):

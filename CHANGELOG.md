@@ -27,6 +27,17 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   menghitung ulang tata letak, dengan indikator `x / y`; ekspor gambar mengikuti
   filter, CSV tetap penuh.
 
+### Performa analisa
+
+- Scan report mengunduh definisi `getDefinition` secara paralel lewat
+  `scan_workers` (web/CLI bawaan 2, maks 4, `--scan-workers`), dengan prefetch
+  satu langkah, penulisan SQLite tetap berurutan, dan fallback otomatis ke
+  serial saat Fabric menjawab 429.
+- Satu klien Fabric dipakai ulang per worker (bukan per report), dan
+  `poll_wait` tetap 1 dtk karena polling lebih rapat memicu throttling.
+- `usage_scan_run` menyimpan `fetch_ms`, `scan_ms`, dan `scan_workers`; log job
+  mencetak `Scan report: …` untuk membandingkan run.
+
 ### Analisa Semantic Model
 
 - Tab **Health** memeriksa model dan report tanpa request tambahan: error

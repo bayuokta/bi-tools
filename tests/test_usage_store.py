@@ -250,6 +250,9 @@ class UsageStoreTests(unittest.TestCase):
                 "unused_count": 2,
                 "report_personal": 3,
                 "report_inaccessible": 1,
+                "fetch_ms": 1250,
+                "scan_ms": 300,
+                "scan_workers": 2,
             },
         )
 
@@ -258,6 +261,9 @@ class UsageStoreTests(unittest.TestCase):
         self.assertEqual(last["unused_count"], 2)
         self.assertEqual(last["report_personal"], 3)
         self.assertEqual(last["report_inaccessible"], 1)
+        self.assertEqual(last["fetch_ms"], 1250)
+        self.assertEqual(last["scan_ms"], 300)
+        self.assertEqual(last["scan_workers"], 2)
 
     def test_m_query_snapshot_is_replaced_per_dataset(self) -> None:
         save_m_queries(

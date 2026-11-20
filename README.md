@@ -196,6 +196,7 @@ python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --list-re
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --workspace-only
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --model-only
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh --max-reports 20
+python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh --scan-workers 4
 ```
 
 Nama workspace/dataset diambil dari katalog SQLite (`data\bi_tools.db`); `--workspace-name`/`--dataset-name` hanya perlu bila katalog belum pernah disinkronkan. Hasil ditulis ke `Analisa_Semantic_Model_<nama>_<id8>.xlsx` (`--out` untuk path lain).
@@ -438,7 +439,7 @@ Ekspor XLSX menambah sheet `10_BestPractice_Model` (temuan) dan `11_BestPractice
 
 ### Kinerja
 
-Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Di web, dataset dengan 165 report ≈ 5–6 menit pada run pertama per sesi server, lalu <30 detik untuk run berikutnya (cache definisi report di memori). CLI tetap memakai cache SQLite antar-run. Atur **Hentikan**, `--max-reports`, atau matikan **Include report usage** (`--model-only`) untuk analisa cepat.
+Analisa satu dataset: ±6 detik untuk XMLA + 1,5–12 detik per report (bergantung jumlah parts). Scan report mengunduh definisi secara paralel: `--scan-workers` (1–4, bawaan 2) dan `scan_workers` di payload web. Pada dataset 186 report, 12 report `refresh=True` memakan 36–56 dtk serial, 23–44 dtk dengan 2 worker, dan 18 dtk dengan 4 worker. Polling lebih rapat dari 1 dtk justru memicu throttling Fabric, jadi nilainya tetap 1 dtk. Di web, run berikutnya memakai cache definisi report di sesi server (<30 dtk); CLI memakai cache SQLite antar-run. Atur **Hentikan**, `--max-reports`, `--scan-workers`, atau matikan **Include report usage** (`--model-only`) untuk analisa cepat.
 
 ### Ekspor XLSX
 

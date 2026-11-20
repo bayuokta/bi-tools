@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from collections import defaultdict
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1295,6 +1298,9 @@ class ScanCounters:
     unresolved: int = 0
     cancelled: bool = False
     incomplete: int = 0
+    fetch_ms: int = 0
+    scan_ms: int = 0
+    workers: int = 1
 
     @property
     def complete(self) -> bool:
@@ -1322,6 +1328,7 @@ def scan_reports(
     max_reports: int | None = None,
     include_personal: bool = False,
     definition_loader: Callable[[ReportEntry], ReportDefinition] | None = None,
+    scan_workers: int = 1,
     log: Log = _silent,
     progress: Progress | None = None,
     should_stop: Callable[[], bool] | None = None,
@@ -1332,6 +1339,11 @@ def scan_reports(
     ``include_personal=True``. Report yang ditolak 401/403/404 dicatat
     ``inaccessible`` dan tidak dicoba ulang selama
     ``INACCESSIBLE_RETRY_HOURS`` kecuali ``refresh=True``.
+
+    ``scan_workers`` > 1 mengunduh definisi beberapa report sekaligus.
+    Penulisan SQLite, log, progress, dan urutan hasil tetap di thread utama,
+    jadi isi database sama dengan mode serial. ``max_reports`` membatasi jumlah
+    unduhan yang dijadwalkan, termasuk yang di-prefetch.
     """
     counters = ScanCounters(total=len(entries))
     cache = {} if refresh else report_cache(conn, dataset_id)
@@ -1341,13 +1353,89 @@ def scan_reports(
             "Loader definisi report tidak tersedia untuk analisa ini."
         )
     loader = definition_loader
-
+    workers = max(1, min(4, int(scan_workers or 1)))
+    counters.workers = workers
+    executor = ThreadPoolExecutor(max_workers=workers) if workers > 1 else None
+    prefetch: list[tuple[str, Future]] = []
+    prefetch_index = 0
+    concurrency_ok = True
     processed = 0
+
+    def budget_left() -> bool:
+        if max_reports is None:
+            return True
+        return processed + len(prefetch) + 1 < max_reports
+
+    def should_fetch(candidate: ReportEntry) -> bool:
+        if not budget_left():
+            return False
+        if candidate.personal and not include_personal:
+            return False
+        if candidate.is_app:
+            return False
+        if not candidate.supported:
+            return False
+        cached = cache.get(candidate.report_id)
+        if (
+            cached
+            and not refresh
+            and cached.get("status") == "ok"
+            and str(cached.get("modified_at") or "") == candidate.modified_at
+            and candidate.modified_at
+        ):
+            return False
+        if (
+            cached
+            and not refresh
+            and cached.get("status") == "inaccessible"
+            and _recently_scanned(cached.get("scanned_at"))
+        ):
+            return False
+        return True
+
+    def fill_prefetch(start: int) -> None:
+        nonlocal prefetch_index
+        if executor is None or not concurrency_ok:
+            return
+        if prefetch_index < start:
+            prefetch_index = start
+        while (
+            len(prefetch) < max(1, workers - 1)
+            and prefetch_index < len(entries)
+            and budget_left()
+        ):
+            candidate = entries[prefetch_index]
+            prefetch_index += 1
+            if should_fetch(candidate):
+                prefetch.append(
+                    (candidate.report_id, executor.submit(loader, candidate))
+                )
+
+    def take_future(entry: ReportEntry) -> Future | None:
+        for position, (report_id, future) in enumerate(prefetch):
+            if report_id == entry.report_id:
+                prefetch.pop(position)
+                return future
+        return None
+
+    def drop_future(entry: ReportEntry) -> None:
+        for position, (report_id, future) in enumerate(prefetch):
+            if report_id == entry.report_id:
+                prefetch.pop(position)
+                future.cancel()
+                return
+
+    def cancel_prefetch() -> None:
+        while prefetch:
+            _report_id, future = prefetch.pop()
+            future.cancel()
+
     for index, entry in enumerate(entries, start=1):
         if should_stop is not None and should_stop():
             counters.cancelled = True
             log("Analisa dihentikan atas permintaan pengguna.")
             break
+        fill_prefetch(index)
         if entry.personal and not include_personal:
             save_report(
                 conn,
@@ -1432,11 +1520,22 @@ def scan_reports(
         if progress is not None:
             progress(index, counters.total, entry.name)
         log(f"[{index}/{counters.total}] {entry.label} ({entry.report_format})")
+        future = take_future(entry)
         try:
-            definition = loader(entry)
+            fetch_started = time.perf_counter()
+            if future is None:
+                definition = loader(entry)
+            else:
+                definition = future.result()
+            counters.fetch_ms += int((time.perf_counter() - fetch_started) * 1000)
+            scan_started = time.perf_counter()
             usage = scan_definition(definition, table_names=names, log=log)
+            counters.scan_ms += int((time.perf_counter() - scan_started) * 1000)
         except ApiError as exc:
             status_code = int(getattr(exc, "status_code", 0) or 0)
+            if status_code == 429 and concurrency_ok:
+                concurrency_ok = False
+                cancel_prefetch()
             message = str(exc).splitlines()[0][:300]
             if status_code in INACCESSIBLE_STATUSES:
                 save_report(
@@ -1545,6 +1644,9 @@ def scan_reports(
         counters.unresolved += len(usage.unresolved)
         processed += 1
 
+    cancel_prefetch()
+    if executor is not None:
+        executor.shutdown(wait=True, cancel_futures=True)
     if entries:
         mark_reports_inactive(
             conn, dataset_id, [entry.report_id for entry in entries]
@@ -1579,15 +1681,58 @@ def _recently_scanned(
     return datetime.now(timezone.utc) - stamp < timedelta(hours=hours)
 
 
+DEFINITION_POLL_WAIT = 1.0
+
+
+class DefinitionLoader:
+    """Unduh definisi report dengan satu klien Fabric per thread.
+
+    Sesi ``requests`` tidak dijamin aman dipakai banyak thread sekaligus, jadi
+    setiap worker mendapat kliennya sendiri. Dengan satu worker, objek ini tetap
+    memakai ulang satu sesi untuk seluruh scan (menghindari handshake TLS per
+    report). ``poll_wait`` tetap 1 dtk: polling lebih rapat membuat Fabric
+    mengirim ``Retry-After``/throttling sehingga totalnya justru jauh lebih lama
+    (diukur: 24-37 dtk/report untuk poll 0,35 dtk vs 6-12 dtk untuk 1 dtk).
+    """
+
+    def __init__(self, tokens: EntraTokens) -> None:
+        self._tokens = tokens
+        self._local = threading.local()
+        self._clients: list[FabricReportClient] = []
+        self._lock = threading.Lock()
+
+    def __call__(self, entry: ReportEntry) -> ReportDefinition:
+        client = getattr(self._local, "client", None)
+        if client is None:
+            client = FabricReportClient(
+                fabric_provider(self._tokens),
+                poll_wait=DEFINITION_POLL_WAIT,
+                log=_silent,
+            )
+            self._local.client = client
+            with self._lock:
+                self._clients.append(client)
+        service = ServiceReportRef.from_ids(entry.workspace_id, entry.report_id)
+        return client.get_report_definition(service)
+
+    def close(self) -> None:
+        with self._lock:
+            clients = list(self._clients)
+            self._clients.clear()
+        for client in clients:
+            client.close()
+        self._local = threading.local()
+
+
 def _fetch_definition(
     tokens: EntraTokens, entry: ReportEntry
 ) -> ReportDefinition:
-    """Unduh definisi report dengan polling cepat (LRO siap ±1 dtk)."""
-    service = ServiceReportRef.from_ids(entry.workspace_id, entry.report_id)
-    with FabricReportClient(
-        fabric_provider(tokens), poll_wait=1.0, log=_silent
-    ) as client:
-        return client.get_report_definition(service)
+    """Unduh satu definisi report (tanpa cache sesi; dipakai pemanggil luar)."""
+    loader = DefinitionLoader(tokens)
+    try:
+        return loader(entry)
+    finally:
+        loader.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1606,6 +1751,7 @@ def analyze_dataset(
     include_reports: bool = True,
     refresh: bool = False,
     max_reports: int | None = None,
+    scan_workers: int = 1,
     session: Any = None,
     log: Log = _silent,
     progress: Progress | None = None,
@@ -1749,22 +1895,37 @@ def analyze_dataset(
         )
         save_m_queries(conn, dataset_id, m_rows)
         if include_reports:
-            loader = definition_loader or (
-                lambda entry: _fetch_definition(tokens, entry)
-            )
-            counters = scan_reports(
-                conn,
-                entries,
-                dataset_id=dataset_id,
-                table_names=[table.table for table in stats.tables],
-                refresh=refresh,
-                max_reports=max_reports,
-                include_personal=include_personal,
-                definition_loader=loader,
-                log=log,
-                progress=progress,
-                should_stop=should_stop,
-            )
+            own_loader: DefinitionLoader | None = None
+            if definition_loader is None:
+                own_loader = DefinitionLoader(tokens)
+                loader = own_loader
+            else:
+                loader = definition_loader
+            try:
+                counters = scan_reports(
+                    conn,
+                    entries,
+                    dataset_id=dataset_id,
+                    table_names=[table.table for table in stats.tables],
+                    refresh=refresh,
+                    max_reports=max_reports,
+                    include_personal=include_personal,
+                    definition_loader=loader,
+                    scan_workers=scan_workers,
+                    log=log,
+                    progress=progress,
+                    should_stop=should_stop,
+                )
+            finally:
+                if own_loader is not None:
+                    own_loader.close()
+            if counters.scanned:
+                log(
+                    f"Scan report: {counters.scanned} unduh "
+                    f"{counters.fetch_ms / 1000:.1f} dtk · scan definisi "
+                    f"{counters.scan_ms / 1000:.1f} dtk · "
+                    f"{counters.workers} worker."
+                )
             usage_rows = field_usage(conn, dataset_id)
             report_rows = stored_reports(conn, dataset_id)
             page_rows = stored_report_pages(conn, dataset_id)
@@ -1834,6 +1995,9 @@ def analyze_dataset(
                 "unused_bytes": result.unused_bytes,
                 "dataset_bytes": result.dataset_bytes,
                 "coverage": coverage,
+                "fetch_ms": counters.fetch_ms,
+                "scan_ms": counters.scan_ms,
+                "scan_workers": counters.workers,
             },
         )
     finally:

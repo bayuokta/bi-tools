@@ -308,6 +308,7 @@ class AnalysisRequest:
     include_reports: bool = True
     refresh: bool = False
     max_reports: int | None = None
+    scan_workers: int = 2
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -329,6 +330,17 @@ class AnalysisRequest:
                     f"Batas report per analisa harus > 0: {self.max_reports}."
                 )
             object.__setattr__(self, "max_reports", value)
+        try:
+            workers = int(self.scan_workers)
+        except (TypeError, ValueError) as exc:
+            raise ExtractionError(
+                f"Jumlah worker scan report tidak valid: {self.scan_workers}."
+            ) from exc
+        if workers < 1 or workers > 4:
+            raise ExtractionError(
+                f"Jumlah worker scan report harus 1-4: {self.scan_workers}."
+            )
+        object.__setattr__(self, "scan_workers", workers)
 
     def to_run_kwargs(self) -> dict[str, Any]:
         """Argumen :func:`core.usage_service.analyze_dataset` (tanpa kredensial)."""
@@ -342,6 +354,7 @@ class AnalysisRequest:
             "include_reports": self.include_reports,
             "refresh": self.refresh,
             "max_reports": self.max_reports,
+            "scan_workers": self.scan_workers,
         }
         if self.database is not None:
             payload["database"] = self.database

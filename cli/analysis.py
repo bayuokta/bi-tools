@@ -68,6 +68,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--max-reports", type=int, help="Batas jumlah report baru yang dipindai sekali jalan.")
+    parser.add_argument(
+        "--scan-workers",
+        type=int,
+        default=2,
+        help=(
+            "Jumlah definisi report yang diunduh bersamaan (1-4, bawaan 2). "
+            "Turun otomatis ke 1 bila Fabric mengembalikan 429."
+        ),
+    )
     parser.add_argument("--list-reports", action="store_true", help="Hanya tampilkan daftar report pemakai dataset.")
     return parser.parse_args(argv)
 
@@ -97,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
             include_reports=not args.model_only,
             refresh=args.refresh,
             max_reports=args.max_reports,
+            scan_workers=args.scan_workers,
         )
         principal = ServicePrincipal.from_env()
         workspace_name, dataset_name = _names(args)

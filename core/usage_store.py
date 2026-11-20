@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS usage_scan_run (
   column_count INTEGER DEFAULT 0, unused_count INTEGER DEFAULT 0,
   measure_count INTEGER DEFAULT 0, unused_measure_count INTEGER DEFAULT 0,
   unused_bytes INTEGER DEFAULT 0, dataset_bytes INTEGER DEFAULT 0,
-  coverage TEXT, model_json TEXT
+  coverage TEXT, model_json TEXT,
+  fetch_ms INTEGER DEFAULT 0, scan_ms INTEGER DEFAULT 0,
+  scan_workers INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS usage_report (
   report_id TEXT PRIMARY KEY,
@@ -131,6 +133,9 @@ MIGRATIONS = {
         "unused_measure_count": "INTEGER DEFAULT 0",
         "coverage_complete": "INTEGER DEFAULT 0",
         "model_json": "TEXT",
+        "fetch_ms": "INTEGER DEFAULT 0",
+        "scan_ms": "INTEGER DEFAULT 0",
+        "scan_workers": "INTEGER DEFAULT 1",
     },
     "usage_column": {
         "error_message": "TEXT",
@@ -899,6 +904,9 @@ def save_run(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
         "dataset_bytes",
         "coverage",
         "model_json",
+        "fetch_ms",
+        "scan_ms",
+        "scan_workers",
     )
     values = tuple(row.get(field) for field in fields)
     marks = ", ".join("?" for _ in fields)

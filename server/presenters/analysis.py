@@ -1327,6 +1327,8 @@ def run_job(
         include_personal=bool(payload.get("include_personal", False)),
         include_reports=include_reports,
         refresh=bool(payload.get("refresh", False)),
+        max_reports=payload.get("max_reports"),
+        scan_workers=int(payload.get("scan_workers") or 2),
     )
 
     def progress(index: int, total: int, name: str) -> None:

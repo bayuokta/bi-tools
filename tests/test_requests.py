@@ -215,6 +215,7 @@ class AnalysisRequestTests(unittest.TestCase):
         self.assertFalse(request.include_personal)
         self.assertFalse(request.refresh)
         self.assertIsNone(payload["max_reports"])
+        self.assertEqual(payload["scan_workers"], 2)
         self.assertNotIn("database", payload)
         self.assertEqual(payload["dataset_id"], DATASET)
 
@@ -245,6 +246,19 @@ class AnalysisRequestTests(unittest.TestCase):
             AnalysisRequest(workspace_id=WORKSPACE, dataset_id="bukan-guid")
         with self.assertRaises(ExtractionError):
             AnalysisRequest(workspace_id=WORKSPACE, dataset_id=DATASET, max_reports=0)
+        for workers in (0, 5, "x"):
+            with self.assertRaises(ExtractionError):
+                AnalysisRequest(
+                    workspace_id=WORKSPACE,
+                    dataset_id=DATASET,
+                    scan_workers=workers,
+                )
+        self.assertEqual(
+            AnalysisRequest(
+                workspace_id=WORKSPACE, dataset_id=DATASET, scan_workers=1
+            ).to_run_kwargs()["scan_workers"],
+            1,
+        )
 
     def test_kwargs_match_use_case(self) -> None:
         import core.usage_service as service
