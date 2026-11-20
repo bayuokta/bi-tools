@@ -1074,6 +1074,182 @@ in
         self.assertGreater(first["width"], 0)
         self.assertGreater(first["height"], 0)
 
+    def test_tree_layout_centers_parent_between_children(self) -> None:
+        def consumer(name: str) -> ModelReference:
+            return ModelReference(
+                kind="measure",
+                object=f"'M'[{name}]",
+                detail="",
+                blocking=False,
+            )
+
+        calc = measure_analysis(
+            "M",
+            "Calc",
+            refs=[consumer("Left"), consumer("Right")],
+        )
+        left = measure_analysis("M", "Left")
+        right = measure_analysis("M", "Right")
+        data = build_lineage(
+            make_result(measures=[calc, left, right]),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+        nodes = {node["id"]: node for node in data["nodes"]}
+        seed = nodes["measure:M:Calc"]
+        children = [nodes["measure:M:Left"], nodes["measure:M:Right"]]
+        self.assertEqual(seed["column"], 0)
+        self.assertEqual(children[0]["column"], 1)
+        self.assertEqual(children[1]["column"], 1)
+        self.assertNotEqual(children[0]["y"], children[1]["y"])
+        center = sum(node["y"] for node in children) / len(children)
+        self.assertLessEqual(abs(seed["y"] - center), 2)
+
+    def test_measure_upstream_columns_get_m_chains(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Renamed Columns" = Table.RenameColumns(
+        dbo_Sales, {{"Amount", "Total Amount"}, {"Qty", "Quantity"}}
+    )
+in
+    #"Renamed Columns"
+"""
+        calc = measure_analysis("M", "Calc")
+        refs = [
+            ModelReference(
+                kind="measure",
+                object="'M'[Calc]",
+                detail="",
+                blocking=False,
+            )
+        ]
+        amount = column_analysis("Sales", "Total Amount", refs=refs)
+        quantity = column_analysis("Sales", "Quantity", refs=refs)
+        data = build_lineage(
+            make_result(
+                columns=[amount, quantity],
+                measures=[calc],
+                m_queries=[
+                    {
+                        "name": "Sales",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": expression,
+                    }
+                ],
+            ),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+        nodes = {node["id"]: node for node in data["nodes"]}
+        m_groups = [group for group in data["groups"] if group["kind"] == "mquery"]
+        self.assertEqual(len(m_groups), 1)
+        group = m_groups[0]
+        self.assertEqual(group["label"], "Sales")
+        outputs = [nodes["col:Sales:Total Amount"], nodes["col:Sales:Quantity"]]
+        for output in outputs:
+            self.assertEqual(output["group_id"], group["id"])
+            self.assertIn(output["id"], group["members"])
+        self.assertNotEqual(outputs[0]["y"], outputs[1]["y"])
+        for node in data["nodes"]:
+            if node["kind"] == "mstep":
+                self.assertGreaterEqual(int(node.get("step") or 0), 1)
+        self.assertEqual(
+            nodes["measure:M:Calc"]["group_id"],
+            "model",
+        )
+        self.assertNotIn("measure:M:Calc", group["members"])
+
+    def test_m_columns_truncated_notice(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Renamed Columns" = Table.RenameColumns(
+        dbo_Sales,
+        {{"A", "Col A"}, {"B", "Col B"}, {"C", "Col C"}, {"D", "Col D"}}
+    )
+in
+    #"Renamed Columns"
+"""
+        calc = measure_analysis("M", "Calc")
+        refs = [
+            ModelReference(
+                kind="measure",
+                object="'M'[Calc]",
+                detail="",
+                blocking=False,
+            )
+        ]
+        columns = [
+            column_analysis("Sales", name, refs=refs)
+            for name in ("Col A", "Col B", "Col C", "Col D")
+        ]
+        data = build_lineage(
+            make_result(
+                columns=columns,
+                measures=[calc],
+                m_queries=[
+                    {
+                        "name": "Sales",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": expression,
+                    }
+                ],
+            ),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+        notice = next(
+            (
+                item for item in data["notices"]
+                if item.get("code") == "m_columns_truncated"
+            ),
+            None,
+        )
+        self.assertIsNotNone(notice)
+        self.assertEqual(notice["count"], 1)
+
+    def test_highlight_edges_keep_direct_visuals_when_dense(self) -> None:
+        records = [
+            usage(page=f"P{page}", visual=f"{page}-{visual}")
+            for page in range(25)
+            for visual in range(10)
+        ]
+        calc = measure_analysis("M", "Calc", records=records)
+        data = build_lineage(
+            make_result(measures=[calc]), kind="measure", table="M", name="Calc"
+        )
+        level = next(
+            (
+                item.get("level")
+                for item in data["notices"]
+                if item.get("code") == "edges_collapsed"
+            ),
+            "",
+        )
+        self.assertEqual(level, "page")
+        visual_ids = {
+            node["id"] for node in data["nodes"] if node["kind"] == "visual"
+        }
+        page_ids = {
+            node["id"] for node in data["nodes"] if node["kind"] == "page"
+        }
+        canvas_targets = {edge["to"] for edge in data["canvas_edges"]}
+        self.assertTrue(canvas_targets.issubset(page_ids))
+        highlight_targets = {
+            edge["to"] for edge in data["highlight_edges"]
+            if edge["kind"] == "visual"
+        }
+        self.assertTrue(highlight_targets.issubset(visual_ids))
+        self.assertGreater(len(data["highlight_edges"]), len(data["canvas_edges"]))
+
 
 if __name__ == "__main__":
     unittest.main()

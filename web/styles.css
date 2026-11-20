@@ -1138,6 +1138,12 @@ tr.is-menu-open .row-menu-btn,
   background-size:22px 22px;
 }
 .lineage-canvas-wrap.is-panning{ cursor:grabbing; }
+.lineage-canvas-wrap.is-dragging-item,
+.lineage-canvas-wrap.is-dragging-item .lineage-node,
+.lineage-canvas-wrap.is-dragging-item .lineage-group,
+.lineage-canvas-wrap.is-dragging-item .lineage-artifact,
+.lineage-canvas-wrap.is-dragging-item .la-titlebar.has-node,
+.lineage-canvas-wrap.is-dragging-item .lg-titlebar.has-node{ cursor:grabbing; }
 .lineage-sizer{ position:relative; }
 .lineage-canvas{ position:absolute; left:0; top:0; transform-origin:0 0; }
 .lineage-canvas svg{ position:absolute; left:0; top:0; z-index:2; overflow:visible; pointer-events:none; }
@@ -1145,7 +1151,8 @@ tr.is-menu-open .row-menu-btn,
 .lineage-groups{ position:absolute; inset:0; z-index:1; pointer-events:none; }
 .lineage-artifact{
   position:absolute; border-radius:12px; border:1px solid var(--border);
-  background:var(--surface-2); pointer-events:none; transition:opacity .15s ease;
+  background:var(--surface-2); pointer-events:auto; cursor:grab;
+  transition:opacity .15s ease;
 }
 .lineage-artifact.group-model{
   border-color:color-mix(in srgb, var(--node-model) 50%, var(--border));
@@ -1163,7 +1170,8 @@ tr.is-menu-open .row-menu-btn,
 .lineage-group{
   position:absolute; border-radius:10px; border:1px dashed var(--border-strong);
   background:color-mix(in srgb, var(--surface) 55%, transparent);
-  pointer-events:none; transition:opacity .15s ease, border-color .15s ease;
+  pointer-events:auto; cursor:grab;
+  transition:opacity .15s ease, border-color .15s ease;
 }
 .lineage-group.group-model{ border-color:color-mix(in srgb, var(--node-model) 55%, var(--border)); }
 .lineage-group.group-mquery,
@@ -1175,7 +1183,7 @@ tr.is-menu-open .row-menu-btn,
   display:flex; align-items:flex-start; gap:8px; width:100%; height:100%;
   min-width:0; padding:2px 4px; border-radius:6px; color:var(--text);
 }
-.la-titlebar.has-node, .lg-titlebar.has-node{ pointer-events:auto; cursor:pointer; }
+.la-titlebar.has-node, .lg-titlebar.has-node{ pointer-events:auto; cursor:grab; }
 .la-titlebar.has-node:hover, .lg-titlebar.has-node:hover{ background:var(--surface-3); }
 .la-titlebar.is-hot, .lg-titlebar.is-hot{ box-shadow:0 0 0 1px var(--accent-text) inset; }
 .la-titlebar.is-hit, .lg-titlebar.is-hit{ outline:2px solid var(--accent); outline-offset:1px; }

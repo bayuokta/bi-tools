@@ -103,6 +103,8 @@
     analysisLineageCategory: "all",
     analysisLineageZoom: 1,
     analysisLineageDrag: null,
+    analysisLineageItemDrag: null,
+    analysisLineageSuppressClick: false,
     analysisLineageHighlight: null,
     analysisSubmenuTarget: null,
     analysisSubmenuAnchor: null,
@@ -3756,6 +3758,8 @@
     };
     state.analysisLineage = null;
     state.analysisLineageHighlight = null;
+    state.analysisLineageItemDrag = null;
+    state.analysisLineageSuppressClick = false;
     state.analysisLineageZoom = 1;
     state.analysisLineageDirection = "both";
     state.analysisLineageView = view === "outline" ? "outline" : "graph";
@@ -3938,6 +3942,8 @@
     $("#analysisLineageOutline").innerHTML = analysisLineageOutlineMarkup(graph);
     state.analysisLineageZoom = 1;
     state.analysisLineageHighlight = null;
+    state.analysisLineageItemDrag = null;
+    state.analysisLineageSuppressClick = false;
     $("#analysisLineageNotice").textContent = analysisLineageNotice(graph);
     analysisLineageRenderM(graph.m_lineage);
     analysisLineageFocusSeed();
@@ -4261,6 +4267,11 @@
           "{n}", String(notice.count || 0)
         );
       }
+      if (notice.code === "m_columns_truncated") {
+        return t("M chains limited to {n} columns").replace(
+          "{n}", String(notice.count || 0)
+        );
+      }
       if (notice.code === "edges_collapsed") {
         if (notice.level === "report") {
           return t("Graph simplified: edges point to reports");
@@ -4315,6 +4326,186 @@
     wrap.scrollTop = 0;
   }
 
+  function analysisLineageDragTarget(event) {
+    var head = event.target.closest(".lg-head, .la-head");
+    if (head) {
+      var group = head.closest(".lineage-group");
+      if (group) {
+        return { type: "group", id: group.getAttribute("data-group-id") };
+      }
+      var artifact = head.closest(".lineage-artifact");
+      if (artifact) {
+        return { type: "artifact", id: artifact.getAttribute("data-artifact-id") };
+      }
+    }
+    var card = event.target.closest(".lineage-node");
+    if (card) {
+      return { type: "card", id: card.getAttribute("data-node-id") };
+    }
+    var groupBox = event.target.closest(".lineage-group");
+    if (groupBox) {
+      return { type: "group", id: groupBox.getAttribute("data-group-id") };
+    }
+    var artifactBox = event.target.closest(".lineage-artifact");
+    if (artifactBox) {
+      return {
+        type: "artifact",
+        id: artifactBox.getAttribute("data-artifact-id")
+      };
+    }
+    return null;
+  }
+
+  function analysisLineageDragScope(target) {
+    var graph = state.analysisLineage;
+    if (!graph) return null;
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) { byId[node.id] = node; });
+    var scope = { nodes: {}, groups: {}, artifacts: {} };
+    function addNode(id) {
+      var node = byId[id];
+      if (node && (!node.role || node.role === "card")) scope.nodes[id] = node;
+    }
+    function addGroup(group) {
+      if (!group) return;
+      scope.groups[group.id] = group;
+      (group.members || []).forEach(addNode);
+    }
+    if (target.type === "card") {
+      if (!byId[target.id]) return null;
+      scope.nodes[target.id] = byId[target.id];
+      return scope;
+    }
+    if (target.type === "group") {
+      var group = (graph.groups || []).filter(function (item) {
+        return item.id === target.id;
+      })[0];
+      if (!group) return null;
+      addGroup(group);
+      return scope;
+    }
+    var artifact = (graph.artifacts || []).filter(function (item) {
+      return item.id === target.id;
+    })[0];
+    if (!artifact) return null;
+    scope.artifacts[artifact.id] = artifact;
+    (graph.groups || []).forEach(function (item) {
+      if (item.container === artifact.id) addGroup(item);
+    });
+    (artifact.members || []).forEach(addNode);
+    return scope;
+  }
+
+  function analysisLineageDragPositions(scope) {
+    var positions = { nodes: {}, groups: {}, artifacts: {} };
+    ["nodes", "groups", "artifacts"].forEach(function (key) {
+      Object.keys(scope[key]).forEach(function (id) {
+        var item = scope[key][id];
+        positions[key][id] = {
+          x: Number(item.x) || 0,
+          y: Number(item.y) || 0,
+          headX: Number(item.head_x),
+          headY: Number(item.head_y)
+        };
+      });
+    });
+    return positions;
+  }
+
+  function analysisLineageMoveItems(drag, dx, dy) {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    var bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    var first = true;
+    function measure(item) {
+      var x = Number(item.x) || 0;
+      var y = Number(item.y) || 0;
+      var w = Number(item.w) || 0;
+      var h = Number(item.h) || 0;
+      if (first) {
+        bounds.minX = x; bounds.minY = y;
+        bounds.maxX = x + w; bounds.maxY = y + h;
+        first = false;
+        return;
+      }
+      bounds.minX = Math.min(bounds.minX, x);
+      bounds.minY = Math.min(bounds.minY, y);
+      bounds.maxX = Math.max(bounds.maxX, x + w);
+      bounds.maxY = Math.max(bounds.maxY, y + h);
+    }
+    ["nodes", "groups", "artifacts"].forEach(function (key) {
+      Object.keys(drag.scope[key]).forEach(function (id) {
+        measure(drag.positions[key][id]);
+      });
+    });
+    var limitX = Math.max(0, Number(graph.width) || 0);
+    var limitY = Math.max(0, Number(graph.height) || 0);
+    var moveX = Math.max(-bounds.minX, Math.min(dx, limitX - bounds.maxX));
+    var moveY = Math.max(-bounds.minY, Math.min(dy, limitY - bounds.maxY));
+    ["nodes", "groups", "artifacts"].forEach(function (key) {
+      Object.keys(drag.scope[key]).forEach(function (id) {
+        var item = drag.scope[key][id];
+        var base = drag.positions[key][id];
+        item.x = Math.round(base.x + moveX);
+        item.y = Math.round(base.y + moveY);
+      });
+    });
+    Object.keys(drag.scope.groups).forEach(function (id) {
+      var group = drag.scope.groups[id];
+      var base = drag.positions.groups[id];
+      group.head_x = Math.round(base.headX + moveX);
+      group.head_y = Math.round(base.headY + moveY);
+    });
+    Object.keys(drag.scope.artifacts).forEach(function (id) {
+      var artifact = drag.scope.artifacts[id];
+      var base = drag.positions.artifacts[id];
+      artifact.head_x = Math.round(base.headX + moveX);
+      artifact.head_y = Math.round(base.headY + moveY);
+    });
+    analysisLineageApplyPositions();
+    analysisLineageRefreshEdges();
+  }
+
+  function analysisLineageApplyPositions() {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) { byId[node.id] = node; });
+    var groupById = {};
+    (graph.groups || []).forEach(function (group) { groupById[group.id] = group; });
+    var artifactById = {};
+    (graph.artifacts || []).forEach(function (artifact) {
+      artifactById[artifact.id] = artifact;
+    });
+    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+      var node = byId[element.getAttribute("data-node-id")];
+      if (!node) return;
+      element.style.left = node.x + "px";
+      element.style.top = node.y + "px";
+    });
+    $$("#analysisLineageGroups .lineage-group").forEach(function (element) {
+      var group = groupById[element.getAttribute("data-group-id")];
+      if (!group) return;
+      element.style.left = group.x + "px";
+      element.style.top = group.y + "px";
+    });
+    $$("#analysisLineageArtifacts .lineage-artifact").forEach(function (element) {
+      var artifact = artifactById[element.getAttribute("data-artifact-id")];
+      if (!artifact) return;
+      element.style.left = artifact.x + "px";
+      element.style.top = artifact.y + "px";
+    });
+  }
+
+  function analysisLineageRefreshEdges() {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    var routes = analysisLineageEdgeRoutes(graph);
+    $$("#analysisLineageEdges .lineage-edge").forEach(function (element, index) {
+      if (routes[index]) element.setAttribute("d", routes[index]);
+    });
+  }
+
   function analysisLineageFocusSeed() {
     var graph = state.analysisLineage;
     var wrap = $("#analysisLineageCanvasWrap");
@@ -4349,25 +4540,23 @@
   }
 
   function analysisLineageLineageSet(graph, start) {
+    var edges = graph.highlight_edges || graph.canvas_edges || graph.edges || [];
     var outgoing = {};
     var incoming = {};
-    (graph.edges || []).forEach(function (edge) {
+    edges.forEach(function (edge) {
       (outgoing[edge.from] || (outgoing[edge.from] = [])).push(edge.to);
       (incoming[edge.to] || (incoming[edge.to] = [])).push(edge.from);
     });
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) { byId[node.id] = node; });
+    var startNode = byId[start] || {};
+    var startKind = String(startNode.kind || "");
+    // Kartu pemakaian (visual/filter/sort) hanya menyorot sumbernya, bukan
+    // semua visual lain yang memakai measure yang sama.
+    var usageLeaf = ["visual", "filter", "sort", "more"].indexOf(startKind) !== -1;
     var keep = {};
     keep[start] = true;
     var stack = [start];
-    while (stack.length) {
-      var current = stack.pop();
-      (outgoing[current] || []).forEach(function (next) {
-        if (!keep[next]) {
-          keep[next] = true;
-          stack.push(next);
-        }
-      });
-    }
-    stack = [start];
     while (stack.length) {
       var node = stack.pop();
       (incoming[node] || []).forEach(function (previous) {
@@ -4377,55 +4566,63 @@
         }
       });
     }
-    // Edge yang dipadatkan berhenti di header halaman/report: sorot anggotanya.
-    var groupMembers = {};
-    (graph.groups || []).forEach(function (group) {
-      if (group.head_id) groupMembers[group.head_id] = group.members || [];
-    });
-    (graph.artifacts || []).forEach(function (artifact) {
-      if (artifact.head_id) groupMembers[artifact.head_id] = artifact.members || [];
-    });
-    stack = Object.keys(keep);
-    while (stack.length) {
-      var head = stack.pop();
-      (groupMembers[head] || []).forEach(function (member) {
-        if (!keep[member]) {
-          keep[member] = true;
-          stack.push(member);
-        }
-      });
+    if (!usageLeaf) {
+      stack = [start];
+      while (stack.length) {
+        var current = stack.pop();
+        (outgoing[current] || []).forEach(function (next) {
+          if (!keep[next]) {
+            keep[next] = true;
+            stack.push(next);
+          }
+        });
+      }
     }
     return keep;
   }
 
-  function analysisLineageSelect(nodeId) {
-    var graph = state.analysisLineage;
-    if (!graph || !nodeId) {
-      analysisLineageClearHighlight();
-      return;
-    }
-    state.analysisLineageHighlight = nodeId;
-    var starts = [nodeId];
-    var headGroup = (graph.groups || []).filter(function (group) {
-      return group.head_id === nodeId;
+  function analysisLineageHeadMembers(graph, nodeId) {
+    var group = (graph.groups || []).filter(function (item) {
+      return item.head_id === nodeId;
     })[0];
-    if (headGroup) starts = (headGroup.members || []).slice();
-    var headArtifact = (graph.artifacts || []).filter(function (artifact) {
-      return artifact.head_id === nodeId;
+    if (group) return (group.members || []).slice();
+    var artifact = (graph.artifacts || []).filter(function (item) {
+      return item.head_id === nodeId;
     })[0];
-    if (headArtifact) starts = (headArtifact.members || []).slice();
-    var keep = {};
-    starts.forEach(function (start) {
-      var branch = analysisLineageLineageSet(graph, start);
-      Object.keys(branch).forEach(function (id) {
-        keep[id] = true;
-      });
+    if (artifact) return (artifact.members || []).slice();
+    return null;
+  }
+
+  function analysisLineageContextHeads(graph, keep) {
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) {
+      byId[node.id] = node;
     });
-    keep[nodeId] = true;
+    var changed = true;
+    while (changed) {
+      changed = false;
+      (graph.edges || []).forEach(function (edge) {
+        if (!keep[edge.to] || keep[edge.from]) return;
+        var source = byId[edge.from];
+        if (!source) return;
+        if (source.role !== "group-head" && source.role !== "artifact-head") {
+          return;
+        }
+        keep[edge.from] = true;
+        changed = true;
+      });
+    }
+  }
+
+  function analysisLineageApplySelection(keep, selectedId) {
+    var graph = state.analysisLineage;
+    if (!graph) return;
+    analysisLineageContextHeads(graph, keep);
+    keep[selectedId] = true;
     $$("#analysisLineageCanvas [data-node-id]").forEach(function (element) {
       var id = element.getAttribute("data-node-id");
       element.classList.toggle("is-muted", !keep[id]);
-      element.classList.toggle("is-hot", Boolean(keep[id]) && id !== nodeId);
+      element.classList.toggle("is-hot", Boolean(keep[id]) && id !== selectedId);
     });
     var groupMembers = {};
     (graph.groups || []).forEach(function (group) {
@@ -4461,6 +4658,36 @@
         "marker-end", on ? "url(#lineageArrowHot)" : "url(#lineageArrow)"
       );
     });
+  }
+
+  function analysisLineageSelect(nodeId) {
+    var graph = state.analysisLineage;
+    if (!graph || !nodeId) {
+      analysisLineageClearHighlight();
+      return;
+    }
+    state.analysisLineageHighlight = nodeId;
+    var members = analysisLineageHeadMembers(graph, nodeId);
+    var starts = members ? members.slice() : [nodeId];
+    var keep = {};
+    starts.forEach(function (start) {
+      var branch = analysisLineageLineageSet(graph, start);
+      Object.keys(branch).forEach(function (id) {
+        keep[id] = true;
+      });
+    });
+    if (members) {
+      members.forEach(function (id) { keep[id] = true; });
+    }
+    analysisLineageApplySelection(keep, nodeId);
+  }
+
+  function analysisLineageSelectMembers(ids, selectedId) {
+    if (!state.analysisLineage) return;
+    state.analysisLineageHighlight = selectedId || "";
+    var keep = {};
+    (ids || []).forEach(function (id) { keep[id] = true; });
+    analysisLineageApplySelection(keep, selectedId || "");
   }
 
   function analysisLineageClearHighlight() {
@@ -8454,9 +8681,34 @@
       analysisLoadLineage();
     });
     $("#analysisLineageCanvas").addEventListener("click", function (event) {
+      if (state.analysisLineageSuppressClick) {
+        state.analysisLineageSuppressClick = false;
+        return;
+      }
       var node = event.target.closest("[data-node-id]");
-      if (!node) return;
-      analysisLineageSelect(node.getAttribute("data-node-id"));
+      if (node) {
+        analysisLineageSelect(node.getAttribute("data-node-id"));
+        return;
+      }
+      var group = event.target.closest(".lineage-group");
+      if (group) {
+        var groupId = group.getAttribute("data-group-id");
+        var meta = (state.analysisLineage && state.analysisLineage.groups || [])
+          .filter(function (item) { return item.id === groupId; })[0];
+        if (meta) analysisLineageSelectMembers(meta.members, meta.head_id || "");
+        return;
+      }
+      var artifact = event.target.closest(".lineage-artifact");
+      if (artifact) {
+        var artifactId = artifact.getAttribute("data-artifact-id");
+        var owner = (state.analysisLineage && state.analysisLineage.artifacts || [])
+          .filter(function (item) { return item.id === artifactId; })[0];
+        if (owner) {
+          analysisLineageSelectMembers(owner.members, owner.head_id || "");
+        }
+        return;
+      }
+      analysisLineageClearHighlight();
     });
     $("#analysisLineageCanvas").addEventListener("dblclick", function (event) {
       var node = event.target.closest("[data-node-id]");
@@ -8495,8 +8747,26 @@
     }, { passive: false });
     $("#analysisLineageCanvasWrap").addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
-      if (event.target.closest(".lineage-node")) return;
       var wrap = event.currentTarget;
+      var target = analysisLineageDragTarget(event);
+      if (target) {
+        var scope = analysisLineageDragScope(target);
+        if (scope) {
+          state.analysisLineageItemDrag = {
+            target: target,
+            scope: scope,
+            positions: analysisLineageDragPositions(scope),
+            x: event.clientX,
+            y: event.clientY,
+            moved: false,
+            pointerId: event.pointerId
+          };
+          state.analysisLineageSuppressClick = false;
+          wrap.classList.add("is-dragging-item");
+          return undefined;
+        }
+      }
+      state.analysisLineageItemDrag = null;
       state.analysisLineageDrag = {
         x: event.clientX,
         y: event.clientY,
@@ -8514,6 +8784,15 @@
       return undefined;
     });
     $("#analysisLineageCanvasWrap").addEventListener("pointermove", function (event) {
+      var itemDrag = state.analysisLineageItemDrag;
+      if (itemDrag) {
+        var scale = state.analysisLineageZoom || 1;
+        var itemDx = (event.clientX - itemDrag.x) / scale;
+        var itemDy = (event.clientY - itemDrag.y) / scale;
+        if (Math.abs(itemDx) + Math.abs(itemDy) > 3) itemDrag.moved = true;
+        if (itemDrag.moved) analysisLineageMoveItems(itemDrag, itemDx, itemDy);
+        return;
+      }
       var drag = state.analysisLineageDrag;
       if (!drag) return;
       var wrap = event.currentTarget;
@@ -8524,10 +8803,27 @@
       wrap.scrollTop = drag.top - dy;
     });
     function analysisLineageEndPan(event) {
+      var wrap = event.currentTarget;
+      var itemDrag = state.analysisLineageItemDrag;
+      if (itemDrag) {
+        state.analysisLineageItemDrag = null;
+        wrap.classList.remove("is-dragging-item");
+        try {
+          if (wrap.hasPointerCapture(itemDrag.pointerId)) {
+            wrap.releasePointerCapture(itemDrag.pointerId);
+          }
+        } catch (error) {
+          return undefined;
+        }
+        if (itemDrag.moved) {
+          state.analysisLineageSuppressClick = true;
+          analysisLineageRefreshEdges();
+        }
+        return undefined;
+      }
       var drag = state.analysisLineageDrag;
       if (!drag) return;
       state.analysisLineageDrag = null;
-      var wrap = event.currentTarget;
       wrap.classList.remove("is-panning");
       try {
         if (wrap.hasPointerCapture(drag.pointerId)) {
@@ -8543,6 +8839,17 @@
     $("#analysisLineageCanvasWrap").addEventListener(
       "pointercancel", analysisLineageEndPan
     );
+    window.addEventListener("pointerup", function () {
+      var itemDrag = state.analysisLineageItemDrag;
+      if (!itemDrag) return;
+      state.analysisLineageItemDrag = null;
+      var wrap = $("#analysisLineageCanvasWrap");
+      if (wrap) wrap.classList.remove("is-dragging-item");
+      if (itemDrag.moved) {
+        state.analysisLineageSuppressClick = true;
+        analysisLineageRefreshEdges();
+      }
+    });
     window.addEventListener("resize", function () {
       if ($("#analysisLineageDialog").open) analysisLineageApplyZoom();
     });

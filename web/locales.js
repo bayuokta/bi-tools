@@ -689,6 +689,7 @@
   "SharePoint": "SharePoint",
   "Inline table": "Tabel inline",
   "Truncated M steps: {n}": "Langkah M dipotong: {n}",
+  "M chains limited to {n} columns": "Rantai M dibatasi {n} kolom",
   "Table details": "Detail tabel",
   "Show in analysis": "Tampilkan di analisa",
   "Copy table name": "Salin nama tabel",

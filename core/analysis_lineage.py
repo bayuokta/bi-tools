@@ -29,6 +29,7 @@ MAX_NODES = 250
 MAX_USAGE_PER_PAGE = 8
 MAX_DEPTH = 8
 MAX_M_STEPS = 8
+MAX_M_COLUMNS = 3
 OUTLINE_MAX_ROWS = 500
 
 DIRECTIONS = ("both", "upstream", "downstream")
@@ -395,13 +396,14 @@ def _group_kind(group_id: str) -> str:
 
 
 def _finalize_mquery_groups(
-    graph: _Graph, seed_id: str, seed_mquery_group: str | None
+    graph: _Graph,
+    outputs: Mapping[str, str] | None,
 ) -> None:
     """Tentukan peran kartu tabel M: header rantai langkah atau kartu model.
 
-    Rantai langkah M menjadikan tabel + langkah + seed satu grup, dan kartu
-    tabel menjadi header grup. Tanpa langkah, kartu tabel pindah ke grup model
-    agar tidak ada grup M kosong yang menggantung.
+    Rantai langkah M menjadikan tabel + langkah + kolom output satu grup, dan
+    kartu tabel menjadi header grup. Tanpa langkah, kartu tabel pindah ke grup
+    model agar tidak ada grup M kosong yang menggantung.
     """
     step_groups = {
         str(node.get("group_key") or "")
@@ -417,13 +419,146 @@ def _finalize_mquery_groups(
         else:
             node["group_key"] = "model"
             node["role"] = "card"
-    if seed_mquery_group and seed_mquery_group in step_groups:
-        seed = graph.nodes.get(seed_id)
-        if seed is not None:
-            seed["group_key"] = seed_mquery_group
+    for node_id, group_key in (outputs or {}).items():
+        if group_key not in step_groups:
+            continue
+        node = graph.nodes.get(node_id)
+        if node is not None:
+            node["group_key"] = group_key
 
 
-def _layout_group_cards(group: dict[str, Any]) -> None:
+def _group_edges(
+    graph: _Graph, node_ids: set[str]
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Edge internal grup (tanpa header grup)."""
+    outgoing: dict[str, list[str]] = defaultdict(list)
+    incoming: dict[str, list[str]] = defaultdict(list)
+    for edge in graph.edges.values():
+        if edge["from"] in node_ids and edge["to"] in node_ids:
+            outgoing[edge["from"]].append(edge["to"])
+            incoming[edge["to"]].append(edge["from"])
+    return outgoing, incoming
+
+
+def _layout_tree(group: dict[str, Any], graph: _Graph) -> None:
+    """Tidy tree/layered DAG: parent di tengah anak-anaknya."""
+    nodes = list(group["nodes"])
+    if not nodes:
+        group["w"] = NODE_W + 2 * GROUP_PAD
+        group["h"] = GROUP_HEAD + GROUP_PAD
+        return
+    node_ids = {str(node["id"]) for node in nodes}
+    outgoing, incoming = _group_edges(graph, node_ids)
+    columns = sorted({int(node.get("column") or 0) for node in nodes})
+    layer_index = {column: index for index, column in enumerate(columns)}
+    layers: list[list[dict[str, Any]]] = [[] for _ in columns]
+    for node in nodes:
+        layers[layer_index[int(node.get("column") or 0)]].append(node)
+    for layer in layers:
+        layer.sort(key=_node_sort_key)
+
+    order = {str(node["id"]): index for layer in layers for index, node in enumerate(layer)}
+    layer_of = {
+        str(node["id"]): index
+        for index, layer in enumerate(layers)
+        for node in layer
+    }
+
+    def barycenter(
+        node_id: str, neighbours: list[str]
+    ) -> float:
+        values = [order[item] for item in neighbours if item in order]
+        return sum(values) / len(values) if values else float(order[node_id])
+
+    for _pass in range(4):
+        for layer in layers[1:]:
+            layer.sort(
+                key=lambda node: (
+                    barycenter(str(node["id"]), incoming[str(node["id"])]),
+                    _node_sort_key(node),
+                )
+            )
+            for index, node in enumerate(layer):
+                order[str(node["id"])] = index
+        for layer in reversed(layers[:-1]):
+            layer.sort(
+                key=lambda node: (
+                    barycenter(str(node["id"]), outgoing[str(node["id"])]),
+                    _node_sort_key(node),
+                )
+            )
+            for index, node in enumerate(layer):
+                order[str(node["id"])] = index
+
+    row_h = NODE_H + ROW_GAP
+    y: dict[str, float] = {}
+    for layer in layers:
+        for index, node in enumerate(layer):
+            y[str(node["id"])] = index * row_h
+
+    def pack(layer: list[dict[str, Any]]) -> None:
+        """Rapatkan satu kolom tanpa mengubah urutan vertikalnya."""
+        ordered = sorted(
+            layer,
+            key=lambda node: (y[str(node["id"])], _node_sort_key(node)),
+        )
+        cursor: float | None = None
+        for node in ordered:
+            node_id = str(node["id"])
+            value = y[node_id]
+            if cursor is not None and value < cursor:
+                value = cursor
+            y[node_id] = value
+            cursor = value + row_h
+
+    # Kanan -> kiri: induk di tengah anak-anaknya pada kolom berikutnya.
+    for index in range(len(layers) - 1, -1, -1):
+        layer = layers[index]
+        for node in layer:
+            node_id = str(node["id"])
+            children = [
+                y[item] for item in outgoing[node_id]
+                if item in y and layer_of[item] == index + 1
+            ]
+            if children:
+                y[node_id] = sum(children) / len(children)
+    for layer in layers:
+        pack(layer)
+
+    # Kiri -> kanan: daun kanan dengan beberapa induk di tengah induknya.
+    for index, layer in enumerate(layers):
+        for node in layer:
+            node_id = str(node["id"])
+            if outgoing.get(node_id):
+                continue
+            parents = [
+                y[item] for item in incoming[node_id]
+                if item in y and layer_of[item] == index - 1
+            ]
+            if len(parents) >= 2:
+                y[node_id] = sum(parents) / len(parents)
+    for layer in layers:
+        pack(layer)
+
+    minimum = min(y.values(), default=0.0)
+    for node in nodes:
+        node["_col"] = layer_index[int(node.get("column") or 0)]
+        node["_y"] = y[str(node["id"])] - minimum
+    max_y = max(float(node["_y"]) for node in nodes)
+    group["columns"] = len(layers)
+    group["rows"] = int(round(max_y / row_h)) + 1
+    group["w"] = (
+        len(layers) * NODE_W + (len(layers) - 1) * COL_GAP + 2 * GROUP_PAD
+    )
+    group["h"] = GROUP_HEAD + max_y + NODE_H + GROUP_PAD
+    if group["kind"] == "mquery":
+        # Nomor langkah mengikuti kolom rantai (kiri -> kanan).
+        for node in nodes:
+            if str(node.get("kind") or "") == "mstep":
+                node["step"] = int(node["_col"]) + 1
+
+
+def _layout_group_cards(group: dict[str, Any], graph: _Graph) -> None:
     """Hitung ukuran grup dan posisi kartu relatif terhadap grup."""
     nodes = list(group["nodes"])
     if not nodes:
@@ -436,35 +571,19 @@ def _layout_group_cards(group: dict[str, Any]) -> None:
         # Halaman memakai satu kolom kartu agar edge tidak melompati kolom.
         ordered = sorted(nodes, key=_node_sort_key)
         for index, node in enumerate(ordered):
-            node["_col"], node["_row"] = 0, index
-    else:
-        columns = sorted({int(node.get("column") or 0) for node in nodes})
-        buckets: dict[int, list[dict[str, Any]]] = {
-            column: [] for column in columns
-        }
-        for node in nodes:
-            buckets[int(node.get("column") or 0)].append(node)
-        for column in columns:
-            buckets[column].sort(key=_node_sort_key)
-        for col, column in enumerate(columns):
-            for row, node in enumerate(buckets[column]):
-                node["_col"], node["_row"] = col, row
-        if group["kind"] == "mquery":
-            step = 0
-            for node in sorted(
-                nodes, key=lambda item: (item["_col"], item["_row"])
-            ):
-                if str(node.get("kind") or "") == "mstep":
-                    step += 1
-                    node["step"] = step
-    cols = max(int(node.get("_col") or 0) for node in nodes) + 1
-    rows = max(int(node.get("_row") or 0) for node in nodes) + 1
-    group["columns"] = cols
-    group["rows"] = rows
-    group["w"] = cols * NODE_W + (cols - 1) * COL_GAP + 2 * GROUP_PAD
-    group["h"] = (
-        GROUP_HEAD + rows * NODE_H + (rows - 1) * ROW_GAP + GROUP_PAD
-    )
+            node["_col"], node["_y"] = 0, index * (NODE_H + ROW_GAP)
+        group["columns"] = 1
+        group["rows"] = len(ordered)
+        group["w"] = NODE_W + 2 * GROUP_PAD
+        group["h"] = (
+            GROUP_HEAD
+            + len(ordered) * NODE_H
+            + (len(ordered) - 1) * ROW_GAP
+            + GROUP_PAD
+        )
+        return
+    _layout_tree(group, graph)
+
 
 
 def _layout_container(container: dict[str, Any]) -> None:
@@ -553,11 +672,12 @@ def _layout_container(container: dict[str, Any]) -> None:
 
 def _canvas_edges(
     graph: _Graph,
-) -> tuple[list[dict[str, str]], str]:
-    """Edge kanvas dengan tingkat detail adaptif.
+) -> tuple[list[dict[str, str]], str, list[dict[str, str]]]:
+    """Edge kanvas dengan tingkat detail adaptif dan edge highlight langsung.
 
-    Graf normal memakai ``owner -> kartu visual``. Graf padat dipadatkan ke
-    header halaman, lalu ke header report, supaya garis tidak menjadi jaring.
+    ``canvas_edges`` adalah edge yang digambar (bisa dipadatkan ke halaman atau
+    report). ``highlight_edges`` selalu memakai edge langsung ``owner -> kartu``
+    agar klik kartu tidak melebar ke seluruh report.
     """
     outgoing: dict[str, list[str]] = defaultdict(list)
     incoming: dict[str, list[str]] = defaultdict(list)
@@ -678,7 +798,15 @@ def _canvas_edges(
             edge["from"], edge["to"], edge["kind"]
         ),
     )
-    return rows, level
+    highlight = dict(base)
+    highlight.update(usage)
+    highlight_rows = sorted(
+        highlight.values(),
+        key=lambda edge: (
+            edge["from"], edge["to"], edge["kind"]
+        ),
+    )
+    return rows, level, highlight_rows
 
 
 def _layout_graph(
@@ -694,6 +822,7 @@ def _layout_graph(
     list[dict[str, Any]],
     int,
     int,
+    list[dict[str, str]],
     list[dict[str, str]],
     str,
 ]:
@@ -816,7 +945,7 @@ def _layout_graph(
                 group["sub"] = ""
 
     for group in groups.values():
-        _layout_group_cards(group)
+        _layout_group_cards(group, graph)
     for container in containers.values():
         _layout_container(container)
 
@@ -923,7 +1052,7 @@ def _layout_graph(
                 node["y"] = (
                     group["y"]
                     + GROUP_HEAD
-                    + int(node.pop("_row")) * (NODE_H + ROW_GAP)
+                    + int(node.pop("_y"))
                 )
                 node["w"] = NODE_W
                 node["h"] = NODE_H
@@ -1017,7 +1146,7 @@ def _layout_graph(
             }
         )
 
-    canvas_edges, edge_level = _canvas_edges(graph)
+    canvas_edges, edge_level, highlight_edges = _canvas_edges(graph)
     return (
         node_rows,
         artifact_rows,
@@ -1025,6 +1154,7 @@ def _layout_graph(
         int(width),
         int(height),
         canvas_edges,
+        highlight_edges,
         edge_level,
     )
 
@@ -1325,147 +1455,6 @@ def build_lineage(
                 "source": str(item.get("source") or ""),
                 "expression": str(item.get("expression") or ""),
             }
-    m_edges: list[tuple[str, str]] = []
-    m_step_truncated = 0
-    m_lineage_meta: dict[str, Any] | None = None
-    seed_mquery_group: str | None = None
-    if wanted == "column":
-        seed_column = column_analyses[seed_id].column
-        seed_table = seed_column.table
-        table_query = mqueries.get(seed_table)
-        if table_query is not None:
-            mquery = add_extra(
-                _mquery_id(seed_table),
-                kind="mquery",
-                label=seed_table,
-                context=table_query.get("source", ""),
-                group="mquery",
-                group_key=_mquery_id(seed_table),
-            )
-            expression = table_query.get("expression", "")
-            datasource: str | None = None
-            has_steps = False
-            m_lineage_meta = {
-                "table": seed_table,
-                "status": "unavailable",
-                "reason": "Tabel tidak punya ekspresi M.",
-                "warnings": [],
-            }
-            if expression:
-                parsed = build_m_lineage(expression)
-                aliases: dict[str, Any] = {}
-                for key, parsed_column in (parsed.columns or {}).items():
-                    for alias in [
-                        key,
-                        parsed_column.source_column,
-                        *(parsed_column.chain or []),
-                    ]:
-                        if alias:
-                            aliases.setdefault(str(alias).casefold(), parsed_column)
-
-                def step_node(step: Any) -> str:
-                    step_id = (
-                        f"mstep:{seed_table}:{step.step or 'step'}:"
-                        f"{step.column or ''}"
-                    )
-                    add_extra(
-                        step_id,
-                        kind="mstep",
-                        label=str(step.step or step.column or "M step"),
-                        context=str(step.function or ""),
-                        detail=str(step.column or ""),
-                        group="mquery",
-                        group_key=_mquery_id(seed_table),
-                    )
-                    return step_id
-
-                column_lineage = aliases.get(seed_column.column.casefold())
-                own_steps = (
-                    list(getattr(column_lineage, "steps", []) or [])
-                    if column_lineage is not None
-                    else []
-                )
-                if len(own_steps) > MAX_M_STEPS:
-                    m_step_truncated += len(own_steps) - MAX_M_STEPS
-                    own_steps = own_steps[-MAX_M_STEPS:]
-                own_ids = [step_node(step) for step in own_steps]
-                if own_ids:
-                    seed_mquery_group = _mquery_id(seed_table)
-                    branches: list[list[str]] = []
-                    used_names = list(
-                        getattr(column_lineage, "columns_used", []) or []
-                    )[:3]
-                    for used_name in used_names:
-                        source_column = aliases.get(str(used_name).casefold())
-                        if source_column is None:
-                            continue
-                        source_steps = list(
-                            getattr(source_column, "steps", []) or []
-                        )[-4:]
-                        ids = [step_node(step) for step in source_steps]
-                        if ids:
-                            branches.append(ids)
-                    for branch in branches:
-                        for previous, current in zip(branch, branch[1:]):
-                            m_edges.append((previous, current))
-                        m_edges.append((branch[-1], own_ids[0]))
-                    for previous, current in zip(own_ids, own_ids[1:]):
-                        m_edges.append((previous, current))
-                    if branches:
-                        for branch in branches:
-                            m_edges.append((mquery, branch[0]))
-                    else:
-                        m_edges.append((mquery, own_ids[0]))
-                    m_edges.append((own_ids[-1], seed_id))
-                    has_steps = True
-                if parsed.origin or parsed.source_object:
-                    datasource = add_extra(
-                        f"datasource:{seed_table}",
-                        kind="datasource",
-                        label=str(
-                            parsed.source_object or parsed.origin or "Datasource"
-                        ),
-                        context=str(parsed.origin or ""),
-                        group="mquery",
-                        group_key=f"source:{seed_table}",
-                        container=f"artifact:source:{seed_table}",
-                    )
-                status = column_confidence(parsed, seed_column.column)
-                reason = ""
-                if status == "unavailable":
-                    reason = "Kolom tidak ditemukan di hasil lineage M."
-                else:
-                    seed_key = seed_column.column.casefold()
-                    for warning in parsed.warnings:
-                        if (
-                            warning.column
-                            and warning.column.casefold() == seed_key
-                        ):
-                            reason = warning.detail
-                            break
-                    if not reason and column_lineage is not None:
-                        reason = str(column_lineage.detail or "")
-                    if not reason:
-                        for warning in parsed.warnings:
-                            if not warning.column:
-                                reason = warning.detail
-                                break
-                m_lineage_meta = {
-                    "table": seed_table,
-                    "status": status,
-                    "reason": reason,
-                    "warnings": warning_rows(parsed),
-                }
-            if not has_steps:
-                m_edges.append((mquery, seed_id))
-            if datasource:
-                m_edges.append((datasource, mquery))
-            for provider, consumer in m_edges:
-                depend(consumer, provider)
-            if has_steps:
-                deps[seed_id].discard(mquery)
-                users[mquery].discard(seed_id)
-
     def walk(adjacency: Mapping[str, set[str]]) -> dict[str, int]:
         found = {seed_id: 0}
         queue: deque[str] = deque([seed_id])
@@ -1480,6 +1469,184 @@ def build_lineage(
                 found[neighbour] = level + 1
                 queue.append(neighbour)
         return found
+
+    m_edges: list[tuple[str, str]] = []
+    m_step_truncated = 0
+    m_columns_truncated = 0
+    m_lineage_meta: dict[str, Any] | None = None
+    m_outputs: dict[str, str] = {}
+
+    def add_m_chain(analysis: Any, *, is_seed: bool) -> str | None:
+        """Bangun rantai M satu kolom; kembalikan grup M bila punya langkah."""
+        nonlocal m_lineage_meta, m_step_truncated
+        column = analysis.column
+        table_name = column.table
+        table_query = mqueries.get(table_name)
+        if table_query is None:
+            return None
+        group_key = _mquery_id(table_name)
+        mquery = add_extra(
+            group_key,
+            kind="mquery",
+            label=table_name,
+            context=table_query.get("source", ""),
+            group="mquery",
+            group_key=group_key,
+        )
+        expression = table_query.get("expression", "")
+        datasource: str | None = None
+        has_steps = False
+        meta = {
+            "table": table_name,
+            "status": "unavailable",
+            "reason": "Tabel tidak punya ekspresi M.",
+            "warnings": [],
+        }
+        if expression:
+            parsed = build_m_lineage(expression)
+            aliases: dict[str, Any] = {}
+            for key, parsed_column in (parsed.columns or {}).items():
+                for alias in [
+                    key,
+                    parsed_column.source_column,
+                    *(parsed_column.chain or []),
+                ]:
+                    if alias:
+                        aliases.setdefault(str(alias).casefold(), parsed_column)
+
+            def step_node(step: Any) -> str:
+                step_id = (
+                    f"mstep:{table_name}:{step.step or 'step'}:"
+                    f"{step.column or ''}"
+                )
+                add_extra(
+                    step_id,
+                    kind="mstep",
+                    label=str(step.step or step.column or "M step"),
+                    context=str(step.function or ""),
+                    detail=str(step.column or ""),
+                    group="mquery",
+                    group_key=group_key,
+                )
+                return step_id
+
+            column_lineage = aliases.get(column.column.casefold())
+            own_steps = (
+                list(getattr(column_lineage, "steps", []) or [])
+                if column_lineage is not None
+                else []
+            )
+            if len(own_steps) > MAX_M_STEPS:
+                m_step_truncated += len(own_steps) - MAX_M_STEPS
+                own_steps = own_steps[-MAX_M_STEPS:]
+            own_ids = [step_node(step) for step in own_steps]
+            if own_ids:
+                m_outputs[_column_id(table_name, column.column)] = group_key
+                branches: list[list[str]] = []
+                used_names = list(
+                    getattr(column_lineage, "columns_used", []) or []
+                )[:3]
+                for used_name in used_names:
+                    source_column = aliases.get(str(used_name).casefold())
+                    if source_column is None:
+                        continue
+                    source_steps = list(
+                        getattr(source_column, "steps", []) or []
+                    )[-4:]
+                    ids = [step_node(step) for step in source_steps]
+                    if ids:
+                        branches.append(ids)
+                for branch in branches:
+                    for previous, current in zip(branch, branch[1:]):
+                        m_edges.append((previous, current))
+                    m_edges.append((branch[-1], own_ids[0]))
+                for previous, current in zip(own_ids, own_ids[1:]):
+                    m_edges.append((previous, current))
+                if branches:
+                    for branch in branches:
+                        m_edges.append((mquery, branch[0]))
+                else:
+                    m_edges.append((mquery, own_ids[0]))
+                m_edges.append(
+                    (own_ids[-1], _column_id(table_name, column.column))
+                )
+                has_steps = True
+            if parsed.origin or parsed.source_object:
+                datasource = add_extra(
+                    f"datasource:{table_name}",
+                    kind="datasource",
+                    label=str(
+                        parsed.source_object or parsed.origin or "Datasource"
+                    ),
+                    context=str(parsed.origin or ""),
+                    group="mquery",
+                    group_key=f"source:{table_name}",
+                    container=f"artifact:source:{table_name}",
+                )
+            status = column_confidence(parsed, column.column)
+            reason = ""
+            if status == "unavailable":
+                reason = "Kolom tidak ditemukan di hasil lineage M."
+            else:
+                seed_key = column.column.casefold()
+                for warning in parsed.warnings:
+                    if (
+                        warning.column
+                        and warning.column.casefold() == seed_key
+                    ):
+                        reason = warning.detail
+                        break
+                if not reason and column_lineage is not None:
+                    reason = str(column_lineage.detail or "")
+                if not reason:
+                    for warning in parsed.warnings:
+                        if not warning.column:
+                            reason = warning.detail
+                            break
+            meta = {
+                "table": table_name,
+                "status": status,
+                "reason": reason,
+                "warnings": warning_rows(parsed),
+            }
+        if not has_steps:
+            m_edges.append(
+                (mquery, _column_id(table_name, column.column))
+            )
+        if datasource:
+            m_edges.append((datasource, mquery))
+        if is_seed:
+            m_lineage_meta = meta
+        return group_key if has_steps else None
+
+    if wanted == "column":
+        add_m_chain(column_analyses[seed_id], is_seed=True)
+    elif wanted == "measure":
+        candidates = [
+            (node_id, column_analyses[node_id])
+            for node_id in walk(deps)
+            if node_id in column_analyses
+            and node_id != seed_id
+            and column_analyses[node_id].column.table in mqueries
+        ]
+        candidates.sort(
+            key=lambda pair: (
+                pair[1].column.table.casefold(),
+                pair[1].column.column.casefold(),
+            )
+        )
+        if len(candidates) > MAX_M_COLUMNS:
+            m_columns_truncated = len(candidates) - MAX_M_COLUMNS
+            candidates = candidates[:MAX_M_COLUMNS]
+        for _node_id, analysis in candidates:
+            add_m_chain(analysis, is_seed=False)
+
+    for provider, consumer in m_edges:
+        depend(consumer, provider)
+    for node_id, group_key in m_outputs.items():
+        # Rantai M lengkap menggantikan edge tabel -> kolom yang kasar.
+        deps[node_id].discard(group_key)
+        users[group_key].discard(node_id)
 
     sides: dict[str, tuple[str, int]] = {seed_id: ("root", 0)}
     if mode in {"both", "upstream"}:
@@ -1500,21 +1667,21 @@ def build_lineage(
 
     # Rantai langkah M melewati batas `depth` model agar tetap utuh.
     if m_edges and mode in {"both", "upstream"}:
-        levels = {seed_id: 0}
         for _pass in range(len(m_edges) + 4):
             changed = False
             for provider, consumer in m_edges:
-                if consumer not in levels:
+                current = sides.get(consumer)
+                if consumer != seed_id and (
+                    current is None or current[0] != "upstream"
+                ):
                     continue
-                need = levels[consumer] + 1
-                if levels.get(provider, 0) < need:
-                    levels[provider] = need
+                need = 1 if consumer == seed_id else current[1] + 1
+                old = sides.get(provider)
+                if old is None or old[0] != "upstream" or old[1] < need:
+                    sides[provider] = ("upstream", need)
                     changed = True
             if not changed:
                 break
-        for node_id, level in levels.items():
-            if node_id != seed_id:
-                sides[node_id] = ("upstream", max(1, level))
 
     def node_payload(node_id: str) -> dict[str, Any] | None:
         if node_id in column_analyses:
@@ -1633,7 +1800,7 @@ def build_lineage(
             if edge["from"] in allowed_ids and edge["to"] in allowed_ids
         }
 
-    _finalize_mquery_groups(graph, seed_id, seed_mquery_group)
+    _finalize_mquery_groups(graph, m_outputs)
 
     (
         nodes,
@@ -1642,6 +1809,7 @@ def build_lineage(
         width,
         height,
         canvas_edges,
+        highlight_edges,
         edge_level,
     ) = _layout_graph(
         graph,
@@ -1661,6 +1829,10 @@ def build_lineage(
     if m_step_truncated:
         notices.append(
             {"code": "m_steps_truncated", "count": m_step_truncated}
+        )
+    if m_columns_truncated:
+        notices.append(
+            {"code": "m_columns_truncated", "count": m_columns_truncated}
         )
     if edge_level != "usage":
         notices.append(
@@ -1687,6 +1859,7 @@ def build_lineage(
         "nodes": nodes,
         "edges": list(graph.edges.values()),
         "canvas_edges": canvas_edges,
+        "highlight_edges": highlight_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),
@@ -1933,7 +2106,7 @@ def build_table_lineage(
                         report_names=report_names,
                     )
 
-    _finalize_mquery_groups(graph, seed_id, None)
+    _finalize_mquery_groups(graph, None)
 
     (
         nodes,
@@ -1942,6 +2115,7 @@ def build_table_lineage(
         width,
         height,
         canvas_edges,
+        highlight_edges,
         edge_level,
     ) = _layout_graph(
         graph,
@@ -1983,6 +2157,7 @@ def build_table_lineage(
         "nodes": nodes,
         "edges": list(graph.edges.values()),
         "canvas_edges": canvas_edges,
+        "highlight_edges": highlight_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),
