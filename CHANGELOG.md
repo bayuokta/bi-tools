@@ -7,10 +7,11 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-20 - Rilis 0.5.0
 
-Analisa semantic model di web kini realtime dan tidak lagi menulis hasil ke
-database.
+Analisa semantic model di web kini realtime, punya menu konteks per baris,
+lineage graph/outline, langkah M, detail item bertab, raw metadata TMSCHEMA,
+preview nilai, serta ekspor lineage/dependensi.
 
 ### Analisa Semantic Model
 
