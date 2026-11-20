@@ -378,6 +378,41 @@ class WebLayerTests(unittest.TestCase):
             self.assertIn(marker, css)
         self.assertNotIn("Fact Sales[Order Date Key]", js)
 
+    def test_web_analysis_lineage_graph_uses_backend_layout(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        core = (ROOT / "core" / "analysis_lineage.py").read_text(encoding="utf-8")
+        for marker in (
+            'id="analysisLineageDialog"',
+            'id="analysisLineageCanvasWrap"',
+            'id="analysisLineageNodes"',
+            'id="analysisLineageEdges"',
+            'id="analysisLineageDirection"',
+        ):
+            self.assertIn(marker, html)
+            self.assertEqual(
+                html.count(marker), 1, f"{marker} harus unik (bentrok dengan halaman Lineage)"
+            )
+        for marker in (
+            "function analysisLineageOpen(",
+            "function analysisLineageRender(",
+            "function analysisLineageEdgePath(",
+            "function analysisLineageSelect(",
+            "/api/analysis/lineage",
+            "data-node-id",
+            "node.x",
+            "data-node-kind",
+        ):
+            self.assertIn(marker, js)
+        self.assertIn("def lineage_payload(", presenter)
+        self.assertIn("build_lineage", presenter)
+        self.assertIn("def build_lineage(", core)
+        self.assertIn("GROUP_ORDER", core)
+        self.assertNotIn("sqlite3", core)
+
     def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for tab in ("all", "tables", "relationships", "report", "dax", "m"):

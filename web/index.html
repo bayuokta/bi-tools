@@ -1238,6 +1238,68 @@
   </div>
 </dialog>
 
+<dialog class="dialog dialog--lineage" id="analysisLineageDialog" aria-labelledby="analysisLineageTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisLineageTitle" data-i18n="Lineage graph">Lineage graph</h2>
+      <p class="helper mono" id="analysisLineageSub"></p>
+    </div>
+    <button class="dialog-close" id="closeLineageDialog" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="lineage-toolbar">
+    <label class="tool-field search lineage-search">
+      <span data-i18n="Search nodes">Search nodes</span>
+      <input class="input" id="analysisLineageSearch" type="search" placeholder="Column, measure, report, or page" data-i18n-placeholder="Column, measure, report, or page">
+    </label>
+    <div class="segmented" id="analysisLineageDirection" role="group" aria-label="Lineage direction" data-i18n-aria-label="Lineage direction">
+      <button type="button" data-lineage-direction="both" aria-pressed="true" data-i18n="Both">Both</button>
+      <button type="button" data-lineage-direction="upstream" aria-pressed="false" data-i18n="Upstream">Upstream</button>
+      <button type="button" data-lineage-direction="downstream" aria-pressed="false" data-i18n="Downstream">Downstream</button>
+    </div>
+    <div class="graph-zoom" role="group" aria-label="Lineage graph zoom" data-i18n-aria-label="Lineage graph zoom">
+      <button class="btn btn-sm graph-zoom-btn" id="analysisLineageZoomOut" type="button" aria-label="Zoom out" data-i18n-aria-label="Zoom out">−</button>
+      <span class="graph-zoom-value" id="analysisLineageZoomValue">100%</span>
+      <button class="btn btn-sm graph-zoom-btn" id="analysisLineageZoomIn" type="button" aria-label="Zoom in" data-i18n-aria-label="Zoom in">+</button>
+      <button class="btn btn-sm graph-zoom-fit" id="analysisLineageZoomFit" type="button" data-i18n="Fit">Fit</button>
+    </div>
+  </div>
+  <div class="lineage-body">
+    <div class="lineage-canvas-wrap" id="analysisLineageCanvasWrap">
+      <div class="lineage-sizer" id="analysisLineageSizer">
+        <div class="lineage-canvas" id="analysisLineageCanvas">
+          <svg id="analysisLineageSvg" aria-hidden="true">
+            <defs>
+              <marker id="lineageArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                <path class="lineage-arrow" d="M0 0L8 4L0 8z"></path>
+              </marker>
+              <marker id="lineageArrowHot" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                <path class="lineage-arrow-hot" d="M0 0L8 4L0 8z"></path>
+              </marker>
+            </defs>
+            <g id="analysisLineageEdges"></g>
+          </svg>
+          <div class="lineage-nodes" id="analysisLineageNodes"></div>
+        </div>
+      </div>
+    </div>
+    <div class="empty" id="analysisLineageEmpty" hidden>
+      <div class="empty-title" id="analysisLineageEmptyTitle" data-i18n="No lineage data">No lineage data</div>
+      <p class="empty-text" id="analysisLineageEmptyText"></p>
+    </div>
+  </div>
+  <div class="lineage-foot">
+    <div class="lineage-legend">
+      <span class="lineage-legend-item"><i class="lineage-dot" data-group="mquery"></i><span data-i18n="M query">M query</span></span>
+      <span class="lineage-legend-item"><i class="lineage-dot" data-group="model"></i><span data-i18n="Model dependencies">Model dependencies</span></span>
+      <span class="lineage-legend-item"><i class="lineage-dot" data-group="report"></i><span data-i18n="Report usage">Report usage</span></span>
+      <span class="lineage-legend-item"><i class="lineage-dot" data-group="selected"></i><span data-i18n="Selected">Selected</span></span>
+    </div>
+    <span class="helper" id="analysisLineageNotice"></span>
+  </div>
+</dialog>
+
 <div class="combo-popup" id="comboPopup" hidden>
   <input class="input combo-search" id="comboSearch" type="search" placeholder="Search options." autocomplete="off" aria-label="Search options" data-i18n-placeholder="Search options." data-i18n-aria-label="Search options">
   <div class="combo-list" id="comboList" role="listbox"></div>

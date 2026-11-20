@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from core.auth import ServicePrincipal
+from core.analysis_lineage import build_lineage
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
 from core.usage_store import initialize as initialize_usage, report_detail
@@ -958,6 +959,46 @@ def report_detail_payload(
         )
     with session.lock:
         return report_detail(session.conn, dataset, report)
+
+
+def lineage_payload(
+    store: SettingsStore,
+    dataset_id: str,
+    kind: str,
+    table: str,
+    name: str,
+    *,
+    direction: str = "both",
+    depth: int = 4,
+) -> dict[str, Any]:
+    """Graph lineage satu kolom/measure dari sesi analisa in-memory."""
+    dataset = str(dataset_id or "").strip()
+    if not dataset:
+        raise ExtractionError("Dataset harus dipilih.")
+    session = _session(dataset, create=False)
+    if session is None:
+        raise ExtractionError(
+            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
+            "(hasil tidak disimpan ke database)."
+        )
+    with session.lock:
+        result = snapshot_from_connection(session.conn, dataset)
+    if result is None:
+        raise ExtractionError(
+            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
+            "dulu (hasil tidak disimpan ke database)."
+        )
+    try:
+        return build_lineage(
+            result,
+            kind=kind,
+            table=table,
+            name=name,
+            direction=direction,
+            depth=depth,
+        )
+    except ValueError as exc:
+        raise ExtractionError(str(exc)) from exc
 
 
 def run_job(

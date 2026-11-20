@@ -391,6 +391,47 @@ class AnalysisPresenterTests(unittest.TestCase):
         with self.assertRaises(ExtractionError):
             presenter.report_detail_payload(self.store, DATASET, "r1")
 
+    def test_lineage_requires_session(self) -> None:
+        presenter.reset_sessions()
+        with self.assertRaises(ExtractionError) as ctx:
+            presenter.lineage_payload(self.store, DATASET, "column", "T", "C")
+        self.assertIn("Belum ada hasil analisa", str(ctx.exception))
+
+    def test_lineage_payload_uses_session(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "build_lineage", return_value={"nodes": [], "edges": []}
+        ) as build:
+            data = presenter.lineage_payload(
+                self.store,
+                DATASET,
+                "measure",
+                "KPI",
+                "Total",
+                direction="downstream",
+                depth=3,
+            )
+        self.assertEqual(data["nodes"], [])
+        kwargs = build.call_args.kwargs
+        self.assertEqual(kwargs["kind"], "measure")
+        self.assertEqual(kwargs["table"], "KPI")
+        self.assertEqual(kwargs["name"], "Total")
+        self.assertEqual(kwargs["direction"], "downstream")
+        self.assertEqual(kwargs["depth"], 3)
+
+    def test_lineage_invalid_seed_is_extraction_error(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ):
+            with self.assertRaises(ExtractionError) as ctx:
+                presenter.lineage_payload(
+                    self.store, DATASET, "column", "T", "TidakAda"
+                )
+        self.assertIn("tidak ditemukan", str(ctx.exception))
+
 
 class AnalysisEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -441,6 +482,38 @@ class AnalysisEndpointTests(unittest.TestCase):
             response = self.client.get("/api/analysis/snapshot", params={"dataset_id": DATASET})
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.json()["result"])
+
+    def test_lineage_endpoint_delegates(self) -> None:
+        with patch.object(
+            presenter, "lineage_payload", return_value={"nodes": [], "edges": []}
+        ) as mock:
+            response = self.client.get(
+                "/api/analysis/lineage",
+                params={
+                    "dataset_id": DATASET,
+                    "kind": "measure",
+                    "table": "KPI",
+                    "name": "Total",
+                    "direction": "downstream",
+                    "depth": 3,
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["nodes"], [])
+        args = mock.call_args.args
+        self.assertEqual(args[1], DATASET)
+        self.assertEqual(args[2], "measure")
+        self.assertEqual(args[3], "KPI")
+        self.assertEqual(args[4], "Total")
+        self.assertEqual(mock.call_args.kwargs["direction"], "downstream")
+        self.assertEqual(mock.call_args.kwargs["depth"], 3)
+
+    def test_lineage_endpoint_rejects_bad_depth(self) -> None:
+        response = self.client.get(
+            "/api/analysis/lineage",
+            params={"dataset_id": DATASET, "kind": "column", "name": "C", "depth": 99},
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_preferences_endpoint(self) -> None:
         response = self.client.post(

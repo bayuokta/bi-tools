@@ -38,6 +38,27 @@ def report_detail(
     return presenter.report_detail_payload(settings_of(request), dataset_id, report_id)
 
 
+@router.get("/lineage")
+def lineage(
+    request: Request,
+    dataset_id: str = Query(default=""),
+    kind: str = Query(default="column"),
+    table: str = Query(default=""),
+    name: str = Query(default=""),
+    direction: str = Query(default="both"),
+    depth: int = Query(default=4, ge=1, le=8),
+) -> dict[str, Any]:
+    return presenter.lineage_payload(
+        settings_of(request),
+        dataset_id,
+        kind,
+        table,
+        name,
+        direction=direction,
+        depth=depth,
+    )
+
+
 @router.post("/run", status_code=202)
 def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     store = settings_of(request)

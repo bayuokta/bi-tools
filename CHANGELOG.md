@@ -30,9 +30,16 @@ database.
 - Baris kolom/measure bisa diklik kanan (atau tombol `⋮`, `Shift+F10`) untuk
   membuka menu aksi: buka/tutup item di bawah, salin `'Tabel'[Nama]`, lihat
   detail kolom/measure (ukuran, tipe, status, alasan, pemakaian, ekspresi), dan
-  lihat ekspresi DAX measure. Item lineage graph, raw data, dependensi, opsi
-  tabel/model, dan ekspor sudah tampil dengan badge **Soon** dan akan diisi
-  bertahap.
+  lihat ekspresi DAX measure.
+- **View column lineage graph** menampilkan graph dua arah di dialog: M query,
+  dependensi model (measure, calculated column, relasi, sort, RLS, field
+  parameter), lalu report → halaman → visual/filter. Graph memakai layout dari
+  `core\analysis_lineage.py` (bukan dihitung di browser), dengan pencarian,
+  zoom/Fit, pan, sorot lineage, dan double-click untuk root baru. Arah
+  Both/Upstream/Downstream memuat ulang graph; mode model-only menampilkan
+  notice tanpa sisi report.
+- Item lineage daftar, raw data, dependensi, opsi tabel/model, dan ekspor masih
+  badge **Soon** dan akan diisi bertahap.
 
 ## 2026-11-19 - Rilis 0.4.4
 

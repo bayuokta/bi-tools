@@ -94,6 +94,12 @@
     analysisMenuTarget: null,
     analysisMenuFocus: null,
     analysisDetailsExpression: "",
+    analysisLineage: null,
+    analysisLineageTarget: null,
+    analysisLineageDirection: "both",
+    analysisLineageZoom: 1,
+    analysisLineageDrag: null,
+    analysisLineageHighlight: null,
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -1756,6 +1762,44 @@
     export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
   };
+  var LINEAGE_KIND_LABELS = {
+    column: "Column",
+    measure: "Measure",
+    table: "Table",
+    report: "Report",
+    page: "Page",
+    visual: "Visual",
+    filter: "Filter",
+    sort: "Sort",
+    relationship: "Relationship",
+    hierarchy: "Hierarchy",
+    security: "Security",
+    "field-parameter": "Field parameter",
+    calculation: "Calculation",
+    kpi: "KPI",
+    mquery: "M query",
+    more: "More",
+    usage: "Usage"
+  };
+  var LINEAGE_KIND_ICONS = {
+    column: "column",
+    measure: "measure",
+    table: "table",
+    report: "report",
+    page: "page",
+    visual: "visual",
+    filter: "filter",
+    sort: "group",
+    relationship: "link",
+    hierarchy: "group",
+    security: "filter",
+    "field-parameter": "group",
+    calculation: "code",
+    kpi: "measure",
+    mquery: "query",
+    more: "group",
+    usage: "group"
+  };
   var ANALYSIS_TABS = {
     all: {
       placeholder: t("Column, measure, or table name"),
@@ -2195,8 +2239,7 @@
         id: "lineage-graph",
         label: t("View column lineage graph"),
         icon: "graph",
-        primary: true,
-        soon: true
+        primary: true
       },
       {
         id: "details",
@@ -2364,6 +2407,11 @@
       analysisOpenDetails(target, action === "dax" ? "dax" : "details");
       return;
     }
+    if (action === "lineage-graph") {
+      analysisCloseMenu(false);
+      analysisLineageOpen(target);
+      return;
+    }
     analysisCloseMenu(true);
   }
 
@@ -2467,6 +2515,322 @@
     $("#copyAnalysisExpression").hidden = !item.expression;
     if (dialog.open) dialog.close();
     dialog.showModal();
+  }
+
+  // -- Lineage graph kolom/measure ----------------------------------------
+  function analysisLineageOpen(target) {
+    var dialog = $("#analysisLineageDialog");
+    if (!dialog) return;
+    state.analysisLineageTarget = {
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    };
+    state.analysisLineage = null;
+    state.analysisLineageHighlight = null;
+    state.analysisLineageZoom = 1;
+    state.analysisLineageDirection = "both";
+    $("#analysisLineageSearch").value = "";
+    $("#analysisLineageNodes").innerHTML = "";
+    $("#analysisLineageEdges").innerHTML = "";
+    $("#analysisLineageNotice").textContent = "";
+    $("#analysisLineageSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    analysisLineageDirectionButtons();
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+    analysisLoadLineage();
+  }
+
+  function analysisLineageDirectionButtons() {
+    $$("#analysisLineageDirection [data-lineage-direction]").forEach(function (button) {
+      button.setAttribute(
+        "aria-pressed",
+        button.getAttribute("data-lineage-direction") === state.analysisLineageDirection
+          ? "true" : "false"
+      );
+    });
+  }
+
+  function analysisLoadLineage() {
+    var target = state.analysisLineageTarget;
+    var datasetId = getSelectValue("modelSelect");
+    if (!target || !datasetId || !apiReady()) return;
+    $("#analysisLineageNodes").innerHTML = "";
+    $("#analysisLineageEdges").innerHTML = "";
+    $("#analysisLineageNotice").textContent = "";
+    analysisLineageShowEmpty(t("Loading lineage…"), "");
+    var path = "/api/analysis/lineage?dataset_id=" + encodeURIComponent(datasetId) +
+      "&kind=" + encodeURIComponent(target.kind) +
+      "&table=" + encodeURIComponent(target.table) +
+      "&name=" + encodeURIComponent(target.name) +
+      "&direction=" + encodeURIComponent(state.analysisLineageDirection) +
+      "&depth=4";
+    api().get(path).then(function (data) {
+      state.analysisLineage = data;
+      analysisLineageRender();
+    }).catch(function (error) {
+      state.analysisLineage = null;
+      analysisLineageShowEmpty(t("Lineage could not be loaded"), tr(error.message));
+      reportError(error);
+    });
+  }
+
+  function analysisLineageShowEmpty(title, text) {
+    $("#analysisLineageEmpty").hidden = false;
+    $("#analysisLineageEmptyTitle").textContent = title || t("No lineage data");
+    $("#analysisLineageEmptyText").textContent = text || "";
+  }
+
+  function analysisLineageRender() {
+    var graph = state.analysisLineage;
+    if (!graph || !(graph.nodes || []).length) {
+      analysisLineageShowEmpty(
+        t("No lineage data"),
+        t("No dependencies found")
+      );
+      return;
+    }
+    $("#analysisLineageEmpty").hidden = true;
+    var width = Math.max(1, Number(graph.width) || 1);
+    var height = Math.max(1, Number(graph.height) || 1);
+    var canvas = $("#analysisLineageCanvas");
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    var svg = $("#analysisLineageSvg");
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) {
+      byId[node.id] = node;
+    });
+    $("#analysisLineageEdges").innerHTML = (graph.edges || []).map(function (edge) {
+      var source = byId[edge.from];
+      var target = byId[edge.to];
+      if (!source || !target) return "";
+      return '<path class="lineage-edge kind-' + escapeHtml(edge.kind || "depend") +
+        '" data-edge-from="' + escapeHtml(edge.from) +
+        '" data-edge-to="' + escapeHtml(edge.to) +
+        '" d="' + analysisLineageEdgePath(source, target) +
+        '" marker-end="url(#lineageArrow)"></path>';
+    }).join("");
+    $("#analysisLineageNodes").innerHTML = (graph.nodes || []).map(
+      analysisLineageNodeMarkup
+    ).join("");
+    state.analysisLineageZoom = 1;
+    state.analysisLineageHighlight = null;
+    $("#analysisLineageNotice").textContent = analysisLineageNotice(graph);
+    analysisLineageFocusSeed();
+  }
+
+  function analysisLineageNodeMarkup(node) {
+    var iconKey = LINEAGE_KIND_ICONS[node.kind] || "group";
+    var icon = ANALYSIS_ICONS[iconKey] || "";
+    var kindLabel = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
+    var parts = [kindLabel];
+    if (node.context) parts.push(node.context);
+    var sub = parts.join(" \u00b7 ");
+    var status = node.status
+      ? '<span class="ln-status">' + escapeHtml(tStatus(node.status)) + "</span>"
+      : "";
+    var count = Number(node.count) > 1
+      ? '<span class="ln-count">' + Number(node.count) + "</span>"
+      : "";
+    var title = node.label + (node.context ? " \u00b7 " + node.context : "");
+    var classes = ["lineage-node", "group-" + (node.group || "model")];
+    if (node.side === "root") classes.push("is-seed");
+    return '<button type="button" class="' + classes.join(" ") + '"' +
+      ' data-node-id="' + escapeHtml(node.id) + '"' +
+      ' data-node-kind="' + escapeHtml(node.kind) + '"' +
+      ' data-node-table="' + escapeHtml(node.context || "") + '"' +
+      ' data-node-name="' + escapeHtml(node.label) + '"' +
+      ' style="left:' + node.x + "px;top:" + node.y + "px;width:" + node.w +
+      "px;height:" + node.h + 'px"' +
+      ' title="' + escapeHtml(title) + '">' +
+      '<span class="ln-icon">' + icon + "</span>" +
+      '<span class="ln-text"><span class="ln-title">' + escapeHtml(node.label) +
+      '</span><span class="ln-sub">' + escapeHtml(sub) + "</span>" + status +
+      "</span>" + count + "</button>";
+  }
+
+  function analysisLineageEdgePath(source, target) {
+    var x1 = source.x + source.w;
+    var y1 = source.y + source.h / 2;
+    var x2 = target.x;
+    var y2 = target.y + target.h / 2;
+    if (x2 <= x1) {
+      x2 = target.x + target.w;
+      return "M" + x1 + " " + y1 + " C" + (x1 + 60) + " " + y1 + " " +
+        (x2 + 60) + " " + y2 + " " + x2 + " " + y2;
+    }
+    var bend = Math.max(40, (x2 - x1) * 0.45);
+    return "M" + x1 + " " + y1 + " C" + (x1 + bend) + " " + y1 + " " +
+      (x2 - bend) + " " + y2 + " " + x2 + " " + y2;
+  }
+
+  function analysisLineageNotice(graph) {
+    return (graph.notices || []).map(function (notice) {
+      if (notice.code === "reports_excluded") {
+        return t("Report usage not included");
+      }
+      if (notice.code === "truncated") {
+        return t("Truncated: {n} nodes").replace("{n}", String(notice.count || 0));
+      }
+      if (notice.code === "no_dependencies") {
+        return t("No dependencies found");
+      }
+      return "";
+    }).filter(Boolean).join(" \u00b7 ");
+  }
+
+  function analysisLineageApplyZoom() {
+    var graph = state.analysisLineage;
+    var canvas = $("#analysisLineageCanvas");
+    var wrap = $("#analysisLineageCanvasWrap");
+    if (!graph || !canvas || !wrap) return;
+    var scale = state.analysisLineageZoom;
+    canvas.style.transform = "scale(" + scale + ")";
+    var tailX = Math.max(0, wrap.clientWidth - 230 * scale - 60);
+    var tailY = Math.max(0, wrap.clientHeight - 90);
+    $("#analysisLineageSizer").style.width =
+      (Number(graph.width || 0) * scale + tailX) + "px";
+    $("#analysisLineageSizer").style.height =
+      (Number(graph.height || 0) * scale + tailY) + "px";
+    $("#analysisLineageZoomValue").textContent = Math.round(scale * 100) + "%";
+  }
+
+  function analysisLineageZoomBy(factor) {
+    if (!state.analysisLineage) return;
+    state.analysisLineageZoom = Math.min(
+      2.5, Math.max(0.12, state.analysisLineageZoom * factor)
+    );
+    analysisLineageApplyZoom();
+  }
+
+  function analysisLineageFit() {
+    var graph = state.analysisLineage;
+    var wrap = $("#analysisLineageCanvasWrap");
+    if (!graph || !wrap) return;
+    var availableW = Math.max(240, wrap.clientWidth - 32);
+    var availableH = Math.max(160, wrap.clientHeight - 32);
+    var scale = Math.min(
+      availableW / Math.max(1, Number(graph.width) || 1),
+      availableH / Math.max(1, Number(graph.height) || 1),
+      1
+    );
+    state.analysisLineageZoom = Math.max(0.12, scale);
+    analysisLineageApplyZoom();
+    wrap.scrollLeft = 0;
+    wrap.scrollTop = 0;
+  }
+
+  function analysisLineageFocusSeed() {
+    var graph = state.analysisLineage;
+    var wrap = $("#analysisLineageCanvasWrap");
+    if (!graph || !wrap) return;
+    state.analysisLineageZoom = 0.8;
+    analysisLineageApplyZoom();
+    var seed = null;
+    (graph.nodes || []).forEach(function (node) {
+      if (node.side === "root") seed = node;
+    });
+    if (!seed) return;
+    wrap.scrollLeft = 0;
+    wrap.scrollTop = Math.max(
+      0, seed.y * state.analysisLineageZoom - wrap.clientHeight / 2 + seed.h / 2
+    );
+  }
+
+  function analysisLineageLineageSet(graph, start) {
+    var outgoing = {};
+    var incoming = {};
+    (graph.edges || []).forEach(function (edge) {
+      (outgoing[edge.from] || (outgoing[edge.from] = [])).push(edge.to);
+      (incoming[edge.to] || (incoming[edge.to] = [])).push(edge.from);
+    });
+    var keep = {};
+    keep[start] = true;
+    var stack = [start];
+    while (stack.length) {
+      var current = stack.pop();
+      (outgoing[current] || []).forEach(function (next) {
+        if (!keep[next]) {
+          keep[next] = true;
+          stack.push(next);
+        }
+      });
+    }
+    stack = [start];
+    while (stack.length) {
+      var node = stack.pop();
+      (incoming[node] || []).forEach(function (previous) {
+        if (!keep[previous]) {
+          keep[previous] = true;
+          stack.push(previous);
+        }
+      });
+    }
+    return keep;
+  }
+
+  function analysisLineageSelect(nodeId) {
+    var graph = state.analysisLineage;
+    if (!graph || !nodeId) {
+      analysisLineageClearHighlight();
+      return;
+    }
+    state.analysisLineageHighlight = nodeId;
+    var keep = analysisLineageLineageSet(graph, nodeId);
+    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+      var id = element.getAttribute("data-node-id");
+      element.classList.toggle("is-muted", !keep[id]);
+      element.classList.toggle("is-hot", Boolean(keep[id]) && id !== nodeId);
+    });
+    $$("#analysisLineageEdges .lineage-edge").forEach(function (element) {
+      var on = Boolean(
+        keep[element.getAttribute("data-edge-from")] &&
+        keep[element.getAttribute("data-edge-to")]
+      );
+      element.classList.toggle("is-hot", on);
+      element.classList.toggle("is-muted", !on);
+      element.setAttribute(
+        "marker-end", on ? "url(#lineageArrowHot)" : "url(#lineageArrow)"
+      );
+    });
+  }
+
+  function analysisLineageClearHighlight() {
+    state.analysisLineageHighlight = null;
+    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+      element.classList.remove("is-muted", "is-hot");
+    });
+    $$("#analysisLineageEdges .lineage-edge").forEach(function (element) {
+      element.classList.remove("is-muted", "is-hot");
+      element.setAttribute("marker-end", "url(#lineageArrow)");
+    });
+    analysisLineageApplySearch();
+  }
+
+  function analysisLineageApplySearch() {
+    var query = ($("#analysisLineageSearch").value || "").trim().toLowerCase();
+    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+      element.classList.remove("is-hit", "is-muted");
+    });
+    if (!query) {
+      if (state.analysisLineageHighlight) {
+        analysisLineageSelect(state.analysisLineageHighlight);
+      }
+      return;
+    }
+    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+      var text = (
+        element.getAttribute("data-node-name") + " " +
+        (LINEAGE_KIND_LABELS[element.getAttribute("data-node-kind")] || "")
+      ).toLowerCase();
+      var hit = text.indexOf(query) !== -1;
+      element.classList.toggle("is-hit", hit);
+      element.classList.toggle("is-muted", !hit);
+    });
   }
 
   function analysisTableSummary(used, total, statuses) {
@@ -5299,6 +5663,127 @@
     });
     $("#analysisDetailsDialog").addEventListener("click", function (event) {
       if (event.target === event.currentTarget) $("#analysisDetailsDialog").close();
+    });
+    $("#closeLineageDialog").addEventListener("click", function () {
+      $("#analysisLineageDialog").close();
+    });
+    $("#analysisLineageDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#analysisLineageDialog").close();
+    });
+    $("#analysisLineageDialog").addEventListener("close", function () {
+      state.analysisLineage = null;
+      state.analysisLineageTarget = null;
+      state.analysisLineageHighlight = null;
+      state.analysisLineageDrag = null;
+      $("#analysisLineageSearch").value = "";
+      $("#analysisLineageNodes").innerHTML = "";
+      $("#analysisLineageEdges").innerHTML = "";
+    });
+    $("#analysisLineageSearch").addEventListener("input", analysisLineageApplySearch);
+    $("#analysisLineageZoomIn").addEventListener("click", function () {
+      analysisLineageZoomBy(1.25);
+    });
+    $("#analysisLineageZoomOut").addEventListener("click", function () {
+      analysisLineageZoomBy(1 / 1.25);
+    });
+    $("#analysisLineageZoomFit").addEventListener("click", analysisLineageFit);
+    $("#analysisLineageDirection").addEventListener("click", function (event) {
+      var button = event.target.closest("[data-lineage-direction]");
+      if (!button) return;
+      var value = button.getAttribute("data-lineage-direction");
+      if (["both", "upstream", "downstream"].indexOf(value) === -1) return;
+      if (value === state.analysisLineageDirection) return;
+      state.analysisLineageDirection = value;
+      analysisLineageDirectionButtons();
+      analysisLoadLineage();
+    });
+    $("#analysisLineageNodes").addEventListener("click", function (event) {
+      var node = event.target.closest(".lineage-node");
+      if (!node) return;
+      analysisLineageSelect(node.getAttribute("data-node-id"));
+    });
+    $("#analysisLineageNodes").addEventListener("dblclick", function (event) {
+      var node = event.target.closest(".lineage-node");
+      if (!node) return;
+      var kind = node.getAttribute("data-node-kind");
+      if (kind !== "column" && kind !== "measure") return;
+      var table = node.getAttribute("data-node-table");
+      var name = node.getAttribute("data-node-name");
+      if (!table || !name) return;
+      state.analysisLineageTarget = { kind: kind, table: table, name: name };
+      state.analysisLineageHighlight = null;
+      $("#analysisLineageSub").textContent = "'" + table + "'[" + name + "]";
+      analysisLoadLineage();
+    });
+    $("#analysisLineageCanvasWrap").addEventListener("wheel", function (event) {
+      if (!state.analysisLineage) return;
+      event.preventDefault();
+      var wrap = event.currentTarget;
+      var rect = wrap.getBoundingClientRect();
+      var previous = state.analysisLineageZoom;
+      var next = Math.min(
+        2.5, Math.max(0.12, previous * (event.deltaY < 0 ? 1.12 : 1 / 1.12))
+      );
+      if (next === previous) return;
+      var anchorX = wrap.scrollLeft + (event.clientX - rect.left);
+      var anchorY = wrap.scrollTop + (event.clientY - rect.top);
+      state.analysisLineageZoom = next;
+      analysisLineageApplyZoom();
+      wrap.scrollLeft = anchorX * (next / previous) - (event.clientX - rect.left);
+      wrap.scrollTop = anchorY * (next / previous) - (event.clientY - rect.top);
+    }, { passive: false });
+    $("#analysisLineageCanvasWrap").addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      if (event.target.closest(".lineage-node")) return;
+      var wrap = event.currentTarget;
+      state.analysisLineageDrag = {
+        x: event.clientX,
+        y: event.clientY,
+        left: wrap.scrollLeft,
+        top: wrap.scrollTop,
+        moved: false,
+        pointerId: event.pointerId
+      };
+      wrap.classList.add("is-panning");
+      try {
+        wrap.setPointerCapture(event.pointerId);
+      } catch (error) {
+        return undefined;
+      }
+      return undefined;
+    });
+    $("#analysisLineageCanvasWrap").addEventListener("pointermove", function (event) {
+      var drag = state.analysisLineageDrag;
+      if (!drag) return;
+      var wrap = event.currentTarget;
+      var dx = event.clientX - drag.x;
+      var dy = event.clientY - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+      wrap.scrollLeft = drag.left - dx;
+      wrap.scrollTop = drag.top - dy;
+    });
+    function analysisLineageEndPan(event) {
+      var drag = state.analysisLineageDrag;
+      if (!drag) return;
+      state.analysisLineageDrag = null;
+      var wrap = event.currentTarget;
+      wrap.classList.remove("is-panning");
+      try {
+        if (wrap.hasPointerCapture(drag.pointerId)) {
+          wrap.releasePointerCapture(drag.pointerId);
+        }
+      } catch (error) {
+        return undefined;
+      }
+      if (!drag.moved) analysisLineageClearHighlight();
+      return undefined;
+    }
+    $("#analysisLineageCanvasWrap").addEventListener("pointerup", analysisLineageEndPan);
+    $("#analysisLineageCanvasWrap").addEventListener(
+      "pointercancel", analysisLineageEndPan
+    );
+    window.addEventListener("resize", function () {
+      if ($("#analysisLineageDialog").open) analysisLineageApplyZoom();
     });
     $("#analyzeTabs").addEventListener("keydown", function (event) {
       var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
