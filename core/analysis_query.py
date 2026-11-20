@@ -55,7 +55,7 @@ def build_raw_query(
     )
 
 
-def _format_value(value: Any) -> Any:
+def normalize_value(value: Any) -> Any:
     """Ubah nilai ADOMD/.NET menjadi tipe yang aman untuk JSON/HTML."""
     if value is None:
         return ""
@@ -97,17 +97,17 @@ def normalize_rows(
     for row in rows:
         if not columns:
             columns = [str(key) for key in row.keys()]
-        normalized.append([_format_value(row.get(key)) for key in columns])
+        normalized.append([normalize_value(row.get(key)) for key in columns])
     return columns, normalized
 
 
-def raw_payload(
+def preview_payload(
     rows: Iterable[dict[str, Any]],
     *,
     query: str,
     limit: int = DEFAULT_ROWS,
 ) -> dict[str, Any]:
-    """Payload siap kirim untuk dialog data mentah."""
+    """Payload siap kirim untuk dialog preview nilai."""
     rows = list(rows)
     columns, values = normalize_rows(rows)
     columns = [

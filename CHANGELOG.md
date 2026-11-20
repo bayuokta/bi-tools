@@ -51,10 +51,16 @@ database.
   **Exports** (CSV node/edge, JSON, Mermaid, dependencies CSV) kini berfungsi.
   Ekspor menulis hanya format yang diminta dan memberi pesan bila berkas sedang
   dibuka aplikasi lain.
-- **Raw data** (kolom/measure) membaca langsung dari semantic model dengan
-  service principal, maksimal 100 baris dan timeout 60 detik. Dialog menampilkan
-  peringatan bahwa RLS pengguna tidak berlaku dan memuat data hanya setelah
-  tombol **Load data**; query asli dapat dilihat di bagian **Query**.
+- **Raw data** (kolom/measure) menampilkan **metadata mentah TMSCHEMA**
+  (`TMSCHEMA_COLUMNS`/`TMSCHEMA_MEASURES`) sebagai JSON lengkap dengan Copy
+  JSON; tidak ada nilai data.
+- **Preview values** membaca contoh nilai model dengan service principal
+  (RLS pengguna tidak berlaku), maksimal 100 baris dan timeout 60 detik. Data
+  dimuat hanya setelah tombol **Load preview**; query asli tampil di bagian
+  **Query**.
+- **Column/Measure details** kini bertab: **Properties**, **Usage**,
+  **Dependencies**, dan **Raw JSON**. Field yang tidak dideteksi tool ini
+  bernilai `null` dan dicantumkan di daftar `unsupported`.
 
 ## 2026-11-19 - Rilis 0.4.4
 

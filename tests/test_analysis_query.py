@@ -14,7 +14,7 @@ from core.analysis_query import (
     normalize_rows,
     quote_column,
     quote_table,
-    raw_payload,
+    preview_payload,
 )
 
 
@@ -70,19 +70,19 @@ class QueryBuildTests(unittest.TestCase):
              "2026-01-02 03:04:05"],
         )
 
-    def test_raw_payload_marks_truncated(self) -> None:
-        payload = raw_payload(
+    def test_preview_payload_marks_truncated(self) -> None:
+        payload = preview_payload(
             [{"A": 1}, {"A": 2}], query="EVALUATE X", limit=2
         )
         self.assertEqual(payload["columns"], ["A"])
         self.assertEqual(payload["rows"], [[1], [2]])
         self.assertEqual(payload["row_count"], 2)
         self.assertTrue(payload["truncated"])
-        payload = raw_payload([{"A": 1}], query="EVALUATE X", limit=10)
+        payload = preview_payload([{"A": 1}], query="EVALUATE X", limit=10)
         self.assertFalse(payload["truncated"])
 
-    def test_raw_payload_strips_bracketed_column_names(self) -> None:
-        payload = raw_payload(
+    def test_preview_payload_strips_bracketed_column_names(self) -> None:
+        payload = preview_payload(
             [{"[Main Dealer]": "A"}], query="EVALUATE X", limit=10
         )
         self.assertEqual(payload["columns"], ["Main Dealer"])

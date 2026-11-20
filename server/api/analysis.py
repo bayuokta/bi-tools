@@ -75,8 +75,21 @@ def dependencies_export(
     return presenter.export_dependencies(settings_of(request), payload or {})
 
 
-@router.post("/raw", status_code=202)
-def raw(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+@router.get("/details")
+def details(
+    request: Request,
+    dataset_id: str = Query(default=""),
+    kind: str = Query(default="column"),
+    table: str = Query(default=""),
+    name: str = Query(default=""),
+) -> dict[str, Any]:
+    return presenter.details_payload(
+        settings_of(request), dataset_id, kind, table, name
+    )
+
+
+@router.post("/preview", status_code=202)
+def preview(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     store = settings_of(request)
     data = payload or {}
     dataset_id = str(data.get("dataset_id") or "").strip()
@@ -92,10 +105,36 @@ def raw(request: Request, payload: dict[str, Any] | None = None) -> dict[str, An
     limit = data.get("limit", 100)
     return submit_job(
         request,
-        "analysis-raw",
-        "Data mentah",
-        lambda log, cancel: presenter.raw_payload(
+        "analysis-preview",
+        "Preview values",
+        lambda log, cancel: presenter.preview_payload(
             store, dataset_id, kind, table, name, limit=limit
+        ),
+    )
+
+
+@router.post("/raw-metadata", status_code=202)
+def raw_metadata(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    store = settings_of(request)
+    data = payload or {}
+    dataset_id = str(data.get("dataset_id") or "").strip()
+    table = str(data.get("table") or "").strip()
+    name = str(data.get("name") or "").strip()
+    kind = str(data.get("kind") or "column").strip().lower()
+    if not dataset_id or not table or not name:
+        raise HTTPException(
+            status_code=400, detail="Pilih kolom atau measure terlebih dahulu."
+        )
+    if kind not in {"column", "measure"}:
+        raise HTTPException(status_code=400, detail="Jenis item harus column/measure.")
+    return submit_job(
+        request,
+        "analysis-raw-metadata",
+        "Raw metadata",
+        lambda log, cancel: presenter.raw_metadata_payload(
+            store, dataset_id, kind, table, name
         ),
     )
 

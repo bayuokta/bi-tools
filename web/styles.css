@@ -1183,3 +1183,23 @@ tr.is-menu-open .row-menu-btn,
 #analysisRawTable td{ font-family:var(--font-mono); font-size:11.5px; white-space:nowrap; }
 #analysisRawTable td.cell-null{ color:var(--text-3); }
 #analysisRawQueryWrap summary{ cursor:pointer; font-size:12px; color:var(--text-2); }
+
+.dialog--item{
+  width:min(760px, calc(100vw - 32px));
+  height:min(720px, calc(100vh - 48px));
+}
+.tabs--item{ flex:none; padding:0 16px; background:var(--surface-2); }
+.tabs--item [role="tab"]{ height:36px; font-size:12.5px; }
+.dialog--item .dialog-body{ flex:1; min-height:0; }
+.dep-group{ margin:0 0 14px; }
+.dep-group h3{
+  margin:0 0 4px; font-size:10.5px; font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--text-3);
+}
+.dep-list{ list-style:none; margin:0; padding:0; }
+.dep-list li{ padding:6px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.dep-list li:last-child{ border-bottom:0; }
+.dep-kind{ color:var(--text-3); font-size:10px; text-transform:uppercase; margin-right:6px; }
+.dep-sub{ color:var(--text-3); font-size:11px; margin-left:6px; }
+.item-note{ margin:8px 0 0; font-size:11.5px; color:var(--text-3); }
+.item-flags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }

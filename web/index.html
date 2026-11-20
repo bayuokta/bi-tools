@@ -1309,7 +1309,7 @@
 <dialog class="dialog dialog--raw" id="analysisRawDialog" aria-labelledby="analysisRawTitle">
   <div class="dialog-head">
     <div>
-      <h2 class="dialog-title" id="analysisRawTitle" data-i18n="Raw data">Raw data</h2>
+      <h2 class="dialog-title" id="analysisRawTitle" data-i18n="Preview values">Preview values</h2>
       <p class="helper mono" id="analysisRawSub"></p>
     </div>
     <button class="dialog-close" id="closeAnalysisRaw" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
@@ -1317,9 +1317,9 @@
     </button>
   </div>
   <div class="dialog-body">
-    <p class="helper" data-i18n="Read directly from the semantic model with the service principal. User RLS does not apply. Maximum 100 rows.">Read directly from the semantic model with the service principal. User RLS does not apply. Maximum 100 rows.</p>
+    <p class="helper" data-i18n="Preview reads model values with the service principal. User RLS does not apply. Maximum 100 rows.">Preview reads model values with the service principal. User RLS does not apply. Maximum 100 rows.</p>
     <div class="raw-actions">
-      <button class="btn btn-primary" id="analysisRawLoad" type="button" data-i18n="Load data">Load data</button>
+      <button class="btn btn-primary" id="analysisRawLoad" type="button" data-i18n="Load preview">Load preview</button>
       <span class="helper" id="analysisRawStatus"></span>
     </div>
     <div class="table-scroll" id="analysisRawTableWrap" hidden>
@@ -1335,6 +1335,51 @@
   </div>
   <div class="dialog-foot">
     <button class="btn" id="doneAnalysisRaw" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
+<dialog class="dialog dialog--item" id="analysisItemDialog" aria-labelledby="analysisItemTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisItemTitle">Column details</h2>
+      <p class="helper mono" id="analysisItemSub"></p>
+    </div>
+    <button class="dialog-close" id="closeAnalysisItem" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="tabs tabs--item" id="analysisItemTabs" role="tablist" aria-label="Item details" data-i18n-aria-label="Item details">
+    <button role="tab" data-item-tab="properties" aria-selected="true" data-i18n="Properties">Properties</button>
+    <button role="tab" data-item-tab="usage" aria-selected="false" tabindex="-1" data-i18n="Usage">Usage</button>
+    <button role="tab" data-item-tab="dependencies" aria-selected="false" tabindex="-1" data-i18n="Dependencies">Dependencies</button>
+    <button role="tab" data-item-tab="raw" aria-selected="false" tabindex="-1" data-i18n="Raw JSON">Raw JSON</button>
+  </div>
+  <div class="dialog-body" id="analysisItemBody">
+    <div id="analysisItemPane"></div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="copyAnalysisItemJson" type="button" data-i18n="Copy JSON">Copy JSON</button>
+    <button class="btn btn-primary" id="doneAnalysisItem" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
+<dialog class="dialog dialog--raw" id="analysisRawMetaDialog" aria-labelledby="analysisRawMetaTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisRawMetaTitle" data-i18n="Raw data">Raw data</h2>
+      <p class="helper mono" id="analysisRawMetaSub"></p>
+    </div>
+    <button class="dialog-close" id="closeAnalysisRawMeta" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <p class="helper" id="analysisRawMetaStatus" data-i18n="Loading metadata…">Loading metadata…</p>
+    <pre class="detail-code" id="analysisRawMetaJson"></pre>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="copyAnalysisRawMeta" type="button" data-i18n="Copy JSON">Copy JSON</button>
+    <button class="btn btn-primary" id="doneAnalysisRawMeta" type="button" data-i18n="Close">Close</button>
   </div>
 </dialog>
 

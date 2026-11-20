@@ -434,7 +434,7 @@ class AnalysisPresenterTests(unittest.TestCase):
                 )
         self.assertIn("tidak ditemukan", str(ctx.exception))
 
-    def test_raw_payload_queries_model_read_only(self) -> None:
+    def test_preview_payload_queries_model_read_only(self) -> None:
         presenter._session(DATASET)
         client = SimpleNamespace(
             query_sql=lambda sql, timeout=None: [{"Customer Name": "Budi"}],
@@ -445,7 +445,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         ), patch.object(presenter, "open_client", return_value=client) as opened, patch.object(
             presenter, "EntraTokens", return_value=object()
         ):
-            data = presenter.raw_payload(
+            data = presenter.preview_payload(
                 self.store,
                 DATASET,
                 "column",
@@ -461,13 +461,13 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["limit"], 10)
         self.assertIn("TOPN(10,", data["query"])
 
-    def test_raw_payload_rejects_unknown_item(self) -> None:
+    def test_preview_payload_rejects_unknown_item(self) -> None:
         presenter._session(DATASET)
         with patch.object(
             presenter, "snapshot_from_connection", return_value=fake_result()
         ), patch.object(presenter, "open_client") as opened:
             with self.assertRaises(ExtractionError):
-                presenter.raw_payload(
+                presenter.preview_payload(
                     self.store, DATASET, "column", "T", "TidakAda"
                 )
         opened.assert_not_called()
@@ -505,6 +505,72 @@ class AnalysisPresenterTests(unittest.TestCase):
                 )
             self.assertEqual(len(only_json["paths"]), 1)
             self.assertTrue(only_json["paths"][0].endswith(".json"))
+
+    def test_details_payload_for_column(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ):
+            data = presenter.details_payload(
+                self.store, DATASET, "column", "Dim Customer", "Customer Name"
+            )
+        details = data["details"]
+        self.assertEqual(details["type"], "Column")
+        self.assertTrue(details["is_used_relationships"])
+        self.assertTrue(details["is_used_key"])
+        self.assertEqual(
+            details["relationship_dependencies"][0]["table2"], "Dim Customer"
+        )
+        self.assertIsNone(details["is_used_excel"])
+        self.assertIn("is_used_excel", details["unsupported"])
+
+    def test_raw_metadata_payload_finds_column(self) -> None:
+        presenter._session(DATASET)
+        rows = {
+            "TMSCHEMA_TABLES": [{"ID": 1, "Name": "Dim Customer"}],
+            "TMSCHEMA_COLUMNS": [
+                {
+                    "ID": 10,
+                    "TableID": 1,
+                    "ExplicitName": "Customer Name",
+                    "InferredName": "Customer Name",
+                    "Expression": "None",
+                }
+            ],
+            "TMSCHEMA_MEASURES": [
+                {"ID": 20, "TableID": 2, "Name": "Total Sales"}
+            ],
+        }
+        client = SimpleNamespace(
+            query=lambda dmv: rows[dmv],
+            close=lambda: None,
+        )
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(presenter, "open_client", return_value=client), patch.object(
+            presenter, "EntraTokens", return_value=object()
+        ):
+            data = presenter.raw_metadata_payload(
+                self.store, DATASET, "column", "Dim Customer", "Customer Name"
+            )
+        self.assertTrue(data["found"])
+        self.assertEqual(data["dmv"], "TMSCHEMA_COLUMNS")
+        self.assertEqual(data["row"]["ID"], 10)
+
+    def test_raw_metadata_missing_row_is_error(self) -> None:
+        presenter._session(DATASET)
+        client = SimpleNamespace(
+            query=lambda dmv: [], close=lambda: None
+        )
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(presenter, "open_client", return_value=client), patch.object(
+            presenter, "EntraTokens", return_value=object()
+        ):
+            with self.assertRaises(ExtractionError):
+                presenter.raw_metadata_payload(
+                    self.store, DATASET, "column", "Dim Customer", "Customer Name"
+                )
 
     def test_export_dependencies_writes_csv(self) -> None:
         presenter._session(DATASET)
@@ -616,6 +682,49 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["object_filter"], "columns")
 
+    def test_details_endpoint_delegates(self) -> None:
+        with patch.object(
+            presenter, "details_payload", return_value={"details": {"name": "X"}}
+        ) as mock:
+            response = self.client.get(
+                "/api/analysis/details",
+                params={
+                    "dataset_id": DATASET,
+                    "kind": "measure",
+                    "table": "KPI",
+                    "name": "Total",
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["details"]["name"], "X")
+        self.assertEqual(mock.call_args.args[1:], (DATASET, "measure", "KPI", "Total"))
+
+    def test_raw_metadata_endpoint_starts_job(self) -> None:
+        def fake_metadata(store, dataset_id, kind, table, name):
+            return {"found": True, "row": {"ID": 1}}
+
+        with patch.object(presenter, "raw_metadata_payload", fake_metadata):
+            response = self.client.post(
+                "/api/analysis/raw-metadata",
+                json={
+                    "dataset_id": DATASET,
+                    "kind": "column",
+                    "table": "Sales",
+                    "name": "Amount",
+                },
+            )
+            self.assertEqual(response.status_code, 202)
+            job_id = response.json()["job_id"]
+            self.assertTrue(
+                wait_until(
+                    lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
+                    != "running"
+                )
+            )
+        result = self.client.get(f"/api/jobs/{job_id}").json()["result"]
+        self.assertTrue(result["found"])
+        self.assertEqual(result["row"]["ID"], 1)
+
     def test_run_requires_ids(self) -> None:
         response = self.client.post("/api/analysis/run", json={})
         self.assertEqual(response.status_code, 400)
@@ -643,19 +752,19 @@ class AnalysisEndpointTests(unittest.TestCase):
             self.client.get(f"/api/jobs/{job_id}").json()["result"], {"ok": True}
         )
 
-    def test_raw_endpoint_requires_item(self) -> None:
+    def test_preview_endpoint_requires_item(self) -> None:
         response = self.client.post(
-            "/api/analysis/raw", json={"dataset_id": DATASET, "kind": "column"}
+            "/api/analysis/preview", json={"dataset_id": DATASET, "kind": "column"}
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_raw_endpoint_starts_job(self) -> None:
-        def fake_raw(store, dataset_id, kind, table, name, limit=100):
+    def test_preview_endpoint_starts_job(self) -> None:
+        def fake_preview(store, dataset_id, kind, table, name, limit=100):
             return {"columns": ["A"], "rows": [[1]], "limit": limit}
 
-        with patch.object(presenter, "raw_payload", fake_raw):
+        with patch.object(presenter, "preview_payload", fake_preview):
             response = self.client.post(
-                "/api/analysis/raw",
+                "/api/analysis/preview",
                 json={
                     "dataset_id": DATASET,
                     "kind": "column",

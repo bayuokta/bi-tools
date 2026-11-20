@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from core.auth import EntraTokens, ServicePrincipal
+from core.analysis_details import item_details
 from core.analysis_export import (
     dependency_rows,
     write_dependencies_csv,
@@ -24,7 +25,7 @@ from core.analysis_query import (
     DEFAULT_ROWS,
     QUERY_TIMEOUT,
     build_raw_query,
-    raw_payload as build_raw_payload,
+    preview_payload as build_preview_payload,
 )
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
@@ -41,6 +42,13 @@ from core.usage_service import (
     write_workbook,
 )
 from core.xmla_client import XmlaError, open_client, workspace_endpoint
+from core.raw_metadata import (
+    COLUMN_DMV,
+    MEASURE_DMV,
+    TABLE_DMV,
+    find_row,
+    metadata_payload,
+)
 
 from .. import settings as keys
 from ..settings_store import SettingsStore
@@ -1057,7 +1065,7 @@ def _find_analysis(result: Any, kind: str, table: str, name: str) -> Any:
     )
 
 
-def raw_payload(
+def preview_payload(
     store: SettingsStore,
     dataset_id: str,
     kind: str,
@@ -1066,7 +1074,7 @@ def raw_payload(
     *,
     limit: int = DEFAULT_ROWS,
 ) -> dict[str, Any]:
-    """Ambil data mentah satu kolom/measure (read-only, job thread)."""
+    """Preview nilai satu kolom/measure (read-only, job thread)."""
     result = _session_result(dataset_id)
     analysis = _find_analysis(result, kind, table, name)
     node = getattr(analysis, "measure", None) or getattr(analysis, "column", None)
@@ -1103,7 +1111,86 @@ def raw_payload(
         raise ExtractionError(f"Query data mentah gagal: {exc}") from exc
     finally:
         client.close()
-    return build_raw_payload(rows, query=query, limit=limit)
+    return build_preview_payload(rows, query=query, limit=limit)
+
+
+def details_payload(
+    store: SettingsStore,
+    dataset_id: str,
+    kind: str,
+    table: str,
+    name: str,
+) -> dict[str, Any]:
+    """Objek detail kolom/measure dari sesi analisa (tanpa XMLA)."""
+    result = _session_result(dataset_id)
+    analysis = _find_analysis(result, kind, table, name)
+    try:
+        return {"details": item_details(result, analysis, kind=kind)}
+    except ValueError as exc:
+        raise ExtractionError(str(exc)) from exc
+
+
+def raw_metadata_payload(
+    store: SettingsStore,
+    dataset_id: str,
+    kind: str,
+    table: str,
+    name: str,
+) -> dict[str, Any]:
+    """Baris mentah TMSCHEMA untuk satu kolom/measure (read-only)."""
+    result = _session_result(dataset_id)
+    analysis = _find_analysis(result, kind, table, name)
+    is_measure = str(kind).lower() == "measure"
+    node = getattr(analysis, "measure", None) if is_measure else getattr(
+        analysis, "column", None
+    )
+    node_table = str(getattr(node, "table", "") or table)
+    node_name = str(
+        getattr(node, "measure", "") if is_measure else getattr(node, "column", "")
+    ) or name
+    column_id = None if is_measure else int(getattr(node, "column_id", 0) or 0)
+    principal: ServicePrincipal = store.principal()
+    principal.validate()
+    tokens = EntraTokens(principal)
+    endpoint = workspace_endpoint(
+        principal.tenant_id or "myorg", result.workspace_name
+    )
+    try:
+        client = open_client(
+            endpoint=endpoint,
+            catalog=result.dataset_name,
+            tokens=tokens,
+        )
+    except XmlaError as exc:
+        raise ExtractionError(
+            f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
+            f"{exc}\nPastikan XMLA Read aktif dan service principal punya akses."
+        ) from exc
+    dmv = MEASURE_DMV if is_measure else COLUMN_DMV
+    try:
+        tables = client.query(TABLE_DMV)
+        rows = client.query(dmv)
+    except XmlaError as exc:
+        raise ExtractionError(f"Metadata TMSCHEMA tidak bisa dibaca: {exc}") from exc
+    finally:
+        client.close()
+    row = find_row(
+        rows,
+        kind="measure" if is_measure else "column",
+        table=node_table,
+        name=node_name,
+        column_id=column_id,
+        tables=tables,
+    )
+    payload = metadata_payload(
+        row, kind=kind, dmv=dmv, table=node_table, name=node_name
+    )
+    if not payload["found"]:
+        raise ExtractionError(
+            f"Baris {dmv} untuk '{node_table}'[{node_name}] tidak ditemukan. "
+            "Jalankan analisa ulang atau periksa nama objek."
+        )
+    return payload
 
 
 def export_lineage(

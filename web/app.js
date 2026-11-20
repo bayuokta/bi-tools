@@ -105,6 +105,11 @@
     analysisSubmenuTarget: null,
     analysisSubmenuAnchor: null,
     analysisRawTarget: null,
+    analysisItem: null,
+    analysisItemTarget: null,
+    analysisItemTab: "properties",
+    analysisItemRaw: null,
+    analysisRawMeta: null,
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -1833,6 +1838,42 @@
     inline: "Inline table",
     table: "Table"
   };
+  var DETAIL_GROUPS = [
+    ["model_dependencies", "Model dependencies"],
+    ["relationship_dependencies", "Relationships"],
+    ["sorting_dependencies", "Sorting"],
+    ["sort_dependencies", "Sort usage"],
+    ["hierarchy_dependencies", "Hierarchy"],
+    ["field_parameter_dependencies", "Field parameters"],
+    ["calculation_item_dependencies", "Calculation items"],
+    ["calc_table_dependencies", "Calculated tables"],
+    ["calc_table_column_dependencies", "Calculated table columns"],
+    ["row_level_security_dependencies", "Row level security"],
+    ["key_column_dependencies", "Key columns"],
+    ["kpi_dependencies", "KPIs"],
+    ["power_query_dependencies", "Power Query"],
+    ["visual_dependencies", "Visuals"],
+    ["visual_level_filters_dependencies", "Visual level filters"],
+    ["page_level_filters_dependencies", "Page level filters"],
+    ["report_level_filters_dependencies", "Report level filters"]
+  ];
+  var USAGE_FLAG_LABELS = {
+    is_used_model: "Model",
+    is_used_relationships: "Relationships",
+    is_used_sorting: "Sorting",
+    is_used_calc_tables: "Calc tables",
+    is_used_hierarchy: "Hierarchy",
+    is_used_field_parameters: "Field parameters",
+    is_used_calculation_items: "Calculation items",
+    is_used_visuals: "Visuals",
+    is_used_visual_level_filters: "Visual filters",
+    is_used_page_level_filters: "Page filters",
+    is_used_report_level_filters: "Report filters",
+    is_used_row_level_security: "Row level security",
+    is_used_kpis: "KPIs",
+    is_used_power_query: "Power Query",
+    is_used_key: "Key column"
+  };
   var ANALYSIS_TABS = {
     all: {
       placeholder: t("Column, measure, or table name"),
@@ -2280,9 +2321,14 @@
         icon: "details"
       },
       {
-        id: "raw",
+        id: "raw-metadata",
         label: isMeasure ? t("Measure raw data") : t("Column raw data"),
         icon: "raw"
+      },
+      {
+        id: "preview",
+        label: t("Preview values"),
+        icon: "query"
       },
       {
         id: "dependencies",
@@ -2542,9 +2588,14 @@
       analysisCloseMenu(true);
       return;
     }
-    if (action === "details" || action === "dax") {
+    if (action === "details") {
       analysisCloseMenu(false);
-      analysisOpenDetails(target, action === "dax" ? "dax" : "details");
+      analysisOpenItemDetails(target);
+      return;
+    }
+    if (action === "dax") {
+      analysisCloseMenu(false);
+      analysisOpenDetails(target, "dax");
       return;
     }
     if (action === "lineage" || action === "lineage-graph" ||
@@ -2558,9 +2609,14 @@
       analysisLineageOpen(target, view, category);
       return;
     }
-    if (action === "raw") {
+    if (action === "raw-metadata") {
       analysisCloseMenu(false);
-      analysisOpenRaw(target);
+      analysisOpenRawMetadata(target);
+      return;
+    }
+    if (action === "preview") {
+      analysisCloseMenu(false);
+      analysisOpenPreview(target);
       return;
     }
     if (action === "table-details" || action === "table-show" ||
@@ -2786,7 +2842,7 @@
     }).catch(reportError);
   }
 
-  function analysisResetRaw() {
+  function analysisResetPreview() {
     state.analysisRawTarget = null;
     $("#analysisRawSub").textContent = "";
     $("#analysisRawStatus").textContent = "";
@@ -2798,10 +2854,10 @@
     $("#analysisRawLoad").disabled = false;
   }
 
-  function analysisOpenRaw(target) {
+  function analysisOpenPreview(target) {
     var dialog = $("#analysisRawDialog");
     if (!dialog) return;
-    analysisResetRaw();
+    analysisResetPreview();
     state.analysisRawTarget = {
       kind: target.kind,
       table: target.table,
@@ -2813,14 +2869,14 @@
     dialog.showModal();
   }
 
-  function analysisRunRaw() {
+  function analysisRunPreview() {
     var target = state.analysisRawTarget;
     var datasetId = getSelectValue("modelSelect");
     if (!target || !datasetId) return;
-    $("#analysisRawStatus").textContent = t("Loading raw data…");
+    $("#analysisRawStatus").textContent = t("Loading preview…");
     startJob({
-      kind: "analysis-raw",
-      path: "/api/analysis/raw",
+      kind: "analysis-preview",
+      path: "/api/analysis/preview",
       body: {
         dataset_id: datasetId,
         kind: target.kind,
@@ -2828,19 +2884,19 @@
         name: target.name,
         limit: 100
       },
-      label: t("Raw data"),
+      label: t("Preview values"),
       button: $("#analysisRawLoad"),
       onDone: function (snapshot) {
-        if (snapshot.result) analysisRenderRaw(snapshot.result);
+        if (snapshot.result) analysisRenderPreview(snapshot.result);
       },
       onError: function (_snapshot, message) {
         $("#analysisRawStatus").textContent =
-          tr(message || t("Raw data could not be loaded"));
+          tr(message || t("Preview could not be loaded"));
       }
     });
   }
 
-  function analysisRenderRaw(payload) {
+  function analysisRenderPreview(payload) {
     var rows = payload.rows || [];
     var columns = payload.columns || [];
     $("#analysisRawHead").innerHTML = columns.length
@@ -2866,6 +2922,266 @@
     $("#analysisRawStatus").textContent = status;
     $("#analysisRawQueryWrap").hidden = !payload.query;
     $("#analysisRawQuery").textContent = payload.query || "";
+  }
+
+  function analysisOpenItemDetails(target) {
+    var datasetId = getSelectValue("modelSelect");
+    var dialog = $("#analysisItemDialog");
+    if (!datasetId || !dialog) return;
+    state.analysisItemTarget = {
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    };
+    state.analysisItem = null;
+    state.analysisItemRaw = null;
+    state.analysisItemTab = "properties";
+    $("#analysisItemTitle").textContent = target.kind === "measure"
+      ? t("Measure details") : t("Column details");
+    $("#analysisItemSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    $("#analysisItemPane").innerHTML =
+      '<p class="helper">' + escapeHtml(t("Loading details…")) + "</p>";
+    analysisItemTabs();
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+    var path = "/api/analysis/details?dataset_id=" + encodeURIComponent(datasetId) +
+      "&kind=" + encodeURIComponent(target.kind) +
+      "&table=" + encodeURIComponent(target.table) +
+      "&name=" + encodeURIComponent(target.name);
+    api().get(path).then(function (data) {
+      state.analysisItem = data.details;
+      analysisRenderItemDetails();
+    }).catch(function (error) {
+      $("#analysisItemPane").innerHTML =
+        '<p class="helper">' + escapeHtml(tr(error.message)) + "</p>";
+      reportError(error);
+    });
+  }
+
+  function analysisItemTabs() {
+    $$("#analysisItemTabs [role='tab']").forEach(function (tab) {
+      var active = tab.getAttribute("data-item-tab") === state.analysisItemTab;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  function analysisRenderItemDetails() {
+    var details = state.analysisItem;
+    if (!details) return;
+    var pane = $("#analysisItemPane");
+    if (state.analysisItemTab === "properties") {
+      pane.innerHTML = analysisItemPropertiesMarkup(details);
+    } else if (state.analysisItemTab === "usage") {
+      pane.innerHTML = analysisItemUsageMarkup(details);
+    } else if (state.analysisItemTab === "dependencies") {
+      pane.innerHTML = analysisItemDependenciesMarkup(details);
+    } else if (state.analysisItemRaw && state.analysisItemRaw.error) {
+      pane.innerHTML = '<p class="helper">' +
+        escapeHtml(state.analysisItemRaw.error) + "</p>";
+    } else if (state.analysisItemRaw) {
+      pane.innerHTML = '<pre class="detail-code">' +
+        escapeHtml(analysisPrettyJson(state.analysisItemRaw)) + "</pre>";
+    } else {
+      pane.innerHTML = '<p class="helper">' +
+        escapeHtml(t("Loading metadata…")) + "</p>";
+      analysisLoadItemRaw();
+    }
+  }
+
+  function analysisItemPropertiesMarkup(details) {
+    var measure = details.type === "Measure";
+    var rows = [
+      [t("Name"), details.name],
+      [t("Model"), details.model_name],
+      [t("Table"), details.table_name],
+      [t("Type"), details.type],
+      [t("Data type"), details.data_type_str],
+      [t("Size"), measure ? "\u2014" : analysisFmtBytes(details.size)],
+      [t("Rows"), measure ? "\u2014" : details.rows],
+      [t("Format string"), details.format_string],
+      [t("Display folder"), details.display_folder],
+      [t("Hidden"), details.is_hidden ? t("Yes") : t("No")],
+      [t("Status"), tStatus(details.status)],
+      [t("Reason"), tr(details.reason)],
+      [t("Lineage tag"), details.lineage_tag || "\u2014"],
+      [t("Annotation"), details.annotation]
+    ];
+    if (!measure) {
+      rows.splice(6, 0,
+        [t("Data size"), analysisFmtBytes(details.size_data)],
+        [t("Hierarchy size"), analysisFmtBytes(details.size_hierarchy)],
+        [t("Dictionary size"), analysisFmtBytes(details.size_dictionary)]
+      );
+    }
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    if (details.expression) {
+      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+        '</h3><pre class="detail-code">' +
+        escapeHtml(details.expression) + "</pre>";
+    }
+    return html;
+  }
+
+  function analysisItemUsageMarkup(details) {
+    var rows = [
+      [t("Status"), tStatus(details.status)],
+      [t("Reason"), tr(details.reason)],
+      [t("Model dependencies"), (details.model_dependencies || []).length],
+      [t("Relationships"), (details.relationship_dependencies || []).length],
+      [t("Visuals"), (details.visual_dependencies || []).length],
+      [t("Page level filters"), (details.page_level_filters_dependencies || []).length],
+      [t("Report level filters"), (details.report_level_filters_dependencies || []).length]
+    ];
+    var flags = Object.keys(USAGE_FLAG_LABELS).filter(function (key) {
+      return details[key] === true;
+    });
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    html += '<h3 class="detail-heading">' + escapeHtml(t("Usage flags")) + "</h3>";
+    html += '<div class="item-flags">' + (flags.length
+      ? flags.map(function (key) {
+        return '<span class="chip chip-ok"><span class="dot"></span>' +
+          escapeHtml(t(USAGE_FLAG_LABELS[key])) + "</span>";
+      }).join("")
+      : '<span class="helper">' + escapeHtml(t("No usage detected")) + "</span>") +
+      "</div>";
+    if ((details.unsupported || []).length) {
+      html += '<p class="item-note">' + escapeHtml(t("Not detected by this tool")) +
+        ": " + escapeHtml((details.unsupported || []).join(", ")) + "</p>";
+    }
+    return html;
+  }
+
+  function analysisItemDependenciesMarkup(details) {
+    var sections = [];
+    DETAIL_GROUPS.forEach(function (group) {
+      var rows = details[group[0]];
+      if (!rows || !rows.length) return;
+      sections.push(
+        '<section class="dep-group"><h3>' + escapeHtml(t(group[1])) +
+        "</h3><ul class=\"dep-list\">" + rows.map(function (entry) {
+          var text = analysisDependencyText(entry);
+          var sub = analysisDependencySub(entry);
+          return "<li><span class=\"dep-kind\">" +
+            escapeHtml(String(entry.kind || entry.type || "")) + "</span>" +
+            escapeHtml(text) +
+            (sub ? '<span class="dep-sub">' + escapeHtml(sub) + "</span>" : "") +
+            "</li>";
+        }).join("") + "</ul></section>"
+      );
+    });
+    return sections.length
+      ? sections.join("")
+      : '<p class="helper">' + escapeHtml(t("No dependencies")) + "</p>";
+  }
+
+  function analysisDependencyText(entry) {
+    if (!entry || typeof entry !== "object") return String(entry || "");
+    if (entry.table1 || entry.table2) {
+      return (entry.table1 || "") + "[" + (entry.column1 || "") + "] \u2192 " +
+        (entry.table2 || "") + "[" + (entry.column2 || "") + "]";
+    }
+    if (entry.object) return entry.object;
+    if (entry.report || entry.page || entry.visual) {
+      return [entry.report, entry.page, entry.visual].filter(Boolean).join(" \u00b7 ");
+    }
+    if (entry.table) {
+      return entry.table + (entry.column ? "[" + entry.column + "]" : "");
+    }
+    return analysisPrettyJson(entry);
+  }
+
+  function analysisDependencySub(entry) {
+    if (!entry || typeof entry !== "object") return "";
+    var detail = String(entry.detail || "");
+    if (detail && entry.object && detail.indexOf(entry.object) !== -1) {
+      detail = "";
+    }
+    return [
+      entry.relationship_type,
+      entry.type,
+      detail,
+      entry.hidden ? t("Hidden") : ""
+    ].filter(Boolean).join(" \u00b7 ");
+  }
+
+  function analysisPrettyJson(value) {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function analysisLoadItemRaw() {
+    var target = state.analysisItemTarget;
+    if (!target || state.analysisItemRaw) return;
+    analysisFetchRawMetadata(target, function (payload) {
+      state.analysisItemRaw = payload.row;
+      if (state.analysisItemTab === "raw") analysisRenderItemDetails();
+    }, function (message) {
+      state.analysisItemRaw = { error: tr(message) };
+      if (state.analysisItemTab === "raw") analysisRenderItemDetails();
+    });
+  }
+
+  function analysisCopyItemJson() {
+    if (!state.analysisItem) return;
+    copyTextValue(analysisPrettyJson(state.analysisItem));
+  }
+
+  function analysisFetchRawMetadata(target, onDone, onError) {
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId) return;
+    startJob({
+      kind: "analysis-raw-metadata",
+      path: "/api/analysis/raw-metadata",
+      body: {
+        dataset_id: datasetId,
+        kind: target.kind,
+        table: target.table,
+        name: target.name
+      },
+      label: t("Raw data"),
+      onDone: function (snapshot) {
+        if (snapshot.result) onDone(snapshot.result);
+        else if (onError) onError(t("Metadata could not be loaded"));
+      },
+      onError: function (_snapshot, message) {
+        if (onError) onError(message);
+      }
+    });
+  }
+
+  function analysisOpenRawMetadata(target) {
+    var dialog = $("#analysisRawMetaDialog");
+    if (!dialog) return;
+    state.analysisRawMeta = null;
+    $("#analysisRawMetaSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    $("#analysisRawMetaStatus").textContent = t("Loading metadata…");
+    $("#analysisRawMetaJson").textContent = "";
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+    analysisFetchRawMetadata(target, function (payload) {
+      state.analysisRawMeta = payload.row;
+      $("#analysisRawMetaStatus").textContent =
+        payload.dmv + " \u00b7 " + payload.table + "[" + payload.name + "]";
+      $("#analysisRawMetaJson").textContent =
+        analysisPrettyJson(payload.row);
+    }, function (message) {
+      $("#analysisRawMetaStatus").textContent = tr(message);
+    });
+  }
+
+  function analysisResetRawMetadata() {
+    state.analysisRawMeta = null;
+    $("#analysisRawMetaSub").textContent = "";
+    $("#analysisRawMetaStatus").textContent = "";
+    $("#analysisRawMetaJson").textContent = "";
   }
 
   function analysisDetailRow(label, value) {
@@ -6306,7 +6622,7 @@
       $("#analysisLineageEdges").innerHTML = "";
       $("#analysisLineageOutline").innerHTML = "";
     });
-    $("#analysisRawLoad").addEventListener("click", analysisRunRaw);
+    $("#analysisRawLoad").addEventListener("click", analysisRunPreview);
     $("#closeAnalysisRaw").addEventListener("click", function () {
       $("#analysisRawDialog").close();
     });
@@ -6316,7 +6632,61 @@
     $("#analysisRawDialog").addEventListener("click", function (event) {
       if (event.target === event.currentTarget) $("#analysisRawDialog").close();
     });
-    $("#analysisRawDialog").addEventListener("close", analysisResetRaw);
+    $("#analysisRawDialog").addEventListener("close", analysisResetPreview);
+    $("#analysisItemTabs").addEventListener("click", function (event) {
+      var tab = event.target.closest("[data-item-tab]");
+      if (!tab) return;
+      state.analysisItemTab = tab.getAttribute("data-item-tab");
+      analysisItemTabs();
+      analysisRenderItemDetails();
+    });
+    $("#analysisItemTabs").addEventListener("keydown", function (event) {
+      var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+      if (keys.indexOf(event.key) === -1) return;
+      event.preventDefault();
+      var tabs = $$("#analysisItemTabs [role='tab']");
+      var index = tabs.indexOf(document.activeElement);
+      if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") index = 0;
+      else index = tabs.length - 1;
+      tabs[index].focus();
+      state.analysisItemTab = tabs[index].getAttribute("data-item-tab");
+      analysisItemTabs();
+      analysisRenderItemDetails();
+    });
+    $("#closeAnalysisItem").addEventListener("click", function () {
+      $("#analysisItemDialog").close();
+    });
+    $("#doneAnalysisItem").addEventListener("click", function () {
+      $("#analysisItemDialog").close();
+    });
+    $("#copyAnalysisItemJson").addEventListener("click", analysisCopyItemJson);
+    $("#analysisItemDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#analysisItemDialog").close();
+    });
+    $("#analysisItemDialog").addEventListener("close", function () {
+      state.analysisItem = null;
+      state.analysisItemTarget = null;
+      state.analysisItemRaw = null;
+      state.analysisItemTab = "properties";
+      $("#analysisItemPane").innerHTML = "";
+    });
+    $("#closeAnalysisRawMeta").addEventListener("click", function () {
+      $("#analysisRawMetaDialog").close();
+    });
+    $("#doneAnalysisRawMeta").addEventListener("click", function () {
+      $("#analysisRawMetaDialog").close();
+    });
+    $("#copyAnalysisRawMeta").addEventListener("click", function () {
+      if (state.analysisRawMeta) {
+        copyTextValue(analysisPrettyJson(state.analysisRawMeta));
+      }
+    });
+    $("#analysisRawMetaDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#analysisRawMetaDialog").close();
+    });
+    $("#analysisRawMetaDialog").addEventListener("close", analysisResetRawMetadata);
     $("#analysisLineageSearch").addEventListener("input", analysisLineageApplySearch);
     $("#analysisLineageZoomIn").addEventListener("click", function () {
       analysisLineageZoomBy(1.25);
