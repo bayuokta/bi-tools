@@ -1939,6 +1939,17 @@
       filters: [["all", t("All types")], ["Tabel", t("Table")], ["M parameter", "M parameter"], ["Expression", "Expression"]],
       unused: false,
       expandable: true
+    },
+    health: {
+      placeholder: t("Rule, object, or report name"),
+      filters: [
+        ["all", t("All severities")],
+        ["critical", t("Critical")],
+        ["warning", t("Warning")],
+        ["info", t("Info")]
+      ],
+      unused: false,
+      expandable: false
     }
   };
   var ANALYSIS_STATUS_ORDER = {
@@ -2212,7 +2223,7 @@
   function analysisCounts() {
     var result = state.analysis;
     var counts = {
-      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0
+      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0, health: 0
     };
     if (!result) return counts;
     var totals = result.totals || {};
@@ -2222,6 +2233,7 @@
     counts.report = (result.reports || []).length;
     counts.dax = (result.measures || []).length + analysisCalculatedColumns().length;
     counts.m = (result.m_queries || []).length;
+    counts.health = ((result.health && result.health.items) || []).length;
     return counts;
   }
 
@@ -2239,6 +2251,7 @@
     $("#tabCountReport").textContent = state.analysis ? fmtInt(counts.report) : "";
     $("#tabCountDax").textContent = state.analysis ? fmtInt(counts.dax) : "";
     $("#tabCountM").textContent = state.analysis ? fmtInt(counts.m) : "";
+    $("#tabCountHealth").textContent = state.analysis ? fmtInt(counts.health) : "";
   }
 
   function analysisNameCell(name, icon, options) {
@@ -4569,19 +4582,63 @@
     });
   }
 
-  function analysisReportCells(nameHtml, type, source, visual, pages, theme, hidden) {
+  function analysisReportCells(
+    nameHtml, type, source, visual, pages, theme, hidden, extra
+  ) {
+    extra = extra || {};
+    var broken = extra.broken == null ? "-" : fmtInt(extra.broken);
+    var score = "-";
+    if (extra.score != null) {
+      var scoreClass = extra.score >= 80 ? "is-good"
+        : (extra.score >= 50 ? "is-warn" : "is-low");
+      var title = extra.scoreTitle
+        ? ' title="' + escapeHtml(extra.scoreTitle) + '"' : "";
+      score = '<span class="health-score ' + scoreClass + '"' + title + ">" +
+        fmtInt(extra.score) + "</span>";
+    }
     return [
       nameHtml,
       escapeHtml(type || "") +
         (hidden ? ' <span class="chip chip-idle">Hidden</span>' : ""),
       escapeHtml(source || ""),
       visual == null ? "" : String(visual),
-      "-",
+      broken,
       "-",
       pages == null ? "-" : String(pages),
       theme ? '<span title="' + escapeHtml(theme) + '">' + escapeHtml(theme) + "</span>" : "-",
-      "-"
+      score
     ];
+  }
+
+  var HEALTH_RULES = {
+    column_error: "Column has an error",
+    measure_error: "Measure has an error",
+    unused_table: "Unused table",
+    isolated_table: "Table has no relationship",
+    bidirectional_relationship: "Bidirectional relationship",
+    many_to_many_relationship: "Many-to-many relationship",
+    inactive_relationship: "Inactive relationship",
+    auto_relationship: "Auto-detected relationship",
+    large_dictionary: "Large column dictionary",
+    unused_calculated_column: "Unused calculated column",
+    page_without_visuals: "Page has no visuals",
+    hidden_page_with_visuals: "Hidden page with visuals",
+    missing_theme: "Report has no theme",
+    broken_visual: "Visual has unmapped fields"
+  };
+
+  function analysisHealthRuleLabel(rule) {
+    return t(HEALTH_RULES[rule] || rule);
+  }
+
+  function analysisPracticeTitle(report) {
+    var practice = ((state.analysis && state.analysis.health) || {}).practice || {};
+    var entry = report && report.report_id ? practice[report.report_id] : null;
+    if (!entry || !entry.checks || !entry.checks.length) return "";
+    return entry.checks.map(function (check) {
+      return analysisHealthRuleLabel(check.rule) + ": " + check.count +
+        " (-" + check.points + ")";
+    }).join(" · ");
   }
 
   function analysisFilterRows(entry, baseId, level, sourceName, detail) {
@@ -4810,7 +4867,13 @@
             href: analysisReportUrl(report.workspace_id, report.report_id)
           }),
           isApp ? "Apps" : "Local report", report.format || report.workspace_name || "—",
-          report.visual_count || 0, report.page_count || 0, report.theme || "—"
+          report.visual_count || 0, report.page_count || 0, report.theme || "—",
+          undefined,
+          {
+            broken: report.status === "ok" ? report.broken_visuals : null,
+            score: report.health_score,
+            scoreTitle: analysisPracticeTitle(report)
+          }
         )
       });
       if (!rootOpen) return;
@@ -5049,6 +5112,138 @@
     };
   }
 
+  function analysisHealthDetail(item) {
+    var metrics = item.metrics || {};
+    var parts = [];
+    if (item.detail) parts.push(item.detail);
+    if (item.rule === "unused_table" || item.rule === "isolated_table") {
+      parts.push(fmtInt(metrics.columns || 0) + " " + t("columns") +
+        " · " + fmtInt(metrics.measures || 0) + " " + t("measures"));
+    } else if (item.rule === "large_dictionary") {
+      parts.push(t("dictionary") + " " +
+        Math.round(Number(metrics.share || 0) * 100) + "% · " +
+        analysisFmtBytes(metrics.dictionary || 0));
+    } else if (item.rule === "hidden_page_with_visuals") {
+      parts.push(fmtInt(metrics.visuals || 0) + " " + t("visuals"));
+    } else if (item.rule === "broken_visual") {
+      parts.push(fmtInt(metrics.unresolved || 0) + " " + t("unmapped fields"));
+    }
+    return parts.filter(Boolean).join(" · ") || "—";
+  }
+
+  function analysisHealthRows() {
+    var health = ((state.analysis && state.analysis.health) || {});
+    var items = health.items || [];
+    var counts = health.counts || {};
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var severity = getSelectValue("typeAnalyze") || "all";
+    items = items.filter(function (item) {
+      if (severity !== "all" && item.severity !== severity) return false;
+      if (!query) return true;
+      return [
+        item.rule, analysisHealthRuleLabel(item.rule), item.object, item.detail,
+        item.report_name, item.page_name, item.table, item.name
+      ].join(" ").toLowerCase().indexOf(query) !== -1;
+    });
+    items = analysisSortItems(items);
+    var viewRows = items.map(function (item) {
+      var severityClass = item.severity === "critical" ? "chip-danger"
+        : (item.severity === "warning" ? "chip-warn" : "chip-info");
+      var severityLabel = item.severity === "critical" ? "Critical"
+        : (item.severity === "warning" ? "Warning" : "Info");
+      var icons = {
+        column: "column", measure: "measure", table: "table", report: "report",
+        page: "page", visual: "visual", relationship: "link"
+      };
+      var isModelItem = item.kind === "column" || item.kind === "measure" ||
+        item.kind === "table";
+      var isTable = item.kind === "table";
+      var row = {
+        level: 0,
+        cells: [
+          '<span class="chip ' + severityClass + '"><span class="dot"></span>' +
+            escapeHtml(t(severityLabel)) + "</span>",
+          escapeHtml(t(item.area === "report" ? "Report" : "Model")),
+          escapeHtml(analysisHealthRuleLabel(item.rule)),
+          analysisNameCell(item.object || "—", icons[item.kind] || "group", {
+            level: 0, menu: isModelItem
+          }),
+          escapeHtml(analysisHealthDetail(item)),
+          item.size_bytes
+            ? '<span title="' + escapeHtml(analysisFmtBytes(item.size_bytes)) + '">' +
+              escapeHtml(analysisFmtBytes(item.size_bytes)) + "</span>"
+            : "—"
+        ],
+        healthTarget: item.target || {},
+        severity_rank: item.severity_rank,
+        size_bytes: item.size_bytes || 0,
+        rule: item.rule,
+        area: item.area,
+        object_name: item.object || ""
+      };
+      if (isModelItem) {
+        row.item = {
+          kind: item.kind,
+          table: item.table || "",
+          name: isTable ? item.table : (item.name || "")
+        };
+      }
+      return row;
+    });
+    return {
+      headers: [
+        { label: t("Severity"), key: "severity" },
+        { label: t("Area"), key: "area" },
+        { label: t("Rule"), key: "rule" },
+        { label: t("Object"), key: "object_name" },
+        { label: t("Detail") },
+        { label: t("Size"), key: "size", num: true }
+      ],
+      widths: ["10%", "9%", "21%", "25%", "27%", "8%"],
+      rows: viewRows,
+      summary: t("{n} findings · {c} critical · {w} warning · {i} info")
+        .replace("{n}", fmtInt(items.length))
+        .replace("{c}", fmtInt(counts.critical || 0))
+        .replace("{w}", fmtInt(counts.warning || 0))
+        .replace("{i}", fmtInt(counts.info || 0)) +
+        analysisCoverageSuffix(state.analysis)
+    };
+  }
+
+  function analysisHealthOpen(row) {
+    var kind = row.getAttribute("data-health-kind") || "";
+    var table = row.getAttribute("data-health-table") || "";
+    var name = row.getAttribute("data-health-name") || "";
+    if (kind === "column" || kind === "measure") {
+      if (name) analysisOpenItemDetails({ kind: kind, table: table, name: name });
+      return;
+    }
+    if (kind === "table") {
+      var tableName = table || name;
+      if (tableName) {
+        analysisLineageOpen(
+          { kind: "table", table: tableName, name: tableName }, "graph", "all"
+        );
+      }
+      return;
+    }
+    if (kind === "report") {
+      var reportId = row.getAttribute("data-health-report_id") || "";
+      state.analysisTab = "report";
+      state.analysisForceOpen = null;
+      if (reportId) state.analysisOpen["report:" + reportId] = true;
+      analysisApplyTabTools("report", true);
+      analysisRender();
+      return;
+    }
+    if (kind === "relationship") {
+      state.analysisTab = "relationships";
+      state.analysisForceOpen = null;
+      analysisApplyTabTools("relationships", true);
+      analysisRender();
+    }
+  }
+
   function analysisSortItems(items) {
     if (!state.analysisSort || state.analysisSort === "default") return items.slice();
     var key = state.analysisSort;
@@ -5065,6 +5260,9 @@
       } else if (key === "status") {
         a = ANALYSIS_STATUS_ORDER[left.status] == null ? 99 : ANALYSIS_STATUS_ORDER[left.status];
         b = ANALYSIS_STATUS_ORDER[right.status] == null ? 99 : ANALYSIS_STATUS_ORDER[right.status];
+      } else if (key === "severity") {
+        a = Number(left.severity_rank == null ? 99 : left.severity_rank);
+        b = Number(right.severity_rank == null ? 99 : right.severity_rank);
       } else if (key === "has_error" || key === "is_active") {
         a = left[key] ? 1 : 0;
         b = right[key] ? 1 : 0;
@@ -5144,6 +5342,14 @@
           '" data-item-table="' + escapeHtml(row.item.table) +
           '" data-item-name="' + escapeHtml(row.item.name) + '"';
       }
+      if (row.healthTarget) {
+        Object.keys(row.healthTarget).forEach(function (key) {
+          var value = row.healthTarget[key];
+          if (value == null || value === "") return;
+          attrs += " data-health-" + escapeHtml(key) + '="' +
+            escapeHtml(value) + '"';
+        });
+      }
       var html = row.cells.map(function (cell, index) {
         var tdClasses = [];
         if (index === 0) tdClasses.push("cell-name");
@@ -5196,7 +5402,9 @@
     else if (tab === "relationships") view = analysisRelationshipRows();
     else if (tab === "report") view = analysisReportRows();
     else if (tab === "dax") view = analysisDaxRows();
-    else view = analysisMRows();
+    else if (tab === "m") view = analysisMRows();
+    else if (tab === "health") view = analysisHealthRows();
+    else view = analysisFlatRows();
     $("#analyzeCols").innerHTML = (view.widths || []).map(function (width) {
       return '<col style="width:' + width + '">';
     }).join("");
@@ -6879,6 +7087,12 @@
           above: buttonRect.top - 4,
           row: menuRow
         });
+        return;
+      }
+      var healthRow = event.target.closest("tr[data-health-kind]");
+      if (healthRow && !event.target.closest("a")) {
+        event.preventDefault();
+        analysisHealthOpen(healthRow);
         return;
       }
       var toggle = event.target.closest("[data-analysis-toggle]");

@@ -7,6 +7,25 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Analisa Semantic Model
+
+- Tab **Health** memeriksa model dan report tanpa request tambahan: error
+  kolom/measure, visual dengan field tak terpetakan, tabel tidak dipakai atau
+  tanpa relasi, relasi dua arah/many-to-many/tidak aktif/otomatis, dictionary
+  kolom besar, halaman tanpa visual, halaman tersembunyi, report tanpa tema,
+  dan calculated column tidak dipakai.
+- Klik baris Health membuka detail kolom/measure, lineage tabel, atau tab
+  **Report results**; filter severity dan sort tersedia.
+- Kolom **Visual rusak** dan **Skor praktik** di tab Report results kini
+  terisi. Skor bersifat heuristik untuk report berstatus `ok`, dengan rincian
+  penalti di tooltip.
+- Ekspor XLSX menambah sheet `09_Health`; CLI menampilkan ringkasan
+  `critical/warning/info`.
+- Kelengkapan terjemahan dijaga tes baru: setiap literal `t("...")` wajib ada
+  di kamus, dan enam kunci yang sebelumnya hilang sudah ditambahkan.
+
 ## 2026-11-20 - Rilis 0.5.1
 
 Analisa semantic model mendapat lineage tabel, click-through dependensi, outline

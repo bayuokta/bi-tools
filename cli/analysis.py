@@ -17,6 +17,7 @@ from pathlib import Path
 from core.auth import ServicePrincipal
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB
+from core.model_health import build_health
 from core.pbix import ROOT
 from core.requests import AnalysisRequest
 from core.usage_service import (
@@ -141,6 +142,13 @@ def main(argv: list[str] | None = None) -> int:
         for status, count in sorted(result.status_counts.items()):
             print(f"  {status:<24}: {count}")
         print(f"Cakupan report    : {result.coverage} ({result.method})")
+        health = build_health(result)
+        print(
+            "Health            : "
+            f"{health['counts']['critical']} critical · "
+            f"{health['counts']['warning']} warning · "
+            f"{health['counts']['info']} info"
+        )
         print(f"Workbook          : {path}")
         return 0
     except ExtractionError as exc:

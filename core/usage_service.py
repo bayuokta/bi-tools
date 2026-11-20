@@ -56,6 +56,7 @@ from .metadata_common import (
     strip_dax_literals,
     write_sheet,
 )
+from .model_health import build_health
 from .model import (
     LiveModel,
     build_columns,
@@ -138,6 +139,10 @@ UNRESOLVED_COLUMNS = [
 MEASURE_COLUMNS = [
     "Table", "Measure", "Data type", "Status", "Uses", "Reports",
     "Format string", "Hidden", "Display folder", "Expression", "Note",
+]
+HEALTH_COLUMNS = [
+    "Severity", "Area", "Rule", "Object", "Table", "Column", "Measure",
+    "Report", "Page", "Visual", "Size", "Detail", "Metrics",
 ]
 
 
@@ -2341,6 +2346,41 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             ),
             "08_Measures",
             {"Table": 24, "Measure": 34, "Expression": 70, "Note": 50},
+        )
+        health = build_health(result)
+        health_rows = []
+        for item in health["items"]:
+            kind = str(item.get("kind") or "")
+            size_bytes = int(item.get("size_bytes") or 0)
+            health_rows.append(
+                {
+                    "Severity": str(item.get("severity") or "").title(),
+                    "Area": str(item.get("area") or "").title(),
+                    "Rule": str(item.get("rule") or ""),
+                    "Object": str(item.get("object") or ""),
+                    "Table": str(item.get("table") or ""),
+                    "Column": str(item.get("name") or "")
+                    if kind == "column"
+                    else "",
+                    "Measure": str(item.get("name") or "")
+                    if kind == "measure"
+                    else "",
+                    "Report": str(item.get("report_name") or ""),
+                    "Page": str(item.get("page_name") or ""),
+                    "Visual": str(item.get("visual_title") or ""),
+                    "Size": format_bytes(size_bytes) if size_bytes else "",
+                    "Detail": str(item.get("detail") or ""),
+                    "Metrics": "; ".join(
+                        f"{key}={value}"
+                        for key, value in (item.get("metrics") or {}).items()
+                    ),
+                }
+            )
+        write_sheet(
+            writer,
+            pd.DataFrame(health_rows, columns=HEALTH_COLUMNS),
+            "09_Health",
+            {"Object": 40, "Detail": 56, "Metrics": 40},
         )
     return path
 

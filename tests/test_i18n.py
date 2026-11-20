@@ -78,6 +78,12 @@ class DictionaryTests(unittest.TestCase):
         )
         self.assertEqual(missing, [], "kunci data-i18n tanpa terjemahan")
 
+    def test_every_script_literal_exists_in_dictionary(self) -> None:
+        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        keys = set(re.findall(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*\)', script))
+        missing = sorted(key for key in keys if key not in self.dictionary)
+        self.assertEqual(missing, [], "kunci t() tanpa terjemahan")
+
 
 class MarkupTests(unittest.TestCase):
     def setUp(self) -> None:

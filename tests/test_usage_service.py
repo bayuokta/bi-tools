@@ -1091,6 +1091,7 @@ class WriteWorkbookTests(unittest.TestCase):
                 "06_Tables",
                 "07_Unresolved",
                 "08_Measures",
+                "09_Health",
             ],
         )
         columns = pd.read_excel(book, "02_Columns")
@@ -1099,6 +1100,9 @@ class WriteWorkbookTests(unittest.TestCase):
         measures = pd.read_excel(book, "08_Measures")
         self.assertEqual(measures.loc[0, "Measure"], "Total")
         self.assertEqual(measures.loc[0, "Status"], STATUS_USED)
+        health = pd.read_excel(book, "09_Health", keep_default_na=False)
+        self.assertEqual(list(health.columns)[:3], ["Severity", "Area", "Rule"])
+        self.assertIn("isolated_table", list(health["Rule"]))
 
 
 class ModelReferenceTests(unittest.TestCase):

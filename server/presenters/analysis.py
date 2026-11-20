@@ -31,6 +31,7 @@ from core.analysis_query import (
 from core.errors import ExtractionError
 from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
 from core.usage_store import initialize as initialize_usage, report_detail
+from core.model_health import broken_visual_counts, build_health
 from core.paths import outputs_dir
 from core.requests import AnalysisRequest
 from core.usage_service import (
@@ -824,6 +825,8 @@ def serialize_result(
 ) -> dict[str, Any]:
     stats = result.stats
     names = workspace_names or {}
+    health = build_health(result)
+    broken_counts = broken_visual_counts(result)
     reports = []
     pages_map = dict(getattr(result, "report_pages", {}) or {})
     for item in result.reports or []:
@@ -849,6 +852,8 @@ def serialize_result(
                 "visual_count": int(item.get("visual_count") or 0),
                 "field_count": int(item.get("field_count") or 0),
                 "unresolved_count": int(item.get("unresolved_count") or 0),
+                "broken_visuals": int(broken_counts.get(report_id, 0)),
+                "health_score": (health["practice"].get(report_id) or {}).get("score"),
                 "is_active": bool(item.get("is_active", 1)),
                 "theme": str(item.get("theme") or ""),
                 "pages": [
@@ -947,6 +952,7 @@ def serialize_result(
         "columns": column_rows,
         "measures": measure_rows,
         "reports": reports,
+        "health": health,
         "tables": table_rows,
         "relationships": relationship_rows,
         "m_queries": [

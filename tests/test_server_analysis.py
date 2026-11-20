@@ -277,6 +277,13 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["reports"][0]["page_count"], 3)
         self.assertEqual(data["reports"][0]["pages"][0]["page_name"], "Halaman 1")
         self.assertEqual(data["reports"][0]["pages"][0]["field_count"], 5)
+        self.assertEqual(data["reports"][0]["broken_visuals"], 0)
+        self.assertEqual(data["reports"][0]["health_score"], 100)
+        self.assertEqual(data["health"]["counts"]["critical"], 0)
+        self.assertIn(
+            "missing_theme",
+            [item["rule"] for item in data["health"]["items"]],
+        )
         self.assertEqual(data["tables"][0]["storage_mode"], "Import")
         self.assertEqual(data["tables"][0]["partition_count"], 1)
         relation = data["relationships"][0]

@@ -459,9 +459,9 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 
-    def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
+    def test_web_analysis_has_seven_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        for tab in ("all", "tables", "relationships", "report", "dax", "m"):
+        for tab in ("all", "tables", "relationships", "report", "dax", "m", "health"):
             self.assertIn(f'data-analysis-tab="{tab}"', html)
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
@@ -483,6 +483,9 @@ class WebLayerTests(unittest.TestCase):
             "analysisRelationshipRows",
             "analysisDaxRows",
             "analysisMRows",
+            "analysisHealthRows",
+            "analysisHealthOpen",
+            "analysisPracticeTitle",
         ):
             self.assertEqual(
                 js.count(f"function {name}("),

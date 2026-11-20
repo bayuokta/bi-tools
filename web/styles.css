@@ -357,6 +357,10 @@ html[data-theme="light"] .segmented button[aria-pressed="true"]{ box-shadow:0 1p
 .chip-info{ color:var(--info); background:var(--info-soft); }
 .chip-accent{ color:var(--accent-text); background:var(--accent-soft); }
 .chip-idle{ color:var(--text-3); background:var(--surface-2); }
+.health-score{ font-family:var(--font-mono); font-size:12px; font-weight:600; }
+.health-score.is-good{ color:var(--ok); }
+.health-score.is-warn{ color:var(--warn); }
+.health-score.is-low{ color:var(--danger); }
 
 .stat-list{ display:flex; flex-direction:column; }
 .stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed var(--border); }
