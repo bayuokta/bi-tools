@@ -201,7 +201,10 @@ class LineageBuilderTests(unittest.TestCase):
         self.assertLess(nodes["measure:M:Base"]["x"], nodes["measure:M:Calc"]["x"])
         self.assertLess(nodes["measure:M:Calc"]["x"], report["x"])
         self.assertLess(report["x"], page["x"])
-        self.assertLess(page["x"], visual["x"])
+        self.assertEqual(visual["group_id"], page["id"])
+        self.assertEqual(visual["container_id"], "artifact:" + report["id"])
+        self.assertEqual(page["role"], "group-head")
+        self.assertLess(page["y"], visual["y"])
 
         edges = {(edge["from"], edge["to"], edge["kind"]) for edge in data["edges"]}
         self.assertIn(("measure:M:Base", "measure:M:Calc", "depend"), edges)
@@ -452,6 +455,175 @@ in
         self.assertTrue(
             any("Removed Other Columns" in step["label"] for step in steps)
         )
+        self.assertEqual(
+            sorted(step["step"] for step in steps),
+            list(range(1, len(steps) + 1)),
+        )
+        source = next(
+            artifact for artifact in data["artifacts"]
+            if artifact["id"] == datasource["container_id"]
+        )
+        self.assertEqual(source["kind"], "datasource")
+        mquery_group = next(
+            group for group in data["groups"] if group["kind"] == "mquery"
+        )
+        self.assertEqual(mquery_group["label"], "Sales")
+        self.assertTrue(
+            all(
+                node["group_id"] == mquery_group["id"]
+                for node in data["nodes"]
+                if node["kind"] in {"mquery", "mstep"}
+            )
+        )
+
+    def test_grouped_layout_artifacts_and_groups(self) -> None:
+        base = measure_analysis("M", "Base")
+        calc = measure_analysis(
+            "M",
+            "Calc",
+            refs=[
+                ModelReference(
+                    kind="measure",
+                    object="'M'[Base]",
+                    detail="dipakai measure",
+                    blocking=False,
+                    source_table="M",
+                    source_measure="Base",
+                )
+            ],
+            records=[
+                usage(report="R1", page="P1", visual="V1"),
+                usage(report="R1", page="P2", visual="V2"),
+                usage(report="R2", page="P3", visual="V3"),
+            ],
+        )
+        data = build_lineage(
+            make_result(measures=[base, calc]),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+
+        artifacts = {artifact["id"]: artifact for artifact in data["artifacts"]}
+        groups = {group["id"]: group for group in data["groups"]}
+        self.assertIn("artifact:model", artifacts)
+        reports = [
+            artifact for artifact in data["artifacts"]
+            if artifact["kind"] == "report"
+        ]
+        self.assertEqual(len(reports), 2)
+
+        model = artifacts["artifact:model"]
+        model_groups = [
+            group for group in data["groups"]
+            if group["container"] == model["id"]
+        ]
+        self.assertEqual([group["kind"] for group in model_groups], ["model"])
+        for report in reports:
+            page_groups = [
+                group for group in data["groups"]
+                if group["container"] == report["id"]
+            ]
+            self.assertTrue(page_groups)
+            self.assertTrue(
+                all(group["kind"] == "page" for group in page_groups)
+            )
+
+        def inside(inner: dict, outer: dict) -> bool:
+            return (
+                inner["x"] >= outer["x"]
+                and inner["y"] >= outer["y"]
+                and inner["x"] + inner["w"] <= outer["x"] + outer["w"]
+                and inner["y"] + inner["h"] <= outer["y"] + outer["h"]
+            )
+
+        for group in data["groups"]:
+            self.assertTrue(inside(group, artifacts[group["container"]]))
+        for node in data["nodes"]:
+            self.assertIn("container_id", node)
+            if node["role"] != "card":
+                continue
+            self.assertTrue(inside(node, groups[node["group_id"]]))
+
+        cards = [node for node in data["nodes"] if node["role"] == "card"]
+        for index, first in enumerate(cards):
+            for second in cards[index + 1:]:
+                overlap = (
+                    first["x"] < second["x"] + second["w"]
+                    and second["x"] < first["x"] + first["w"]
+                    and first["y"] < second["y"] + second["h"]
+                    and second["y"] < first["y"] + first["h"]
+                )
+                self.assertFalse(overlap, f"{first['id']} vs {second['id']}")
+
+    def test_canvas_edges_collapse_report_and_page(self) -> None:
+        calc = measure_analysis(
+            "M",
+            "Calc",
+            records=[
+                usage(report="R1", page="P1", visual="V1", detail="Values"),
+                usage(report="R1", page="P2", visual="V2", detail="Rows"),
+            ],
+        )
+        data = build_lineage(
+            make_result(measures=[calc]), kind="measure", table="M", name="Calc"
+        )
+        canvas = {
+            (edge["from"], edge["to"], edge["kind"])
+            for edge in data["canvas_edges"]
+        }
+        visuals = {
+            node["id"]: node["label"]
+            for node in data["nodes"]
+            if node["kind"] == "visual"
+        }
+        self.assertEqual(len(canvas), 2)
+        for source, target, kind in canvas:
+            self.assertEqual(source, "measure:M:Calc")
+            self.assertIn(target, visuals)
+            self.assertEqual(kind, "visual")
+        for edge in data["canvas_edges"]:
+            self.assertNotIn(edge["to"], {
+                node["id"] for node in data["nodes"]
+                if node["kind"] in {"report", "page"}
+            })
+        semantic = {
+            (edge["from"], edge["to"]) for edge in data["edges"]
+        }
+        self.assertIn(("measure:M:Calc", next(
+            node["id"] for node in data["nodes"] if node["kind"] == "report"
+        )), semantic)
+
+    def test_many_pages_use_grid(self) -> None:
+        records = [
+            usage(page=f"P{index}", visual=f"V{index}")
+            for index in range(1, 7)
+        ]
+        calc = measure_analysis("M", "Calc", records=records)
+        data = build_lineage(
+            make_result(measures=[calc]), kind="measure", table="M", name="Calc"
+        )
+        page_groups = [
+            group for group in data["groups"] if group["kind"] == "page"
+        ]
+        self.assertEqual(len(page_groups), 6)
+        self.assertEqual(len({group["x"] for group in page_groups}), 2)
+
+        nine = [
+            usage(page=f"Q{index}", visual=f"W{index}")
+            for index in range(1, 10)
+        ]
+        data = build_lineage(
+            make_result(measures=[measure_analysis("M", "Nine", records=nine)]),
+            kind="measure",
+            table="M",
+            name="Nine",
+        )
+        page_groups = [
+            group for group in data["groups"] if group["kind"] == "page"
+        ]
+        self.assertEqual(len(page_groups), 9)
+        self.assertEqual(len({group["x"] for group in page_groups}), 3)
 
     def test_outline_has_upstream_and_report_tree(self) -> None:
         base = measure_analysis(
@@ -634,6 +806,14 @@ in
         self.assertIn(("table:Sales", "col:Sales:Amount"), edges)
         self.assertIn(("col:Sales:Amount", "measure:KPI:Total"), edges)
         self.assertIn(("table:Sales", "col:Sales:Qty"), edges)
+        self.assertIn(
+            "artifact:model",
+            {artifact["id"] for artifact in data["artifacts"]},
+        )
+        self.assertIn("model", {group["id"] for group in data["groups"]})
+        seed = next(node for node in data["nodes"] if node["kind"] == "table")
+        self.assertEqual(seed["group_id"], "model")
+        self.assertEqual(seed["container_id"], "artifact:model")
 
     def test_table_lineage_accepts_mquery_only_table(self) -> None:
         result = make_result(

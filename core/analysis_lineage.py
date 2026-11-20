@@ -3,8 +3,9 @@
 Modul ini tidak memakai XMLA, REST, atau SQLite: seluruh data diambil dari
 ``AnalysisResult`` yang sudah ada di sesi analisa (ukuran kolom, referensi
 model, pemakaian report, dan ekspresi M). Hasilnya berupa node + edge + tata
-letak siap gambar (upstream di kiri, objek terpilih di tengah, pemakai di
-kanan), sehingga ``web\\app.js`` hanya merender dan tidak menyusun lineage.
+letak siap gambar (artifact Semantic Model/Report, grup Model dependencies/M
+query/page, lalu kartu), sehingga ``web\\app.js`` hanya merender dan tidak
+menyusun lineage.
 
 Arah edge selalu "penyedia data -> pemakai": tabel M -> kolom, kolom -> measure
 yang memakainya, measure -> report -> halaman -> visual/filter. Dengan begitu
@@ -13,6 +14,7 @@ semua edge mengalir dari kiri ke kanan.
 
 from __future__ import annotations
 
+import math
 import re
 from collections import defaultdict, deque
 from typing import Any, Iterable, Mapping
@@ -58,9 +60,20 @@ GROUP_ORDER = {"mquery": 0, "model": 1, "report": 2, "page": 3, "usage": 4, "mor
 
 NODE_W = 230
 NODE_H = 64
-COL_GAP = 140
+COL_GAP = 40
 ROW_GAP = 16
 PAD = 28
+
+# Tata letak bergrup: artifact (Semantic Model / Report) -> grup -> kartu.
+GROUP_PAD = 16
+GROUP_HEAD = 44
+GROUP_GAP = 24
+ART_PAD = 18
+ART_HEAD = 52
+ART_GAP = 72
+BAND_GAP = 28
+PAGE_ROWS = 8
+MAX_CANVAS_EDGES = 600
 
 REPORT_KINDS = {
     "field": "visual",
@@ -191,6 +204,7 @@ class _Graph:
         for report_key in sorted(grouped):
             report = grouped[report_key]
             report_node_id = f"report:{report['report_id'] or report['name'] or '?'}"
+            container_id = f"artifact:{report_node_id}"
             short_id = str(report["report_id"] or "")[:8]
             added = self.add(
                 {
@@ -199,6 +213,8 @@ class _Graph:
                     "label": report["name"] or "(report)",
                     "context": short_id,
                     "group": "report",
+                    "role": "artifact-head",
+                    "container": container_id,
                     "side": "downstream",
                     "level": base_depth + 1,
                 }
@@ -224,6 +240,9 @@ class _Graph:
                         "context": (report["name"] or "") +
                         (f" ({short_id})" if short_id else ""),
                         "group": "page",
+                        "role": "group-head",
+                        "container": container_id,
+                        "group_key": page_node_id,
                         "side": "downstream",
                         "level": base_depth + 2,
                     }
@@ -238,6 +257,7 @@ class _Graph:
                     report_node_id=report_node_id,
                     page_name=page_name,
                     level=base_depth + 3,
+                    container_id=container_id,
                 )
 
     def _add_usage_nodes(
@@ -248,6 +268,7 @@ class _Graph:
         report_node_id: str,
         page_name: str,
         level: int,
+        container_id: str,
     ) -> None:
         unique: dict[str, dict[str, Any]] = {}
         for record in records:
@@ -304,6 +325,10 @@ class _Graph:
                     "label": entry["label"],
                     "context": page_name,
                     "group": "usage",
+                    "role": "card",
+                    "container": container_id,
+                    "group_key": page_node_id,
+                    "usage_kind": usage_kind,
                     "detail": entry["detail"],
                     "count": entry["count"],
                     "hidden": entry["hidden"],
@@ -323,6 +348,9 @@ class _Graph:
                     "label": f"+{len(extra)}",
                     "context": page_name,
                     "group": "more",
+                    "role": "card",
+                    "container": container_id,
+                    "group_key": page_node_id,
                     "count": total,
                     "side": "downstream",
                     "level": level,
@@ -331,80 +359,573 @@ class _Graph:
                 self.link(page_node_id, node_id, "usage")
 
 
+def _node_sort_key(node: Mapping[str, Any]) -> tuple[Any, ...]:
+    return (
+        GROUP_ORDER.get(str(node.get("group") or ""), 9),
+        str(node.get("kind") or ""),
+        str(node.get("label") or "").casefold(),
+        str(node.get("id") or ""),
+    )
+
+
+def _container_kind(container_id: str) -> str:
+    if container_id.startswith("artifact:source:"):
+        return "datasource"
+    if container_id.startswith("artifact:report:"):
+        return "report"
+    return "model"
+
+
+def _group_kind(group_id: str) -> str:
+    if group_id.startswith("mquery:"):
+        return "mquery"
+    if group_id.startswith("source:"):
+        return "source"
+    if group_id.startswith("page:"):
+        return "page"
+    return "model"
+
+
+def _layout_group_cards(group: dict[str, Any]) -> None:
+    """Hitung ukuran grup dan posisi kartu relatif terhadap grup."""
+    nodes = list(group["nodes"])
+    if not nodes:
+        group["columns"] = 1
+        group["rows"] = 0
+        group["w"] = NODE_W + 2 * GROUP_PAD
+        group["h"] = GROUP_HEAD + GROUP_PAD
+        return
+    if group["kind"] == "page":
+        # Halaman memakai satu kolom kartu; dua kolom bila isinya sangat banyak.
+        ordered = sorted(nodes, key=_node_sort_key)
+        columns = 1 if len(ordered) <= PAGE_ROWS else 2
+        for index, node in enumerate(ordered):
+            row, col = divmod(index, columns)
+            node["_col"], node["_row"] = col, row
+    else:
+        columns = sorted({int(node.get("column") or 0) for node in nodes})
+        buckets: dict[int, list[dict[str, Any]]] = {
+            column: [] for column in columns
+        }
+        for node in nodes:
+            buckets[int(node.get("column") or 0)].append(node)
+        for column in columns:
+            buckets[column].sort(key=_node_sort_key)
+        for col, column in enumerate(columns):
+            for row, node in enumerate(buckets[column]):
+                node["_col"], node["_row"] = col, row
+        if group["kind"] == "mquery":
+            step = 0
+            for node in sorted(
+                nodes, key=lambda item: (item["_col"], item["_row"])
+            ):
+                if str(node.get("kind") or "") == "mstep":
+                    step += 1
+                    node["step"] = step
+    cols = max(int(node.get("_col") or 0) for node in nodes) + 1
+    rows = max(int(node.get("_row") or 0) for node in nodes) + 1
+    group["columns"] = cols
+    group["rows"] = rows
+    group["w"] = cols * NODE_W + (cols - 1) * COL_GAP + 2 * GROUP_PAD
+    group["h"] = (
+        GROUP_HEAD + rows * NODE_H + (rows - 1) * ROW_GAP + GROUP_PAD
+    )
+
+
+def _layout_container(container: dict[str, Any]) -> None:
+    """Hitung ukuran artifact dan posisi grup relatif terhadap artifact."""
+    kind = container["kind"]
+    if kind == "datasource":
+        for node in container["loose"]:
+            node["_gx"] = ART_PAD
+            node["_gy"] = ART_HEAD
+        container["w"] = NODE_W + 2 * ART_PAD
+        container["h"] = ART_HEAD + NODE_H + ART_PAD
+        return
+
+    groups = list(container["groups"].values())
+    if kind == "report":
+        pages = sorted(
+            (group for group in groups if group["kind"] == "page"),
+            key=lambda group: (group["label"].casefold(), group["id"]),
+        )
+        if not pages:
+            container["w"] = NODE_W + 2 * ART_PAD
+            container["h"] = ART_HEAD + ART_PAD
+            return
+        columns = 1 if len(pages) <= 4 else 2 if len(pages) <= 8 else 3
+        cell_w = max(group["w"] for group in pages)
+        cell_h = max(group["h"] for group in pages)
+        rows = math.ceil(len(pages) / columns)
+        for index, group in enumerate(pages):
+            row, col = divmod(index, columns)
+            group["_gx"] = ART_PAD + col * (cell_w + GROUP_GAP)
+            group["_gy"] = ART_HEAD + row * (cell_h + GROUP_GAP)
+        container["w"] = (
+            2 * ART_PAD + columns * cell_w + (columns - 1) * GROUP_GAP
+        )
+        container["h"] = (
+            ART_HEAD
+            + rows * cell_h
+            + (rows - 1) * GROUP_GAP
+            + ART_PAD
+        )
+        return
+
+    # Artifact model: pita M query di kiri, lalu grup dependensi model.
+    mquery_groups = sorted(
+        (group for group in groups if group["kind"] == "mquery"),
+        key=lambda group: (group["label"].casefold(), group["id"]),
+    )
+    model_groups = sorted(
+        (group for group in groups if group["kind"] == "model"),
+        key=lambda group: group["id"],
+    )
+    y = ART_HEAD
+    m_width = 0
+    for group in mquery_groups:
+        group["_gx"] = ART_PAD
+        group["_gy"] = y
+        y += group["h"] + GROUP_GAP
+        m_width = max(m_width, group["w"])
+    m_height = max(0, y - GROUP_GAP - ART_HEAD) if mquery_groups else 0
+    model_x = ART_PAD + (m_width + BAND_GAP if mquery_groups else 0)
+    y = ART_HEAD
+    for group in model_groups:
+        group["_gx"] = model_x
+        group["_gy"] = y
+        y += group["h"] + GROUP_GAP
+    model_height = max(0, y - GROUP_GAP - ART_HEAD) if model_groups else 0
+    model_width = max((group["w"] for group in model_groups), default=0)
+    container["w"] = model_x + model_width + ART_PAD
+    container["h"] = ART_HEAD + max(m_height, model_height) + ART_PAD
+
+
+def _canvas_edges(
+    graph: _Graph,
+) -> tuple[list[dict[str, str]], bool]:
+    """Edge kanvas: report/page dipadatkan menjadi owner -> kartu visual."""
+    outgoing: dict[str, list[str]] = defaultdict(list)
+    incoming: dict[str, list[str]] = defaultdict(list)
+    for edge in graph.edges.values():
+        outgoing[edge["from"]].append(edge["to"])
+        incoming[edge["to"]].append(edge["from"])
+
+    def kind_of(node_id: str) -> str:
+        return str(graph.nodes.get(node_id, {}).get("kind") or "")
+
+    def is_head(node_id: str) -> bool:
+        return kind_of(node_id) in {"report", "page"}
+
+    def add(
+        target: dict[tuple[str, str], dict[str, str]],
+        source: str,
+        consumer: str,
+        kind: str,
+    ) -> None:
+        if not source or not consumer or source == consumer:
+            return
+        if source not in graph.nodes or consumer not in graph.nodes:
+            return
+        if is_head(source):
+            return
+        target.setdefault((source, consumer), {
+            "from": source,
+            "to": consumer,
+            "kind": kind or "depend",
+        })
+
+    direct: dict[tuple[str, str], dict[str, str]] = {}
+    for edge in graph.edges.values():
+        if is_head(edge["from"]) or is_head(edge["to"]):
+            continue
+        add(direct, edge["from"], edge["to"], edge["kind"])
+
+    reports = [
+        node_id for node_id, node in graph.nodes.items()
+        if str(node.get("kind") or "") == "report"
+    ]
+    for report_id in sorted(reports):
+        owners = [item for item in incoming.get(report_id, []) if not is_head(item)]
+        pages = [
+            item for item in outgoing.get(report_id, [])
+            if kind_of(item) == "page"
+        ]
+        report_usage = [
+            item for item in outgoing.get(report_id, [])
+            if str(graph.nodes.get(item, {}).get("role") or "") == "card"
+        ]
+        anchor = pages or report_usage
+        for owner in owners:
+            if not anchor:
+                add(direct, owner, report_id, "usage")
+                continue
+            for child in anchor:
+                usages = [
+                    item for item in outgoing.get(child, [])
+                    if str(graph.nodes.get(item, {}).get("role") or "") == "card"
+                ]
+                if usages:
+                    for usage in usages:
+                        add(direct, owner, usage, kind_of(usage))
+                else:
+                    add(direct, owner, child, "usage")
+
+    collapsed = False
+    if len(direct) > MAX_CANVAS_EDGES:
+        # Graf sangat besar: cukup satu edge ke tiap halaman agar tetap terbaca.
+        fallback: dict[tuple[str, str], dict[str, str]] = {}
+        for edge in graph.edges.values():
+            if is_head(edge["from"]) or is_head(edge["to"]):
+                continue
+            add(fallback, edge["from"], edge["to"], edge["kind"])
+        for report_id in sorted(reports):
+            owners = [
+                item for item in incoming.get(report_id, []) if not is_head(item)
+            ]
+            anchor = [
+                item for item in outgoing.get(report_id, [])
+                if kind_of(item) == "page"
+            ] or [report_id]
+            for owner in owners:
+                for child in anchor:
+                    add(fallback, owner, child, "usage")
+        direct = fallback
+        collapsed = True
+
+    rows = sorted(
+        direct.values(),
+        key=lambda edge: (
+            edge["from"], edge["to"], edge["kind"]
+        ),
+    )
+    return rows, collapsed
+
+
 def _layout_graph(
-    graph: _Graph, sides: Mapping[str, tuple[str, int]], seed_id: str
-) -> tuple[list[dict[str, Any]], int, int]:
-    """Hitung kolom/koordinat node dan ukuran kanvas."""
+    graph: _Graph,
+    sides: Mapping[str, tuple[str, int]],
+    seed_id: str,
+    *,
+    model_label: str = "",
+    model_context: str = "",
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    int,
+    int,
+    list[dict[str, str]],
+    bool,
+]:
+    """Susun tata letak bergrup: artifact -> grup -> kartu."""
     for node_id, node in graph.nodes.items():
-        if node_id in sides:
-            side, level = sides[node_id]
-        else:
-            side = str(node.get("side") or "downstream")
-            level = int(node.get("level") or 1)
-        column = 0 if side == "root" else (-level if side == "upstream" else level)
-        node["column"] = column
+        side, level = sides.get(node_id) or (
+            str(node.get("side") or "downstream"),
+            int(node.get("level") or 1),
+        )
+        level = int(level or 0)
         node["side"] = side
         node["level"] = level
-
-    # Node yang dipakai beberapa pemilik (mis. report yang sama) dapat bertabrakan
-    # kolom; geser hanya node rantai report agar report/halaman/visual selalu di
-    # kanan pemakainya. Edge antar-objek model boleh se-kolom (digambar melengkung).
-    for _pass in range(12):
-        changed = False
-        for edge in graph.edges.values():
-            target = graph.nodes.get(edge["to"])
-            source = graph.nodes.get(edge["from"])
-            if source is None or target is None:
-                continue
-            if target.get("group") not in {"report", "page", "usage", "more"}:
-                continue
-            if target["column"] > source["column"]:
-                continue
-            target["column"] = source["column"] + 1
-            changed = True
-        if not changed:
-            break
-
-    by_column: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for node in graph.nodes.values():
-        by_column[int(node["column"])].append(node)
-
-    if not by_column:
-        by_column[0].append(graph.nodes[seed_id])
-
-    for items in by_column.values():
-        items.sort(
-            key=lambda node: (
-                GROUP_ORDER.get(str(node.get("group") or ""), 9),
-                str(node.get("kind") or ""),
-                str(node.get("label") or "").casefold(),
-                str(node.get("id") or ""),
-            )
+        node["column"] = (
+            0 if side == "root" else (-level if side == "upstream" else level)
         )
-    max_height = max(
-        len(items) * NODE_H + (len(items) - 1) * ROW_GAP
-        for items in by_column.values()
-    )
-    min_column = min(by_column)
-    columns = len(by_column)
-    for column, items in by_column.items():
-        height = len(items) * NODE_H + (len(items) - 1) * ROW_GAP
-        start = PAD + (max_height - height) / 2
-        x = PAD + (column - min_column) * (NODE_W + COL_GAP)
-        for index, node in enumerate(items):
-            node["x"] = x
-            node["y"] = start + index * (NODE_H + ROW_GAP)
-            node["w"] = NODE_W
-            node["h"] = NODE_H
+        node.setdefault("role", "card")
+        node.setdefault("container", "artifact:model")
+        node.setdefault("group_key", "model")
 
-    nodes = [
+    containers: dict[str, dict[str, Any]] = {}
+    groups: dict[str, dict[str, Any]] = {}
+
+    def ensure_container(container_id: str) -> dict[str, Any]:
+        container = containers.get(container_id)
+        if container is None:
+            container = {
+                "id": container_id,
+                "kind": _container_kind(container_id),
+                "label": "",
+                "label_key": "",
+                "sub": "",
+                "sub_key": "",
+                "groups": {},
+                "loose": [],
+                "head": None,
+            }
+            containers[container_id] = container
+        return container
+
+    for node in graph.nodes.values():
+        container_id = str(node.get("container") or "artifact:model")
+        role = str(node.get("role") or "card")
+        node["container_id"] = container_id
+        container = ensure_container(container_id)
+        if role == "artifact-head":
+            container["head"] = node
+            node["group_id"] = ""
+            continue
+        if container["kind"] == "datasource":
+            container["loose"].append(node)
+            node["group_id"] = ""
+            continue
+        group_id = str(node.get("group_key") or "model")
+        group = groups.get(group_id)
+        if group is None:
+            group = {
+                "id": group_id,
+                "container": container_id,
+                "kind": _group_kind(group_id),
+                "label": "",
+                "label_key": "",
+                "sub": "",
+                "sub_key": "",
+                "nodes": [],
+                "head": None,
+            }
+            groups[group_id] = group
+        container["groups"][group_id] = group
+        node["group_id"] = group_id
+        if role == "group-head":
+            group["head"] = node
+        else:
+            group["nodes"].append(node)
+
+    for container in containers.values():
+        if container["kind"] == "model":
+            container["label"] = model_label or "Semantic Model"
+            container["sub_key"] = "Semantic Model"
+            container["sub"] = model_context
+        elif container["kind"] == "report":
+            head = container["head"]
+            if head is not None:
+                container["label"] = str(head.get("label") or "Report")
+                container["sub_key"] = "Report"
+                container["sub"] = str(head.get("context") or "")
+        else:
+            head = container["head"] or (
+                container["loose"][0] if container["loose"] else None
+            )
+            if head is not None:
+                container["label"] = str(head.get("label") or "Datasource")
+                container["sub_key"] = "Datasource"
+                container["sub"] = str(head.get("context") or "")
+        for group in container["groups"].values():
+            if group["kind"] == "model":
+                group["label_key"] = "Model dependencies"
+                group["sub_key"] = "DAX and model objects"
+            elif group["kind"] == "mquery":
+                source = next(
+                    (
+                        node for node in group["nodes"] + (
+                            [group["head"]] if group["head"] else []
+                        )
+                        if str(node.get("kind") or "") == "mquery"
+                    ),
+                    None,
+                )
+                if source is not None:
+                    group["label"] = str(source.get("label") or "")
+                    group["sub"] = str(source.get("context") or "")
+                group["sub_key"] = "M query"
+            elif group["kind"] == "page":
+                head = group["head"]
+                group["label"] = (
+                    str(head.get("label") or "(no page)")
+                    if head is not None
+                    else "(no page)"
+                )
+                group["sub_key"] = "Page"
+                group["sub"] = (
+                    str(head.get("context") or "") if head is not None else ""
+                )
+
+    for group in groups.values():
+        _layout_group_cards(group)
+    for container in containers.values():
+        _layout_container(container)
+
+    sources = sorted(
+        (c for c in containers.values() if c["kind"] == "datasource"),
+        key=lambda c: (c["label"].casefold(), c["id"]),
+    )
+    model_containers = sorted(
+        (c for c in containers.values() if c["kind"] == "model"),
+        key=lambda c: c["id"],
+    )
+    reports = sorted(
+        (c for c in containers.values() if c["kind"] == "report"),
+        key=lambda c: (c["label"].casefold(), c["id"]),
+    )
+
+    y = PAD
+    for container in sources:
+        container["x"] = PAD
+        container["y"] = y
+        y += container["h"] + ART_GAP
+    source_width = sources[0]["w"] if sources else 0
+
+    model_x = PAD + (source_width + ART_GAP if sources else 0)
+    y = PAD
+    for container in model_containers:
+        container["x"] = model_x
+        container["y"] = y
+        y += container["h"] + ART_GAP
+    model_width = max((c["w"] for c in model_containers), default=0)
+
+    report_x = model_x + model_width + ART_GAP
+    y = PAD
+    for container in reports:
+        container["x"] = report_x
+        container["y"] = y
+        y += container["h"] + ART_GAP
+
+    max_right = max(
+        (c["x"] + c["w"] for c in containers.values()), default=PAD + NODE_W
+    )
+    max_bottom = max(
+        (c["y"] + c["h"] for c in containers.values()), default=PAD + NODE_H
+    )
+    width = max(PAD + NODE_W, max_right + PAD)
+    height = max(PAD + NODE_H, max_bottom + PAD)
+
+    for container in containers.values():
+        container["head_x"] = container["x"] + ART_PAD
+        container["head_y"] = container["y"] + 12
+        container["head_w"] = container["w"] - 2 * ART_PAD
+        container["head_h"] = ART_HEAD - 16
+        if container["kind"] == "datasource":
+            for node in container["loose"]:
+                node["x"] = container["x"] + int(node.pop("_gx"))
+                node["y"] = container["y"] + int(node.pop("_gy"))
+                node["w"] = NODE_W
+                node["h"] = NODE_H
+            continue
+        for group in container["groups"].values():
+            group["x"] = container["x"] + int(group.pop("_gx"))
+            group["y"] = container["y"] + int(group.pop("_gy"))
+            group["head_x"] = group["x"] + GROUP_PAD
+            group["head_y"] = group["y"] + 8
+            group["head_w"] = group["w"] - 2 * GROUP_PAD
+            group["head_h"] = GROUP_HEAD - 14
+            head = group["head"]
+            if head is not None:
+                head["x"] = group["head_x"]
+                head["y"] = group["head_y"]
+                head["w"] = group["head_w"]
+                head["h"] = group["head_h"]
+            for node in group["nodes"]:
+                node["x"] = (
+                    group["x"]
+                    + GROUP_PAD
+                    + int(node.pop("_col")) * (NODE_W + COL_GAP)
+                )
+                node["y"] = (
+                    group["y"]
+                    + GROUP_HEAD
+                    + int(node.pop("_row")) * (NODE_H + ROW_GAP)
+                )
+                node["w"] = NODE_W
+                node["h"] = NODE_H
+        head = container["head"]
+        if head is not None:
+            head["x"] = container["head_x"]
+            head["y"] = container["head_y"]
+            head["w"] = container["head_w"]
+            head["h"] = container["head_h"]
+
+    node_rows = [
         {key: value for key, value in node.items() if not key.startswith("_")}
         for node in graph.nodes.values()
     ]
-    nodes.sort(key=lambda node: (node.get("column", 0), node.get("y", 0)))
-    width = PAD * 2 + (columns - 1) * (NODE_W + COL_GAP) + NODE_W
-    height = PAD * 2 + max_height
-    return nodes, width, height
+    node_rows.sort(
+        key=lambda node: (
+            str(node.get("container_id") or ""),
+            str(node.get("group_id") or ""),
+            0 if node.get("role") == "card" else 1,
+            int(node.get("x") or 0),
+            int(node.get("y") or 0),
+            str(node.get("id") or ""),
+        )
+    )
+
+    artifact_rows = []
+    for container in sorted(
+        containers.values(), key=lambda c: (c["x"], c["y"], c["id"])
+    ):
+        members = [
+            str(node.get("id") or "")
+            for node in container["loose"]
+        ]
+        for group in container["groups"].values():
+            members.extend(
+                str(node.get("id") or "") for node in group["nodes"]
+            )
+            if group["head"] is not None:
+                members.append(str(group["head"].get("id") or ""))
+        if container["head"] is not None:
+            members.append(str(container["head"].get("id") or ""))
+        artifact_rows.append(
+            {
+                "id": container["id"],
+                "kind": container["kind"],
+                "label": container["label"],
+                "label_key": container["label_key"],
+                "sub": container["sub"],
+                "sub_key": container["sub_key"],
+                "x": int(container["x"]),
+                "y": int(container["y"]),
+                "w": int(container["w"]),
+                "h": int(container["h"]),
+                "head_x": int(container["head_x"]),
+                "head_y": int(container["head_y"]),
+                "head_w": int(container["head_w"]),
+                "head_h": int(container["head_h"]),
+                "head_id": str(
+                    (container["head"] or {}).get("id") or ""
+                ),
+                "members": sorted(set(members)),
+            }
+        )
+
+    group_rows = []
+    for group in sorted(
+        groups.values(),
+        key=lambda g: (str(g["container"]), int(g["x"]), int(g["y"])),
+    ):
+        group_rows.append(
+            {
+                "id": group["id"],
+                "container": group["container"],
+                "kind": group["kind"],
+                "label": group["label"],
+                "label_key": group["label_key"],
+                "sub": group["sub"],
+                "sub_key": group["sub_key"],
+                "x": int(group["x"]),
+                "y": int(group["y"]),
+                "w": int(group["w"]),
+                "h": int(group["h"]),
+                "head_x": int(group["head_x"]),
+                "head_y": int(group["head_y"]),
+                "head_w": int(group["head_w"]),
+                "head_h": int(group["head_h"]),
+                "head_id": str((group["head"] or {}).get("id") or ""),
+                "members": sorted(
+                    str(node.get("id") or "") for node in group["nodes"]
+                ),
+            }
+        )
+
+    canvas_edges, collapsed = _canvas_edges(graph)
+    return (
+        node_rows,
+        artifact_rows,
+        group_rows,
+        int(width),
+        int(height),
+        canvas_edges,
+        collapsed,
+    )
+
 
 
 def _build_outline(
@@ -552,7 +1073,13 @@ def build_lineage(
         context: str = "",
         detail: str = "",
         group: str = "model",
+        group_key: str = "",
+        container: str = "",
     ) -> str:
+        if not group_key:
+            group_key = f"mquery:{label}" if group == "mquery" else "model"
+        if not container:
+            container = "artifact:model"
         extra_nodes.setdefault(
             node_id,
             {
@@ -562,6 +1089,9 @@ def build_lineage(
                 "context": context,
                 "detail": detail,
                 "group": group,
+                "role": "card",
+                "group_key": group_key,
+                "container": container,
             },
         )
         return node_id
@@ -653,6 +1183,8 @@ def build_lineage(
                     kind="mquery",
                     label=column.table,
                     context="M",
+                    group="mquery",
+                    group_key=_mquery_id(column.table),
                 )
                 depend(owner_id, mquery)
             elif ref_kind in _MODEL_KINDS:
@@ -704,6 +1236,8 @@ def build_lineage(
                 kind="mquery",
                 label=seed_table,
                 context=table_query.get("source", ""),
+                group="mquery",
+                group_key=_mquery_id(seed_table),
             )
             expression = table_query.get("expression", "")
             datasource: str | None = None
@@ -738,6 +1272,7 @@ def build_lineage(
                         context=str(step.function or ""),
                         detail=str(step.column or ""),
                         group="mquery",
+                        group_key=_mquery_id(seed_table),
                     )
                     return step_id
 
@@ -788,6 +1323,8 @@ def build_lineage(
                         ),
                         context=str(parsed.origin or ""),
                         group="mquery",
+                        group_key=f"source:{seed_table}",
+                        container=f"artifact:source:{seed_table}",
                     )
                 status = column_confidence(parsed, seed_column.column)
                 reason = ""
@@ -887,6 +1424,9 @@ def build_lineage(
                 "status": str(analysis.status or ""),
                 "hidden": bool(getattr(column, "is_hidden", False)),
                 "group": "model",
+                "role": "card",
+                "group_key": "model",
+                "container": "artifact:model",
             }
         if node_id in measure_analyses:
             analysis = measure_analyses[node_id]
@@ -899,6 +1439,9 @@ def build_lineage(
                 "status": str(analysis.status or ""),
                 "hidden": bool(getattr(measure, "is_hidden", False)),
                 "group": "model",
+                "role": "card",
+                "group_key": "model",
+                "container": "artifact:model",
             }
         return extra_nodes.get(node_id)
 
@@ -986,7 +1529,21 @@ def build_lineage(
             if edge["from"] in allowed_ids and edge["to"] in allowed_ids
         }
 
-    nodes, width, height = _layout_graph(graph, sides, seed_id)
+    (
+        nodes,
+        artifacts,
+        group_rows,
+        width,
+        height,
+        canvas_edges,
+        edges_collapsed,
+    ) = _layout_graph(
+        graph,
+        sides,
+        seed_id,
+        model_label=str(getattr(result, "dataset_name", "") or ""),
+        model_context=str(getattr(result, "workspace_name", "") or ""),
+    )
 
     notices: list[dict[str, Any]] = []
     if mode in {"both", "downstream"} and not bool(
@@ -999,6 +1556,8 @@ def build_lineage(
         notices.append(
             {"code": "m_steps_truncated", "count": m_step_truncated}
         )
+    if edges_collapsed:
+        notices.append({"code": "edges_collapsed"})
     if len(graph.edges) == 0:
         notices.append({"code": "no_dependencies"})
 
@@ -1015,14 +1574,12 @@ def build_lineage(
         "m_lineage": m_lineage_meta,
         "nodes": nodes,
         "edges": list(graph.edges.values()),
+        "canvas_edges": canvas_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),
-        "groups": [
-            {"id": "mquery", "label": "M query"},
-            {"id": "model", "label": "Model dependencies"},
-            {"id": "report", "label": "Report usage"},
-        ],
+        "artifacts": artifacts,
+        "groups": group_rows,
         "width": width,
         "height": height,
         "truncated": graph.truncated,
@@ -1042,6 +1599,9 @@ def _model_node_payload(analysis: Any) -> dict[str, Any] | None:
             "status": str(getattr(analysis, "status", "") or ""),
             "hidden": bool(getattr(column, "is_hidden", False)),
             "group": "model",
+            "role": "card",
+            "group_key": "model",
+            "container": "artifact:model",
         }
     measure = getattr(analysis, "measure", None)
     if measure is not None:
@@ -1053,6 +1613,9 @@ def _model_node_payload(analysis: Any) -> dict[str, Any] | None:
             "status": str(getattr(analysis, "status", "") or ""),
             "hidden": bool(getattr(measure, "is_hidden", False)),
             "group": "model",
+            "role": "card",
+            "group_key": "model",
+            "container": "artifact:model",
         }
     return None
 
@@ -1121,6 +1684,9 @@ def build_table_lineage(
             "label": name,
             "context": "",
             "group": "selected",
+            "role": "card",
+            "group_key": "model",
+            "container": "artifact:model",
         }
     )
     sides: dict[str, tuple[str, int]] = {seed_id: ("root", 0)}
@@ -1136,6 +1702,9 @@ def build_table_lineage(
                 "label": name,
                 "context": query.get("source", ""),
                 "group": "mquery",
+                "role": "card",
+                "group_key": mquery,
+                "container": "artifact:model",
             }
         ):
             graph.link(mquery, seed_id, "depend")
@@ -1170,6 +1739,9 @@ def build_table_lineage(
                         ),
                         "context": str(parsed.origin or ""),
                         "group": "mquery",
+                        "role": "card",
+                        "group_key": f"source:{name}",
+                        "container": f"artifact:source:{name}",
                     }
                 ):
                     graph.link(datasource, mquery, "depend")
@@ -1249,7 +1821,21 @@ def build_table_lineage(
                         report_names=report_names,
                     )
 
-    nodes, width, height = _layout_graph(graph, sides, seed_id)
+    (
+        nodes,
+        artifacts,
+        group_rows,
+        width,
+        height,
+        canvas_edges,
+        edges_collapsed,
+    ) = _layout_graph(
+        graph,
+        sides,
+        seed_id,
+        model_label=str(getattr(result, "dataset_name", "") or ""),
+        model_context=str(getattr(result, "workspace_name", "") or ""),
+    )
 
     notices: list[dict[str, Any]] = []
     if mode in {"both", "downstream"} and not bool(
@@ -1258,6 +1844,8 @@ def build_table_lineage(
         notices.append({"code": "reports_excluded"})
     if graph.truncated:
         notices.append({"code": "truncated", "count": graph.truncated})
+    if edges_collapsed:
+        notices.append({"code": "edges_collapsed"})
     if len(graph.edges) == 0:
         notices.append({"code": "no_dependencies"})
 
@@ -1274,14 +1862,12 @@ def build_table_lineage(
         "m_lineage": m_lineage_meta,
         "nodes": nodes,
         "edges": list(graph.edges.values()),
+        "canvas_edges": canvas_edges,
         "outline": _build_outline(
             graph, seed_id, expand_repeats=outline_style == "full"
         ),
-        "groups": [
-            {"id": "mquery", "label": "M query"},
-            {"id": "model", "label": "Model dependencies"},
-            {"id": "report", "label": "Report usage"},
-        ],
+        "artifacts": artifacts,
+        "groups": group_rows,
         "width": width,
         "height": height,
         "truncated": graph.truncated,

@@ -3027,6 +3027,7 @@
         page: css("--node-table", "#79c9ec"),
         usage: css("--node-neutral", "#b6c1d1"),
         more: css("--text-3", "#7f8b9c"),
+        datasource: css("--node-flow", "#b49bff"),
         selected: css("--accent", "#f2c811")
       },
       edges: {
@@ -3050,7 +3051,7 @@
     var width = Math.max(1, Number(graph.width) || 1);
     var height = Math.max(1, Number(graph.height) || 1);
     var routes = analysisLineageEdgeRoutes(graph);
-    var edges = (graph.edges || []).map(function (edge, index) {
+    var edges = analysisLineageEdges(graph).map(function (edge, index) {
       var path = routes[index];
       if (!path) return "";
       var stroke = palette.edges[edge.kind] || palette.borderStrong;
@@ -3061,7 +3062,42 @@
         '" stroke-width="1.4"' + dash +
         ' marker-end="url(#lineageExportArrow)"/>';
     }).join("");
-    var nodes = (graph.nodes || []).map(function (node) {
+    function header(x, y, meta, color) {
+      var title = analysisLineageTitle(meta);
+      return '<g transform="translate(' + x + ',' + y + ')">' +
+        '<rect width="4" height="18" rx="2" fill="' + color + '"/>' +
+        '<text x="12" y="13" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="12" font-weight="600" fill="' + palette.text + '">' +
+        escapeHtml(analysisLineageSvgClip(title.label, 46)) + '</text>' +
+        '<text x="12" y="27" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="10" fill="' + palette.text3 + '">' +
+        escapeHtml(analysisLineageSvgClip(title.sub, 52)) + '</text></g>';
+    }
+    var artifacts = (graph.artifacts || []).map(function (artifact) {
+      var color = palette.groups[artifact.kind] || palette.borderStrong;
+      return '<g><rect x="' + artifact.x + '" y="' + artifact.y +
+        '" width="' + artifact.w + '" height="' + artifact.h +
+        '" rx="12" fill="' + color + '" fill-opacity="0.06" stroke="' +
+        color + '" stroke-opacity="0.45"/>' +
+        header(
+          artifact.x + 18, artifact.y + 12, artifact,
+          color
+        ) + "</g>";
+    }).join("");
+    var groups = (graph.groups || []).map(function (group) {
+      var color = palette.groups[group.kind] || palette.borderStrong;
+      return '<g><rect x="' + group.x + '" y="' + group.y +
+        '" width="' + group.w + '" height="' + group.h +
+        '" rx="10" fill="' + color + '" fill-opacity="0.04" stroke="' +
+        color + '" stroke-opacity="0.55" stroke-dasharray="5 4"/>' +
+        header(
+          group.x + 16, group.y + 8, group,
+          color
+        ) + "</g>";
+    }).join("");
+    var cards = (graph.nodes || []).filter(function (node) {
+      return !node.role || node.role === "card";
+    }).map(function (node) {
       var group = node.group || "model";
       var color = palette.groups[group] || palette.borderStrong;
       var seed = node.side === "root";
@@ -3072,6 +3108,9 @@
       var sub = kind + (context ? " \u00b7 " + context : "");
       var status = node.status ? String(tStatus(node.status)).toUpperCase() : "";
       var count = Number(node.count) > 1 ? String(Number(node.count)) : "";
+      var step = Number(node.step) > 0
+        ? String(Number(node.step)).padStart(2, "0")
+        : "";
       var title = analysisLineageSvgClip(node.label, 28);
       var detail = analysisLineageSvgClip(sub, 40);
       return '<g transform="translate(' + node.x + ',' + node.y + ')">' +
@@ -3079,7 +3118,16 @@
         '" rx="8" fill="' + palette.surface + '" stroke="' + stroke +
         '" stroke-width="' + strokeWidth + '"/>' +
         '<rect width="4" height="' + node.h + '" rx="2" fill="' + color + '"/>' +
-        '<text x="14" y="22" font-family="Segoe UI, Arial, sans-serif" ' +
+        (step
+          ? '<rect x="12" y="10" width="24" height="15" rx="7" fill="' +
+            palette.surface3 + '"/>' +
+            '<text x="24" y="21" text-anchor="middle" ' +
+            'font-family="Segoe UI, Arial, sans-serif" font-size="9" ' +
+            'font-weight="600" fill="' + palette.text3 + '">' +
+            escapeHtml(step) + "</text>"
+          : "") +
+        '<text x="' + (step ? 44 : 14) + '" y="22" ' +
+        'font-family="Segoe UI, Arial, sans-serif" ' +
         'font-size="12.5" font-weight="600" fill="' + palette.text + '">' +
         escapeHtml(title) + '</text>' +
         '<text x="14" y="40" font-family="Segoe UI, Arial, sans-serif" ' +
@@ -3107,7 +3155,8 @@
       "</marker></defs>" +
       '<rect width="' + width + '" height="' + height + '" fill="' +
       palette.background + '"/>' +
-      '<g>' + edges + "</g><g>" + nodes + "</g></svg>";
+      "<g>" + artifacts + groups + "</g><g>" + edges +
+      "</g><g>" + cards + "</g></svg>";
   }
 
   function analysisLineagePngData(svg) {
@@ -3705,6 +3754,8 @@
     $("#analysisLineageSearch").value = "";
     $("#analysisLineageNodes").innerHTML = "";
     $("#analysisLineageEdges").innerHTML = "";
+    $("#analysisLineageArtifacts").innerHTML = "";
+    $("#analysisLineageGroups").innerHTML = "";
     $("#analysisLineageOutline").innerHTML = "";
     $("#analysisLineageNotice").textContent = "";
     $("#analysisLineageM").hidden = true;
@@ -3822,6 +3873,10 @@
     $("#analysisLineageEmptyText").textContent = text || "";
   }
 
+  function analysisLineageEdges(graph) {
+    return (graph && (graph.canvas_edges || graph.edges)) || [];
+  }
+
   function analysisLineageRender() {
     var graph = state.analysisLineage;
     if (!graph || !(graph.nodes || []).length) {
@@ -3845,8 +3900,9 @@
     (graph.nodes || []).forEach(function (node) {
       byId[node.id] = node;
     });
+    var edges = analysisLineageEdges(graph);
     var routes = analysisLineageEdgeRoutes(graph);
-    $("#analysisLineageEdges").innerHTML = (graph.edges || []).map(function (edge, index) {
+    $("#analysisLineageEdges").innerHTML = edges.map(function (edge, index) {
       var source = byId[edge.from];
       var target = byId[edge.to];
       if (!source || !target) return "";
@@ -3856,9 +3912,18 @@
         '" d="' + (routes[index] || analysisLineageEdgePath(source, target)) +
         '" marker-end="url(#lineageArrow)"></path>';
     }).join("");
-    $("#analysisLineageNodes").innerHTML = (graph.nodes || []).map(
-      analysisLineageNodeMarkup
+    $("#analysisLineageArtifacts").innerHTML = (graph.artifacts || []).map(
+      analysisLineageArtifactMarkup
     ).join("");
+    $("#analysisLineageGroups").innerHTML = (graph.groups || []).map(
+      analysisLineageGroupMarkup
+    ).join("");
+    $("#analysisLineageNodes").innerHTML = (graph.nodes || [])
+      .filter(function (node) {
+        return !node.role || node.role === "card";
+      })
+      .map(analysisLineageNodeMarkup)
+      .join("");
     $("#analysisLineageOutline").innerHTML = analysisLineageOutlineMarkup(graph);
     state.analysisLineageZoom = 1;
     state.analysisLineageHighlight = null;
@@ -3916,19 +3981,86 @@
     return context;
   }
 
+  function analysisLineageTitle(meta) {
+    var label = String(meta.label || "");
+    if (!label && meta.label_key) label = t(meta.label_key);
+    var sub = meta.sub_key ? t(meta.sub_key) : "";
+    var detail = String(meta.sub || "");
+    if (detail && detail === label) detail = "";
+    if (detail) sub = sub ? sub + " \u00b7 " + detail : detail;
+    return { label: label, sub: sub };
+  }
+
+  function analysisLineageIcon(kind) {
+    var iconKey = LINEAGE_KIND_ICONS[kind];
+    if (!iconKey) iconKey = kind === "model" ? "table" : "group";
+    return ANALYSIS_ICONS[iconKey] || ANALYSIS_ICONS.group;
+  }
+
+  function analysisLineageHeaderMarkup(meta, headId, headKind, className) {
+    var title = analysisLineageTitle(meta);
+    var head = headId
+      ? ' data-node-id="' + escapeHtml(headId) +
+        '" data-node-kind="' + escapeHtml(headKind || meta.kind || "") +
+        '" data-node-table="' + escapeHtml(meta.label || "") +
+        '" data-node-name="' + escapeHtml(title.label) + '"'
+      : "";
+    return '<div class="' + className + (headId ? " has-node" : "") + '"' + head +
+      ' data-search="' + escapeHtml((title.label + " " + title.sub).toLowerCase()) + '">' +
+      '<span class="lg-icon">' + analysisLineageIcon(meta.kind) + "</span>" +
+      '<span class="lg-text"><span class="lg-title">' + escapeHtml(title.label) +
+      '</span><span class="lg-sub">' + escapeHtml(title.sub) + "</span></span></div>";
+  }
+
+  function analysisLineageArtifactMarkup(artifact) {
+    return '<div class="lineage-artifact group-' +
+      escapeHtml(artifact.kind || "model") + '" data-artifact-id="' +
+      escapeHtml(artifact.id || "") + '" style="left:' + artifact.x + "px;top:" +
+      artifact.y + "px;width:" + artifact.w + "px;height:" + artifact.h + 'px">' +
+      '<div class="la-head" style="left:' + (artifact.head_x - artifact.x) +
+      "px;top:" + (artifact.head_y - artifact.y) + "px;width:" + artifact.head_w +
+      "px;height:" + artifact.head_h + 'px">' +
+      analysisLineageHeaderMarkup(
+        artifact, artifact.head_id, artifact.kind, "la-titlebar"
+      ) + "</div></div>";
+  }
+
+  function analysisLineageGroupMarkup(group) {
+    return '<div class="lineage-group group-' +
+      escapeHtml(group.kind || "model") + '" data-group-id="' +
+      escapeHtml(group.id || "") + '" style="left:' + group.x + "px;top:" +
+      group.y + "px;width:" + group.w + "px;height:" + group.h + 'px">' +
+      '<div class="lg-head" style="left:' + (group.head_x - group.x) +
+      "px;top:" + (group.head_y - group.y) + "px;width:" + group.head_w +
+      "px;height:" + group.head_h + 'px">' +
+      analysisLineageHeaderMarkup(
+        group, group.head_id, group.kind === "page" ? "page" : group.kind,
+        "lg-titlebar"
+      ) + "</div></div>";
+  }
+
   function analysisLineageNodeMarkup(node) {
     var iconKey = LINEAGE_KIND_ICONS[node.kind] || "group";
     var icon = ANALYSIS_ICONS[iconKey] || "";
     var kindLabel = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
     var parts = [kindLabel];
     var context = analysisLineageContext(node);
-    if (context) parts.push(context);
+    var detail = String(node.detail || "").trim();
+    var isUsage = node.group === "usage" || node.group === "more";
+    if (isUsage) {
+      if (detail) parts[0] = kindLabel + " (" + detail + ")";
+    } else if (context) {
+      parts.push(context);
+    }
     var sub = parts.join(" \u00b7 ");
     var status = node.status
       ? '<span class="ln-status">' + escapeHtml(tStatus(node.status)) + "</span>"
       : "";
     var count = Number(node.count) > 1
       ? '<span class="ln-count">' + Number(node.count) + "</span>"
+      : "";
+    var step = Number(node.step) > 0
+      ? '<span class="ln-step">' + String(Number(node.step)).padStart(2, "0") + "</span>"
       : "";
     var title = node.label + (node.context ? " \u00b7 " + node.context : "");
     var classes = ["lineage-node", "group-" + (node.group || "model")];
@@ -3943,7 +4075,7 @@
       ' style="left:' + node.x + "px;top:" + node.y + "px;width:" + node.w +
       "px;height:" + node.h + 'px"' +
       ' title="' + escapeHtml(title) + '">' +
-      '<span class="ln-icon">' + icon + "</span>" +
+      step + '<span class="ln-icon">' + icon + "</span>" +
       '<span class="ln-text"><span class="ln-title">' + escapeHtml(node.label) +
       '</span><span class="ln-sub">' + escapeHtml(sub) + "</span>" + status +
       "</span>" + count + "</button>";
@@ -4002,91 +4134,31 @@
     }).join("") + "</ul>";
   }
 
-  function analysisLineageRoutePath(x1, y1, laneX, y2, x2) {
-    if (Math.abs(y2 - y1) < 1) {
-      return "M" + x1 + " " + y1 + " H" + x2;
-    }
-    var radius = Math.min(
-      10,
-      Math.abs(y2 - y1) / 2,
-      Math.abs(laneX - x1) / 2,
-      Math.abs(x2 - laneX) / 2
-    );
-    var direction = y2 > y1 ? 1 : -1;
-    return "M" + x1 + " " + y1 +
-      " H" + (laneX - radius) +
-      " Q" + laneX + " " + y1 + " " + laneX + " " + (y1 + direction * radius) +
-      " V" + (y2 - direction * radius) +
-      " Q" + laneX + " " + y2 + " " + (laneX + radius) + " " + y2 +
-      " H" + x2;
-  }
-
-  function analysisLineageEdgeRoutes(graph) {
-    var nodes = {};
-    (graph.nodes || []).forEach(function (node) {
-      nodes[node.id] = node;
-    });
-    var groups = {};
-    var backward = [];
-    (graph.edges || []).forEach(function (edge, index) {
-      var source = nodes[edge.from];
-      var target = nodes[edge.to];
-      if (!source || !target) return;
-      var x1 = source.x + source.w;
-      var y1 = source.y + source.h / 2;
-      var x2 = target.x;
-      var y2 = target.y + target.h / 2;
-      if (x2 > x1 + 8) {
-        var key = Math.round(x1) + ":" + Math.round(x2);
-        if (!groups[key]) groups[key] = [];
-        groups[key].push({ index: index, x1: x1, y1: y1, x2: x2, y2: y2 });
-      } else {
-        backward.push({
-          index: index,
-          x1: x1,
-          y1: y1,
-          x2: target.x + target.w,
-          y2: y2
-        });
-      }
-    });
-    var routes = {};
-    Object.keys(groups).forEach(function (key) {
-      var items = groups[key].slice().sort(function (left, right) {
-        return left.y2 - right.y2 || left.y1 - right.y1;
-      });
-      var gap = items[0].x2 - items[0].x1;
-      items.forEach(function (item, index) {
-        var fraction = items.length === 1
-          ? 0.5
-          : 0.18 + 0.64 * (index / (items.length - 1));
-        var laneX = item.x1 + gap * fraction;
-        routes[item.index] = analysisLineageRoutePath(
-          item.x1, item.y1, laneX, item.y2, item.x2
-        );
-      });
-    });
-    backward.forEach(function (item, index) {
-      var outer = Math.max(item.x1, item.x2) + 24 + (index % 5) * 7;
-      routes[item.index] = "M" + item.x1 + " " + item.y1 +
-        " H" + outer + " V" + item.y2 + " H" + item.x2;
-    });
-    return routes;
-  }
-
   function analysisLineageEdgePath(source, target) {
     var x1 = source.x + source.w;
     var y1 = source.y + source.h / 2;
     var x2 = target.x;
     var y2 = target.y + target.h / 2;
-    if (x2 <= x1) {
-      x2 = target.x + target.w;
-      return "M" + x1 + " " + y1 + " C" + (x1 + 60) + " " + y1 + " " +
-        (x2 + 60) + " " + y2 + " " + x2 + " " + y2;
-    }
-    var bend = Math.max(40, (x2 - x1) * 0.45);
-    return "M" + x1 + " " + y1 + " C" + (x1 + bend) + " " + y1 + " " +
-      (x2 - bend) + " " + y2 + " " + x2 + " " + y2;
+    var bend = Math.max(36, Math.abs(x2 - x1) * 0.45);
+    return "M" + x1 + " " + y1 +
+      " C" + (x1 + bend) + " " + y1 + " " + (x2 - bend) + " " + y2 +
+      " " + x2 + " " + y2;
+  }
+
+  function analysisLineageEdgeRoutes(graph) {
+    var byId = {};
+    (graph.nodes || []).forEach(function (node) {
+      byId[node.id] = node;
+    });
+    var routes = {};
+    analysisLineageEdges(graph).forEach(function (edge, index) {
+      var source = byId[edge.from];
+      var target = byId[edge.to];
+      if (source && target) {
+        routes[index] = analysisLineageEdgePath(source, target);
+      }
+    });
+    return routes;
   }
 
   function analysisLineageNotice(graph) {
@@ -4101,6 +4173,9 @@
         return t("Truncated M steps: {n}").replace(
           "{n}", String(notice.count || 0)
         );
+      }
+      if (notice.code === "edges_collapsed") {
+        return t("Graph simplified: edges point to pages");
       }
       if (notice.code === "no_dependencies") {
         return t("No dependencies found");
@@ -4214,11 +4289,50 @@
       return;
     }
     state.analysisLineageHighlight = nodeId;
-    var keep = analysisLineageLineageSet(graph, nodeId);
-    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+    var starts = [nodeId];
+    var headGroup = (graph.groups || []).filter(function (group) {
+      return group.head_id === nodeId;
+    })[0];
+    if (headGroup) starts = (headGroup.members || []).slice();
+    var headArtifact = (graph.artifacts || []).filter(function (artifact) {
+      return artifact.head_id === nodeId;
+    })[0];
+    if (headArtifact) starts = (headArtifact.members || []).slice();
+    var keep = {};
+    starts.forEach(function (start) {
+      var branch = analysisLineageLineageSet(graph, start);
+      Object.keys(branch).forEach(function (id) {
+        keep[id] = true;
+      });
+    });
+    keep[nodeId] = true;
+    $$("#analysisLineageCanvas [data-node-id]").forEach(function (element) {
       var id = element.getAttribute("data-node-id");
       element.classList.toggle("is-muted", !keep[id]);
       element.classList.toggle("is-hot", Boolean(keep[id]) && id !== nodeId);
+    });
+    var groupMembers = {};
+    (graph.groups || []).forEach(function (group) {
+      groupMembers[group.id] = group.members || [];
+    });
+    var artifactMembers = {};
+    (graph.artifacts || []).forEach(function (artifact) {
+      artifactMembers[artifact.id] = artifact.members || [];
+    });
+    function anyKept(ids) {
+      return (ids || []).some(function (id) { return Boolean(keep[id]); });
+    }
+    $$("#analysisLineageGroups .lineage-group").forEach(function (element) {
+      element.classList.toggle(
+        "is-muted",
+        !anyKept(groupMembers[element.getAttribute("data-group-id")])
+      );
+    });
+    $$("#analysisLineageArtifacts .lineage-artifact").forEach(function (element) {
+      element.classList.toggle(
+        "is-muted",
+        !anyKept(artifactMembers[element.getAttribute("data-artifact-id")])
+      );
     });
     $$("#analysisLineageEdges .lineage-edge").forEach(function (element) {
       var on = Boolean(
@@ -4235,9 +4349,13 @@
 
   function analysisLineageClearHighlight() {
     state.analysisLineageHighlight = null;
-    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+    $$("#analysisLineageCanvas [data-node-id]").forEach(function (element) {
       element.classList.remove("is-muted", "is-hot");
     });
+    $$("#analysisLineageGroups .lineage-group, #analysisLineageArtifacts .lineage-artifact")
+      .forEach(function (element) {
+        element.classList.remove("is-muted");
+      });
     $$("#analysisLineageEdges .lineage-edge").forEach(function (element) {
       element.classList.remove("is-muted", "is-hot");
       element.setAttribute("marker-end", "url(#lineageArrow)");
@@ -4247,9 +4365,13 @@
 
   function analysisLineageApplySearch() {
     var query = ($("#analysisLineageSearch").value || "").trim().toLowerCase();
-    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+    $$("#analysisLineageCanvas [data-node-id]").forEach(function (element) {
       element.classList.remove("is-hit", "is-muted");
     });
+    $$("#analysisLineageGroups .lineage-group, #analysisLineageArtifacts .lineage-artifact")
+      .forEach(function (element) {
+        element.classList.remove("is-hit", "is-muted");
+      });
     $$("#analysisLineageOutline .lo-row").forEach(function (element) {
       element.classList.remove("is-hit", "is-muted");
     });
@@ -4259,15 +4381,21 @@
       }
       return;
     }
-    $$("#analysisLineageNodes .lineage-node").forEach(function (element) {
+    $$("#analysisLineageCanvas [data-node-id]").forEach(function (element) {
       var text = (
         element.getAttribute("data-node-name") + " " +
         (LINEAGE_KIND_LABELS[element.getAttribute("data-node-kind")] || "")
       ).toLowerCase();
       var hit = text.indexOf(query) !== -1;
       element.classList.toggle("is-hit", hit);
-      element.classList.toggle("is-muted", !hit);
     });
+    $$("#analysisLineageArtifacts [data-search], #analysisLineageGroups [data-search]")
+      .forEach(function (element) {
+        element.classList.toggle(
+          "is-hit",
+          element.getAttribute("data-search").indexOf(query) !== -1
+        );
+      });
     $$("#analysisLineageOutline .lo-row").forEach(function (element) {
       var text = (
         element.getAttribute("data-node-name") + " " +
@@ -8209,13 +8337,13 @@
       analysisLineageViewButtons();
       analysisLoadLineage();
     });
-    $("#analysisLineageNodes").addEventListener("click", function (event) {
-      var node = event.target.closest(".lineage-node");
+    $("#analysisLineageCanvas").addEventListener("click", function (event) {
+      var node = event.target.closest("[data-node-id]");
       if (!node) return;
       analysisLineageSelect(node.getAttribute("data-node-id"));
     });
-    $("#analysisLineageNodes").addEventListener("dblclick", function (event) {
-      var node = event.target.closest(".lineage-node");
+    $("#analysisLineageCanvas").addEventListener("dblclick", function (event) {
+      var node = event.target.closest("[data-node-id]");
       if (!node) return;
       analysisLineageReroot(
         node.getAttribute("data-node-kind"),

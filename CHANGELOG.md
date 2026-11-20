@@ -18,6 +18,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tanpa referensi menjadi `Perlu dicek`; 401/403 dan 429 tidak mengubah
   coverage. Chip jumlah subscription muncul di tab **Report results**, ekspor
   XLSX menambah sheet `12_Subscriptions`, dan CLI menampilkan ringkasannya.
+- **Lineage graph bergrup**: dialog lineage kolom/measure dan tabel sekarang
+  menampilkan artifact **Semantic Model** dan **Report**, grup **Model
+  dependencies**, **M query**, dan tiap **Page**, dengan report/page sebagai
+  header grup. Kartu disusun di dalam grup, langkah M bernomor, report/page
+  dikeluarkan dari edge kanvas (`canvas_edges` memadatkan owner → visual), dan
+  garis memakai kurva bezier. Ekspor SVG/PNG ikut menggambar artifact/grup.
 
 ### Kebijakan API
 
