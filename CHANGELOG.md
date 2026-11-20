@@ -7,7 +7,10 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-20 - Rilis 0.5.1
+
+Analisa semantic model mendapat lineage tabel, click-through dependensi, outline
+compact/full, routing graph ortogonal, serta ekspor lineage sebagai SVG/PNG.
 
 ### Analisa Semantic Model
 
