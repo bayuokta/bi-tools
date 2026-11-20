@@ -151,6 +151,8 @@
     instances: [],
     workspaces: [],
     reports: [],
+    batchMode: false,
+    batchSelected: {},
     datasets: [],
     pbix: null,
     endpoint: "",
@@ -1202,9 +1204,11 @@
       "/contents?datasets=false&reports=true"
     ).then(function (data) {
       state.reports = data.reports || [];
+      state.batchSelected = {};
       setSelectOptions("serviceReport", state.reports.map(function (item) {
         return { value: item.id, label: item.label, data: item };
       }), "Choose a report…");
+      renderBatchReports();
       $("#reportHint").textContent = state.reports.length
         ? t("Paginated (RDL) reports are marked and cannot be extracted.")
         : t("This report workspace has no extractable reports.");
@@ -1261,6 +1265,71 @@
     });
   }
 
+  function batchReports() {
+    return (state.reports || []).filter(function (item) {
+      return !item.is_paginated;
+    });
+  }
+
+  function batchSelectedIds() {
+    return Object.keys(state.batchSelected).filter(function (id) {
+      return state.batchSelected[id];
+    });
+  }
+
+  function batchDatasetIds() {
+    var ids = {};
+    batchReports().forEach(function (item) {
+      if (state.batchSelected[item.id] && item.dataset_id) {
+        ids[item.dataset_id] = true;
+      }
+    });
+    return Object.keys(ids);
+  }
+
+  function renderBatchHint() {
+    var selected = batchSelectedIds();
+    var datasets = batchDatasetIds();
+    var hint = "";
+    if (selected.length && datasets.length > 1) {
+      hint = t("Choose reports from the same dataset only.");
+    } else if (selected.length) {
+      hint = fmtInt(selected.length) + " " + t("reports selected");
+    }
+    if ($("#batchHint")) $("#batchHint").textContent = hint;
+    if ($("#runExtract")) {
+      $("#runExtract").disabled =
+        state.batchMode && (selected.length < 2 || datasets.length > 1);
+    }
+  }
+
+  function renderBatchReports() {
+    var list = $("#batchReports");
+    if (!list) return;
+    if (!state.batchMode) {
+      list.innerHTML = "";
+      renderBatchHint();
+      return;
+    }
+    var reports = batchReports();
+    list.innerHTML = reports.length
+      ? reports.map(function (item) {
+        var checked = state.batchSelected[item.id] ? " checked" : "";
+        return '<label class="check"><input type="checkbox" data-batch-id="' +
+          escapeHtml(item.id) + '"' + checked + "> <span>" +
+          escapeHtml(item.label || item.name || item.id) + "</span></label>";
+      }).join("")
+      : '<span class="helper">' + t("No extractable reports.") + "</span>";
+    renderBatchHint();
+  }
+
+  function setBatchMode(enabled) {
+    state.batchMode = Boolean(enabled);
+    if (!state.batchMode) state.batchSelected = {};
+    $("#batchRow").hidden = !state.batchMode;
+    renderBatchReports();
+  }
+
   function buildMetadataPayload() {
     var payload = {
       source: state.source === "service" ? "service" : "local",
@@ -1279,10 +1348,26 @@
         ? reportWorkspace.data.name
         : "";
       payload.endpoint = $("#xmlaEndpoint").value.trim();
-      payload.report_id = getSelectValue("serviceReport");
-      payload.report_name = report ? report.name : "";
-      payload.report_type = report ? report.report_type : "";
-      payload.dataset_id = report ? report.dataset_id : "";
+      if (state.batchMode) {
+        var selected = batchSelectedIds();
+        var names = {};
+        selected.forEach(function (id) {
+          state.reports.forEach(function (item) {
+            if (item.id === id) names[id] = item.name || item.label || "";
+          });
+        });
+        payload.report_ids = selected;
+        payload.report_names = names;
+        payload.report_id = "";
+        payload.report_name = "";
+        payload.report_type = "";
+        payload.dataset_id = "";
+      } else {
+        payload.report_id = getSelectValue("serviceReport");
+        payload.report_name = report ? report.name : "";
+        payload.report_type = report ? report.report_type : "";
+        payload.dataset_id = report ? report.dataset_id : "";
+      }
       payload.catalog = getSelectValue("catalog");
       payload.dataset_name = payload.catalog;
       payload.workspace_id = payload.report_workspace_id;
@@ -1303,20 +1388,25 @@
   function renderExtractResult(result) {
     var report = result.report || null;
     var model = result.model || null;
-    if (!report && !model) {
+    var batch = result.batch || [];
+    if (!report && !model && !batch.length) {
       setChip($("#outputState"), "idle", t("No results"));
       return;
     }
-    state.extractReady = Boolean(result.report_out);
+    state.extractReady = Boolean(result.report_out) && !batch.length;
     if (result.report_out) $("#reportWorkbook").value = result.report_out;
     if (result.model_out) $("#modelWorkbook").value = result.model_out;
     setChip($("#outputState"), "ok", t("Done"));
     $("#extractDone").hidden = false;
     var notes = [];
+    if (batch.length) notes.push(batch.length + t(" reports"));
     if (report) notes.push((report.pages || 0) + t(" pages"));
     if (model) notes.push((model.tables || 0) + t(" tables"));
     $("#extractDoneText").textContent = notes.join(" · ") ||
       t("Workbooks saved to the output folder.");
+    if (batch.length && result.summary_out) {
+      $("#extractDoneText").textContent += " · " + result.summary_out;
+    }
     var stepParts = [];
     if (model) {
       stepParts.push((model.tables || 0) + t(" tables"));
@@ -1335,7 +1425,13 @@
     $("#sumMeasures").textContent = model
       ? model.measures
       : (report ? report.measures : "—");
-    $("#sumPages").textContent = report ? report.pages : "—";
+    $("#sumPages").textContent = report
+      ? report.pages
+      : (batch.length
+        ? batch.reduce(function (total, row) {
+          return total + (Number(row.Pages) || 0);
+        }, 0)
+        : "-");
     $("#sumRelations").textContent = model ? model.relationships : "—";
     if (result.model_error) addLog(t("Note: ") + result.model_error, "warn");
     // Workbook paths now exist; refresh TSD checklist and unlock step 2.
@@ -1347,6 +1443,17 @@
     if (state.jobId) {
       toast(t("Another job is still running"));
       return;
+    }
+    if (state.batchMode) {
+      var selected = batchSelectedIds();
+      if (selected.length < 2) {
+        toast(t("Choose at least two reports for a batch"));
+        return;
+      }
+      if (batchDatasetIds().length > 1) {
+        toast(t("Choose reports from the same dataset only."));
+        return;
+      }
     }
     var payload = buildMetadataPayload();
     $("#extractDone").hidden = true;
@@ -7369,6 +7476,17 @@
       if (item && item.data) applyReportDefaults(item.data);
     });
 
+    $("#batchRow").hidden = true;
+    $("#batchMode").addEventListener("change", function () {
+      setBatchMode($("#batchMode").checked);
+    });
+    $("#batchReports").addEventListener("change", function (event) {
+      var target = event.target;
+      if (!target || !target.getAttribute("data-batch-id")) return;
+      var id = target.getAttribute("data-batch-id");
+      state.batchSelected[id] = target.checked;
+      renderBatchHint();
+    });
     $("#runExtract").addEventListener("click", runExtraction);
     $("#runTsd").addEventListener("click", runTsd);
 

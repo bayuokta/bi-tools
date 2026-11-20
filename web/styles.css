@@ -774,6 +774,12 @@ tr.code-row pre{
 .lineage-filter{ display:flex; align-items:center; gap:6px; }
 .lineage-filter .select{ min-width:150px; }
 #lineageLayer .is-filtered{ display:none; }
+.batch-list{
+  display:flex; flex-direction:column; gap:4px; max-height:220px; overflow:auto;
+  padding:6px 8px; border:1px solid var(--border); border-radius:var(--r-md);
+  background:var(--surface-2);
+}
+.batch-list .check{ margin:0; }
 .depth{ display:flex; align-items:center; gap:6px; }
 .depth-val{ font-family:var(--font-mono); font-size:12px; color:var(--text-2); min-width:52px; text-align:center; }
 

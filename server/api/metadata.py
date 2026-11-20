@@ -29,6 +29,8 @@ class RunIn(BaseModel):
     report_workspace_id: str = ""
     report_workspace_name: str = ""
     report_id: str = ""
+    report_ids: list[str] = []
+    report_names: dict[str, str] = {}
     report_name: str = ""
     report_type: str = ""
     dataset_id: str = ""

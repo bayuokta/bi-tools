@@ -24,6 +24,15 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Inventaris API (Fabric, Power BI Admin/member REST, XMLA, API lokal) didokumentasikan di `README.md` dan `AGENTS.md`.
 - Metode HTTP **`DELETE` dilarang** untuk API apa pun; `Transport.request` menolak sebelum request dikirim, dan `tests\test_architecture.py` menjaga tidak ada pemakaian `DELETE`/`requests.delete(`. Operasi hapus/bersihkan memakai `POST` (`.../clear`, `.../cancel`).
 
+### Ekstraksi report
+
+- **Batch report** Power BI Service: pilih 2–25 report dari satu workspace + satu
+  dataset lewat checkbox di halaman Ekstraksi (atau ulangi `--report-id` di CLI).
+  Model diekstrak sekali, setiap report ke folder `<Nama>_<8 ID>` dengan
+  `Report_Metadata.xlsx`, dan ringkasan `Batch_Summary.xlsx`. Kegagalan satu
+  report dicatat tanpa membatalkan report lain; usage report tidak digabung pada
+  batch.
+
 ### Pengujian & antarmuka
 
 - Smoke test browser (`tests\test_web_smoke.py`, `RUN_WEB_SMOKE=1`) menjalankan

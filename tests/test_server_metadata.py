@@ -268,6 +268,28 @@ class MetadataPresenterTests(unittest.TestCase):
         self.assertFalse(request.extract_model)
         self.assertEqual(request.endpoint, "")
 
+    def test_build_request_service_batch(self) -> None:
+        other = "99999999-8888-7777-6666-555555555555"
+        request = presenter.build_request(
+            self.store,
+            {
+                "source": "service",
+                "scope": "report",
+                "report_workspace_id": WORKSPACE,
+                "report_workspace_name": "Contoh",
+                "report_ids": [REPORT, other, REPORT],
+                "report_names": {REPORT: "Report A", other: "Report B"},
+            },
+        )
+        self.assertEqual(request.report_ids, (REPORT, other))
+        self.assertTrue(request.batch)
+        kwargs = request.to_job_kwargs()
+        self.assertEqual(len(kwargs["service_reports"]), 2)
+        self.assertEqual(
+            kwargs["service_report_names"][REPORT], "Report A"
+        )
+        self.assertNotIn("service_report", kwargs)
+
     def test_build_request_service_model_requires_catalog(self) -> None:
         with self.assertRaises(ExtractionError) as ctx:
             presenter.build_request(

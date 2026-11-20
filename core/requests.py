@@ -87,6 +87,9 @@ class LocalMetadataRequest:
         }
 
 
+MAX_BATCH_REPORTS = 25
+
+
 @dataclass(frozen=True)
 class ServiceMetadataRequest:
     """Ekstraksi report via Fabric API dan/atau model via endpoint XMLA."""
@@ -94,6 +97,8 @@ class ServiceMetadataRequest:
     out_dir: Path
     workspace_id: str = ""
     report_id: str = ""
+    report_ids: tuple[str, ...] = ()
+    report_names: tuple[tuple[str, str], ...] = ()
     endpoint: str = ""
     catalog: str = ""
     scope: str = SCOPE_BOTH
@@ -105,21 +110,50 @@ class ServiceMetadataRequest:
         object.__setattr__(self, "out_dir", _path(self.out_dir))
         object.__setattr__(self, "workspace_id", (self.workspace_id or "").strip())
         object.__setattr__(self, "report_id", (self.report_id or "").strip())
+        raw_ids = self.report_ids
+        if isinstance(raw_ids, str):
+            raw_ids = raw_ids.split(",")
+        report_ids: list[str] = []
+        for item in raw_ids or ():
+            value = str(item or "").strip()
+            if value and value not in report_ids:
+                report_ids.append(value)
+        object.__setattr__(self, "report_ids", tuple(report_ids))
+        names: list[tuple[str, str]] = []
+        raw_names = self.report_names or ()
+        if isinstance(raw_names, dict):
+            raw_names = list(raw_names.items())
+        for item in raw_names:
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                key, value = str(item[0] or "").strip(), str(item[1] or "").strip()
+                if key and value:
+                    names.append((key, value))
+        object.__setattr__(self, "report_names", tuple(names))
         object.__setattr__(self, "endpoint", (self.endpoint or "").strip())
         object.__setattr__(self, "catalog", (self.catalog or "").strip())
 
+        if report_ids and len(report_ids) > MAX_BATCH_REPORTS:
+            raise ExtractionError(
+                f"Maksimal {MAX_BATCH_REPORTS} report per batch; "
+                f"dipilih {len(report_ids)}."
+            )
         if scope != SCOPE_MODEL:
-            if not self.workspace_id or not self.report_id:
+            if not self.workspace_id or not (self.report_id or report_ids):
                 raise ExtractionError(
                     "Sumber report Power BI Service belum lengkap: isi Workspace ID "
-                    "dan Report ID (atau URL report)."
+                    "dan Report ID (atau pilih beberapa report)."
                 )
             # Validasi GUID dilakukan di satu tempat: ServiceReportRef.
-            ServiceReportRef.from_ids(self.workspace_id, self.report_id)
+            for item in self.report_ids or ((self.report_id,) if self.report_id else ()):
+                ServiceReportRef.from_ids(self.workspace_id, item)
         if scope != SCOPE_REPORT and not self.endpoint:
             raise ExtractionError(
                 "Endpoint XMLA workspace belum diisi; model service tidak bisa "
                 "diekstrak tanpa endpoint."
+            )
+        if report_ids and scope == SCOPE_MODEL:
+            raise ExtractionError(
+                "Batch report tidak bisa dipakai dengan cakupan model saja."
             )
 
     @property
@@ -132,10 +166,23 @@ class ServiceMetadataRequest:
 
     @property
     def service_ref(self) -> ServiceReportRef | None:
-        """Referensi report; ``None`` bila cakupan hanya model."""
+        """Referensi report pertama; ``None`` bila cakupan hanya model."""
+        refs = self.service_refs
+        return refs[0] if refs else None
+
+    @property
+    def service_refs(self) -> tuple[ServiceReportRef, ...]:
+        """Semua referensi report (satu atau batch); kosong bila model saja."""
         if not self.extract_report:
-            return None
-        return ServiceReportRef.from_ids(self.workspace_id, self.report_id)
+            return ()
+        ids = self.report_ids or ((self.report_id,) if self.report_id else ())
+        return tuple(
+            ServiceReportRef.from_ids(self.workspace_id, item) for item in ids
+        )
+
+    @property
+    def batch(self) -> bool:
+        return len(self.report_ids) > 1
 
     def to_job_kwargs(self) -> dict[str, Any]:
         """Argumen :func:`core.jobs.run_metadata_job` untuk sumber service.
@@ -143,9 +190,8 @@ class ServiceMetadataRequest:
         Token dan provider tidak termasuk karena objek runtime disiapkan
         pemanggil (GUI/CLI), bukan bagian dari input pengguna.
         """
-        return {
+        payload: dict[str, Any] = {
             "service_mode": True,
-            "service_report": self.service_ref,
             "endpoint": self.endpoint or None,
             "catalog": self.catalog or None,
             "port": None,
@@ -155,6 +201,14 @@ class ServiceMetadataRequest:
             "extract_model": self.extract_model,
             "validate_with_existing": True,
         }
+        refs = self.service_refs
+        if len(refs) > 1:
+            payload["service_reports"] = refs
+            if self.report_names:
+                payload["service_report_names"] = dict(self.report_names)
+        else:
+            payload["service_report"] = refs[0] if refs else None
+        return payload
 
 
 @dataclass(frozen=True)

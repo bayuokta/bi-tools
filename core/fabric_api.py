@@ -63,6 +63,7 @@ class ServiceSourceInfo:
     workspace_id: str
     report_id: str
     report_format: str = ""
+    report_ids: tuple[str, ...] = ()
 
     @property
     def kind(self) -> str:
@@ -70,6 +71,8 @@ class ServiceSourceInfo:
 
     @property
     def label(self) -> str:
+        if self.report_ids:
+            return f"Power BI Service (batch {len(self.report_ids)} report)"
         if not self.report_id:
             return "Power BI Service (XMLA endpoint)"
         return "Power BI Service (report public definition)"

@@ -260,6 +260,57 @@ class AnalysisRequestTests(unittest.TestCase):
             1,
         )
 
+    def test_batch_report_ids_are_validated_and_mapped(self) -> None:
+        refs = [
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "11111111-2222-3333-4444-555555555555",
+        ]
+        request = AnalysisRequest(
+            workspace_id=WORKSPACE,
+            dataset_id=DATASET,
+            scan_workers=2,
+        )
+        self.assertEqual(request.to_run_kwargs()["scan_workers"], 2)
+
+        from core.requests import ServiceMetadataRequest, MAX_BATCH_REPORTS
+
+        batch = ServiceMetadataRequest(
+            out_dir=Path(tempfile.mkdtemp()),
+            workspace_id=WORKSPACE,
+            report_ids=(refs[0], refs[1], refs[0]),
+            scope="report",
+        )
+        self.assertEqual(batch.report_ids, tuple(refs))
+        self.assertTrue(batch.batch)
+        kwargs = batch.to_job_kwargs()
+        self.assertEqual(len(kwargs["service_reports"]), 2)
+        self.assertNotIn("service_report", kwargs)
+
+        with self.assertRaises(ExtractionError):
+            from uuid import uuid4
+
+            ServiceMetadataRequest(
+                out_dir=Path(tempfile.mkdtemp()),
+                workspace_id=WORKSPACE,
+                report_ids=tuple(
+                    str(uuid4()) for _ in range(MAX_BATCH_REPORTS + 1)
+                ),
+            )
+        with self.assertRaises(ExtractionError):
+            ServiceMetadataRequest(
+                out_dir=Path(tempfile.mkdtemp()),
+                workspace_id=WORKSPACE,
+                report_ids=("bukan-guid",),
+            )
+        with self.assertRaises(ExtractionError):
+            ServiceMetadataRequest(
+                out_dir=Path(tempfile.mkdtemp()),
+                workspace_id=WORKSPACE,
+                report_ids=(refs[0], refs[1]),
+                scope="model",
+                endpoint="powerbi://api.powerbi.com/v1.0/myorg/Contoh",
+            )
+
     def test_kwargs_match_use_case(self) -> None:
         import core.usage_service as service
 

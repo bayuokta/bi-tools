@@ -104,6 +104,7 @@ python -m server --no-browser --port 8800
   - **Service**: pilih **workspace model** dan **workspace report** secara terpisah (boleh berbeda). Workspace model menentukan endpoint XMLA dan daftar Catalog; workspace report menentukan daftar report. Memilih report tidak mengubah Catalog, karena report bisa memakai dataset di workspace lain. Combo memakai komponen desain prototype: tombol select-like dengan chevron yang membuka popup berisi kolom pencarian + daftar pilihan (semua `<select>` di halaman ikut di-enhance). Report PBIR-Legacy (satu `report.json`) ditolak dengan pesan agar disimpan ulang sebagai PBIR; report paginated (RDL) ditandai dan tidak diekstrak.
   - **Desktop**: pilih file `.pbix` lewat penjelajah (bukan dialog browser). Jenis sumber dideteksi otomatis; live connection hanya mengekstrak report. Instance Power BI Desktop dipilih otomatis hanya bila tepat satu terbuka; cakupan report saja tidak memerlukan instance.
   - Cakupan `Report + semantic model`, `Report saja`, atau `Semantic model saja` disimpan per sumber. Cakupan model memerlukan instance Desktop (lokal) atau endpoint + catalog (Service).
+  - **Batch report** (Service): centang **Extract several reports**, pilih 2–25 report dari **satu workspace dan satu dataset**, lalu jalankan. Model diekstrak sekali; setiap report ditulis ke `<folder output>\<Nama>_<8 ID>\Report_Metadata.xlsx` dan ringkasan ke `Batch_Summary.xlsx`. Report gagal dicatat di ringkasan tanpa membatalkan report lain. Usage report tidak digabung pada batch (jalankan report tunggal untuk `12_Model_vs_Report`).
   - Tombol **Jalankan ekstraksi** memulai job; log live muncul di konsol, kartu output menampilkan waktu/ukuran berkas, dan ringkasan menampilkan halaman/tabel/kolom/measure. File dibuka di aplikasi default lewat tombol **Buka**.
 - **Extraction & TSD dari web** (satu alur dua langkah):
   - Stepper di atas halaman: **1 Metadata extraction** dan **2 Generate TSD**. Langkah 2 tampil inline di bawah langkah 1 dan terbuka setelah ekstraksi sukses atau bila `Report_Metadata.xlsx` sudah tersedia. Selama terkunci, panel **Langkah 2 menunggu ekstraksi** ditampilkan dan tombol langkah 2 memberi pesan.
@@ -254,6 +255,7 @@ Report dari Power BI Service (memakai Fabric API `getDefinition`):
 ```powershell
 python extract_report_metadata.py --report-url "https://app.powerbi.com/groups/<workspaceId>/reports/<reportId>"
 python extract_report_metadata.py --workspace-id <workspaceId> --report-id <reportId>
+python extract_report_metadata.py --workspace-id <workspaceId> --report-id <id1> --report-id <id2> --out "<folder output>"   # batch
 ```
 
 Kredensial dibaca dari `TENANT_ID`/`CLIENT_ID`/`CLIENT_SECRET` di environment atau `.env` (tidak ada lagi pilihan login browser). Service principal butuh izin Fabric API `Report.ReadWrite.All` atau `Item.ReadWrite.All` beserta admin consent, dan tenant setting **Service principals can call Fabric public APIs** harus aktif.

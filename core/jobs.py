@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+import pandas as pd
 
 from .auth import EntraTokens, TokenProvider
 from .errors import ExtractionError
@@ -45,6 +49,8 @@ class MetadataJobResult:
     model_out: Path | None
     model_error: str = ""
     outputs: tuple[Path, ...] = ()
+    batch: tuple[dict[str, Any], ...] = ()
+    summary_out: Path | None = None
 
     @property
     def output_count(self) -> int:
@@ -318,6 +324,217 @@ def _run_service_metadata_job(
     )
 
 
+def _safe_folder(value: str, fallback: str = "Report") -> str:
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', " ", str(value or "")).strip()
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return text[:80] or fallback
+
+
+def _write_batch_summary(path: Path, rows: list[dict[str, Any]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    columns = [
+        "Workspace",
+        "Report ID",
+        "Report Name",
+        "Status",
+        "Pages",
+        "Visuals",
+        "Fields",
+        "Output",
+        "Message",
+    ]
+    frame = pd.DataFrame(rows, columns=columns)
+    with pd.ExcelWriter(path) as writer:
+        frame.to_excel(writer, sheet_name="Batch_Summary", index=False)
+    return path
+
+
+def _run_service_batch_job(
+    reports: Sequence[ServiceReportRef],
+    token_provider: TokenProvider | None,
+    *,
+    out_dir: Path | None,
+    endpoint: str | None,
+    catalog: str | None,
+    port: int | None,
+    include_report_usage: bool,
+    extract_model: bool,
+    validate_with_existing: bool,
+    names: dict[str, str] | None = None,
+    tokens: EntraTokens | None = None,
+    log: Log = _silent,
+    progress: Any = None,
+    should_stop: Any = None,
+) -> MetadataJobResult:
+    """Ekstrak beberapa report Power BI Service (satu workspace/dataset).
+
+    Model diekstrak sekali tanpa usage report (usage gabungan belum didukung),
+    setiap report ditulis ke folder ``<Nama>_<8 ID>/Report_Metadata.xlsx``, dan
+    ringkasan ditulis ke ``Batch_Summary.xlsx``. Kegagalan satu report tidak
+    membatalkan report lain.
+    """
+    if not reports:
+        raise ExtractionError("Batch report kosong.")
+    if token_provider is None:
+        raise ExtractionError("Token Fabric belum disiapkan untuk batch report.")
+    workspace_id = reports[0].workspace_id
+    if any(item.workspace_id != workspace_id for item in reports):
+        raise ExtractionError(
+            "Batch report harus berada di satu workspace yang sama."
+        )
+    if extract_model and not endpoint and port is None:
+        log("Model            : dilewati (endpoint XMLA kosong)")
+        extract_model = False
+    if include_report_usage and extract_model:
+        log(
+            "Usage report     : dilewati pada batch (model diekstrak sekali; "
+            "jalankan report tunggal untuk usage gabungan)."
+        )
+
+    target_dir = (out_dir or outputs_dir()).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    model_out = target_dir / DEFAULT_MODEL_OUT.name
+    summary_out = target_dir / "Batch_Summary.xlsx"
+
+    log("Jenis sumber     : Power BI Service (batch)")
+    log(f"Workspace        : {workspace_id}")
+    log(f"Reports          : {len(reports)}")
+    if extract_model:
+        log(f"Endpoint XMLA    : {endpoint or f'port {port}'}")
+        if catalog:
+            log(f"Catalog          : {catalog}")
+
+    model_result: dict[str, Any] | None = None
+    model_path: Path | None = None
+    model_error = ""
+    if extract_model:
+        log("")
+        log("=== Ekstraksi semantic model (XMLA) ===")
+        try:
+            model_result = run_model(
+                endpoint=endpoint,
+                catalog=catalog,
+                port=port,
+                no_report=True,
+                out_file=model_out,
+                tokens=tokens,
+                log=log,
+            )
+            model_path = model_out
+        except ExtractionError as exc:
+            model_error = str(exc)
+            log(f"WARNING: ekstraksi model dilewati: {exc}")
+            log("WARNING: report tetap diekstrak tanpa validasi model.")
+
+    rows: list[dict[str, Any]] = []
+    outputs: list[Path] = []
+    client = FabricReportClient(token_provider, log=log)
+    try:
+        for index, service in enumerate(reports, start=1):
+            if should_stop is not None and should_stop():
+                rows.append(
+                    {
+                        "Workspace": workspace_id,
+                        "Report ID": service.report_id,
+                        "Report Name": (names or {}).get(service.report_id, ""),
+                        "Status": "cancelled",
+                        "Pages": 0,
+                        "Visuals": 0,
+                        "Fields": 0,
+                        "Output": "",
+                        "Message": "Dibatalkan pengguna.",
+                    }
+                )
+                log("Batch dihentikan atas permintaan pengguna.")
+                break
+            name = str((names or {}).get(service.report_id) or "")
+            label = f"{name or 'Report'} ({service.report_id[:8]})"
+            if progress is not None:
+                progress(index, len(reports), label)
+            log("")
+            log(f"[{index}/{len(reports)}] {label}")
+            row: dict[str, Any] = {
+                "Workspace": workspace_id,
+                "Report ID": service.report_id,
+                "Report Name": name,
+                "Status": "failed",
+                "Pages": 0,
+                "Visuals": 0,
+                "Fields": 0,
+                "Output": "",
+                "Message": "",
+            }
+            try:
+                with report_workspace(None) as workdir:
+                    definition = client.get_report_definition(service)
+                    log(f"Format definition : {definition.report_format}")
+                    report_def = materialize_definition(definition, workdir)
+                    folder = target_dir / (
+                        f"{_safe_folder(name, 'Report')}_{service.report_id[:8]}"
+                    )
+                    folder.mkdir(parents=True, exist_ok=True)
+                    report_out = folder / OUT_FILE.name
+                    result = _run_report_from_definition(
+                        report_def,
+                        f"service Power BI workspace {workspace_id} "
+                        f"report {service.report_id} ({definition.report_format})",
+                        model_workbook=model_path,
+                        no_model=model_path is None
+                        and (bool(model_error) or not validate_with_existing),
+                        out_file=report_out,
+                        report_kind="Power BI Service",
+                        validation_dir=folder,
+                        log=log,
+                    )
+                row.update(
+                    {
+                        "Status": "ok",
+                        "Pages": int(result.get("pages") or 0),
+                        "Visuals": int(result.get("visuals") or 0),
+                        "Fields": int(result.get("fields") or 0),
+                        "Output": str(report_out),
+                        "Message": (
+                            f"{int(result.get('validation_issues') or 0)} validation issues"
+                        ),
+                    }
+                )
+                outputs.append(report_out)
+            except Exception as exc:  # noqa: BLE001 - lanjut report lain
+                message = str(exc).splitlines()[0][:300]
+                row["Message"] = message
+                log(f"  GAGAL: {message}")
+            rows.append(row)
+    finally:
+        client.close()
+
+    if extract_model and model_path is not None:
+        outputs.insert(0, model_path)
+    summary = _write_batch_summary(summary_out, rows)
+    outputs.append(summary)
+    done = sum(1 for row in rows if row.get("Status") == "ok")
+    log("")
+    log(
+        f"Batch selesai: {done}/{len(reports)} report berhasil. "
+        f"Ringkasan: {display_path(summary)}"
+    )
+    source = ServiceSourceInfo(
+        workspace_id=workspace_id,
+        report_id="",
+        report_ids=tuple(item.report_id for item in reports),
+    )
+    return MetadataJobResult(
+        source=source,
+        report=None,
+        model=model_result,
+        report_out=None,
+        model_out=model_path,
+        model_error=model_error,
+        outputs=tuple(outputs),
+        batch=tuple(rows),
+        summary_out=summary,
+    )
+
+
 def run_metadata_job(
     pbix: Path | None = None,
     out_dir: Path | None = None,
@@ -330,9 +547,13 @@ def run_metadata_job(
     validate_with_existing: bool = True,
     service_mode: bool = False,
     service_report: ServiceReportRef | None = None,
+    service_reports: Sequence[ServiceReportRef] | None = None,
+    service_report_names: dict[str, str] | None = None,
     token_provider: TokenProvider | None = None,
     tokens: EntraTokens | None = None,
     log: Log = _silent,
+    progress: Any = None,
+    should_stop: Any = None,
 ) -> MetadataJobResult:
     """Deteksi jenis .pbix lalu jalankan report dan/atau model sesuai cakupan.
 
@@ -347,7 +568,28 @@ def run_metadata_job(
     - Cakupan model saja tanpa sumber model yang bisa diekstrak dianggap error.
     - ``service_mode`` mengalihkan sumber ke Power BI Service: report lewat Fabric
       API, model lewat endpoint XMLA manual (``endpoint`` + ``catalog``).
+    - ``service_reports`` (lebih dari satu) menjalankan batch: model diekstrak
+      sekali, setiap report ke folder sendiri, ringkasan `Batch_Summary.xlsx`.
     """
+    if service_mode and service_reports:
+        if len(service_reports) > 1:
+            return _run_service_batch_job(
+                service_reports,
+                token_provider,
+                out_dir=out_dir,
+                endpoint=endpoint,
+                catalog=catalog,
+                port=port,
+                include_report_usage=include_report_usage,
+                extract_model=extract_model,
+                validate_with_existing=validate_with_existing,
+                names=service_report_names,
+                tokens=tokens,
+                log=log,
+                progress=progress,
+                should_stop=should_stop,
+            )
+        service_report = service_reports[0]
     if service_mode or service_report is not None:
         return _run_service_metadata_job(
             service_report,

@@ -912,7 +912,13 @@
   "Node type": "Tipe node",
   "No nodes match the current filter": "Tidak ada node yang cocok dengan filter saat ini",
   "Subscriptions in this report": "Subscription pada report ini",
-  "subs": "langganan"
+  "subs": "langganan",
+  "Extract several reports": "Ekstrak beberapa report",
+  "Reports in this batch": "Report dalam batch ini",
+  "Choose reports from the same dataset only.": "Pilih report dengan dataset yang sama saja.",
+  "reports selected": "report dipilih",
+  "No extractable reports.": "Tidak ada report yang bisa diekstrak.",
+  "Choose at least two reports for a batch": "Pilih minimal dua report untuk batch."
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

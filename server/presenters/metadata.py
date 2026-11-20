@@ -307,6 +307,18 @@ def _service_request(
         str(payload.get("report_workspace_id") or "").strip() or legacy_workspace
     )
     report_id = str(payload.get("report_id") or "").strip()
+    raw_ids = payload.get("report_ids") or []
+    report_ids = (
+        tuple(str(item or "").strip() for item in raw_ids)
+        if isinstance(raw_ids, (list, tuple))
+        else ()
+    )
+    raw_names = payload.get("report_names") or {}
+    report_names = (
+        tuple((str(key), str(value)) for key, value in raw_names.items())
+        if isinstance(raw_names, dict)
+        else ()
+    )
     endpoint = str(payload.get("endpoint") or "").strip()
     if not endpoint and model_name:
         endpoint = workspace_endpoint("myorg", model_name, model_workspace)
@@ -330,6 +342,8 @@ def _service_request(
         out_dir=out_dir,
         workspace_id=report_workspace,
         report_id=report_id,
+        report_ids=report_ids,
+        report_names=report_names,
         endpoint=endpoint,
         catalog=catalog,
         scope=scope,
@@ -369,6 +383,10 @@ def run_job(store: SettingsStore, payload: Mapping[str, Any], log: Any, cancel: 
             tokens=tokens,
             token_provider=fabric_provider(tokens),
             log=log,
+            should_stop=cancel.is_set if cancel is not None else None,
+            progress=lambda index, total, name: log(
+                f"Batch {index}/{total}: {name}"
+            ),
         )
     else:
         result = run_metadata_job(**request.to_job_kwargs(), log=log)
@@ -387,4 +405,8 @@ def result_summary(result: Any, out_dir: Path) -> dict[str, Any]:
         "model_out": str(result.model_out) if result.model_out else "",
         "outputs": [str(path) for path in result.outputs],
         "out_dir": str(out_dir),
+        "batch": [dict(row) for row in getattr(result, "batch", ()) or ()],
+        "summary_out": (
+            str(result.summary_out) if getattr(result, "summary_out", None) else ""
+        ),
     }
