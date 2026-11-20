@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,6 +34,7 @@ from core.usage_service import (
     ModelReference,
     ReportEntry,
     ScanCounters,
+    analyze_dataset,
     build_analysis,
     coverage_text,
     discover_reports,
@@ -47,6 +49,7 @@ from core.usage_service import (
     output_file_name,
     relationship_dependency_counts,
     scan_reports,
+    snapshot_from_connection,
     verdict,
     write_workbook,
 )
@@ -1232,6 +1235,124 @@ class ModelReferenceTests(unittest.TestCase):
 
         self.assertTrue(measure_refs)
         self.assertFalse(measure_refs[0].blocking)
+
+
+class AnalyzeDatasetSessionTests(unittest.TestCase):
+    """Analisa web memakai sesi in-memory dan tidak menulis database."""
+
+    def test_model_only_session_skips_reports_and_disk(self) -> None:
+        column = ColumnStat(
+            table="Dim",
+            column="Name",
+            column_id=1,
+            column_type="Data",
+            data_type="Text",
+            format_string="",
+            display_folder="",
+            is_hidden=False,
+            is_calculated=False,
+            sort_by_column="",
+            expression="",
+            size_data_bytes=100,
+            size_hierarchy_bytes=50,
+            rows=10,
+            size_dictionary_bytes=25,
+        )
+        table = TableStat(
+            table="Dim",
+            column_count=1,
+            rows=10,
+            size_data_bytes=100,
+            size_hierarchy_bytes=50,
+            size_dictionary_bytes=25,
+        )
+        model_stats = ModelStats(
+            model_name="Model Uji",
+            compatibility_level=1600,
+            last_update="2026-11-19T00:00:00",
+            columns=[column],
+            tables=[table],
+            segment_bytes=0,
+            artifact_bytes=0,
+        )
+
+        class Client:
+            def query(self, _name: str) -> list[dict]:
+                return []
+
+            def close(self) -> None:
+                pass
+
+        session = sqlite3.connect(":memory:")
+        session.row_factory = sqlite3.Row
+        with tempfile.TemporaryDirectory() as tmp:
+            database = Path(tmp) / "katalog.db"
+            with patch("core.usage_service.open_client", return_value=Client()), patch(
+                "core.usage_service.LiveModel", return_value=object()
+            ), patch(
+                "core.usage_service.read_model_stats", return_value=model_stats
+            ), patch(
+                "core.usage_service.read_model_metadata", return_value={}
+            ), patch(
+                "core.usage_service.model_references", return_value={}
+            ), patch(
+                "core.usage_service.measure_references", return_value={}
+            ):
+                result = analyze_dataset(
+                    workspace_id="11111111-2222-3333-4444-555555555555",
+                    workspace_name="Workspace Uji",
+                    dataset_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    dataset_name="Model Uji",
+                    principal=ServicePrincipal("t", "c", "s"),
+                    database=database,
+                    include_reports=False,
+                    session=session,
+                )
+
+            self.assertFalse(database.exists())
+            self.assertFalse(result.reports_included)
+            self.assertFalse(result.coverage_complete)
+            self.assertEqual(result.reports, [])
+            self.assertEqual(result.method, "model")
+            self.assertEqual(field_usage(session, result.dataset_id), [])
+            self.assertEqual(result.columns[0].status, STATUS_UNKNOWN)
+            # Baris report dari run lama tidak boleh bocor ke snapshot model-only.
+            save_report(
+                session,
+                report_id="r-lama",
+                workspace_id="11111111-2222-3333-4444-555555555555",
+                dataset_id=result.dataset_id,
+                name="Report Lama",
+                report_format="PBIR",
+                modified_at="2026-11-18T00:00:00",
+                status="ok",
+                usage=ReportUsage(
+                    report_format="PBIR",
+                    pages=1,
+                    visuals=1,
+                    records=[
+                        UsageRecord(
+                            usage_kind="field",
+                            field_kind="Column",
+                            table="Dim",
+                            field="Name",
+                            page_id="p1",
+                            page_name="Halaman 1",
+                            visual_id="v1",
+                            visual_title="Tabel",
+                        )
+                    ],
+                ),
+            )
+            restored = snapshot_from_connection(session, result.dataset_id)
+            self.assertIsNotNone(restored)
+            self.assertFalse(restored.reports_included)
+            self.assertFalse(restored.coverage_complete)
+            self.assertEqual(restored.reports, [])
+            self.assertEqual(restored.report_pages, {})
+            self.assertEqual(restored.columns[0].report_records, [])
+            self.assertEqual(restored.columns[0].status, STATUS_UNKNOWN)
+        session.close()
 
 
 class SnapshotTests(unittest.TestCase):

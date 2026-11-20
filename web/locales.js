@@ -580,7 +580,16 @@
   "XMLA endpoint explanation": "Penjelasan Endpoint XMLA",
   "Ya": "Yes",
   "Zoom in": "Perbesar grafik",
-  "Zoom out": "Perkecil grafik"
+  "Zoom out": "Perkecil grafik",
+  "Include report usage (pages, visuals, filters)": "Sertakan pemakaian report (halaman, visual, filter)",
+  "Report usage not included": "Pemakaian report tidak disertakan",
+  "Model only — report usage not included": "Hanya model — pemakaian report tidak disertakan",
+  "Model only — report usage not included.": "Hanya model — pemakaian report tidak disertakan.",
+  "Updated ": "Diperbarui ",
+  "Analyzing the semantic model…": "Menganalisa semantic model…",
+  "Another job is still running. Try again when it finishes.": "Pekerjaan lain masih berjalan. Coba lagi setelah selesai.",
+  "Enable “Include report usage” and run the analysis again to see pages, visuals, and filters.": "Aktifkan “Sertakan pemakaian report” dan jalankan analisa lagi untuk melihat halaman, visual, dan filter.",
+  "Choose a workspace and semantic model. Analysis starts automatically and only reads the model.": "Pilih workspace dan semantic model. Analisa berjalan otomatis dan hanya membaca model."
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan
@@ -609,6 +618,8 @@
   "Belum dibuat": "Not created",
   "Belum ada hasil": "No results yet",
   "Belum ada hasil analisa tersimpan.": "No saved analysis results yet.",
+  "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu (hasil tidak disimpan ke database).": "No analysis results in this session yet. Run the analysis first (results are not saved to the database).",
+  "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih dulu (hasil tidak disimpan ke database).": "No analysis results for this dataset yet. Run the analysis first (results are not saved to the database).",
   "Pilih instance yang sesuai sebelum menjalankan.": "Choose the matching instance before running.",
   "Path sidecar JSON belum ditentukan.": "JSON sidecar path is not set.",
   "File HTML TSD belum ditentukan.": "TSD HTML file is not set.",

@@ -318,6 +318,23 @@ class WebLayerTests(unittest.TestCase):
             text = (ROOT / "core" / name).read_text(encoding="utf-8")
             self.assertNotRegex(text, r"(?m)^\s*(print\(|input\()")
 
+    def test_web_analysis_is_realtime_without_sqlite_snapshot(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="includeReports"', html)
+        self.assertIn('include_reports: $("#includeReports").checked', js)
+        self.assertIn("function analysisScheduleRun(", js)
+        self.assertIn("function analysisAutoRun(", js)
+        self.assertNotIn("analysisLoadSnapshot", js)
+        self.assertNotIn("/api/analysis/snapshot?dataset_id=", js)
+        self.assertIn('sqlite3.connect(":memory:"', presenter)
+        self.assertIn("snapshot_from_connection", presenter)
+        self.assertNotIn("load_snapshot", presenter)
+        self.assertIn("include_reports", presenter)
+
     def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for tab in ("all", "tables", "relationships", "report", "dax", "m"):

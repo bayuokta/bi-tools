@@ -90,6 +90,7 @@
     analysisForceOpen: null,
     analysisSettings: {},
     analysisRunning: false,
+    analysisTimer: null,
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -1785,6 +1786,7 @@
     return {
       workspace_id: getSelectValue("wsSelect"),
       dataset_id: getSelectValue("modelSelect"),
+      include_reports: $("#includeReports").checked,
       include_other_workspaces: $("#includeOther").checked,
       include_personal: $("#includePersonal").checked
     };
@@ -1842,10 +1844,18 @@
     state.analysisSettings = settings || {};
     state.analysisObjectFilter = settings.object_filter || "all";
     $("#unusedOnly").checked = Boolean(settings.unused_only);
+    $("#includeReports").checked = settings.include_reports !== false;
     $("#includeOther").checked = settings.include_other_workspaces !== false;
     $("#includePersonal").checked = Boolean(settings.include_personal);
+    analysisSyncReportOptions();
     state.analysisSort = settings.sort_column || "default";
     state.analysisSortDesc = Boolean(settings.sort_desc);
+  }
+
+  function analysisSyncReportOptions() {
+    var enabled = $("#includeReports").checked;
+    $("#includeOther").disabled = !enabled;
+    $("#includePersonal").disabled = !enabled;
   }
 
   function analysisSavePrefs() {
@@ -1854,6 +1864,7 @@
       object_filter: ["all", "columns", "measures"].includes(state.analysisObjectFilter)
         ? state.analysisObjectFilter : "all",
       unused_only: $("#unusedOnly").checked,
+      include_reports: $("#includeReports").checked,
       include_other_workspaces: $("#includeOther").checked,
       include_personal: $("#includePersonal").checked,
       sort_column: state.analysisSort,
@@ -1915,27 +1926,33 @@
     });
   }
 
-  function analysisLoadSnapshot() {
-    var datasetId = getSelectValue("modelSelect");
-    if (!datasetId || !apiReady()) {
-      state.analysis = null;
-      analysisRender();
-      return Promise.resolve();
+  function analysisScheduleRun(delay) {
+    if (state.analysisTimer) window.clearTimeout(state.analysisTimer);
+    state.analysisTimer = window.setTimeout(function () {
+      state.analysisTimer = null;
+      analysisAutoRun();
+    }, typeof delay === "number" ? delay : 750);
+  }
+
+  function analysisAutoRun() {
+    if (!getSelectValue("modelSelect")) return;
+    if (state.jobId) {
+      $("#analyzeSummary").textContent = t(
+        "Another job is still running. Try again when it finishes."
+      );
+      return;
     }
-    $("#analyzeSummary").textContent = t("Loading saved analysis results…");
-    return api().get(
-      "/api/analysis/snapshot?dataset_id=" + encodeURIComponent(datasetId)
-    ).then(function (data) {
-      if (data.result) {
-        var stamp = String(data.result.analyzed_at || "")
-          .replace("T", " ").slice(0, 16);
-        analysisApply(data.result, t("Saved results ") + (stamp || "-") + ".");
-      } else {
-        state.analysis = null;
-        analysisRender();
-      }
-      return data;
-    }).catch(reportError);
+    analysisRun(true);
+  }
+
+  function analysisNote(result) {
+    var stamp = String(result.analyzed_at || "")
+      .replace("T", " ").slice(0, 16);
+    var text = t("Updated ") + (stamp || "-") + ".";
+    if (result.reports_included === false) {
+      text = t("Model only — report usage not included.") + " " + text;
+    }
+    return text;
   }
 
   function analysisApply(result, note) {
@@ -1976,14 +1993,24 @@
     $("#metricUnusedMeasuresNote").textContent = totals.measures
       ? Math.round((totals.unused_measures || 0) / totals.measures * 100) + t("% of total measures")
       : t("not referenced");
-    $("#metricReport").textContent = (totals.reports || 0) + t(" reports");
-    var reportNote = (totals.pages || 0) + t(" pages · ") + (totals.visuals || 0) + t(" visuals");
-    $("#metricReportNote").textContent = reportNote;
-    $("#metricReportNote").title = result.coverage || "";
+    if (result.reports_included === false) {
+      $("#metricReport").textContent = "—";
+      $("#metricReportNote").textContent = t("Report usage not included");
+    } else {
+      $("#metricReport").textContent = (totals.reports || 0) + t(" reports");
+      var reportNote = (totals.pages || 0) + t(" pages · ") +
+        (totals.visuals || 0) + t(" visuals");
+      $("#metricReportNote").textContent = reportNote;
+      $("#metricReportNote").title = result.coverage || "";
+    }
     setChip(
       $("#spStatus"),
       result.coverage_complete ? "ok" : "warn",
-      result.coverage_complete ? t("Full coverage") : t("Partial coverage")
+      result.coverage_complete
+        ? t("Full coverage")
+        : (result.reports_included === false
+          ? t("Model only — report usage not included")
+          : t("Partial coverage"))
     );
     analysisApplyTabTools(state.analysisTab, false);
     analysisRender();
@@ -3094,7 +3121,7 @@
       $("#analyzeSummary").textContent = t("Not analyzed yet");
       $("#analyzeEmptyTitle").textContent = t("No analysis results yet");
       $("#analyzeEmptyText").textContent =
-        t("Choose a workspace and semantic model, then press Analyze. Results appear here without changing the model.");
+        t("Choose a workspace and semantic model. Analysis starts automatically and only reads the model.");
       $("#analyzeFromEmpty").hidden = false;
       return;
     }
@@ -3124,9 +3151,15 @@
     if (!view.rows.length) {
       tableWrap.hidden = true;
       empty.hidden = false;
-      $("#analyzeEmptyTitle").textContent = t("No matching items");
-      $("#analyzeEmptyText").textContent =
-        t("Change the keyword or filter to see other items in this tab.");
+      if (tab === "report" && result.reports_included === false) {
+        $("#analyzeEmptyTitle").textContent = t("Report usage not included");
+        $("#analyzeEmptyText").textContent = t(
+          "Enable “Include report usage” and run the analysis again to see pages, visuals, and filters.");
+      } else {
+        $("#analyzeEmptyTitle").textContent = t("No matching items");
+        $("#analyzeEmptyText").textContent =
+          t("Change the keyword or filter to see other items in this tab.");
+      }
       $("#analyzeFromEmpty").hidden = true;
     } else {
       tableWrap.hidden = false;
@@ -3527,18 +3560,19 @@
     analysisRender();
   }
 
-  function analysisRun() {
+  function analysisRun(auto) {
     if (!apiReady()) return;
     if (state.jobId) {
-      toast(t("Another job is still running"));
+      if (!auto) toast(t("Another job is still running"));
       return;
     }
     if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
-      toast(t("Choose a workspace and semantic model first"));
+      if (!auto) toast(t("Choose a workspace and semantic model first"));
       return;
     }
     state.analysisRunning = true;
     $("#stopAnalyze").hidden = false;
+    $("#analyzeSummary").textContent = t("Analyzing the semantic model…");
     startJob({
       kind: "analysis",
       path: "/api/analysis/run",
@@ -3548,7 +3582,9 @@
       onDone: function (snapshot) {
         state.analysisRunning = false;
         $("#stopAnalyze").hidden = true;
-        if (snapshot.result) analysisApply(snapshot.result);
+        if (snapshot.result) {
+          analysisApply(snapshot.result, analysisNote(snapshot.result));
+        }
       }
     });
   }
@@ -4557,7 +4593,15 @@
       analysisLoadDatasets();
     });
     $("#modelSelect").addEventListener("change", function () {
-      analysisLoadSnapshot();
+      state.analysis = null;
+      state.analysisNote = "";
+      analysisRender();
+      analysisScheduleRun();
+    });
+    $("#includeReports").addEventListener("change", function () {
+      analysisSyncReportOptions();
+      analysisSavePrefs();
+      if (getSelectValue("modelSelect")) analysisScheduleRun();
     });
     $("#includeOther").addEventListener("change", analysisSavePrefs);
     $("#includePersonal").addEventListener("change", analysisSavePrefs);

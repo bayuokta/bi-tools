@@ -97,6 +97,7 @@ STATUS_UNUSED = "Tidak dipakai"
 STATUS_USED = "Dipakai"
 STATUS_BLOCKER = "Wajib dipertahankan"
 STATUS_UNKNOWN = "Perlu dicek"
+COVERAGE_MODEL_ONLY = "report tidak disertakan · metadata model saja"
 
 BLOCKING_KINDS = {
     "relationship",
@@ -838,6 +839,7 @@ class AnalysisResult:
     relationships: list[dict[str, Any]] = field(default_factory=list)
     m_queries: list[dict[str, Any]] = field(default_factory=list)
     report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    reports_included: bool = True
 
     @property
     def unused(self) -> list[ColumnAnalysis]:
@@ -1083,6 +1085,7 @@ def build_analysis(
     relationships: list[dict[str, Any]] | None = None,
     m_queries: list[dict[str, Any]] | None = None,
     report_pages: dict[str, list[dict[str, Any]]] | None = None,
+    reports_included: bool = True,
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -1160,6 +1163,7 @@ def build_analysis(
         relationships=list(relationships or []),
         m_queries=list(m_queries or []),
         report_pages=dict(report_pages or {}),
+        reports_included=reports_included,
     )
 
 
@@ -1585,8 +1589,10 @@ def analyze_dataset(
     database: Path | str = DEFAULT_DB,
     include_other_workspaces: bool = True,
     include_personal: bool = False,
+    include_reports: bool = True,
     refresh: bool = False,
     max_reports: int | None = None,
+    session: Any = None,
     log: Log = _silent,
     progress: Progress | None = None,
     should_stop: Callable[[], bool] | None = None,
@@ -1595,7 +1601,15 @@ def analyze_dataset(
     | None = None,
     definition_loader: Callable[[ReportEntry], ReportDefinition] | None = None,
 ) -> AnalysisResult:
-    """Analisa satu semantic model (Service) dan simpan snapshot ke SQLite."""
+    """Analisa satu semantic model (Service) tanpa mengubah model.
+
+    ``session`` adalah koneksi SQLite in-memory milik pemanggil (web): hasil
+    disimpan di sana selama sesi server dan tidak ditulis ke ``data\\*.db``.
+    Tanpa ``session`` hasil ditulis ke ``database`` seperti sebelumnya (CLI/uji).
+    ``include_reports=False`` melewati daftar + unduhan definisi report; verdict
+    yang tidak punya referensi model menjadi ``Perlu dicek`` karena cakupan
+    report memang tidak lengkap.
+    """
     principal.validate()
 
     tokens = EntraTokens(principal)
@@ -1657,20 +1671,30 @@ def analyze_dataset(
         f"{sum(dependency_counts.values())}; M query/parameter: {len(m_rows)}."
     )
 
-    provider = reports_provider or discover_reports
-    if provider is discover_reports:
-        entries, method, notes = provider(
-            principal,
-            dataset_id=dataset_id,
-            workspace_id=workspace_id,
-            include_other_workspaces=include_other_workspaces,
-            database=database,
-            log=log,
-        )
+    if include_reports:
+        provider = reports_provider or discover_reports
+        if provider is discover_reports:
+            entries, method, notes = provider(
+                principal,
+                dataset_id=dataset_id,
+                workspace_id=workspace_id,
+                include_other_workspaces=include_other_workspaces,
+                database=database,
+                log=log,
+            )
+        else:
+            entries, method, notes = provider()
     else:
-        entries, method, notes = provider()
+        entries = []
+        method = "model"
+        notes = [
+            "Report tidak disertakan: analisa hanya memakai metadata model, "
+            "jadi kolom/measure tanpa referensi model berstatus 'Perlu dicek'."
+        ]
+        log(notes[0])
 
-    conn = connect(database)
+    conn = session if session is not None else connect(database)
+    owns_connection = session is None
     try:
         initialize(conn)
         save_columns(conn, dataset_id, stats.columns)
@@ -1710,28 +1734,37 @@ def analyze_dataset(
             ],
         )
         save_m_queries(conn, dataset_id, m_rows)
-        loader = definition_loader or (
-            lambda entry: _fetch_definition(tokens, entry)
-        )
-        counters = scan_reports(
-            conn,
-            entries,
-            dataset_id=dataset_id,
-            table_names=[table.table for table in stats.tables],
-            refresh=refresh,
-            max_reports=max_reports,
-            include_personal=include_personal,
-            definition_loader=loader,
-            log=log,
-            progress=progress,
-            should_stop=should_stop,
-        )
-        usage_rows = field_usage(conn, dataset_id)
-        report_rows = stored_reports(conn, dataset_id)
-        page_rows = stored_report_pages(conn, dataset_id)
-        unresolved_rows = stored_unresolved(conn, dataset_id)
-        coverage_complete = counters.complete
-        coverage = coverage_text(counters)
+        if include_reports:
+            loader = definition_loader or (
+                lambda entry: _fetch_definition(tokens, entry)
+            )
+            counters = scan_reports(
+                conn,
+                entries,
+                dataset_id=dataset_id,
+                table_names=[table.table for table in stats.tables],
+                refresh=refresh,
+                max_reports=max_reports,
+                include_personal=include_personal,
+                definition_loader=loader,
+                log=log,
+                progress=progress,
+                should_stop=should_stop,
+            )
+            usage_rows = field_usage(conn, dataset_id)
+            report_rows = stored_reports(conn, dataset_id)
+            page_rows = stored_report_pages(conn, dataset_id)
+            unresolved_rows = stored_unresolved(conn, dataset_id)
+            coverage_complete = counters.complete
+            coverage = coverage_text(counters)
+        else:
+            counters = ScanCounters()
+            usage_rows = []
+            report_rows = []
+            page_rows = {}
+            unresolved_rows = []
+            coverage_complete = False
+            coverage = COVERAGE_MODEL_ONLY
         result = build_analysis(
             stats=stats,
             usage_rows=usage_rows,
@@ -1757,6 +1790,7 @@ def analyze_dataset(
             relationships=relationships,
             m_queries=m_rows,
             report_pages=page_rows,
+            reports_included=include_reports,
         )
         save_run(
             conn,
@@ -1789,7 +1823,8 @@ def analyze_dataset(
             },
         )
     finally:
-        close_quietly(conn)
+        if owns_connection:
+            close_quietly(conn)
     log(coverage)
     return result
 
@@ -1830,158 +1865,172 @@ def model_snapshot(
 def load_snapshot(
     database: Path | str, dataset_id: str
 ) -> AnalysisResult | None:
-    """Pulihkan hasil analisa terakhir dari SQLite (tanpa XMLA/jaringan).
-
-    Dipakai tab agar hasil terakhir langsung tampil saat dibuka kembali.
-    Verdict tetap memakai referensi model yang disimpan, bukan daftar kosong.
-    """
+    """Pulihkan hasil analisa terakhir dari file SQLite (tanpa XMLA/jaringan)."""
     path = Path(database).expanduser()
     if not path.exists():
         return None
     conn = connect(path)
     try:
-        initialize(conn)
-        run = last_run(conn, dataset_id)
-        if not run:
-            return None
-        rows = stored_columns(conn, dataset_id)
-        if not rows:
-            return None
-        meta: dict[str, Any] = {}
-        if run.get("model_json"):
-            try:
-                meta = json.loads(str(run["model_json"]))
-            except json.JSONDecodeError:
-                meta = {}
-        columns = [
-            ColumnStat(
-                table=str(row["table_name"]),
-                column=str(row["column_name"]),
-                column_id=int(row["column_id"] or 0),
-                column_type=str(row["column_type"] or ""),
-                data_type=str(row["data_type"] or ""),
-                format_string=str(row["format_string"] or ""),
-                display_folder=str(row["display_folder"] or ""),
-                is_hidden=bool(row["is_hidden"]),
-                is_calculated=bool(row["is_calculated"]),
-                sort_by_column=str(row["sort_by_column"] or ""),
-                expression=str(row["expression"] or ""),
-                size_data_bytes=int(row["size_data_bytes"] or 0),
-                size_hierarchy_bytes=int(row["size_hierarchy_bytes"] or 0),
-                rows=int(row["row_count"] or 0),
-                error_message=str(row["error_message"] or ""),
-                size_dictionary_bytes=int(
-                    row.get("size_dictionary_bytes") or 0
-                ),
-            )
-            for row in rows
-        ]
-        tables = [
-            TableStat(
-                table=str(item.get("table") or ""),
-                column_count=int(item.get("column_count") or 0),
-                rows=int(item.get("rows") or 0),
-                size_data_bytes=int(item.get("size_data_bytes") or 0),
-                size_hierarchy_bytes=int(item.get("size_hierarchy_bytes") or 0),
-                size_dictionary_bytes=int(
-                    item.get("size_dictionary_bytes") or 0
-                ),
-                storage_mode=str(item.get("storage_mode") or ""),
-                measure_count=int(item.get("measure_count") or 0),
-                partition_count=int(item.get("partition_count") or 0),
-            )
-            for item in meta.get("tables") or []
-        ]
-        stats = ModelStats(
-            model_name=str(meta.get("model_name") or run.get("dataset_name") or ""),
-            compatibility_level=meta.get("compatibility_level"),
-            last_update=str(meta.get("last_update") or ""),
-            columns=columns,
-            tables=tables,
-            segment_bytes=int(meta.get("segment_bytes") or 0),
-            artifact_bytes=int(meta.get("artifact_bytes") or 0),
-            note=str(meta.get("note") or ""),
-        )
-        references: dict[tuple[str, str], list[ModelReference]] = {
-            key: [
-                ModelReference(
-                    kind=str(item.get("kind") or ""),
-                    object=str(item.get("object") or ""),
-                    detail=str(item.get("detail") or ""),
-                    blocking=bool(item.get("blocking")),
-                    source_table=str(item.get("source_table") or ""),
-                    source_measure=str(item.get("source_measure") or ""),
-                )
-                for item in items
-            ]
-            for key, items in stored_model_refs(conn, dataset_id).items()
-        }
-        measure_data = stored_measures(conn, dataset_id)
-        measures = [
-            MeasureStat(
-                table=str(row.get("table_name") or ""),
-                measure=str(row.get("measure_name") or ""),
-                data_type=str(row.get("data_type") or ""),
-                format_string=str(row.get("format_string") or ""),
-                display_folder=str(row.get("display_folder") or ""),
-                is_hidden=bool(row.get("is_hidden")),
-                expression=str(row.get("expression") or ""),
-                error_message=str(row.get("error_message") or ""),
-            )
-            for row in measure_data
-        ]
-        stats = replace(stats, measures=measures)
-        measure_refs: dict[tuple[str, str], list[ModelReference]] = {
-            (
-                str(row.get("table_name") or "").casefold(),
-                str(row.get("measure_name") or "").casefold(),
-            ): [
-                ModelReference(
-                    kind=str(item.get("kind") or ""),
-                    object=str(item.get("object") or ""),
-                    detail=str(item.get("detail") or ""),
-                    blocking=bool(item.get("blocking")),
-                    source_table=str(item.get("source_table") or ""),
-                    source_measure=str(item.get("source_measure") or ""),
-                )
-                for item in row.get("refs") or []
-            ]
-            for row in measure_data
-        }
-        relationships = [
-            dict(item)
-            for item in (meta.get("relationships") or [])
-            if isinstance(item, dict)
-        ]
-        return build_analysis(
-            stats=stats,
-            usage_rows=field_usage(conn, dataset_id),
-            model_refs=references,
-            reports=stored_reports(conn, dataset_id),
-            dataset_id=dataset_id,
-            dataset_name=str(run.get("dataset_name") or ""),
-            workspace_id=str(run.get("workspace_id") or ""),
-            workspace_name=str(meta.get("workspace_name") or ""),
-            method="cache",
-            report_total=int(run.get("report_total") or 0),
-            report_scanned=int(run.get("report_scanned") or 0),
-            report_skipped=int(run.get("report_skipped") or 0),
-            report_failed=int(run.get("report_failed") or 0),
-            coverage_complete=bool(run.get("coverage_complete")),
-            coverage=str(run.get("coverage") or ""),
-            report_personal=int(run.get("report_personal") or 0),
-            report_inaccessible=int(run.get("report_inaccessible") or 0),
-            report_app=int(run.get("report_app") or 0),
-            report_pages=stored_report_pages(conn, dataset_id),
-            unresolved=stored_unresolved(conn, dataset_id),
-            measure_refs=measure_refs,
-            messages=[],
-            analyzed_at=str(run.get("finished_at") or ""),
-            relationships=relationships,
-            m_queries=stored_m_queries(conn, dataset_id),
-        )
+        return snapshot_from_connection(conn, dataset_id)
     finally:
         close_quietly(conn)
+
+
+def snapshot_from_connection(
+    conn: Any, dataset_id: str
+) -> AnalysisResult | None:
+    """Susun hasil analisa terakhir dari koneksi (file atau sesi in-memory).
+
+    Dipakai sesi web agar hasil terakhir langsung tampil tanpa menulis ke
+    database, dan ekspor tetap memakai data yang sama dengan tampilan.
+    """
+    initialize(conn)
+    run = last_run(conn, dataset_id)
+    if not run:
+        return None
+    rows = stored_columns(conn, dataset_id)
+    if not rows:
+        return None
+    meta: dict[str, Any] = {}
+    if run.get("model_json"):
+        try:
+            meta = json.loads(str(run["model_json"]))
+        except json.JSONDecodeError:
+            meta = {}
+    columns = [
+        ColumnStat(
+            table=str(row["table_name"]),
+            column=str(row["column_name"]),
+            column_id=int(row["column_id"] or 0),
+            column_type=str(row["column_type"] or ""),
+            data_type=str(row["data_type"] or ""),
+            format_string=str(row["format_string"] or ""),
+            display_folder=str(row["display_folder"] or ""),
+            is_hidden=bool(row["is_hidden"]),
+            is_calculated=bool(row["is_calculated"]),
+            sort_by_column=str(row["sort_by_column"] or ""),
+            expression=str(row["expression"] or ""),
+            size_data_bytes=int(row["size_data_bytes"] or 0),
+            size_hierarchy_bytes=int(row["size_hierarchy_bytes"] or 0),
+            rows=int(row["row_count"] or 0),
+            error_message=str(row["error_message"] or ""),
+            size_dictionary_bytes=int(
+                row.get("size_dictionary_bytes") or 0
+            ),
+        )
+        for row in rows
+    ]
+    tables = [
+        TableStat(
+            table=str(item.get("table") or ""),
+            column_count=int(item.get("column_count") or 0),
+            rows=int(item.get("rows") or 0),
+            size_data_bytes=int(item.get("size_data_bytes") or 0),
+            size_hierarchy_bytes=int(item.get("size_hierarchy_bytes") or 0),
+            size_dictionary_bytes=int(
+                item.get("size_dictionary_bytes") or 0
+            ),
+            storage_mode=str(item.get("storage_mode") or ""),
+            measure_count=int(item.get("measure_count") or 0),
+            partition_count=int(item.get("partition_count") or 0),
+        )
+        for item in meta.get("tables") or []
+    ]
+    stats = ModelStats(
+        model_name=str(meta.get("model_name") or run.get("dataset_name") or ""),
+        compatibility_level=meta.get("compatibility_level"),
+        last_update=str(meta.get("last_update") or ""),
+        columns=columns,
+        tables=tables,
+        segment_bytes=int(meta.get("segment_bytes") or 0),
+        artifact_bytes=int(meta.get("artifact_bytes") or 0),
+        note=str(meta.get("note") or ""),
+    )
+    references: dict[tuple[str, str], list[ModelReference]] = {
+        key: [
+            ModelReference(
+                kind=str(item.get("kind") or ""),
+                object=str(item.get("object") or ""),
+                detail=str(item.get("detail") or ""),
+                blocking=bool(item.get("blocking")),
+                source_table=str(item.get("source_table") or ""),
+                source_measure=str(item.get("source_measure") or ""),
+            )
+            for item in items
+        ]
+        for key, items in stored_model_refs(conn, dataset_id).items()
+    }
+    measure_data = stored_measures(conn, dataset_id)
+    measures = [
+        MeasureStat(
+            table=str(row.get("table_name") or ""),
+            measure=str(row.get("measure_name") or ""),
+            data_type=str(row.get("data_type") or ""),
+            format_string=str(row.get("format_string") or ""),
+            display_folder=str(row.get("display_folder") or ""),
+            is_hidden=bool(row.get("is_hidden")),
+            expression=str(row.get("expression") or ""),
+            error_message=str(row.get("error_message") or ""),
+        )
+        for row in measure_data
+    ]
+    stats = replace(stats, measures=measures)
+    measure_refs: dict[tuple[str, str], list[ModelReference]] = {
+        (
+            str(row.get("table_name") or "").casefold(),
+            str(row.get("measure_name") or "").casefold(),
+        ): [
+            ModelReference(
+                kind=str(item.get("kind") or ""),
+                object=str(item.get("object") or ""),
+                detail=str(item.get("detail") or ""),
+                blocking=bool(item.get("blocking")),
+                source_table=str(item.get("source_table") or ""),
+                source_measure=str(item.get("source_measure") or ""),
+            )
+            for item in row.get("refs") or []
+        ]
+        for row in measure_data
+    }
+    relationships = [
+        dict(item)
+        for item in (meta.get("relationships") or [])
+        if isinstance(item, dict)
+    ]
+    coverage = str(run.get("coverage") or "")
+    reports_included = coverage != COVERAGE_MODEL_ONLY
+    return build_analysis(
+        stats=stats,
+        usage_rows=field_usage(conn, dataset_id) if reports_included else [],
+        model_refs=references,
+        reports=stored_reports(conn, dataset_id) if reports_included else [],
+        dataset_id=dataset_id,
+        dataset_name=str(run.get("dataset_name") or ""),
+        workspace_id=str(run.get("workspace_id") or ""),
+        workspace_name=str(meta.get("workspace_name") or ""),
+        method="cache",
+        report_total=int(run.get("report_total") or 0),
+        report_scanned=int(run.get("report_scanned") or 0),
+        report_skipped=int(run.get("report_skipped") or 0),
+        report_failed=int(run.get("report_failed") or 0),
+        coverage_complete=bool(run.get("coverage_complete")),
+        coverage=coverage,
+        report_personal=int(run.get("report_personal") or 0),
+        report_inaccessible=int(run.get("report_inaccessible") or 0),
+        report_app=int(run.get("report_app") or 0),
+        report_pages=(
+            stored_report_pages(conn, dataset_id) if reports_included else {}
+        ),
+        unresolved=(
+            stored_unresolved(conn, dataset_id) if reports_included else []
+        ),
+        measure_refs=measure_refs,
+        messages=[],
+        analyzed_at=str(run.get("finished_at") or ""),
+        relationships=relationships,
+        m_queries=stored_m_queries(conn, dataset_id),
+        reports_included=reports_included,
+    )
 
 
 def coverage_text(counters: ScanCounters) -> str:

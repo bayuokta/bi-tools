@@ -305,6 +305,7 @@ class AnalysisRequest:
     database: Path | None = None
     include_other_workspaces: bool = True
     include_personal: bool = False
+    include_reports: bool = True
     refresh: bool = False
     max_reports: int | None = None
 
@@ -338,6 +339,7 @@ class AnalysisRequest:
             "dataset_name": self.dataset_name,
             "include_other_workspaces": self.include_other_workspaces,
             "include_personal": self.include_personal,
+            "include_reports": self.include_reports,
             "refresh": self.refresh,
             "max_reports": self.max_reports,
         }

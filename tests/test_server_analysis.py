@@ -214,6 +214,7 @@ class AnalysisPresenterTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(presenter.reset_sessions)
         self.root = Path(self._tmp.name)
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
@@ -297,6 +298,7 @@ class AnalysisPresenterTests(unittest.TestCase):
             {
                 "object_filter": "measures",
                 "unused_only": True,
+                "include_reports": False,
                 "include_other_workspaces": False,
                 "include_personal": True,
                 "sort_column": "size",
@@ -306,7 +308,10 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(saved["object_filter"], "measures")
         self.assertEqual(saved["sort_column"], "size")
         self.assertTrue(saved["unused_only"])
+        self.assertFalse(saved["include_reports"])
         self.assertTrue(presenter.analysis_settings(self.store)["include_personal"])
+        presenter.save_preferences(self.store, {"include_reports": True})
+        self.assertTrue(presenter.analysis_settings(self.store)["include_reports"])
         with self.assertRaises(ExtractionError):
             presenter.save_preferences(self.store, {"object_filter": "ngawur"})
         with self.assertRaises(ExtractionError):
@@ -335,6 +340,7 @@ class AnalysisPresenterTests(unittest.TestCase):
                 {
                     "workspace_id": WORKSPACE,
                     "dataset_id": DATASET,
+                    "include_reports": False,
                     "include_other_workspaces": False,
                     "include_personal": True,
                     "refresh": True,
@@ -345,21 +351,25 @@ class AnalysisPresenterTests(unittest.TestCase):
         kwargs = analyze.call_args.kwargs
         self.assertEqual(kwargs["workspace_id"], WORKSPACE)
         self.assertEqual(kwargs["dataset_id"], DATASET)
+        self.assertFalse(kwargs["include_reports"])
         self.assertFalse(kwargs["include_other_workspaces"])
         self.assertTrue(kwargs["include_personal"])
         self.assertTrue(kwargs["refresh"])
+        self.assertIsNotNone(kwargs["session"])
         self.assertEqual(payload["dataset"]["id"], DATASET)
 
     def test_export_requires_snapshot(self) -> None:
-        with patch.object(presenter, "load_snapshot", return_value=None):
-            with self.assertRaises(ExtractionError) as ctx:
-                presenter.export({"dataset_id": DATASET}, self.store)
-        self.assertIn("Belum ada hasil", str(ctx.exception))
+        presenter.reset_sessions()
+        with self.assertRaises(ExtractionError) as ctx:
+            presenter.export({"dataset_id": DATASET}, self.store)
+        self.assertIn("Belum ada hasil analisa", str(ctx.exception))
+        self.assertIn("tidak disimpan", str(ctx.exception))
 
     def test_export_writes_workbook(self) -> None:
         target = self.root / "hasil.xlsx"
         target.write_bytes(b"xlsx")
-        with patch.object(presenter, "load_snapshot", return_value=fake_result()), patch.object(
+        presenter._session(DATASET)
+        with patch.object(presenter, "snapshot_from_connection", return_value=fake_result()), patch.object(
             presenter, "write_workbook", return_value=target
         ) as write:
             data = presenter.export({"dataset_id": DATASET, "output": str(target)}, self.store)
@@ -368,12 +378,18 @@ class AnalysisPresenterTests(unittest.TestCase):
         with self.assertRaises(ExtractionError):
             presenter.export({"dataset_id": DATASET, "output": "relatif.xlsx"}, self.store)
 
-    def test_snapshot_payload(self) -> None:
-        with patch.object(presenter, "load_snapshot", return_value=fake_result()):
+    def test_snapshot_payload_reads_session(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(presenter, "snapshot_from_connection", return_value=fake_result()):
             data = presenter.snapshot_payload(self.store, DATASET)
         self.assertEqual(data["result"]["dataset"]["name"], "Model Uji")
-        with patch.object(presenter, "load_snapshot", return_value=None):
-            self.assertIsNone(presenter.snapshot_payload(self.store, DATASET)["result"])
+        presenter.reset_sessions()
+        self.assertIsNone(presenter.snapshot_payload(self.store, DATASET)["result"])
+
+    def test_report_detail_requires_session(self) -> None:
+        presenter.reset_sessions()
+        with self.assertRaises(ExtractionError):
+            presenter.report_detail_payload(self.store, DATASET, "r1")
 
 
 class AnalysisEndpointTests(unittest.TestCase):

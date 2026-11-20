@@ -7,6 +7,27 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+Analisa semantic model di web kini realtime dan tidak lagi menulis hasil ke
+database.
+
+### Analisa Semantic Model
+
+- Memilih semantic model langsung menjalankan analisa; halaman tidak lagi
+  memuat snapshot lama dari SQLite. Ringkasan menampilkan waktu data
+  (`Diperbarui …`).
+- Hasil analisa disimpan di sesi SQLite **in-memory** per dataset selama server
+  hidup, sehingga `data\bi_tools.db` tidak bertambah. Cache definisi report
+  tetap bekerja di sesi yang sama; setelah server di-restart, detail report dan
+  ekspor meminta analisa ulang.
+- Checkbox **Include report usage (pages, visuals, filters)** (default aktif)
+  memungkinkan analisa model saja. Tanpa report, kolom/measure tanpa referensi
+  model berstatus **Perlu dicek**, metrik report `—`, dan tab `Report results`
+  menjelaskan bahwa pemakaian report tidak disertakan. CLI mendapat opsi
+  `--model-only`.
+- Preferensi baru `analysis/include_reports`.
+
 ## 2026-11-19 - Rilis 0.4.4
 
 Menggabungkan halaman metadata dan TSD menjadi satu alur, serta memperbaiki

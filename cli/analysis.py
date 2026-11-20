@@ -57,6 +57,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--refresh", action="store_true", help="Paksa unduh ulang semua definisi report.")
+    parser.add_argument(
+        "--model-only",
+        action="store_true",
+        help=(
+            "Analisa metadata model saja (kolom, ukuran, measure, relasi, M). "
+            "Report tidak diunduh; kolom tanpa referensi menjadi 'Perlu dicek'."
+        ),
+    )
     parser.add_argument("--max-reports", type=int, help="Batas jumlah report baru yang dipindai sekali jalan.")
     parser.add_argument("--list-reports", action="store_true", help="Hanya tampilkan daftar report pemakai dataset.")
     return parser.parse_args(argv)
@@ -84,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             database=args.db,
             include_other_workspaces=not args.workspace_only,
             include_personal=args.include_personal,
+            include_reports=not args.model_only,
             refresh=args.refresh,
             max_reports=args.max_reports,
         )

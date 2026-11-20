@@ -68,7 +68,7 @@ extract_lineage.py              wrapper CLI lineage
 analyze_semantic_model.py       wrapper CLI analisa ukuran + pemakaian kolom
 verify_reference.py             verifikasi angka acuan report + model (opsional, butuh Desktop untuk model)
 outputs\                        hasil generate: Report_Metadata.xlsx, Semantic_Model_Metadata.xlsx, TSD_*.html/json, ekspor analisa (TIDAK di-commit)
-data\bi_tools.db                 database lineage + katalog + cache analisa kolom (TIDAK di-commit)
+data\bi_tools.db                 database lineage + katalog + cache analisa CLI (TIDAK di-commit)
 TSD_assets\                     cache screenshot page/visual/mobile (TIDAK di-commit)
 .env.example                    contoh kredensial CLI lineage dan screenshot (RLS)
 packaging\                      bi_tools.spec (PyInstaller onedir), bi-tools.iss (Inno Setup),
@@ -114,7 +114,8 @@ python -m server --no-browser --port 8800
   - **Generate TSD** membuat satu HTML mandiri (screenshot sebagai data URI) + sidecar JSON; pratinjau menampilkan statistik halaman/visual/tabel/measure/TODO dan tombol **Buka dokumen** (CSP ketat, tanpa JavaScript).
   - **Hapus cache** hanya menghapus folder cache report terpilih; preferensi TSD tersimpan, pilihan workspace/report dan nama dokumen berlaku per sesi.
 - **Analisa Semantic Model dari web**:
-  - Pilih workspace (katalog) dan semantic model (daftar dataset workspace lewat REST), atur **Sertakan report dari workspace lain (admin API)** dan **Sertakan My Workspace**. Hasil analisa terakhir untuk dataset yang sama langsung dimuat dari SQLite tanpa XMLA.
+  - Pilih workspace (katalog) dan semantic model (daftar dataset workspace lewat REST). Analisa langsung berjalan otomatis (debounce 750 ms) memakai data model saat itu; tidak ada snapshot lama yang dimuat dari database. Checkbox **Include report usage (pages, visuals, filters)** (default aktif) mengatur apakah definisi report ikut diunduh; mematikannya membuat analisa ±6 detik dan kolom/measure tanpa referensi menjadi **Perlu dicek**.
+  - Hasil disimpan hanya di **sesi in-memory** server (satu koneksi SQLite per dataset). `data\bi_tools.db` tidak lagi menerima tabel `usage_*` dari halaman ini, sehingga tidak ada data basi; setelah server di-restart, detail report dan ekspor meminta analisa ulang.
   - **Analisa** mengukur ukuran kolom (data + hierarki + dictionary) dan memindai pemakaian report; **Hentikan** mengirim pembatalan dan menyimpan hasil parsial dengan cakupan belum lengkap.
   - Kartu ringkasan menampilkan ukuran dataset, jumlah kolom/measure, kolom/measure tidak dipakai beserta ukuran, serta report/halaman/visual dan cakupan report. Enam tab: **Semua hasil**, **Tables**, **Relationships**, **Report results**, **DAX expressions**, dan **M queries**.
   - **Semua hasil** adalah daftar datar kolom + measure. Baris measure tidak menampilkan ekspresi DAX (sudah ada di tab **DAX expressions**), sedangkan calculated column tetap menampilkannya. Tiap baris dapat dibuka menjadi kelompok pemakaian: **Used in artifacts**, **Used in visuals**, **Used as key column**, **Used in relationships**, **Used in row/object level security**, **Used in page level filters**, **Used in column sorting**, dan **Used in field parameters**. Kelompok kosong tidak muncul. Tidak ada sub-header per grup; header utama 11 kolom dipakai untuk semua nilai baris anak.
@@ -177,6 +178,7 @@ Analisa semantic model (ukuran kolom + pemakaian di semua report pemakai dataset
 python analyze_semantic_model.py --workspace-id <workspaceId> --dataset-id <semanticModelId>
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --list-reports
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --workspace-only
+python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --model-only
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh --max-reports 20
 ```
 
@@ -326,7 +328,12 @@ Pemakaian dibaca dari definisi report, **bukan** dari nama field saja:
 5. **Pemakaian di dalam model** dihitung tanpa request tambahan: measure (langsung & berantai), calculated column/table, relationship, sort by, hierarchy/level, RLS (table/column permission), calculation item, KPI, calculated table column, dan langkah M yang menyebut kolom.
 6. **Measure** mendapat baris sendiri. Pemakaiannya dihitung dari proyeksi/filter/sort/format visual, ditambah graf measure -> measure (measure yang dipakai measure lain yang dipakai report dianggap **dipakai tidak langsung**). Calculation item, KPI, dan calculated table (termasuk field parameter) yang merujuk measure membuat measure berstatus **Wajib dipertahankan**. Baris legacy `Field`/`Arithmetic` yang memuat nama measure ikut dicocokkan.
 
-Hasil disimpan di `data\bi_tools.db` (`usage_report`, `usage_field`, `usage_column`, `usage_measure`, `usage_m_query`, `usage_model_ref`, `usage_unresolved`, `usage_scan_run`) sehingga analisa ulang hanya mengunduh report yang `modifiedDateTime`-nya berubah. Tabel yang sama dipakai untuk **snapshot**: saat tab dibuka kembali, ukuran kolom + daftar measure + tabel/relasi/M query + hasil pemakaian terakhir langsung ditampilkan tanpa memanggil XMLA; klik **Analisa** untuk menyegarkan.
+Hasil web **tidak ditulis ke `data\bi_tools.db`**. Halaman Analisa memakai satu koneksi SQLite **in-memory per dataset** selama proses server berjalan, memakai skema yang sama (`usage_report`, `usage_field`, `usage_column`, `usage_measure`, `usage_m_query`, `usage_model_ref`, `usage_unresolved`, `usage_scan_run`). Konsekuensinya:
+
+- Memilih semantic model langsung menjalankan analisa (tanpa memuat snapshot lama dari disk); hasil sebelumnya hanya dipakai sebagai cache definisi report di sesi yang sama.
+- Analisa ulang hanya mengunduh definisi report yang `modifiedDateTime`-nya berubah, jadi run kedua dalam sesi yang sama kembali ±6 detik untuk XMLA.
+- Setelah server di-restart, hasil hilang: detail report dan ekspor XLSX meminta analisa ulang.
+- Checkbox **Include report usage (pages, visuals, filters)** (default aktif) bisa dimatikan untuk analisa cepat tanpa mengunduh report; kolom/measure tanpa referensi model lalu berstatus **Perlu dicek** dan tab `Report results` kosong.
 
 Di web, filter **Semua tipe/Kolom/Measure** (disimpan di `analysis/object_filter`) mengatur objek yang tampil; pencarian juga mencocokkan nama measure, tabel, display folder, dan potongan DAX. Pada tab datar, klik judul kolom mengurutkan dengan nilai bertipe (Size/Uses/Pages/Visuals turun lebih dulu, Status menurut peringkat `Tidak dipakai` → `Perlu dicek` → `Dipakai` → `Wajib dipertahankan`); klik lagi membalik arah. Urutan disimpan di `analysis/sort_column`/`analysis/sort_desc`. Tab hierarkis tidak diurutkan agar grup tabel dan baris anak tetap konsisten.
 
@@ -358,7 +365,7 @@ Report di **My Workspace** (`PersonalGroup`) dilewati secara default dan tidak d
 
 ### Kinerja
 
-Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Dataset dengan 165 report ≈ 5–6 menit pada run pertama, lalu <30 detik untuk run berikutnya (cache). Atur **Hentikan** atau `--max-reports` untuk analisa bertahap.
+Analisa satu dataset: ±6 detik untuk XMLA + ±2 detik per report. Di web, dataset dengan 165 report ≈ 5–6 menit pada run pertama per sesi server, lalu <30 detik untuk run berikutnya (cache definisi report di memori). CLI tetap memakai cache SQLite antar-run. Atur **Hentikan**, `--max-reports`, atau matikan **Include report usage** (`--model-only`) untuk analisa cepat.
 
 ### Ekspor XLSX
 

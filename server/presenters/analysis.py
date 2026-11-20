@@ -1,13 +1,15 @@
 """Presenter Analisa Semantic Model untuk web.
 
-Alurnya: daftar workspace dari katalog,
-daftar dataset per workspace, analisa via ``usage_service.analyze_dataset``,
-snapshot SQLite tanpa XMLA, dan ekspor XLSX.
+Alurnya: daftar workspace dari katalog, daftar dataset per workspace, analisa
+via ``usage_service.analyze_dataset``, lalu hasil disimpan di sesi SQLite
+in-memory (tidak ditulis ke database) agar halaman selalu memakai data baru.
 """
 
 from __future__ import annotations
 
 import re
+import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -20,10 +22,10 @@ from core.requests import AnalysisRequest
 from core.usage_service import (
     analyze_dataset,
     format_bytes,
-    load_snapshot,
     output_file_name,
     report_url,
     resolve_names,
+    snapshot_from_connection,
     write_workbook,
 )
 
@@ -118,6 +120,53 @@ def database_path(store: SettingsStore) -> Path:
     return Path(store.lineage_db() or DEFAULT_DB).expanduser()
 
 
+# ---------------------------------------------------------------------------
+# Sesi analisa in-memory (tidak menulis tabel usage_* ke database)
+# ---------------------------------------------------------------------------
+MAX_SESSION_DATASETS = 3
+_SESSION_LOCK = threading.RLock()
+_SESSIONS: dict[str, "_AnalysisSession"] = {}
+
+
+class _AnalysisSession:
+    """Koneksi SQLite in-memory milik satu dataset selama server hidup."""
+
+    def __init__(self, dataset_id: str) -> None:
+        self.dataset_id = dataset_id
+        self.conn = sqlite3.connect(":memory:", check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        self.lock = threading.RLock()
+        initialize_usage(self.conn)
+
+
+def _session(dataset_id: str, *, create: bool = True) -> _AnalysisSession | None:
+    dataset = str(dataset_id or "").strip()
+    if not dataset:
+        return None
+    with _SESSION_LOCK:
+        session = _SESSIONS.get(dataset)
+        if session is None and create:
+            session = _AnalysisSession(dataset)
+            _SESSIONS[dataset] = session
+            while len(_SESSIONS) > MAX_SESSION_DATASETS:
+                stale_id = next(
+                    key for key in list(_SESSIONS) if key != dataset
+                )
+                stale = _SESSIONS.pop(stale_id)
+                with stale.lock:
+                    close_quietly(stale.conn)
+        return session
+
+
+def reset_sessions() -> None:
+    """Tutup semua sesi analisa (dipakai uji dan saat server berhenti)."""
+    with _SESSION_LOCK:
+        for session in list(_SESSIONS.values()):
+            with session.lock:
+                close_quietly(session.conn)
+        _SESSIONS.clear()
+
+
 def analysis_settings(store: SettingsStore) -> dict[str, Any]:
     object_filter = store.get_str(keys.SETTINGS_ANALYSIS_OBJECT_FILTER_KEY, "all")
     if object_filter not in OBJECT_FILTERS:
@@ -132,6 +181,9 @@ def analysis_settings(store: SettingsStore) -> dict[str, Any]:
             keys.SETTINGS_ANALYSIS_OTHER_WS_KEY, True
         ),
         "include_personal": store.get_bool(keys.SETTINGS_ANALYSIS_PERSONAL_KEY, False),
+        "include_reports": store.get_bool(
+            keys.SETTINGS_ANALYSIS_REPORTS_KEY, True
+        ),
         "sort_column": sort_column,
         "sort_desc": store.get_bool(keys.SETTINGS_ANALYSIS_SORT_DESC_KEY, False),
     }
@@ -158,6 +210,9 @@ def save_preferences(store: SettingsStore, payload: Mapping[str, Any]) -> dict[s
             ),
             keys.SETTINGS_ANALYSIS_PERSONAL_KEY: bool(
                 payload.get("include_personal", current["include_personal"])
+            ),
+            keys.SETTINGS_ANALYSIS_REPORTS_KEY: bool(
+                payload.get("include_reports", current["include_reports"])
             ),
             keys.SETTINGS_ANALYSIS_SORT_COLUMN_KEY: sort_column,
             keys.SETTINGS_ANALYSIS_SORT_DESC_KEY: bool(
@@ -199,9 +254,11 @@ def datasets_payload(store: SettingsStore, workspace_id: str) -> dict[str, Any]:
 
 def snapshot_payload(store: SettingsStore, dataset_id: str) -> dict[str, Any]:
     dataset = str(dataset_id or "").strip()
-    if not dataset:
+    session = _session(dataset, create=False)
+    if session is None:
         return {"result": None}
-    result = load_snapshot(database_path(store), dataset)
+    with session.lock:
+        result = snapshot_from_connection(session.conn, dataset)
     if result is None:
         return {"result": None}
     return {"result": serialize_result(result, _report_workspace_names(store, result))}
@@ -836,6 +893,7 @@ def serialize_result(
         "method": result.method,
         "coverage": result.coverage,
         "coverage_complete": bool(result.coverage_complete),
+        "reports_included": bool(getattr(result, "reports_included", True)),
         "totals": {
             "model_bytes": int(result.dataset_bytes),
             "data_bytes": int(stats.data_bytes),
@@ -892,17 +950,14 @@ def report_detail_payload(
     report = str(report_id or "").strip()
     if not dataset or not report:
         raise ExtractionError("Dataset dan report harus dipilih.")
-    database = database_path(store)
-    if not Path(database).exists():
+    session = _session(dataset, create=False)
+    if session is None:
         raise ExtractionError(
-            "Belum ada hasil analisa tersimpan. Jalankan analisa lebih dulu."
+            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
+            "(hasil tidak disimpan ke database)."
         )
-    conn = connect(database)
-    try:
-        initialize_usage(conn)
-        return report_detail(conn, dataset, report)
-    finally:
-        close_quietly(conn)
+    with session.lock:
+        return report_detail(session.conn, dataset, report)
 
 
 def run_job(
@@ -916,6 +971,7 @@ def run_job(
     principal.validate()
     database = database_path(store)
     workspace_name, dataset_name = resolve_names(database, workspace_id, dataset_id)
+    include_reports = bool(payload.get("include_reports", True))
     request = AnalysisRequest(
         workspace_id=workspace_id,
         dataset_id=dataset_id,
@@ -926,19 +982,23 @@ def run_job(
             payload.get("include_other_workspaces", True)
         ),
         include_personal=bool(payload.get("include_personal", False)),
+        include_reports=include_reports,
         refresh=bool(payload.get("refresh", False)),
     )
 
     def progress(index: int, total: int, name: str) -> None:
         log(f"Report {index}/{total}: {name}")
 
-    result = analyze_dataset(
-        **request.to_run_kwargs(),
-        principal=principal,
-        log=log,
-        progress=progress,
-        should_stop=cancel.is_set,
-    )
+    session = _session(dataset_id)
+    with session.lock:
+        result = analyze_dataset(
+            **request.to_run_kwargs(),
+            principal=principal,
+            session=session.conn,
+            log=log,
+            progress=progress,
+            should_stop=cancel.is_set,
+        )
     return serialize_result(result, _report_workspace_names(store, result))
 
 
@@ -946,11 +1006,18 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not dataset_id:
         raise ExtractionError("Semantic model belum dipilih.")
-    result = load_snapshot(database_path(store), dataset_id)
+    session = _session(dataset_id, create=False)
+    if session is None:
+        raise ExtractionError(
+            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
+            "dulu (hasil tidak disimpan ke database)."
+        )
+    with session.lock:
+        result = snapshot_from_connection(session.conn, dataset_id)
     if result is None:
         raise ExtractionError(
-            "Belum ada hasil analisa tersimpan untuk dataset ini. Jalankan "
-            "analisa lebih dulu."
+            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
+            "dulu (hasil tidak disimpan ke database)."
         )
     text = str(payload.get("output") or "").strip().strip('"')
     if text:
