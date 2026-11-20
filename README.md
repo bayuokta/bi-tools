@@ -148,7 +148,8 @@ python -m server --no-browser --port 8800
 - **Lineage dari web**:
   - Cari item (kata kunci, workspace, tipe) dari `data\bi_tools.db`. Pencarian hanya menampilkan daftar; klik hasil untuk menjadikannya akar (tidak ada auto-buka hasil pertama). Database belum ada → pencarian dinonaktifkan dan diarahkan ke **Sinkronisasi data** di Pengaturan.
   - Kanvas dua arah: upstream di kiri, root di tengah, downstream di kanan, dengan panah tipe relasi, node berwarna per tipe (band + ikon), serta **zoom −/+/Fit** dan **drag untuk menggeser** (seperti grafik Relationships). Klik node memilih node itu, menampilkan detail, dan menyorot tetangga langsung beserta edge-nya; node lain tidak ikut menyala. Tombol **Upstream/Downstream** meredupkan sisi lain; **Kedalaman** 1–15; klik dua kali node menjadikannya akar, dan tombol **Jadikan akar** tersedia di panel detail. Tautan **Buka report** tersedia untuk node Report.
-  - **Export CSV** menulis `Lineage_<nama>.csv` ke `outputs\` (UTF-8 BOM, header Inggris) dan membuka filenya. Tidak ada scan dari tab ini; scan tetap dijalankan dari Pengaturan.
+  - **Export CSV** menulis `Lineage_<nama>.csv` ke `outputs\` (UTF-8 BOM, header Inggris) dan membuka filenya. Tombol **SVG**/**PNG** mengekspor kanvas yang sedang tampil ke `Lineage_<nama>.svg`/`.png` (PNG maksimal 8000 px sisi terpanjang). Tidak ada scan dari tab ini; scan tetap dijalankan dari Pengaturan.
+  - Filter **Node type** di toolbar kanvas menyembunyikan node/edge tipe lain tanpa menghitung ulang posisi; indikator `x / y` menunjukkan jumlah node yang tampil. Ekspor gambar mengikuti filter, sedangkan CSV tetap memuat seluruh lineage.
 
 ## Perintah baris
 

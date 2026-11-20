@@ -908,7 +908,9 @@
   "No relationships": "Tidak ada relasi",
   "Change the keyword or status filter to see other relationships.": "Ubah kata kunci atau filter status untuk melihat relasi lain.",
   "Server stopped": "Server dihentikan",
-  "Run BI Tools again to open the web interface.": "Jalankan BI Tools lagi untuk membuka antarmuka web."
+  "Run BI Tools again to open the web interface.": "Jalankan BI Tools lagi untuk membuka antarmuka web.",
+  "Node type": "Tipe node",
+  "No nodes match the current filter": "Tidak ada node yang cocok dengan filter saat ini"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

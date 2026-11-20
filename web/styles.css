@@ -771,6 +771,9 @@ tr.code-row pre{
 .lineage-tools{ display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--border); background:var(--surface-2); flex-wrap:wrap; }
 .lineage-tools .spacer{ flex:1; }
 .lineage-tools .graph-zoom{ margin-left:0; }
+.lineage-filter{ display:flex; align-items:center; gap:6px; }
+.lineage-filter .select{ min-width:150px; }
+#lineageLayer .is-filtered{ display:none; }
 .depth{ display:flex; align-items:center; gap:6px; }
 .depth-val{ font-family:var(--font-mono); font-size:12px; color:var(--text-2); min-width:52px; text-align:center; }
 

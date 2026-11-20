@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.analysis_export import write_lineage_image
 from core.errors import ExtractionError
 from core.lineage_layout import LayoutGraph, build_graph
 from core.lineage_service import (
@@ -177,4 +178,46 @@ def export(
         "path": str(written),
         "size": written.stat().st_size if written.exists() else 0,
         "items": len(result.get("nodes") or []),
+    }
+
+
+def export_lineage_image(
+    store: SettingsStore, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Tulis SVG/PNG kanvas Lineage yang dikirim klien ke ``outputs``.
+
+    Gambar dibuat di browser dari graph yang sedang tampil, lalu divalidasi dan
+    ditulis server supaya hanya berkas gambar yang sah yang masuk folder hasil.
+    """
+    data = payload or {}
+    node_id = str(data.get("node_id") or "").strip()
+    if not node_id:
+        raise ExtractionError("Node lineage belum dipilih.")
+    detail = node_detail(database_path(store), node_id)
+    if not detail:
+        raise ExtractionError(
+            "Node tidak ditemukan di database lineage. Jalankan scan ulang."
+        )
+    root_name = str(detail.get("name") or "lineage")
+    image_format = str(data.get("format") or "svg").strip().lower()
+    content = str(data.get("data") or "")
+    try:
+        written = write_lineage_image(
+            content,
+            outputs_dir(),
+            table="",
+            name="",
+            image_format=image_format,
+            file_stem=f"Lineage_{_safe_name(root_name)}",
+        )
+    except ValueError as exc:
+        raise ExtractionError(str(exc)) from exc
+    except OSError as exc:
+        raise ExtractionError(
+            f"Gagal menulis gambar lineage: {exc}. Tutup berkas bila sedang dibuka."
+        ) from exc
+    return {
+        "path": str(written["path"]),
+        "size": int(written["bytes"]),
+        "format": str(written["format"]),
     }

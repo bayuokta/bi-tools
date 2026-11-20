@@ -161,6 +161,18 @@ class ImageExportTests(unittest.TestCase):
                 Path(png["path"]).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
             )
 
+    def test_custom_file_stem_for_lineage_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            svg = write_lineage_image(
+                '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                tmp,
+                table="",
+                name="",
+                image_format="svg",
+                file_stem="Lineage_Report Uji",
+            )
+            self.assertEqual(Path(svg["path"]).name, "Lineage_Report Uji.svg")
+
     def test_rejects_invalid_image_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             for content, fmt in (

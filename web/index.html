@@ -731,6 +731,8 @@
                 <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"></path><path d="M8 10l4 4 4-4"></path><path d="M5 19h14"></path></svg>
                 Export CSV
               </button>
+              <button class="btn" id="exportSvg" type="button" disabled="" aria-label="Export lineage graph (SVG)" data-i18n-aria-label="Export lineage graph (SVG)">SVG</button>
+              <button class="btn" id="exportPng" type="button" disabled="" aria-label="Export lineage graph (PNG)" data-i18n-aria-label="Export lineage graph (PNG)">PNG</button>
             </div>
           </div>
 
@@ -799,6 +801,15 @@
                     <span class="graph-zoom-value" id="lineageZoomValue">100%</span>
                     <button class="btn btn-sm graph-zoom-btn" id="lineageZoomIn" type="button" aria-label="Zoom in" data-i18n-aria-label="Zoom in">+</button>
                     <button class="btn btn-sm graph-zoom-fit" id="lineageZoomReset" type="button">Fit</button>
+                  </div>
+                  <div class="lineage-filter">
+                    <label class="helper" for="lineageNodeType" data-i18n="Node type">Node type</label>
+                    <div class="select">
+                      <select id="lineageNodeType">
+                        <option value="" data-i18n="All types">All types</option>
+                      </select>
+                    </div>
+                    <span class="helper" id="lineageFilterCount"></span>
                   </div>
                   <div class="spacer"></div>
                   <button class="btn btn-sm" id="visualLineage" type="button" aria-pressed="false">Visual lineage</button>

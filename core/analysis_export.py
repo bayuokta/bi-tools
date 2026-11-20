@@ -126,8 +126,13 @@ def write_lineage_image(
     table: str,
     name: str,
     image_format: str,
+    file_stem: str = "",
 ) -> dict[str, Any]:
-    """Tulis gambar lineage (SVG/PNG) yang dihasilkan klien ke ``outputs``."""
+    """Tulis gambar lineage (SVG/PNG) yang dihasilkan klien ke ``outputs``.
+
+    ``file_stem`` mengganti nama berkas bawaan ``Lineage_<tabel>_<item>_lineage``;
+    dipakai halaman Lineage agar nama mengikuti node akar, bukan tabel/kolom.
+    """
     fmt = str(image_format or "").strip().lower()
     if fmt not in IMAGE_FORMATS:
         raise ValueError("Format gambar harus svg atau png.")
@@ -151,8 +156,12 @@ def write_lineage_image(
             raise ValueError("Data PNG tidak valid.")
     if len(data) > MAX_IMAGE_BYTES:
         raise ValueError("Ukuran gambar melebihi 25 MB.")
-    stem = output_stem(table, name)
-    path = Path(directory) / f"Lineage_{stem}_lineage{IMAGE_FORMATS[fmt]}"
+    stem = (
+        safe_name(file_stem, "lineage")
+        if str(file_stem or "").strip()
+        else f"Lineage_{output_stem(table, name)}_lineage"
+    )
+    path = Path(directory) / f"{stem}{IMAGE_FORMATS[fmt]}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return {"path": str(path), "bytes": len(data), "format": fmt}

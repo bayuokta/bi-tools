@@ -47,3 +47,8 @@ def export(request: Request, payload: dict[str, Any] | None = None) -> dict[str,
         str(data.get("direction") or "upstream"),
         int(data.get("depth") or presenter.DEFAULT_DEPTH),
     )
+
+
+@router.post("/image")
+def image(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return presenter.export_lineage_image(settings_of(request), payload or {})

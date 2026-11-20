@@ -136,6 +136,55 @@ class LineagePresenterTests(unittest.TestCase):
         self.assertEqual(data["items"], 1)
         write.assert_called_once()
 
+    def test_export_image_writes_svg_with_root_name(self) -> None:
+        with patch.object(
+            presenter, "node_detail", return_value=ROOT
+        ), patch.object(presenter, "outputs_dir", return_value=self.root):
+            data = presenter.export_lineage_image(
+                self.store,
+                {
+                    "node_id": "report-1",
+                    "format": "svg",
+                    "data": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                },
+            )
+        self.assertEqual(data["format"], "svg")
+        self.assertEqual(Path(data["path"]).name, "Lineage_Report Uji.svg")
+        self.assertTrue(Path(data["path"]).exists())
+
+    def test_export_image_requires_node(self) -> None:
+        with self.assertRaises(ExtractionError):
+            presenter.export_lineage_image(
+                self.store,
+                {"format": "svg", "data": "<svg></svg>"},
+            )
+
+    def test_export_image_rejects_missing_node(self) -> None:
+        with patch.object(presenter, "node_detail", return_value=None):
+            with self.assertRaises(ExtractionError):
+                presenter.export_lineage_image(
+                    self.store,
+                    {
+                        "node_id": "tidak-ada",
+                        "format": "svg",
+                        "data": "<svg></svg>",
+                    },
+                )
+
+    def test_export_image_rejects_script_payload(self) -> None:
+        with patch.object(
+            presenter, "node_detail", return_value=ROOT
+        ), patch.object(presenter, "outputs_dir", return_value=self.root):
+            with self.assertRaises(ExtractionError):
+                presenter.export_lineage_image(
+                    self.store,
+                    {
+                        "node_id": "report-1",
+                        "format": "svg",
+                        "data": "<svg><script>alert(1)</script></svg>",
+                    },
+                )
+
 
 class LineageEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -186,6 +235,33 @@ class LineageEndpointTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["path"], "C:/lineage.csv")
+
+    def test_image_endpoint(self) -> None:
+        with patch.object(
+            presenter,
+            "export_lineage_image",
+            return_value={"path": "C:/side.svg", "size": 10, "format": "svg"},
+        ) as handler:
+            response = self.client.post(
+                "/api/lineage/image",
+                json={"node_id": "report-1", "format": "svg", "data": "<svg></svg>"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["format"], "svg")
+        handler.assert_called_once()
+        self.assertEqual(handler.call_args.args[1]["node_id"], "report-1")
+
+    def test_image_endpoint_returns_400_for_invalid_payload(self) -> None:
+        with patch.object(
+            presenter,
+            "export_lineage_image",
+            side_effect=ExtractionError("Format gambar harus svg atau png."),
+        ):
+            response = self.client.post(
+                "/api/lineage/image", json={"node_id": "report-1", "format": "gif"}
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("svg atau png", response.json()["detail"])
 
 
 if __name__ == "__main__":

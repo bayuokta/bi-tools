@@ -19,6 +19,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   boleh ditulis langsung di `app.js`; sisa teks Indonesia di empty state relasi,
   halaman report, dan layar "server berhenti" dipindahkan ke kamus.
 
+### Lineage
+
+- Halaman **Lineage** menambah ekspor **SVG/PNG** kanvas (tombol di kanan atas,
+  `POST /api/lineage/image`) dengan nama `Lineage_<akar>.svg|png` di `outputs\`.
+- Filter **Node type** di toolbar menyembunyikan node/edge tipe lain tanpa
+  menghitung ulang tata letak, dengan indikator `x / y`; ekspor gambar mengikuti
+  filter, CSV tetap penuh.
+
 ### Analisa Semantic Model
 
 - Tab **Health** memeriksa model dan report tanpa request tambahan: error

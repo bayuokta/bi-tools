@@ -162,6 +162,10 @@ class WebLayerTests(unittest.TestCase):
             "lineageOpen",
             "lineageRenderGraph",
             "lineageExport",
+            "lineageLayout",
+            "lineageVisibleNodes",
+            "lineageSvgDocument",
+            "lineageExportImage",
             "startJob",
         ):
             self.assertEqual(
@@ -255,6 +259,25 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("lineageOpen(", js[search:render])
         # Chip tipe tidak boleh menempati kolom pertama (bug tumpukan).
         self.assertIn(".result-type{ grid-column:2", css)
+
+    def test_web_lineage_has_image_export_and_node_type_filter(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        api = (ROOT / "server" / "api" / "lineage.py").read_text(encoding="utf-8")
+        for marker in ('id="exportSvg"', 'id="exportPng"', 'id="lineageNodeType"'):
+            self.assertIn(marker, html)
+        self.assertIn('@router.post("/image")', api)
+        self.assertIn("function lineageSvgDocument(", js)
+        self.assertIn("function lineageExportImage(", js)
+        self.assertIn("function lineageLayout(", js)
+        self.assertIn("function lineageVisibleNodes(", js)
+        self.assertIn('"/api/lineage/image"', js)
+        self.assertIn("is-filtered", css)
+        # Layout harus stabil saat filter aktif: posisi dihitung dari graph,
+        # bukan dari daftar node yang tersaring.
+        self.assertIn("var layout = lineageLayout(graph)", js)
+        self.assertNotIn("lineageLayout(visibleNodes", js)
 
     def test_partition_tom_is_isolated_in_child_process(self) -> None:
         service = (ROOT / "core" / "partition_service.py").read_text(encoding="utf-8")

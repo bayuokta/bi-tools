@@ -145,6 +145,9 @@
     lineageBaseHeight: 280,
     lineageDrag: null,
     lineageJustDragged: false,
+    lineageNodeType: "",
+    lineageNodeTypes: [],
+    lineageLayout: null,
     instances: [],
     workspaces: [],
     reports: [],
@@ -6604,6 +6607,9 @@
   function nodeTypeLabel(type) {
     return String(type || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toUpperCase();
   }
+  function lineageTypeName(type) {
+    return String(type || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  }
   function lineageLoadState() {
     if (!apiReady()) return Promise.resolve();
     if (state.lineageStatePromise) return state.lineageStatePromise;
@@ -6618,10 +6624,20 @@
         })
       );
       setSelectOptions("lineageType", types, null);
+      var nodeTypes = (data.node_types || []).map(function (item) {
+        return { value: item, label: lineageTypeName(item) };
+      });
+      setSelectOptions(
+        "lineageNodeType",
+        [{ value: "", label: t("All types") }].concat(nodeTypes),
+        null
+      );
+      state.lineageNodeType = getSelectValue("lineageNodeType") || "";
       $("#lineageSearch").disabled = !data.readable;
       $("#lineageSearchBtn").disabled = !data.readable;
       $("#lineageWorkspace").disabled = !data.readable;
       $("#lineageType").disabled = !data.readable;
+      $("#lineageNodeType").disabled = !data.readable;
       $("#depthVal").textContent = state.depth + t(" levels");
       $("#depthMinus").disabled = true;
       $("#depthPlus").disabled = false;
@@ -6636,6 +6652,8 @@
         $("#lineageDetail").innerHTML =
           '<p class="helper">' + escapeHtml(data.status || "") + "</p>";
         $("#exportCsv").disabled = true;
+        $("#exportSvg").disabled = true;
+        $("#exportPng").disabled = true;
         return data;
       }
       if (state.lineageQuery) {
@@ -6655,6 +6673,8 @@
       $("#lineageDetail").innerHTML =
         '<p class="helper">' + t("Choose a search result to view its lineage.") + "</p>";
       $("#exportCsv").disabled = true;
+      $("#exportSvg").disabled = true;
+      $("#exportPng").disabled = true;
       return data;
     }).catch(function (error) {
       addLog(t("Lineage status could not be read: ") + error.message, "warn");
@@ -6755,6 +6775,8 @@
       $("#depthMinus").disabled = state.depth <= 1;
       $("#depthPlus").disabled = state.depth >= 15;
       $("#exportCsv").disabled = false;
+      $("#exportSvg").disabled = false;
+      $("#exportPng").disabled = false;
       $$("#lineageResults .result-item").forEach(function (item) {
         item.setAttribute("aria-pressed", String(item.dataset.id === state.rootId));
       });
@@ -6786,44 +6808,97 @@
     applyLineageZoom();
   }
 
-  function lineageRenderGraph() {
-    var graph = state.lineageGraph;
-    var svg = $("#lineageSvg");
-    if (!graph || !(graph.nodes || []).length) {
-      $("#lineageLayer").innerHTML = "";
-      state.lineageBaseWidth = 780;
-      state.lineageBaseHeight = 280;
-      state.lineagePanX = 0;
-      state.lineagePanY = 0;
-      applyLineageZoom();
-      return;
+  var LINEAGE_NODE_W = 176;
+  var LINEAGE_NODE_H = 64;
+  var LINEAGE_COL_GAP = 44;
+  var LINEAGE_ROW_GAP = 20;
+
+  function lineageLayout(graph) {
+    var nodes = (graph && graph.nodes) || [];
+    if (!nodes.length) {
+      return {
+        positions: {},
+        width: 780,
+        height: 280,
+        nodeW: LINEAGE_NODE_W,
+        nodeH: LINEAGE_NODE_H
+      };
     }
-    var nodes = graph.nodes;
     var columns = nodes.map(function (node) { return Number(node.column || 0); });
     var rows = nodes.map(function (node) { return Number(node.row || 0); });
     var minCol = Math.min.apply(null, columns);
     var maxCol = Math.max.apply(null, columns);
     var minRow = Math.min.apply(null, rows);
     var maxRow = Math.max.apply(null, rows);
-    var nodeW = 176;
-    var nodeH = 64;
-    var colGap = 44;
-    var rowGap = 20;
     var positions = {};
     nodes.forEach(function (node) {
       positions[node.id] = {
-        x: 40 + (Number(node.column || 0) - minCol) * (nodeW + colGap),
-        y: 34 + (Number(node.row || 0) - minRow) * (nodeH + rowGap)
+        x: 40 + (Number(node.column || 0) - minCol) * (LINEAGE_NODE_W + LINEAGE_COL_GAP),
+        y: 34 + (Number(node.row || 0) - minRow) * (LINEAGE_NODE_H + LINEAGE_ROW_GAP)
       };
     });
-    var width = Math.max(780, 80 + (maxCol - minCol) * (nodeW + colGap) + nodeW);
-    var height = Math.max(280, 68 + (maxRow - minRow) * (nodeH + rowGap) + nodeH);
-    state.lineageBaseWidth = width;
-    state.lineageBaseHeight = height;
+    return {
+      positions: positions,
+      width: Math.max(
+        780, 80 + (maxCol - minCol) * (LINEAGE_NODE_W + LINEAGE_COL_GAP) + LINEAGE_NODE_W
+      ),
+      height: Math.max(
+        280, 68 + (maxRow - minRow) * (LINEAGE_NODE_H + LINEAGE_ROW_GAP) + LINEAGE_NODE_H
+      ),
+      nodeW: LINEAGE_NODE_W,
+      nodeH: LINEAGE_NODE_H
+    };
+  }
+
+  function lineageVisibleNodes(graph) {
+    var nodes = (graph && graph.nodes) || [];
+    var type = state.lineageNodeType;
+    if (!type) return nodes;
+    return nodes.filter(function (node) {
+      return String(node.type || "") === type;
+    });
+  }
+
+  function lineageRenderFilterCount(graph) {
+    var label = $("#lineageFilterCount");
+    if (!label) return;
+    if (!state.lineageNodeType) {
+      label.textContent = "";
+      return;
+    }
+    var shown = lineageVisibleNodes(graph).length;
+    var total = ((graph && graph.nodes) || []).length;
+    label.textContent = fmtInt(shown) + " / " + fmtInt(total);
+  }
+
+  function lineageRenderGraph() {
+    var graph = state.lineageGraph;
+    if (!graph || !(graph.nodes || []).length) {
+      $("#lineageLayer").innerHTML = "";
+      state.lineageLayout = null;
+      state.lineageBaseWidth = 780;
+      state.lineageBaseHeight = 280;
+      state.lineagePanX = 0;
+      state.lineagePanY = 0;
+      lineageRenderFilterCount(graph);
+      applyLineageZoom();
+      return;
+    }
+    var layout = lineageLayout(graph);
+    state.lineageLayout = layout;
+    state.lineageBaseWidth = layout.width;
+    state.lineageBaseHeight = layout.height;
+    var visible = {};
+    lineageVisibleNodes(graph).forEach(function (node) {
+      visible[node.id] = true;
+    });
+    var filtered = Boolean(state.lineageNodeType);
+    var nodeW = layout.nodeW;
+    var nodeH = layout.nodeH;
     var edges = "";
     (graph.edges || []).forEach(function (edge, index) {
-      var from = positions[edge.source];
-      var to = positions[edge.target];
+      var from = layout.positions[edge.source];
+      var to = layout.positions[edge.target];
       if (!from || !to) return;
       var forward = to.x > from.x;
       var x1 = from.x + (forward ? nodeW : 0);
@@ -6831,20 +6906,25 @@
       var y1 = from.y + nodeH / 2;
       var y2 = to.y + nodeH / 2;
       var mid = (x1 + x2) / 2;
-      edges += '<path class="edge" data-edge="' + index +
+      var hidden = filtered && (!visible[edge.source] || !visible[edge.target]);
+      edges += '<path class="edge' + (hidden ? " is-filtered" : "") +
+        '" data-edge="' + index +
         '" d="M' + x1 + " " + y1 + " C" + mid + " " + y1 + ", " + mid + " " +
         y2 + ", " + x2 + " " + y2 +
         '" fill="none" marker-end="url(#arrow)"><title>' +
         escapeHtml(edge.type || "") + "</title></path>";
     });
     var markup = "";
-    nodes.forEach(function (node) {
-      var pos = positions[node.id];
+    (graph.nodes || []).forEach(function (node) {
+      var pos = layout.positions[node.id];
+      if (!pos) return;
       var name = String(node.name || node.id);
       var type = String(node.type || "");
       var workspace = String(node.workspace || "");
       var hue = nodeHue(type);
-      markup += '<g class="node lineage-node" data-hue="' + hue +
+      var hidden = filtered && !visible[node.id];
+      markup += '<g class="node lineage-node' + (hidden ? " is-filtered" : "") +
+        '" data-hue="' + hue +
         '" data-side="' + escapeHtml(node.side || "") +
         '" tabindex="0" role="button" data-id="' + escapeHtml(node.id) +
         '" aria-current="' + (node.id === state.rootId ? "true" : "false") +
@@ -6871,6 +6951,7 @@
         "</g>";
     });
     $("#lineageLayer").innerHTML = edges + markup;
+    lineageRenderFilterCount(graph);
     lineageApplySelection();
     applyLineageZoom();
   }
@@ -7003,6 +7084,143 @@
     $("#depthMinus").disabled = state.depth <= 1;
     $("#depthPlus").disabled = state.depth >= 15;
     if (state.rootId) lineageOpen(state.rootId);
+  }
+
+  function lineageSvgPalette() {
+    function css(name, fallback) {
+      var value = getComputedStyle(document.documentElement)
+        .getPropertyValue(name);
+      return String(value || "").trim() || fallback;
+    }
+    return {
+      background: css("--surface-2", "#1b212b"),
+      card: css("--node-card", "#171d27"),
+      border: css("--border-strong", "#3a4556"),
+      text: css("--text", "#e9edf3"),
+      text3: css("--text-3", "#7f8b9c"),
+      arrow: css("--text-3", "#7f8b9c"),
+      hues: {
+        db: css("--node-db", "#f0b44c"),
+        flow: css("--node-flow", "#b49bff"),
+        model: css("--node-model", "#8fb3ff"),
+        table: css("--node-table", "#79c9ec"),
+        measure: css("--node-measure", "#6fd6c4"),
+        report: css("--node-report", "#63ce9b"),
+        neutral: css("--node-neutral", "#b6c1d1")
+      },
+      soft: {
+        db: css("--node-db-soft", "rgba(240,180,76,.16)"),
+        flow: css("--node-flow-soft", "rgba(180,155,255,.16)"),
+        model: css("--node-model-soft", "rgba(143,179,255,.16)"),
+        table: css("--node-table-soft", "rgba(121,201,236,.16)"),
+        measure: css("--node-measure-soft", "rgba(111,214,196,.16)"),
+        report: css("--node-report-soft", "rgba(99,206,155,.16)"),
+        neutral: css("--node-neutral-soft", "rgba(182,193,209,.14)")
+      }
+    };
+  }
+
+  function lineageSvgDocument() {
+    var graph = state.lineageGraph;
+    var layout = state.lineageLayout;
+    if (!graph || !layout) return "";
+    var palette = lineageSvgPalette();
+    var visible = {};
+    lineageVisibleNodes(graph).forEach(function (node) {
+      visible[node.id] = true;
+    });
+    var width = Math.max(1, Number(layout.width) || 1);
+    var height = Math.max(1, Number(layout.height) || 1);
+    var nodeW = layout.nodeW;
+    var nodeH = layout.nodeH;
+    var edges = (graph.edges || []).map(function (edge) {
+      if (!visible[edge.source] || !visible[edge.target]) return "";
+      var from = layout.positions[edge.source];
+      var to = layout.positions[edge.target];
+      if (!from || !to) return "";
+      var forward = to.x > from.x;
+      var x1 = from.x + (forward ? nodeW : 0);
+      var x2 = to.x + (forward ? 0 : nodeW);
+      var y1 = from.y + nodeH / 2;
+      var y2 = to.y + nodeH / 2;
+      var mid = (x1 + x2) / 2;
+      return '<path d="M' + x1 + " " + y1 + " C" + mid + " " + y1 + ", " + mid +
+        " " + y2 + ", " + x2 + " " + y2 + '" fill="none" stroke="' +
+        palette.border + '" stroke-width="1.4" ' +
+        'marker-end="url(#lineagePageArrow)"/>';
+    }).join("");
+    var nodes = (graph.nodes || []).filter(function (node) {
+      return visible[node.id];
+    }).map(function (node) {
+      var pos = layout.positions[node.id];
+      if (!pos) return "";
+      var hue = nodeHue(String(node.type || ""));
+      var color = palette.hues[hue] || palette.hues.neutral;
+      var soft = palette.soft[hue] || palette.soft.neutral;
+      var name = String(node.name || node.id);
+      var workspace = String(node.workspace || "");
+      return '<g transform="translate(' + pos.x + "," + pos.y + ')">' +
+        '<rect width="' + nodeW + '" height="' + nodeH + '" rx="8" fill="' +
+        palette.card + '" stroke="' + palette.border + '"/>' +
+        '<path d="M0 18 V8 A8 8 0 0 1 8 0 H' + (nodeW - 8) +
+        ' A8 8 0 0 1 ' + nodeW + ' 8 V18 Z" fill="' + soft + '"/>' +
+        '<line x1="0" y1="18" x2="' + nodeW + '" y2="18" stroke="' + color +
+        '" stroke-opacity="0.26"/>' +
+        '<text x="10" y="12.6" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="7.5" font-weight="600" letter-spacing="0.6" fill="' +
+        color + '">' + escapeHtml(clipLabel(nodeTypeLabel(node.type), 32)) +
+        "</text>" +
+        '<text x="10" y="36" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="11.5" font-weight="600" fill="' + palette.text + '">' +
+        escapeHtml(clipLabel(name, 25)) + "</text>" +
+        '<text x="10" y="51" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="9" fill="' + palette.text3 + '">' +
+        escapeHtml(clipLabel(workspace, 27)) + "</text>" +
+        "</g>";
+    }).join("");
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width +
+      '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '">' +
+      '<defs><marker id="lineagePageArrow" viewBox="0 0 8 8" refX="7" ' +
+      'refY="4" markerWidth="6" markerHeight="6" orient="auto">' +
+      '<path d="M0 0L8 4L0 8z" fill="' + palette.arrow + '"/>' +
+      "</marker></defs>" +
+      '<rect width="' + width + '" height="' + height + '" fill="' +
+      palette.background + '"/>' +
+      "<g>" + edges + "</g><g>" + nodes + "</g></svg>";
+  }
+
+  function lineageExportImage(format) {
+    if (!state.rootId) {
+      toast(t("Choose a lineage node first"));
+      return;
+    }
+    if (!lineageVisibleNodes(state.lineageGraph).length) {
+      toast(t("No nodes match the current filter"));
+      return;
+    }
+    var svg = lineageSvgDocument();
+    if (!svg) {
+      toast(t("No lineage data"));
+      return;
+    }
+    var send = function (payload) {
+      api().post("/api/lineage/image", {
+        node_id: state.rootId,
+        direction: state.direction,
+        depth: state.depth,
+        format: format,
+        data: payload
+      }).then(function (data) {
+        toast(format.toUpperCase() + ": " + data.path);
+        api().post("/api/files/open", { path: data.path, mode: "open" })
+          .catch(function () {});
+      }).catch(reportError);
+    };
+    if (format === "png") {
+      analysisLineagePngData(svg).then(send).catch(reportError);
+    } else {
+      send(svg);
+    }
   }
 
   function lineageExport() {
@@ -8055,6 +8273,16 @@
       toast(t(state.visual ? "Lineage visual mode on" : "Lineage visual mode off"));
     });
     $("#exportCsv").addEventListener("click", lineageExport);
+    $("#exportSvg").addEventListener("click", function () {
+      lineageExportImage("svg");
+    });
+    $("#exportPng").addEventListener("click", function () {
+      lineageExportImage("png");
+    });
+    $("#lineageNodeType").addEventListener("change", function () {
+      state.lineageNodeType = getSelectValue("lineageNodeType") || "";
+      lineageRenderGraph();
+    });
 
     $("#lineageSearchBtn").addEventListener("click", lineageSearch);
     $("#lineageSearch").addEventListener("keydown", function (event) {
