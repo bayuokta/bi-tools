@@ -12,7 +12,7 @@ date table) sengaja tidak dibuat di sini.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping
 
 RULES_VERSION = 1
 
@@ -531,13 +531,3 @@ def _relationship_object(relationship: Mapping[str, Any]) -> str:
 def _clip(text: str, limit: int = 500) -> str:
     value = str(text or "").strip()
     return value if len(value) <= limit else value[: limit - 1] + "\u2026"
-
-
-def sum_items(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
-    """Hitung item per severity (dipakai CLI dan uji)."""
-    counts = {SEVERITY_CRITICAL: 0, SEVERITY_WARNING: 0, SEVERITY_INFO: 0}
-    for item in items:
-        severity = str(item.get("severity") or "")
-        if severity in counts:
-            counts[severity] += 1
-    return counts
