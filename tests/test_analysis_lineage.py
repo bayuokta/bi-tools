@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.analysis_lineage import MAX_USAGE_PER_PAGE, build_lineage
+from core.analysis_lineage import MAX_USAGE_PER_PAGE, build_lineage, build_table_lineage
 from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
 from core.usage_service import (
     STATUS_UNUSED,
@@ -607,6 +607,94 @@ in
                 for node in data["nodes"]
             )
         )
+
+    def test_table_lineage_builds_columns_measures_and_reports(self) -> None:
+        amount = column_analysis(
+            "Sales",
+            "Amount",
+            refs=[
+                ModelReference(
+                    kind="measure",
+                    object="'KPI'[Total]",
+                    detail="measure 'KPI'[Total]",
+                    blocking=False,
+                )
+            ],
+        )
+        qty = column_analysis("Sales", "Qty")
+        measure = measure_analysis("KPI", "Total", records=[usage()])
+        result = make_result(columns=[amount, qty], measures=[measure])
+        data = build_table_lineage(result, table="Sales")
+        kinds = {node["kind"] for node in data["nodes"]}
+        self.assertEqual(data["seed"]["kind"], "table")
+        self.assertIn("column", kinds)
+        self.assertIn("measure", kinds)
+        self.assertIn("report", kinds)
+        edges = {(edge["from"], edge["to"]) for edge in data["edges"]}
+        self.assertIn(("table:Sales", "col:Sales:Amount"), edges)
+        self.assertIn(("col:Sales:Amount", "measure:KPI:Total"), edges)
+        self.assertIn(("table:Sales", "col:Sales:Qty"), edges)
+
+    def test_table_lineage_accepts_mquery_only_table(self) -> None:
+        result = make_result(
+            columns=[],
+            m_queries=[{"name": "Sales", "kind": "Tabel", "source": "Import"}],
+        )
+        data = build_table_lineage(result, table="Sales")
+        self.assertEqual(
+            {node["kind"] for node in data["nodes"]}, {"table", "mquery"}
+        )
+        self.assertEqual(data["m_lineage"]["status"], "unavailable")
+        with self.assertRaises(ValueError):
+            build_table_lineage(result, table="TidakAda")
+        with self.assertRaises(ValueError):
+            build_table_lineage(result, table="Sales", outline_mode="ngawur")
+
+    def test_outline_full_expands_repeated_nodes(self) -> None:
+        column = column_analysis(
+            "Sales",
+            "Amount",
+            refs=[
+                ModelReference(
+                    kind="measure", object="'KPI'[First]", detail="", blocking=False
+                ),
+                ModelReference(
+                    kind="measure", object="'KPI'[Second]", detail="", blocking=False
+                ),
+            ],
+        )
+        first = measure_analysis("KPI", "First", records=[usage(report="R1")])
+        second = measure_analysis("KPI", "Second", records=[usage(report="R1")])
+        result = make_result(columns=[column], measures=[first, second])
+        compact = build_lineage(
+            result, kind="column", table="Sales", name="Amount"
+        )
+        full = build_lineage(
+            result,
+            kind="column",
+            table="Sales",
+            name="Amount",
+            outline_mode="full",
+        )
+
+        def reports(outline):
+            found = []
+            stack = list(outline["downstream"])
+            while stack:
+                item = stack.pop()
+                if item["kind"] == "report":
+                    found.append(item)
+                stack.extend(item.get("children") or [])
+            return found
+
+        compact_reports = reports(compact["outline"])
+        full_reports = reports(full["outline"])
+        self.assertTrue(any(item["children"] for item in compact_reports))
+        self.assertTrue(
+            any(item.get("repeat") and not item["children"] for item in compact_reports)
+        )
+        self.assertEqual(len(full_reports), 2)
+        self.assertTrue(all(item["children"] for item in full_reports))
 
     def test_layout_is_deterministic_and_spaced(self) -> None:
         measure = measure_analysis(

@@ -1216,3 +1216,6 @@ tr.is-menu-open .row-menu-btn,
 .m-warning-list li{ padding:3px 0; border-bottom:1px solid var(--border); font-size:11px; }
 .m-warning-list li:last-child{ border-bottom:0; }
 .m-warning-step{ color:var(--text-3); }
+
+.dep-list li.dep-click{ cursor:pointer; }
+.dep-list li.dep-click:hover{ background:var(--row-hover); }

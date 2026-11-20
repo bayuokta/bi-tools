@@ -20,7 +20,7 @@ from core.analysis_export import (
     write_dependencies_csv,
     write_lineage_files,
 )
-from core.analysis_lineage import build_lineage
+from core.analysis_lineage import build_lineage, build_table_lineage
 from core.analysis_query import (
     DEFAULT_ROWS,
     QUERY_TIMEOUT,
@@ -991,6 +991,7 @@ def lineage_payload(
     direction: str = "both",
     depth: int = 4,
     category: str = "all",
+    outline_mode: str = "compact",
 ) -> dict[str, Any]:
     """Graph lineage satu kolom/measure dari sesi analisa in-memory."""
     dataset = str(dataset_id or "").strip()
@@ -1010,6 +1011,14 @@ def lineage_payload(
             "dulu (hasil tidak disimpan ke database)."
         )
     try:
+        if str(kind).strip().lower() == "table":
+            return build_table_lineage(
+                result,
+                table=table,
+                direction=direction,
+                depth=depth,
+                outline_mode=outline_mode,
+            )
         return build_lineage(
             result,
             kind=kind,
@@ -1018,6 +1027,7 @@ def lineage_payload(
             direction=direction,
             depth=depth,
             category=category,
+            outline_mode=outline_mode,
         )
     except ValueError as exc:
         raise ExtractionError(str(exc)) from exc
@@ -1208,14 +1218,21 @@ def export_lineage(
         raise ExtractionError("Format ekspor harus csv, json, atau all.")
     result = _session_result(dataset_id)
     try:
-        data = build_lineage(
-            result,
-            kind=kind,
-            table=table,
-            name=name,
-            direction=direction,
-            category=category,
-        )
+        if kind == "table":
+            data = build_table_lineage(
+                result,
+                table=table or name,
+                direction=direction,
+            )
+        else:
+            data = build_lineage(
+                result,
+                kind=kind,
+                table=table,
+                name=name,
+                direction=direction,
+                category=category,
+            )
     except ValueError as exc:
         raise ExtractionError(str(exc)) from exc
     formats = {"csv", "json"} if export_format == "all" else {export_format}

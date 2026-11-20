@@ -98,6 +98,7 @@
     analysisLineageTarget: null,
     analysisLineageDirection: "both",
     analysisLineageView: "graph",
+    analysisLineageOutlineMode: "compact",
     analysisLineageCategory: "all",
     analysisLineageZoom: 1,
     analysisLineageDrag: null,
@@ -2312,6 +2313,16 @@
   }
 
   function analysisMenuEntries(target) {
+    if (target.kind === "table") {
+      return [
+        { id: "table-lineage", label: t("Table lineage"), icon: "graph", primary: true },
+        { id: "table-details", label: t("Table details"), icon: "details" },
+        { id: "table-show", label: t("Show in analysis"), icon: "table" },
+        { id: "table-copy", label: t("Copy table name"), icon: "copy" },
+        { divider: true },
+        { id: "exports", label: t("Exports"), icon: "export", submenu: "exports" }
+      ];
+    }
     var item = analysisFindItem(target.kind, target.table, target.name);
     var isMeasure = target.kind === "measure";
     var hasChildren = Boolean(item && (item.children || []).length);
@@ -2428,6 +2439,7 @@
     if (action === "table") {
       return [
         { action: "table-details", label: "Table details", icon: "details" },
+        { action: "table-lineage", label: "Table lineage", icon: "graph" },
         { action: "table-show", label: "Show in analysis", icon: "table" },
         { action: "table-copy", label: "Copy table name", icon: "copy" }
       ];
@@ -2544,13 +2556,14 @@
   }
 
   function analysisOpenMenu(target, anchor) {
-    var item = analysisFindItem(target.kind, target.table, target.name);
     var menu = $("#analysisMenu");
-    if (!item || !menu) return;
+    if (!menu) return;
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    if (target.kind !== "table" && !item) return;
     state.analysisMenuTarget = {
       kind: target.kind,
-      table: item.table,
-      name: item.name
+      table: target.kind === "table" ? target.table : item.table,
+      name: target.kind === "table" ? target.name : item.name
     };
     if (!state.analysisMenuFocus || !document.contains(state.analysisMenuFocus)) {
       state.analysisMenuFocus = document.activeElement;
@@ -2603,7 +2616,7 @@
     var target = state.analysisMenuTarget;
     if (!target) return;
     var item = analysisFindItem(target.kind, target.table, target.name);
-    if (!item) {
+    if (!item && target.kind !== "table") {
       analysisCloseMenu(false);
       return;
     }
@@ -2648,11 +2661,18 @@
       return;
     }
     if (action === "table-details" || action === "table-show" ||
-        action === "table-copy") {
+        action === "table-copy" || action === "table-lineage") {
       analysisCloseMenu(action === "table-copy");
       if (action === "table-details") analysisOpenTableDetails(target);
       else if (action === "table-show") analysisShowTable(target);
-      else copyTextValue(target.table);
+      else if (action === "table-copy") copyTextValue(target.table);
+      else {
+        analysisLineageOpen(
+          { kind: "table", table: target.table, name: target.table },
+          "graph",
+          "all"
+        );
+      }
       return;
     }
     if (action === "model-details" || action === "model-copy" ||
@@ -3114,7 +3134,16 @@
         "</h3><ul class=\"dep-list\">" + rows.map(function (entry) {
           var text = analysisDependencyText(entry);
           var sub = analysisDependencySub(entry);
-          return "<li><span class=\"dep-kind\">" +
+          var clickable = Boolean(
+            entry.target_kind && entry.target_table && entry.target_name
+          );
+          var attrs = clickable
+            ? ' class="dep-click" data-dep-kind="' + escapeHtml(entry.target_kind) +
+              '" data-dep-table="' + escapeHtml(entry.target_table) +
+              '" data-dep-name="' + escapeHtml(entry.target_name) +
+              '" title="' + escapeHtml(t("Open lineage")) + '"'
+            : "";
+          return "<li" + attrs + "><span class=\"dep-kind\">" +
             escapeHtml(String(entry.kind || entry.type || "")) + "</span>" +
             escapeHtml(text) +
             (sub ? '<span class="dep-sub">' + escapeHtml(sub) + "</span>" : "") +
@@ -3330,7 +3359,7 @@
   }
 
   // -- Lineage graph kolom/measure ----------------------------------------
-  function analysisLineageOpen(target, view, category) {
+  function analysisLineageOpen(target, view, category, outlineMode) {
     var dialog = $("#analysisLineageDialog");
     if (!dialog) return;
     state.analysisLineageTarget = {
@@ -3343,6 +3372,8 @@
     state.analysisLineageZoom = 1;
     state.analysisLineageDirection = "both";
     state.analysisLineageView = view === "outline" ? "outline" : "graph";
+    state.analysisLineageOutlineMode =
+      outlineMode === "full" ? "full" : "compact";
     state.analysisLineageCategory = category || "all";
     $("#analysisLineageSearch").value = "";
     $("#analysisLineageNodes").innerHTML = "";
@@ -3364,7 +3395,9 @@
   function analysisLineageSubtitle() {
     var target = state.analysisLineageTarget;
     if (!target) return "";
-    var text = "'" + target.table + "'[" + target.name + "]";
+    var text = target.kind === "table"
+      ? target.table
+      : "'" + target.table + "'[" + target.name + "]";
     if (state.analysisLineageCategory !== "all") {
       var label = "";
       LINEAGE_CATEGORIES.forEach(function (item) {
@@ -3383,20 +3416,35 @@
           ? "true" : "false"
       );
     });
+    $$("#analysisLineageOutlineMode [data-outline-mode]").forEach(function (button) {
+      button.setAttribute(
+        "aria-pressed",
+        button.getAttribute("data-outline-mode") ===
+          state.analysisLineageOutlineMode ? "true" : "false"
+      );
+    });
   }
 
   function analysisLineageApplyView() {
     var outline = state.analysisLineageView === "outline";
     $("#analysisLineageCanvasWrap").hidden = outline;
     $("#analysisLineageOutline").hidden = !outline;
+    $("#analysisLineageOutlineMode").hidden = !outline;
     var zoom = $("#analysisLineageZoomOut");
     if (zoom) zoom.closest(".graph-zoom").hidden = outline;
     analysisLineageViewButtons();
   }
 
   function analysisLineageReroot(kind, table, name) {
-    if ((kind !== "column" && kind !== "measure") || !table || !name) return;
-    state.analysisLineageTarget = { kind: kind, table: table, name: name };
+    if (kind === "table") {
+      if (!table) return;
+      state.analysisLineageTarget = { kind: "table", table: table, name: table };
+    } else if (kind === "column" || kind === "measure") {
+      if (!table || !name) return;
+      state.analysisLineageTarget = { kind: kind, table: table, name: name };
+    } else {
+      return;
+    }
     state.analysisLineageHighlight = null;
     $("#analysisLineageSub").textContent = analysisLineageSubtitle();
     analysisLoadLineage();
@@ -3426,6 +3474,7 @@
       "&name=" + encodeURIComponent(target.name) +
       "&direction=" + encodeURIComponent(state.analysisLineageDirection) +
       "&category=" + encodeURIComponent(state.analysisLineageCategory) +
+      "&outline_mode=" + encodeURIComponent(state.analysisLineageOutlineMode) +
       "&depth=4";
     api().get(path).then(function (data) {
       state.analysisLineage = data;
@@ -3557,7 +3606,9 @@
     return '<button type="button" class="' + classes.join(" ") + '"' +
       ' data-node-id="' + escapeHtml(node.id) + '"' +
       ' data-node-kind="' + escapeHtml(node.kind) + '"' +
-      ' data-node-table="' + escapeHtml(node.context || "") + '"' +
+      ' data-node-table="' + escapeHtml(
+        node.kind === "table" ? node.label : (node.context || "")
+      ) + '"' +
       ' data-node-name="' + escapeHtml(node.label) + '"' +
       ' style="left:' + node.x + "px;top:" + node.y + "px;width:" + node.w +
       "px;height:" + node.h + 'px"' +
@@ -3606,7 +3657,9 @@
       var repeat = item.repeat ? '<span class="lo-repeat">\u2026</span>' : "";
       var row = '<span class="lo-row" data-node-id="' + escapeHtml(item.id) +
         '" data-node-kind="' + escapeHtml(item.kind) +
-        '" data-node-table="' + escapeHtml(item.context || "") +
+        '" data-node-table="' + escapeHtml(
+          item.kind === "table" ? item.label : (item.context || "")
+        ) +
         '" data-node-name="' + escapeHtml(item.label) + '">' +
         '<span class="lo-icon">' + icon + "</span>" +
         '<span class="lo-text"><span class="lo-title">' + escapeHtml(item.label) +
@@ -4053,9 +4106,10 @@
       rows.push({
         level: 0,
         group: true,
+        item: { kind: "table", table: group.name, name: group.name },
         cells: [
           analysisNameCell(group.name, "table", {
-            level: 0, toggleId: tableId, open: tableOpen
+            level: 0, toggleId: tableId, open: tableOpen, menu: true
           }),
           t("Table"), "—", "Model", "—", escapeHtml(size || "—"),
           analysisTableSummary(usedItems, totalItems, statuses), String(usedItems),
@@ -6753,10 +6807,24 @@
     });
     $("#analysisItemPane").addEventListener("click", function (event) {
       var retry = event.target.closest("[data-item-raw-retry]");
-      if (!retry) return;
-      state.analysisItemRaw = null;
-      state.analysisItemRawError = "";
-      analysisRenderItemDetails();
+      if (retry) {
+        state.analysisItemRaw = null;
+        state.analysisItemRawError = "";
+        analysisRenderItemDetails();
+        return;
+      }
+      var dep = event.target.closest("[data-dep-kind]");
+      if (!dep) return;
+      $("#analysisItemDialog").close();
+      analysisLineageOpen(
+        {
+          kind: dep.getAttribute("data-dep-kind"),
+          table: dep.getAttribute("data-dep-table"),
+          name: dep.getAttribute("data-dep-name")
+        },
+        "graph",
+        "all"
+      );
     });
     $("#analysisItemTabs").addEventListener("keydown", function (event) {
       var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
@@ -6833,6 +6901,16 @@
       state.analysisLineageView = value;
       analysisLineageApplyView();
       analysisLineageApplySearch();
+    });
+    $("#analysisLineageOutlineMode").addEventListener("click", function (event) {
+      var button = event.target.closest("[data-outline-mode]");
+      if (!button) return;
+      var value = button.getAttribute("data-outline-mode");
+      if (["compact", "full"].indexOf(value) === -1) return;
+      if (value === state.analysisLineageOutlineMode) return;
+      state.analysisLineageOutlineMode = value;
+      analysisLineageViewButtons();
+      analysisLoadLineage();
     });
     $("#analysisLineageNodes").addEventListener("click", function (event) {
       var node = event.target.closest(".lineage-node");

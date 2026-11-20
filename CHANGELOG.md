@@ -19,6 +19,13 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   (`TransformColumns`, rename/kolom dinamis, fungsi tak dikenal, dll.).
 - Keyakinan dihitung per kolom; `Table.TransformColumns` dan rename dinamis
   ditandai `Partial`, sedangkan tabel tanpa ekspresi M `Unavailable`.
+- Baris tabel di tab **Tables** punya menu konteks sendiri dengan **Table
+  lineage**: graph M query → tabel → kolom/measure → report/halaman/visual.
+- Baris dependency pada detail kolom/measure bisa diklik untuk membuka lineage
+  graph node tujuan (measure, calculated column/table, relasi, key column).
+- Dialog lineage punya mode **Outline Compact/Full**: node yang muncul berulang
+  diringkas di mode ringkas dan diperluas di mode lengkap. Ekspor lineage dan
+  dependensi juga menerima `kind=table` (menggabungkan kolom + measure tabel).
 
 ## 2026-11-20 - Rilis 0.5.0
 

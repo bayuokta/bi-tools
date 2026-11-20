@@ -20,6 +20,7 @@ from typing import Any, Iterable, Mapping
 from core.m_lineage import (
     build_lineage as build_m_lineage,
     column_confidence,
+    lineage_confidence,
     warning_rows,
 )
 
@@ -27,6 +28,7 @@ MAX_NODES = 250
 MAX_USAGE_PER_PAGE = 8
 MAX_DEPTH = 8
 MAX_M_STEPS = 8
+OUTLINE_MAX_ROWS = 500
 
 DIRECTIONS = ("both", "upstream", "downstream")
 CATEGORIES = (
@@ -329,13 +331,92 @@ class _Graph:
                 self.link(page_node_id, node_id, "usage")
 
 
-def _build_outline(graph: _Graph, seed_id: str) -> dict[str, Any]:
+def _layout_graph(
+    graph: _Graph, sides: Mapping[str, tuple[str, int]], seed_id: str
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Hitung kolom/koordinat node dan ukuran kanvas."""
+    for node_id, node in graph.nodes.items():
+        if node_id in sides:
+            side, level = sides[node_id]
+        else:
+            side = str(node.get("side") or "downstream")
+            level = int(node.get("level") or 1)
+        column = 0 if side == "root" else (-level if side == "upstream" else level)
+        node["column"] = column
+        node["side"] = side
+        node["level"] = level
+
+    # Node yang dipakai beberapa pemilik (mis. report yang sama) dapat bertabrakan
+    # kolom; geser hanya node rantai report agar report/halaman/visual selalu di
+    # kanan pemakainya. Edge antar-objek model boleh se-kolom (digambar melengkung).
+    for _pass in range(12):
+        changed = False
+        for edge in graph.edges.values():
+            target = graph.nodes.get(edge["to"])
+            source = graph.nodes.get(edge["from"])
+            if source is None or target is None:
+                continue
+            if target.get("group") not in {"report", "page", "usage", "more"}:
+                continue
+            if target["column"] > source["column"]:
+                continue
+            target["column"] = source["column"] + 1
+            changed = True
+        if not changed:
+            break
+
+    by_column: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for node in graph.nodes.values():
+        by_column[int(node["column"])].append(node)
+
+    if not by_column:
+        by_column[0].append(graph.nodes[seed_id])
+
+    for items in by_column.values():
+        items.sort(
+            key=lambda node: (
+                GROUP_ORDER.get(str(node.get("group") or ""), 9),
+                str(node.get("kind") or ""),
+                str(node.get("label") or "").casefold(),
+                str(node.get("id") or ""),
+            )
+        )
+    max_height = max(
+        len(items) * NODE_H + (len(items) - 1) * ROW_GAP
+        for items in by_column.values()
+    )
+    min_column = min(by_column)
+    columns = len(by_column)
+    for column, items in by_column.items():
+        height = len(items) * NODE_H + (len(items) - 1) * ROW_GAP
+        start = PAD + (max_height - height) / 2
+        x = PAD + (column - min_column) * (NODE_W + COL_GAP)
+        for index, node in enumerate(items):
+            node["x"] = x
+            node["y"] = start + index * (NODE_H + ROW_GAP)
+            node["w"] = NODE_W
+            node["h"] = NODE_H
+
+    nodes = [
+        {key: value for key, value in node.items() if not key.startswith("_")}
+        for node in graph.nodes.values()
+    ]
+    nodes.sort(key=lambda node: (node.get("column", 0), node.get("y", 0)))
+    width = PAD * 2 + (columns - 1) * (NODE_W + COL_GAP) + NODE_W
+    height = PAD * 2 + max_height
+    return nodes, width, height
+
+
+def _build_outline(
+    graph: _Graph, seed_id: str, *, expand_repeats: bool = False
+) -> dict[str, Any]:
     """Struktur pohon upstream/downstream untuk tampilan outline."""
     incoming: dict[str, set[str]] = defaultdict(set)
     outgoing: dict[str, set[str]] = defaultdict(set)
     for edge in graph.edges.values():
         outgoing[edge["from"]].add(edge["to"])
         incoming[edge["to"]].add(edge["from"])
+    budget = [OUTLINE_MAX_ROWS]
 
     def sort_key(node_id: str) -> tuple[Any, ...]:
         node = graph.nodes[node_id]
@@ -366,11 +447,18 @@ def _build_outline(graph: _Graph, seed_id: str) -> dict[str, Any]:
                 "count": int(node.get("count") or 0),
                 "children": [],
             }
-            if child_id in seen:
+            repeated = child_id in seen
+            if repeated:
                 item["repeat"] = True
-            elif level <= 10:
-                seen.add(child_id)
-                item["children"] = build(child_id, adjacency, level + 1, seen)
+            if level <= 10 and budget[0] > 0 and (expand_repeats or not repeated):
+                budget[0] -= 1
+                if expand_repeats:
+                    branch = set(seen)
+                    branch.add(child_id)
+                else:
+                    seen.add(child_id)
+                    branch = seen
+                item["children"] = build(child_id, adjacency, level + 1, branch)
             items.append(item)
         return items
 
@@ -390,6 +478,7 @@ def build_lineage(
     depth: int = 4,
     max_nodes: int = MAX_NODES,
     category: str = "all",
+    outline_mode: str = "compact",
 ) -> dict[str, Any]:
     """Susun graph lineage satu kolom/measure dari ``AnalysisResult``.
 
@@ -410,6 +499,9 @@ def build_lineage(
     scope = str(category or "all").strip().lower()
     if scope not in CATEGORIES:
         raise ValueError("Kategori dependensi tidak dikenal.")
+    outline_style = str(outline_mode or "compact").strip().lower()
+    if outline_style not in {"compact", "full"}:
+        raise ValueError("Mode outline harus 'compact' atau 'full'.")
 
     column_analyses: dict[str, Any] = {}
     measure_analyses: dict[str, Any] = {}
@@ -894,74 +986,7 @@ def build_lineage(
             if edge["from"] in allowed_ids and edge["to"] in allowed_ids
         }
 
-    # --- tata letak: upstream negatif, seed 0, downstream positif ---------
-    for node_id, node in graph.nodes.items():
-        if node_id in sides:
-            side, level = sides[node_id]
-        else:
-            side = str(node.get("side") or "downstream")
-            level = int(node.get("level") or 1)
-        column = 0 if side == "root" else (-level if side == "upstream" else level)
-        node["column"] = column
-        node["side"] = side
-        node["level"] = level
-
-    # Node yang dipakai beberapa pemilik (mis. report yang sama) dapat bertabrakan
-    # kolom; geser hanya node rantai report agar report/halaman/visual selalu di
-    # kanan pemakainya. Edge antar-objek model boleh se-kolom (digambar melengkung).
-    for _pass in range(12):
-        changed = False
-        for edge in graph.edges.values():
-            target = graph.nodes.get(edge["to"])
-            source = graph.nodes.get(edge["from"])
-            if source is None or target is None:
-                continue
-            if target.get("group") not in {"report", "page", "usage", "more"}:
-                continue
-            if target["column"] > source["column"]:
-                continue
-            target["column"] = source["column"] + 1
-            changed = True
-        if not changed:
-            break
-
-    by_column: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for node in graph.nodes.values():
-        by_column[int(node["column"])].append(node)
-
-    if not by_column:
-        by_column[0].append(graph.nodes[seed_id])
-
-    for items in by_column.values():
-        items.sort(
-            key=lambda node: (
-                GROUP_ORDER.get(str(node.get("group") or ""), 9),
-                str(node.get("kind") or ""),
-                str(node.get("label") or "").casefold(),
-                str(node.get("id") or ""),
-            )
-        )
-    max_height = max(
-        len(items) * NODE_H + (len(items) - 1) * ROW_GAP
-        for items in by_column.values()
-    )
-    min_column = min(by_column)
-    columns = len(by_column)
-    for column, items in by_column.items():
-        height = len(items) * NODE_H + (len(items) - 1) * ROW_GAP
-        start = PAD + (max_height - height) / 2
-        x = PAD + (column - min_column) * (NODE_W + COL_GAP)
-        for index, node in enumerate(items):
-            node["x"] = x
-            node["y"] = start + index * (NODE_H + ROW_GAP)
-            node["w"] = NODE_W
-            node["h"] = NODE_H
-
-    nodes = [
-        {key: value for key, value in node.items() if not key.startswith("_")}
-        for node in graph.nodes.values()
-    ]
-    nodes.sort(key=lambda node: (node.get("column", 0), node.get("y", 0)))
+    nodes, width, height = _layout_graph(graph, sides, seed_id)
 
     notices: list[dict[str, Any]] = []
     if mode in {"both", "downstream"} and not bool(
@@ -990,14 +1015,275 @@ def build_lineage(
         "m_lineage": m_lineage_meta,
         "nodes": nodes,
         "edges": list(graph.edges.values()),
-        "outline": _build_outline(graph, seed_id),
+        "outline": _build_outline(
+            graph, seed_id, expand_repeats=outline_style == "full"
+        ),
         "groups": [
             {"id": "mquery", "label": "M query"},
             {"id": "model", "label": "Model dependencies"},
             {"id": "report", "label": "Report usage"},
         ],
-        "width": PAD * 2 + (columns - 1) * (NODE_W + COL_GAP) + NODE_W,
-        "height": PAD * 2 + max_height,
+        "width": width,
+        "height": height,
+        "truncated": graph.truncated,
+        "notices": notices,
+    }
+
+
+def _model_node_payload(analysis: Any) -> dict[str, Any] | None:
+    """Payload node model untuk satu ``ColumnAnalysis``/``MeasureAnalysis``."""
+    column = getattr(analysis, "column", None)
+    if column is not None:
+        return {
+            "id": _column_id(column.table, column.column),
+            "kind": "column",
+            "label": column.column,
+            "context": column.table,
+            "status": str(getattr(analysis, "status", "") or ""),
+            "hidden": bool(getattr(column, "is_hidden", False)),
+            "group": "model",
+        }
+    measure = getattr(analysis, "measure", None)
+    if measure is not None:
+        return {
+            "id": _measure_id(measure.table, measure.measure),
+            "kind": "measure",
+            "label": measure.measure,
+            "context": measure.table,
+            "status": str(getattr(analysis, "status", "") or ""),
+            "hidden": bool(getattr(measure, "is_hidden", False)),
+            "group": "model",
+        }
+    return None
+
+
+def build_table_lineage(
+    result: Any,
+    *,
+    table: str,
+    direction: str = "both",
+    depth: int = 4,
+    max_nodes: int = MAX_NODES,
+    outline_mode: str = "compact",
+) -> dict[str, Any]:
+    """Graph lineage level tabel: M query -> tabel -> kolom/measure -> report."""
+    name = str(table or "").strip()
+    if not name:
+        raise ValueError("Nama tabel harus diisi.")
+    mode = str(direction or "both").strip().lower()
+    if mode not in DIRECTIONS:
+        raise ValueError("Arah lineage harus 'both', 'upstream', atau 'downstream'.")
+    try:
+        limit = max(1, min(MAX_DEPTH, int(depth or 4)))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Kedalaman lineage harus angka 1-8.") from exc
+    outline_style = str(outline_mode or "compact").strip().lower()
+    if outline_style not in {"compact", "full"}:
+        raise ValueError("Mode outline harus 'compact' atau 'full'.")
+
+    wanted = name.casefold()
+    column_analyses = [
+        item
+        for item in (getattr(result, "columns", []) or [])
+        if getattr(getattr(item, "column", None), "table", "").casefold() == wanted
+    ]
+    measure_analyses = {
+        _measure_id(item.measure.table, item.measure.measure): item
+        for item in (getattr(result, "measures", []) or [])
+        if getattr(item, "measure", None) is not None
+    }
+    table_measures = [
+        item
+        for item in measure_analyses.values()
+        if item.measure.table.casefold() == wanted
+    ]
+    mqueries: dict[str, dict[str, str]] = {}
+    for item in getattr(result, "m_queries", []) or []:
+        if not isinstance(item, Mapping) or str(item.get("kind") or "") != "Tabel":
+            continue
+        table_name = str(item.get("name") or "")
+        if table_name:
+            mqueries[table_name] = {
+                "source": str(item.get("source") or ""),
+                "expression": str(item.get("expression") or ""),
+            }
+    if not column_analyses and not table_measures and name not in mqueries:
+        raise ValueError(
+            "Tabel tidak ditemukan di hasil analisa. Jalankan analisa ulang."
+        )
+
+    graph = _Graph(max_nodes)
+    seed_id = f"table:{name}"
+    graph.add(
+        {
+            "id": seed_id,
+            "kind": "table",
+            "label": name,
+            "context": "",
+            "group": "selected",
+        }
+    )
+    sides: dict[str, tuple[str, int]] = {seed_id: ("root", 0)}
+    m_lineage_meta: dict[str, Any] | None = None
+
+    if mode in {"both", "upstream"} and name in mqueries:
+        query = mqueries[name]
+        mquery = _mquery_id(name)
+        if graph.add(
+            {
+                "id": mquery,
+                "kind": "mquery",
+                "label": name,
+                "context": query.get("source", ""),
+                "group": "mquery",
+            }
+        ):
+            graph.link(mquery, seed_id, "depend")
+            sides[mquery] = ("upstream", 1)
+        expression = query.get("expression", "")
+        m_lineage_meta = {
+            "table": name,
+            "status": "unavailable",
+            "reason": "Tabel tidak punya ekspresi M.",
+            "warnings": [],
+        }
+        if expression:
+            parsed = build_m_lineage(expression)
+            reason = ""
+            for warning in parsed.warnings:
+                reason = warning.detail
+                break
+            m_lineage_meta = {
+                "table": name,
+                "status": lineage_confidence(parsed),
+                "reason": reason,
+                "warnings": warning_rows(parsed),
+            }
+            if parsed.origin or parsed.source_object:
+                datasource = f"datasource:{name}"
+                if graph.add(
+                    {
+                        "id": datasource,
+                        "kind": "datasource",
+                        "label": str(
+                            parsed.source_object or parsed.origin or "Datasource"
+                        ),
+                        "context": str(parsed.origin or ""),
+                        "group": "mquery",
+                    }
+                ):
+                    graph.link(datasource, mquery, "depend")
+                    sides[datasource] = ("upstream", 2)
+
+    if mode in {"both", "downstream"}:
+        for analysis in sorted(
+            column_analyses, key=lambda item: item.column.column.casefold()
+        ):
+            payload = _model_node_payload(analysis)
+            if payload is None or not graph.add(payload):
+                continue
+            graph.link(seed_id, payload["id"], "depend")
+            sides[payload["id"]] = ("downstream", 1)
+
+        for analysis in column_analyses:
+            column_id = _column_id(analysis.column.table, analysis.column.column)
+            if column_id not in graph.nodes:
+                continue
+            for reference in getattr(analysis, "model_refs", []) or []:
+                if str(reference.kind or "") != "measure":
+                    continue
+                ref_table, ref_name = _parse_object(str(reference.object or ""))
+                measure_id = _measure_id(ref_table, ref_name)
+                target = measure_analyses.get(measure_id)
+                if target is None:
+                    continue
+                payload = _model_node_payload(target)
+                if payload is None:
+                    continue
+                if graph.add(payload):
+                    sides[measure_id] = ("downstream", 2)
+                graph.link(column_id, measure_id, "depend")
+
+        for analysis in table_measures:
+            measure_id = _measure_id(analysis.measure.table, analysis.measure.measure)
+            payload = _model_node_payload(analysis)
+            if payload is None:
+                continue
+            if graph.add(payload):
+                sides[measure_id] = ("downstream", 2)
+            graph.link(seed_id, measure_id, "depend")
+
+        if bool(getattr(result, "reports_included", True)):
+            report_names = {
+                str(item.get("report_id") or ""): str(
+                    item.get("report_name") or item.get("name") or ""
+                )
+                for item in (getattr(result, "reports", []) or [])
+                if isinstance(item, Mapping)
+            }
+            for analysis in column_analyses:
+                column_id = _column_id(analysis.column.table, analysis.column.column)
+                if column_id not in graph.nodes:
+                    continue
+                records = list(getattr(analysis, "report_records", []) or [])
+                if records:
+                    graph.add_report_chain(
+                        owner_id=column_id,
+                        records=records,
+                        base_depth=1,
+                        depth=limit,
+                        report_names=report_names,
+                    )
+            for measure_id, analysis in measure_analyses.items():
+                if measure_id not in graph.nodes:
+                    continue
+                records = list(getattr(analysis, "report_records", []) or [])
+                if records:
+                    graph.add_report_chain(
+                        owner_id=measure_id,
+                        records=records,
+                        base_depth=int(
+                            sides.get(measure_id, ("downstream", 2))[1]
+                        ),
+                        depth=limit,
+                        report_names=report_names,
+                    )
+
+    nodes, width, height = _layout_graph(graph, sides, seed_id)
+
+    notices: list[dict[str, Any]] = []
+    if mode in {"both", "downstream"} and not bool(
+        getattr(result, "reports_included", True)
+    ):
+        notices.append({"code": "reports_excluded"})
+    if graph.truncated:
+        notices.append({"code": "truncated", "count": graph.truncated})
+    if len(graph.edges) == 0:
+        notices.append({"code": "no_dependencies"})
+
+    return {
+        "seed": {
+            "id": seed_id,
+            "kind": "table",
+            "table": name,
+            "name": name,
+        },
+        "direction": mode,
+        "depth": limit,
+        "category": "all",
+        "m_lineage": m_lineage_meta,
+        "nodes": nodes,
+        "edges": list(graph.edges.values()),
+        "outline": _build_outline(
+            graph, seed_id, expand_repeats=outline_style == "full"
+        ),
+        "groups": [
+            {"id": "mquery", "label": "M query"},
+            {"id": "model", "label": "Model dependencies"},
+            {"id": "report", "label": "Report usage"},
+        ],
+        "width": width,
+        "height": height,
         "truncated": graph.truncated,
         "notices": notices,
     }

@@ -393,6 +393,7 @@ class WebLayerTests(unittest.TestCase):
             'id="analysisLineageDirection"',
             'id="analysisLineageView"',
             'id="analysisLineageOutline"',
+            'id="analysisLineageOutlineMode"',
             'id="analysisLineageM"',
             'id="analysisLineageMList"',
             'id="analysisSubmenu"',
@@ -414,6 +415,7 @@ class WebLayerTests(unittest.TestCase):
             "function analysisLineageEdgePath(",
             "function analysisLineageSelect(",
             "function analysisLineageRenderM(",
+            "function analysisLineageViewButtons(",
             "function analysisOpenSubmenu(",
             "function analysisLineageReroot(",
             "function analysisOpenPreview(",
@@ -431,6 +433,8 @@ class WebLayerTests(unittest.TestCase):
             "/api/analysis/details",
             "data-node-id",
             "data-menu-submenu",
+            "data-outline-mode",
+            "table-lineage",
             "node.x",
             "data-node-kind",
         ):
@@ -441,8 +445,10 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("def export_lineage(", presenter)
         self.assertIn("def export_dependencies(", presenter)
         self.assertIn("def lineage_payload(", presenter)
-        self.assertIn("build_lineage", presenter)
+        self.assertIn("build_table_lineage", presenter)
         self.assertIn("def build_lineage(", core)
+        self.assertIn("def build_table_lineage(", core)
+        self.assertIn("OUTLINE_MAX_ROWS", core)
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 

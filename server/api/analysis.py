@@ -48,6 +48,7 @@ def lineage(
     direction: str = Query(default="both"),
     depth: int = Query(default=4, ge=1, le=8),
     category: str = Query(default="all"),
+    outline_mode: str = Query(default="compact"),
 ) -> dict[str, Any]:
     return presenter.lineage_payload(
         settings_of(request),
@@ -58,6 +59,7 @@ def lineage(
         direction=direction,
         depth=depth,
         category=category,
+        outline_mode=outline_mode,
     )
 
 

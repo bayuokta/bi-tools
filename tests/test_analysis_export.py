@@ -66,6 +66,7 @@ class ExportNameTests(unittest.TestCase):
         self.assertEqual(safe_name('Sales/2026: "A"'), "Sales_2026_ _A_")
         self.assertEqual(safe_name(""), "Analisa")
         self.assertEqual(output_stem("Sales", "Amount"), "Sales_Amount")
+        self.assertEqual(output_stem("Sales", "Sales"), "Sales")
 
 
 class LineageExportTests(unittest.TestCase):
@@ -139,6 +140,17 @@ class DependencyExportTests(unittest.TestCase):
         self.assertEqual(rows[0]["kind"], "measure")
         self.assertEqual(rows[1]["report"], "Report Uji")
         self.assertEqual(rows[2]["hidden"], "TRUE")
+
+    def test_rows_for_table_includes_columns_and_measures(self) -> None:
+        rows = dependency_rows(
+            analysis_fixture(), kind="table", table="Sales", name="Sales"
+        )
+        self.assertEqual([row["type"] for row in rows], ["model", "report", "report"])
+        self.assertTrue(all(row["source"] == "'Sales'[Amount]" for row in rows))
+        rows = dependency_rows(
+            analysis_fixture(), kind="table", table="KPI", name="KPI"
+        )
+        self.assertEqual(rows, [])
 
     def test_rows_for_missing_item(self) -> None:
         self.assertEqual(

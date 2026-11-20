@@ -758,7 +758,12 @@
   "M lineage": "Lineage M",
   "M warnings": "Peringatan M",
   "Partial": "Sebagian",
-  "Unavailable": "Tidak tersedia"
+  "Unavailable": "Tidak tersedia",
+  "Table lineage": "Lineage tabel",
+  "Outline mode": "Mode daftar",
+  "Compact": "Ringkas",
+  "Full": "Lengkap",
+  "Open lineage": "Buka lineage"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan
@@ -812,7 +817,9 @@
   "Table.SplitColumn memakai kolom hasil split dinamis.": "Table.SplitColumn uses a dynamic list of split columns.",
   "Table.TransformColumns memakai daftar kolom dinamis.": "Table.TransformColumns uses a dynamic column list.",
   "Table.SplitColumn tanpa argumen lengkap.": "Table.SplitColumn is missing arguments.",
-  "Table.RenameColumns memakai daftar rename dinamis.": "Table.RenameColumns uses a dynamic rename list."
+  "Table.RenameColumns memakai daftar rename dinamis.": "Table.RenameColumns uses a dynamic rename list.",
+  "Nama tabel harus diisi.": "Table name is required.",
+  "Mode outline harus 'compact' atau 'full'.": "Outline mode must be 'compact' or 'full'."
 };
   var serverPatterns = [
     [new RegExp("^Tidak bisa menulis berkas ekspor: (.*)\\. Tutup file yang sedang dibuka lalu coba lagi\\.$"), "Could not write export file: $1. Close the file that is open and try again."],
@@ -824,6 +831,7 @@
     [new RegExp("^Rename kolom dinamis \\(Table.TransformColumnNames\\) tidak bisa dipastikan\\.$"), "Dynamic column rename (Table.TransformColumnNames) cannot be verified."],
     [new RegExp("^Table.Pivot mengubah nama kolom secara dinamis\\.$"), "Table.Pivot changes column names dynamically."],
     [new RegExp("^Table.Combine menggabungkan tabel; kolom tidak bisa dipastikan\\.$"), "Table.Combine merges tables; columns cannot be verified."],
+    [new RegExp("^Tabel tidak ditemukan di hasil analisa\\. Jalankan analisa ulang\\.$"), "Table was not found in the analysis results. Run the analysis again."],
     [new RegExp("^Baris (TMSCHEMA_[A-Z_]+) untuk '(.*)'\\[(.*)\\] tidak ditemukan\\. Jalankan analisa ulang atau periksa nama objek\\.$"), "$1 row for '$2'[$3] was not found. Run the analysis again or check the object name."],
     [new RegExp("^Query data mentah gagal: (.*)$"), "Preview query failed: $1"],
     [new RegExp("^Dipakai di (\\d+) titik pada (\\d+) report\\.$"), "Used at $1 points across $2 reports."],

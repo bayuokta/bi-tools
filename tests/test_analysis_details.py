@@ -122,12 +122,30 @@ class ColumnDetailsTests(unittest.TestCase):
         result, analysis = column_fixture()
         details = item_details(result, analysis, kind="column")
         self.assertEqual(details["model_dependencies"][0]["object"], "'KPI'[Total]")
+        self.assertEqual(
+            details["model_dependencies"][0]["target_kind"], "measure"
+        )
+        self.assertEqual(
+            details["model_dependencies"][0]["target_name"], "Total"
+        )
         self.assertEqual(len(details["relationship_dependencies"]), 2)
         self.assertEqual(
             details["relationship_dependencies"][0]["relationship_type"],
             "Active Many to One",
         )
+        self.assertEqual(
+            details["relationship_dependencies"][0]["target_kind"], "column"
+        )
+        self.assertTrue(
+            details["relationship_dependencies"][0]["target_table"]
+        )
         self.assertEqual(details["key_column_dependencies"][0]["table"], "Dim Date")
+        self.assertEqual(
+            details["key_column_dependencies"][0]["target_kind"], "column"
+        )
+        self.assertEqual(
+            details["key_column_dependencies"][0]["target_name"], "Date"
+        )
         self.assertEqual(details["visual_dependencies"][0]["page"], "Halaman 1")
         self.assertEqual(
             details["page_level_filters_dependencies"][0]["detail"], "Categorical"

@@ -7,6 +7,7 @@ dideteksi tool ini sengaja ``None`` (bukan ``false``) dan dicatat di
 
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable, Mapping
 
 STATUS_LABELS = {
@@ -56,18 +57,59 @@ def _records(analysis: Any) -> list[Mapping[str, Any]]:
     ]
 
 
+def _parse_object(text: str) -> tuple[str, str]:
+    value = str(text or "").strip()
+    match = re.match(r"^'((?:[^']|'')+)'\s*\[([^\]]+)\]$", value)
+    if not match:
+        match = re.match(r"^([^\[\]]+?)\s*\[([^\]]+)\]$", value)
+    if not match:
+        return "", ""
+    return match.group(1).replace("''", "'"), match.group(2)
+
+
+def _target_for_ref(kind: str, object_text: str) -> dict[str, str]:
+    key = str(kind or "").casefold()
+    table, name = _parse_object(object_text)
+    if key == "measure" and table and name:
+        return {
+            "target_kind": "measure",
+            "target_table": table,
+            "target_name": name,
+        }
+    if key in {"calculated column", "calculated table column"} and table and name:
+        return {
+            "target_kind": "column",
+            "target_table": table,
+            "target_name": name,
+        }
+    if key == "calculated table":
+        name = str(object_text or "").strip().strip("'")
+        if name:
+            return {
+                "target_kind": "table",
+                "target_table": name,
+                "target_name": name,
+            }
+    return {}
+
+
 def _ref_rows(refs: Iterable[Any], kinds: Iterable[str]) -> list[dict[str, Any]]:
     wanted = {kind.casefold() for kind in kinds}
-    return [
-        {
-            "kind": str(getattr(ref, "kind", "") or ""),
-            "object": str(getattr(ref, "object", "") or ""),
+    rows: list[dict[str, Any]] = []
+    for ref in refs:
+        kind = str(getattr(ref, "kind", "") or "")
+        if kind.casefold() not in wanted:
+            continue
+        object_text = str(getattr(ref, "object", "") or "")
+        row = {
+            "kind": kind,
+            "object": object_text,
             "detail": str(getattr(ref, "detail", "") or ""),
             "blocking": bool(getattr(ref, "blocking", False)),
         }
-        for ref in refs
-        if str(getattr(ref, "kind", "") or "").casefold() in wanted
-    ]
+        row.update(_target_for_ref(kind, object_text))
+        rows.append(row)
+    return rows
 
 
 def _record_rows(
@@ -125,6 +167,9 @@ def _relationship_rows(
                 "table2": to_table,
                 "relationship_id": str(relation.get("name") or ""),
                 "relationship_type": label,
+                "target_kind": "column",
+                "target_table": to_table if is_from else from_table,
+                "target_name": to_column if is_from else from_column,
             }
         )
         if is_to:
@@ -133,6 +178,9 @@ def _relationship_rows(
                     "table": from_table,
                     "column": from_column,
                     "relationship": str(relation.get("name") or ""),
+                    "target_kind": "column",
+                    "target_table": from_table,
+                    "target_name": from_column,
                 }
             )
     return mine, keys

@@ -48,7 +48,11 @@ def safe_name(value: str, fallback: str = "Analisa") -> str:
 
 
 def output_stem(table: str, name: str) -> str:
-    return safe_name(f"{safe_name(table, 'Tabel')}_{safe_name(name, 'Item')}")
+    safe_table = safe_name(table, "Tabel")
+    safe_item = safe_name(name, "Item")
+    if safe_item.casefold() == safe_table.casefold():
+        return safe_table
+    return safe_name(f"{safe_table}_{safe_item}")
 
 
 def _write_csv(path: Path, fields: Iterable[str], rows: Iterable[Mapping[str, Any]]) -> Path:
@@ -136,6 +140,34 @@ def dependency_rows(
     name: str,
 ) -> list[dict[str, Any]]:
     """Baris datar dependensi model + pemakaian report untuk satu item."""
+    if str(kind or "").strip().lower() == "table":
+        wanted_table = str(table or "").casefold()
+        rows: list[dict[str, Any]] = []
+        for item in getattr(result, "columns", []) or []:
+            node = getattr(item, "column", None)
+            if node is None or str(node.table).casefold() != wanted_table:
+                continue
+            rows.extend(
+                dependency_rows(
+                    result,
+                    kind="column",
+                    table=node.table,
+                    name=node.column,
+                )
+            )
+        for item in getattr(result, "measures", []) or []:
+            node = getattr(item, "measure", None)
+            if node is None or str(node.table).casefold() != wanted_table:
+                continue
+            rows.extend(
+                dependency_rows(
+                    result,
+                    kind="measure",
+                    table=node.table,
+                    name=node.measure,
+                )
+            )
+        return rows
     analysis = _analysis_of(result, kind, table, name)
     if analysis is None:
         return []

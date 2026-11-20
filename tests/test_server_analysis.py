@@ -423,6 +423,30 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(kwargs["depth"], 3)
         self.assertEqual(kwargs["category"], "measures")
 
+    def test_lineage_table_payload_uses_table_builder(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "build_table_lineage", return_value={"nodes": [], "edges": []}
+        ) as build:
+            data = presenter.lineage_payload(
+                self.store,
+                DATASET,
+                "table",
+                "Sales",
+                "Sales",
+                direction="both",
+                depth=4,
+                outline_mode="full",
+            )
+        self.assertEqual(data["nodes"], [])
+        kwargs = build.call_args.kwargs
+        self.assertEqual(kwargs["table"], "Sales")
+        self.assertEqual(kwargs["direction"], "both")
+        self.assertEqual(kwargs["depth"], 4)
+        self.assertEqual(kwargs["outline_mode"], "full")
+
     def test_lineage_invalid_seed_is_extraction_error(self) -> None:
         presenter._session(DATASET)
         with patch.object(
