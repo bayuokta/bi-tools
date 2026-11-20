@@ -91,6 +91,9 @@
     analysisSettings: {},
     analysisRunning: false,
     analysisTimer: null,
+    analysisMenuTarget: null,
+    analysisMenuFocus: null,
+    analysisDetailsExpression: "",
     reportDetail: {},
     reportLoading: {},
     partitions: null,
@@ -1737,6 +1740,22 @@
     filter: '<svg class="row-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16l-6.4 7.4V19l-3.2-1.8v-3.8z"/></svg>',
     hidden: '<svg class="row-ico is-hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 002.8 2.8"/><path d="M9.4 5.3A9.5 9.5 0 0112 5c5 0 9 4.5 9 7a12 12 0 01-2.4 3.6"/><path d="M6.2 6.2A13 13 0 003 12c0 2.5 4 7 9 7a9.6 9.6 0 004.3-1"/></svg>'
   };
+  var MENU_ICONS = {
+    more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
+    expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+    collapse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.8"/><path d="M15 5H6a2 2 0 00-2 2v9"/></svg>',
+    sigma: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 4H6l6 8-6 8h12"/></svg>',
+    lineage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="12" r="2"/><path d="M8 5.8L16 11M8 18.2L16 13"/></svg>',
+    graph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8"/></svg>',
+    details: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>',
+    raw: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg>',
+    dependencies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M12 7v5M12 12l-5 5M12 12l5 5"/></svg>',
+    table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.8"/><path d="M3 9h18M3 14h18M9 9v11"/></svg>',
+    model: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>',
+    export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
+  };
   var ANALYSIS_TABS = {
     all: {
       placeholder: t("Column, measure, or table name"),
@@ -2094,7 +2113,14 @@
         '" target="_blank" rel="noopener">' + escapeHtml(name) + "</a>"
       : escapeHtml(name);
     html += '<span class="name-text" title="' + escapeHtml(name) + '">' +
-      label + "</span></div>";
+      label + "</span>";
+    if (options.menu) {
+      html += '<button type="button" class="row-menu-btn" data-analysis-menu ' +
+        'aria-haspopup="menu" aria-expanded="false" aria-label="' +
+        escapeHtml(t("Item actions")) + '" title="' +
+        escapeHtml(t("Item actions")) + '">' + MENU_ICONS.more + "</button>";
+    }
+    html += "</div>";
     return html;
   }
 
@@ -2108,6 +2134,339 @@
       return Boolean(state.analysisOpen[id]);
     }
     return Boolean(defaultOpen);
+  }
+
+  // -- Menu konteks baris analisa -----------------------------------------
+  function analysisFindItem(kind, table, name) {
+    var result = state.analysis;
+    if (!result) return null;
+    var list = kind === "measure" ? (result.measures || []) : (result.columns || []);
+    var wantTable = String(table || "").toLowerCase();
+    var wantName = String(name || "").toLowerCase();
+    for (var index = 0; index < list.length; index += 1) {
+      var item = list[index];
+      if (String(item.table || "").toLowerCase() === wantTable &&
+          String(item.name || "").toLowerCase() === wantName) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function analysisItemLabel(item) {
+    return "'" + item.table + "'[" + item.name + "]";
+  }
+
+  function analysisRowTarget(node) {
+    return {
+      kind: node.getAttribute("data-item-kind") || "column",
+      table: node.getAttribute("data-item-table") || "",
+      name: node.getAttribute("data-item-name") || ""
+    };
+  }
+
+  function analysisMenuEntries(target) {
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    var isMeasure = target.kind === "measure";
+    var hasChildren = Boolean(item && (item.children || []).length);
+    var canToggle = hasChildren && state.analysisTab === "all";
+    var entries = [
+      {
+        id: "expand",
+        label: t("Expand items below"),
+        icon: "expand",
+        disabled: !canToggle
+      },
+      {
+        id: "collapse",
+        label: t("Collapse items below"),
+        icon: "collapse",
+        disabled: !canToggle
+      },
+      { id: "copy", label: t("Copy text"), icon: "copy" },
+      { divider: true }
+    ];
+    if (isMeasure) {
+      entries.push({ id: "dax", label: t("View DAX expression"), icon: "sigma" });
+    }
+    entries.push(
+      { id: "lineage", label: t("View column lineage"), icon: "lineage", soon: true },
+      {
+        id: "lineage-graph",
+        label: t("View column lineage graph"),
+        icon: "graph",
+        primary: true,
+        soon: true
+      },
+      {
+        id: "details",
+        label: isMeasure ? t("Measure details") : t("Column details"),
+        icon: "details"
+      },
+      {
+        id: "raw",
+        label: isMeasure ? t("Measure raw data") : t("Column raw data"),
+        icon: "raw",
+        soon: true
+      },
+      {
+        id: "dependencies",
+        label: t("View dependencies"),
+        icon: "dependencies",
+        soon: true,
+        submenu: true
+      },
+      {
+        id: "table-options",
+        label: t("Table options"),
+        icon: "table",
+        soon: true,
+        submenu: true
+      },
+      {
+        id: "model-options",
+        label: t("Model options"),
+        icon: "model",
+        soon: true,
+        submenu: true
+      },
+      {
+        id: "exports",
+        label: t("Exports"),
+        icon: "export",
+        soon: true,
+        submenu: true
+      }
+    );
+    return entries;
+  }
+
+  function analysisMenuMarkup(entries) {
+    return entries.map(function (entry) {
+      if (entry.divider) {
+        return '<div class="menu-divider" role="separator"></div>';
+      }
+      var classes = ["menu-item"];
+      var disabled = Boolean(entry.soon || entry.disabled);
+      if (entry.primary) classes.push("is-primary");
+      if (disabled) classes.push("is-disabled");
+      var attrs = ' role="menuitem" tabindex="-1" data-menu-action="' +
+        escapeHtml(entry.id) + '"';
+      if (disabled) attrs += ' aria-disabled="true"';
+      var icon = MENU_ICONS[entry.icon] || "";
+      var badge = entry.soon
+        ? '<span class="menu-badge">' + escapeHtml(t("Soon")) + "</span>"
+        : "";
+      var arrow = entry.submenu
+        ? '<span class="menu-arrow">' + MENU_ICONS.chevron + "</span>"
+        : "";
+      return '<div class="' + classes.join(" ") + '"' + attrs + ">" +
+        '<span class="menu-icon">' + icon + "</span>" +
+        '<span class="menu-label">' + escapeHtml(entry.label) + "</span>" +
+        badge + arrow + "</div>";
+    }).join("");
+  }
+
+  function analysisMenuPlace(anchor) {
+    var menu = $("#analysisMenu");
+    if (!menu) return;
+    menu.hidden = false;
+    menu.style.visibility = "hidden";
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+    var rect = menu.getBoundingClientRect();
+    var left = anchor.x;
+    var top = anchor.y;
+    if (anchor.above != null && top + rect.height > window.innerHeight - 8) {
+      top = anchor.above - rect.height;
+    }
+    left = Math.min(Math.max(8, left), window.innerWidth - rect.width - 8);
+    top = Math.min(Math.max(8, top), window.innerHeight - rect.height - 8);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+    menu.style.visibility = "";
+  }
+
+  function analysisOpenMenu(target, anchor) {
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    var menu = $("#analysisMenu");
+    if (!item || !menu) return;
+    state.analysisMenuTarget = {
+      kind: target.kind,
+      table: item.table,
+      name: item.name
+    };
+    if (!state.analysisMenuFocus || !document.contains(state.analysisMenuFocus)) {
+      state.analysisMenuFocus = document.activeElement;
+    }
+    menu.innerHTML = analysisMenuMarkup(analysisMenuEntries(target));
+    analysisMenuPlace(anchor || { x: 24, y: 24 });
+    if (anchor && anchor.row) {
+      anchor.row.classList.add("is-menu-open");
+      var button = anchor.row.querySelector("[data-analysis-menu]");
+      if (button) button.setAttribute("aria-expanded", "true");
+    }
+    var first = menu.querySelector("[role='menuitem']:not([aria-disabled='true'])");
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function analysisCloseMenu(restoreFocus) {
+    var menu = $("#analysisMenu");
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    menu.innerHTML = "";
+    $$("tr.is-menu-open").forEach(function (row) {
+      row.classList.remove("is-menu-open");
+      var button = row.querySelector("[data-analysis-menu]");
+      if (button) button.setAttribute("aria-expanded", "false");
+    });
+    state.analysisMenuTarget = null;
+    var focus = state.analysisMenuFocus;
+    state.analysisMenuFocus = null;
+    if (restoreFocus && focus && document.contains(focus)) {
+      var target = focus.tagName === "TR" ?
+        focus.querySelector("[data-analysis-menu]") : focus;
+      if (target) target.focus({ preventScroll: true });
+    }
+  }
+
+  function analysisSetSubtree(target, open) {
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    if (!item) return;
+    var id = "item:" + target.kind + ":" + item.table + ":" + item.name;
+    state.analysisForceOpen = null;
+    state.analysisOpen[id] = open;
+    (item.children || []).forEach(function (_group, index) {
+      state.analysisOpen[id + ":g" + index] = open;
+    });
+    analysisRender();
+  }
+
+  function analysisRunMenuAction(action) {
+    var target = state.analysisMenuTarget;
+    if (!target) return;
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    if (!item) {
+      analysisCloseMenu(false);
+      return;
+    }
+    if (action === "expand" || action === "collapse") {
+      analysisSetSubtree(target, action === "expand");
+      return;
+    }
+    if (action === "copy") {
+      copyTextValue(analysisItemLabel(item));
+      analysisCloseMenu(true);
+      return;
+    }
+    if (action === "details" || action === "dax") {
+      analysisCloseMenu(false);
+      analysisOpenDetails(target, action === "dax" ? "dax" : "details");
+      return;
+    }
+    analysisCloseMenu(true);
+  }
+
+  function copyTextValue(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        toast(t("Copied to clipboard"));
+      }).catch(function () {
+        toast(t("Copy failed"));
+      });
+      return;
+    }
+    try {
+      var area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      document.body.appendChild(area);
+      area.select();
+      var copied = document.execCommand("copy");
+      document.body.removeChild(area);
+      toast(copied ? t("Copied to clipboard") : t("Copy failed"));
+    } catch (error) {
+      toast(t("Copy failed"));
+    }
+  }
+
+  function analysisDetailRow(label, value) {
+    var text = (value === undefined || value === null || value === "") ?
+      "\u2014" : String(value);
+    return '<div class="detail-row"><span class="detail-key">' +
+      escapeHtml(label) + '</span><span class="detail-value">' +
+      escapeHtml(text) + "</span></div>";
+  }
+
+  function analysisDetailsMarkup(item, kind) {
+    var rows;
+    var hasError = item.has_error ? t("Yes") : t("No");
+    if (kind === "measure") {
+      rows = [
+        [t("Table"), item.table],
+        [t("Type"), item.is_hidden ? t("Measure") + " \u00b7 " + t("Hidden") : t("Measure")],
+        [t("Data type"), item.data_type],
+        [t("Format string"), item.format_string],
+        [t("Display folder"), item.display_folder],
+        [t("Status"), tStatus(item.status)],
+        [t("Reason"), tr(item.reason)],
+        [t("Uses"), item.uses],
+        [t("Reports"), item.reports],
+        [t("Has error"), hasError]
+      ];
+    } else {
+      var breakdown = item.size_breakdown || {};
+      rows = [
+        [t("Table"), item.table],
+        [t("Type"), item.is_calculated ? t("Calculated column") : t("Column")],
+        [t("Data type"), item.data_type],
+        [t("Size"), item.size],
+        [t("Data size"), analysisFmtBytes(breakdown.data || 0)],
+        [t("Hierarchy size"), analysisFmtBytes(breakdown.hierarchy || 0)],
+        [t("Dictionary size"), analysisFmtBytes(breakdown.dictionary || 0)],
+        [t("Rows"), item.rows],
+        [t("Format string"), item.format_string],
+        [t("Display folder"), item.display_folder],
+        [t("Hidden"), item.is_hidden ? t("Yes") : t("No")],
+        [t("Status"), tStatus(item.status)],
+        [t("Reason"), tr(item.reason)],
+        [t("Uses"), item.uses],
+        [t("Reports"), item.reports],
+        [t("Has error"), hasError]
+      ];
+    }
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    if (item.expression) {
+      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+        '</h3><pre class="detail-code">' + escapeHtml(item.expression) + "</pre>";
+    }
+    return html;
+  }
+
+  function analysisOpenDetails(target, mode) {
+    var item = analysisFindItem(target.kind, target.table, target.name);
+    var dialog = $("#analysisDetailsDialog");
+    if (!item || !dialog) return;
+    var isMeasure = target.kind === "measure";
+    $("#analysisDetailsTitle").textContent = mode === "dax"
+      ? t("DAX expression")
+      : (isMeasure ? t("Measure details") : t("Column details"));
+    $("#analysisDetailsSub").textContent = analysisItemLabel(item);
+    state.analysisDetailsExpression = String(item.expression || "");
+    if (mode === "dax") {
+      $("#analysisDetailsBody").innerHTML = item.expression
+        ? '<pre class="detail-code">' + escapeHtml(item.expression) + "</pre>"
+        : '<p class="detail-empty">' + escapeHtml(t("(no DAX expression)")) + "</p>";
+    } else {
+      $("#analysisDetailsBody").innerHTML = analysisDetailsMarkup(item, target.kind);
+    }
+    $("#copyAnalysisExpression").hidden = !item.expression;
+    if (dialog.open) dialog.close();
+    dialog.showModal();
   }
 
   function analysisTableSummary(used, total, statuses) {
@@ -2260,9 +2619,10 @@
         level: 0,
         group: true,
         itemRow: true,
+        item: { kind: item.kind, table: data.table || "", name: data.name || "" },
         cells: [
           analysisNameCell(data.name, item.kind === "measure" ? "measure" : "column", {
-            level: 0, toggleId: expandable ? id : "", open: open
+            level: 0, toggleId: expandable ? id : "", open: open, menu: true
           }),
           item.kind === "measure" ? "Measure" : "Kolom",
           escapeHtml(data.table || "—"),
@@ -2368,8 +2728,10 @@
             if (measure.status === "Tidak dipakai") unused += 1;
             rows.push({
               level: 2,
+              itemRow: true,
+              item: { kind: "measure", table: measure.table || "", name: measure.name || "" },
               cells: [
-                analysisNameCell(measure.name, "measure", { level: 2 }),
+                analysisNameCell(measure.name, "measure", { level: 2, menu: true }),
                 "Measure", escapeHtml(group.name), "Model", "DAX", "0 B",
                 analysisStatusChip(measure.status), String(measure.uses || 0), "—", "—"
               ],
@@ -2398,8 +2760,10 @@
             if (column.status === "Tidak dipakai") unused += 1;
             rows.push({
               level: 2,
+              itemRow: true,
+              item: { kind: "column", table: column.table || "", name: column.name || "" },
               cells: [
-                analysisNameCell(column.name, "column", { level: 2 }),
+                analysisNameCell(column.name, "column", { level: 2, menu: true }),
                 t("Column"), escapeHtml(group.name), "Model",
                 escapeHtml(column.data_type || "—"), escapeHtml(column.size || "—"),
                 analysisStatusChip(column.status), String(column.uses || 0), "—", "—"
@@ -3090,6 +3454,11 @@
       if (row.cls) classes.push(row.cls);
       var attrs = classes.length ? ' class="' + classes.join(" ") + '"' : "";
       if (row.group) attrs += ' data-level="' + level + '"';
+      if (row.item) {
+        attrs += ' data-item-kind="' + escapeHtml(row.item.kind) +
+          '" data-item-table="' + escapeHtml(row.item.table) +
+          '" data-item-name="' + escapeHtml(row.item.name) + '"';
+      }
       var html = row.cells.map(function (cell, index) {
         var tdClasses = [];
         if (index === 0) tdClasses.push("cell-name");
@@ -3103,6 +3472,7 @@
   }
 
   function analysisRender() {
+    analysisCloseMenu(false);
     var result = state.analysis;
     analysisTabCounts();
     $$("#analyzeTabs [role='tab']").forEach(function (tab) {
@@ -4810,6 +5180,22 @@
       analysisSetSort(header.getAttribute("data-analysis-sort"));
     });
     $("#analyzeBody").addEventListener("click", function (event) {
+      var menuButton = event.target.closest("[data-analysis-menu]");
+      if (menuButton) {
+        var menuRow = menuButton.closest("tr[data-item-kind]");
+        if (!menuRow) return;
+        event.preventDefault();
+        event.stopPropagation();
+        state.analysisMenuFocus = menuButton;
+        var buttonRect = menuButton.getBoundingClientRect();
+        analysisOpenMenu(analysisRowTarget(menuRow), {
+          x: buttonRect.left,
+          y: buttonRect.bottom + 4,
+          above: buttonRect.top - 4,
+          row: menuRow
+        });
+        return;
+      }
       var toggle = event.target.closest("[data-analysis-toggle]");
       if (!toggle) return;
       event.preventDefault();
@@ -4818,12 +5204,101 @@
       state.analysisOpen[key] = !analysisIsOpen(key, false);
       analysisRender();
     });
+    $("#analyzeBody").addEventListener("contextmenu", function (event) {
+      var row = event.target.closest("tr[data-item-kind]");
+      if (!row) return;
+      event.preventDefault();
+      state.analysisMenuFocus = row;
+      analysisOpenMenu(analysisRowTarget(row), {
+        x: event.clientX,
+        y: event.clientY,
+        above: event.clientY,
+        row: row
+      });
+    });
     $("#analyzeBody").addEventListener("keydown", function (event) {
+      if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
+        var menuRow = event.target.closest("tr[data-item-kind]");
+        if (!menuRow) return;
+        event.preventDefault();
+        var rowRect = menuRow.getBoundingClientRect();
+        state.analysisMenuFocus = menuRow;
+        analysisOpenMenu(analysisRowTarget(menuRow), {
+          x: rowRect.left + 28,
+          y: rowRect.top + Math.min(rowRect.height, 28),
+          above: rowRect.top,
+          row: menuRow
+        });
+        return;
+      }
       if (event.key !== "Enter" && event.key !== " ") return;
       var toggle = event.target.closest("[data-analysis-toggle]");
       if (!toggle) return;
       event.preventDefault();
       toggle.click();
+    });
+    $("#analysisMenu").addEventListener("click", function (event) {
+      var entry = event.target.closest("[data-menu-action]");
+      if (!entry || entry.getAttribute("aria-disabled") === "true") return;
+      event.preventDefault();
+      analysisRunMenuAction(entry.getAttribute("data-menu-action"));
+    });
+    $("#analysisMenu").addEventListener("keydown", function (event) {
+      var items = $$("#analysisMenu [role='menuitem']:not([aria-disabled='true'])");
+      if (!items.length) return;
+      var index = items.indexOf(document.activeElement);
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        index = index < 0 ? 0 : (index + 1) % items.length;
+        items[index].focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        index = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length;
+        items[index].focus();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        items[0].focus();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        items[items.length - 1].focus();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        analysisCloseMenu(true);
+      } else if (event.key === "Tab") {
+        analysisCloseMenu(false);
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (document.activeElement) document.activeElement.click();
+      }
+    });
+    document.addEventListener("pointerdown", function (event) {
+      if (!state.analysisMenuTarget) return;
+      if (event.target.closest("#analysisMenu")) return;
+      if (event.target.closest("[data-analysis-menu]")) return;
+      analysisCloseMenu(false);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && state.analysisMenuTarget) {
+        analysisCloseMenu(true);
+      }
+    });
+    window.addEventListener("resize", function () {
+      analysisCloseMenu(false);
+    });
+    $("#analyzeTableWrap").addEventListener("scroll", function () {
+      analysisCloseMenu(false);
+    }, { passive: true });
+    $("#closeAnalysisDetails").addEventListener("click", function () {
+      $("#analysisDetailsDialog").close();
+    });
+    $("#doneAnalysisDetails").addEventListener("click", function () {
+      $("#analysisDetailsDialog").close();
+    });
+    $("#copyAnalysisExpression").addEventListener("click", function () {
+      copyTextValue(state.analysisDetailsExpression || "");
+    });
+    $("#analysisDetailsDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) $("#analysisDetailsDialog").close();
     });
     $("#analyzeTabs").addEventListener("keydown", function (event) {
       var keys = ["ArrowRight", "ArrowLeft", "Home", "End"];

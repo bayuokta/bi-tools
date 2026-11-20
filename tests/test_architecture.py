@@ -335,6 +335,49 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("load_snapshot", presenter)
         self.assertIn("include_reports", presenter)
 
+    def test_web_analysis_context_menu_phase_one(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        for marker in (
+            'id="analysisMenu"',
+            'id="analysisDetailsDialog"',
+            'id="analysisDetailsBody"',
+            'id="copyAnalysisExpression"',
+        ):
+            self.assertIn(marker, html)
+        for marker in (
+            "function analysisOpenMenu(",
+            "function analysisCloseMenu(",
+            "function analysisMenuEntries(",
+            "function analysisDetailsMarkup(",
+            "function analysisOpenDetails(",
+            "function copyTextValue(",
+            'addEventListener("contextmenu"',
+            "data-analysis-menu",
+            "data-item-kind",
+            'aria-disabled="true"',
+        ):
+            self.assertIn(marker, js)
+        for label in (
+            "Expand items below",
+            "Collapse items below",
+            "Copy text",
+            "View DAX expression",
+            "View column lineage",
+            "View column lineage graph",
+            "Column details",
+            "Measure details",
+            "View dependencies",
+            "Table options",
+            "Model options",
+            "Exports",
+        ):
+            self.assertIn(label, js)
+        for marker in (".context-menu", ".menu-item", ".row-menu-btn", ".detail-code"):
+            self.assertIn(marker, css)
+        self.assertNotIn("Fact Sales[Order Date Key]", js)
+
     def test_web_analysis_has_six_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for tab in ("all", "tables", "relationships", "report", "dax", "m"):

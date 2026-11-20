@@ -27,6 +27,12 @@ database.
   menjelaskan bahwa pemakaian report tidak disertakan. CLI mendapat opsi
   `--model-only`.
 - Preferensi baru `analysis/include_reports`.
+- Baris kolom/measure bisa diklik kanan (atau tombol `⋮`, `Shift+F10`) untuk
+  membuka menu aksi: buka/tutup item di bawah, salin `'Tabel'[Nama]`, lihat
+  detail kolom/measure (ukuran, tipe, status, alasan, pemakaian, ekspresi), dan
+  lihat ekspresi DAX measure. Item lineage graph, raw data, dependensi, opsi
+  tabel/model, dan ekspor sudah tampil dengan badge **Soon** dan akan diisi
+  bertahap.
 
 ## 2026-11-19 - Rilis 0.4.4
 

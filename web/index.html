@@ -1219,6 +1219,25 @@
   </div>
 </dialog>
 
+<div class="context-menu" id="analysisMenu" role="menu" aria-label="Item actions" data-i18n-aria-label="Item actions" hidden></div>
+
+<dialog class="dialog dialog--details" id="analysisDetailsDialog" aria-labelledby="analysisDetailsTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisDetailsTitle">Details</h2>
+      <p class="helper mono" id="analysisDetailsSub"></p>
+    </div>
+    <button class="dialog-close" id="closeAnalysisDetails" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body" id="analysisDetailsBody"></div>
+  <div class="dialog-foot">
+    <button class="btn" id="copyAnalysisExpression" type="button" data-i18n="Copy expression">Copy expression</button>
+    <button class="btn btn-primary" id="doneAnalysisDetails" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
 <div class="combo-popup" id="comboPopup" hidden>
   <input class="input combo-search" id="comboSearch" type="search" placeholder="Search options." autocomplete="off" aria-label="Search options" data-i18n-placeholder="Search options." data-i18n-aria-label="Search options">
   <div class="combo-list" id="comboList" role="listbox"></div>
