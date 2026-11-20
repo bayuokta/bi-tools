@@ -394,6 +394,8 @@ class WebLayerTests(unittest.TestCase):
             'id="analysisLineageView"',
             'id="analysisLineageOutline"',
             'id="analysisLineageOutlineMode"',
+            'id="analysisLineageExportSvg"',
+            'id="analysisLineageExportPng"',
             'id="analysisLineageM"',
             'id="analysisLineageMList"',
             'id="analysisSubmenu"',
@@ -413,6 +415,9 @@ class WebLayerTests(unittest.TestCase):
             "function analysisLineageRender(",
             "function analysisLineageOutlineMarkup(",
             "function analysisLineageEdgePath(",
+            "function analysisLineageEdgeRoutes(",
+            "function analysisLineageSvgDocument(",
+            "function analysisExportLineageImage(",
             "function analysisLineageSelect(",
             "function analysisLineageRenderM(",
             "function analysisLineageViewButtons(",
@@ -428,6 +433,7 @@ class WebLayerTests(unittest.TestCase):
             "function analysisExportDependencies(",
             "function analysisCopyMermaid(",
             "/api/analysis/lineage",
+            "/api/analysis/lineage/image",
             "/api/analysis/preview",
             "/api/analysis/raw-metadata",
             "/api/analysis/details",
@@ -443,6 +449,7 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("def raw_metadata_payload(", presenter)
         self.assertIn("def details_payload(", presenter)
         self.assertIn("def export_lineage(", presenter)
+        self.assertIn("def export_lineage_image(", presenter)
         self.assertIn("def export_dependencies(", presenter)
         self.assertIn("def lineage_payload(", presenter)
         self.assertIn("build_table_lineage", presenter)

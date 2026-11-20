@@ -2455,6 +2455,16 @@
     if (action === "exports") {
       return [
         {
+          action: "export-lineage-svg",
+          label: "Lineage graph (SVG)",
+          icon: "export"
+        },
+        {
+          action: "export-lineage-png",
+          label: "Lineage graph (PNG)",
+          icon: "export"
+        },
+        {
           action: "export-lineage-csv",
           label: "Lineage nodes & edges (CSV)",
           icon: "export"
@@ -2684,6 +2694,14 @@
       else showView("pengaturan");
       return;
     }
+    if (action === "export-lineage-svg" || action === "export-lineage-png") {
+      analysisCloseMenu(false);
+      analysisExportLineageImage(
+        target,
+        action === "export-lineage-png" ? "png" : "svg"
+      );
+      return;
+    }
     if (action === "export-lineage-csv" || action === "export-lineage-json") {
       analysisCloseMenu(false);
       analysisExportLineage(target, action === "export-lineage-json" ? "json" : "csv");
@@ -2858,6 +2876,189 @@
       }
       toast(t("Export: ") + data.path);
       api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
+    }).catch(reportError);
+  }
+
+  function analysisLineageSvgPalette() {
+    function css(name, fallback) {
+      var value = getComputedStyle(document.documentElement)
+        .getPropertyValue(name);
+      return String(value || "").trim() || fallback;
+    }
+    return {
+      background: css("--surface-2", "#1b212b"),
+      surface: css("--surface", "#151a22"),
+      surface3: css("--surface-3", "#222a36"),
+      border: css("--border", "#28303d"),
+      borderStrong: css("--border-strong", "#3a4556"),
+      text: css("--text", "#e9edf3"),
+      text3: css("--text-3", "#7f8b9c"),
+      accent: css("--accent", "#f2c811"),
+      warn: css("--warn", "#f0b44c"),
+      groups: {
+        mquery: css("--node-flow", "#b49bff"),
+        model: css("--node-model", "#8fb3ff"),
+        report: css("--node-report", "#63ce9b"),
+        page: css("--node-table", "#79c9ec"),
+        usage: css("--node-neutral", "#b6c1d1"),
+        more: css("--text-3", "#7f8b9c"),
+        selected: css("--accent", "#f2c811")
+      },
+      edges: {
+        usage: css("--node-report", "#63ce9b"),
+        page: css("--node-report", "#63ce9b"),
+        visual: css("--node-report", "#63ce9b"),
+        filter: css("--warn", "#f0b44c"),
+        sort: css("--node-table", "#79c9ec")
+      }
+    };
+  }
+
+  function analysisLineageSvgClip(value, maxChars) {
+    var text = String(value == null ? "" : value);
+    if (text.length <= maxChars) return text;
+    return text.slice(0, Math.max(1, maxChars - 1)) + "\u2026";
+  }
+
+  function analysisLineageSvgDocument(graph) {
+    var palette = analysisLineageSvgPalette();
+    var width = Math.max(1, Number(graph.width) || 1);
+    var height = Math.max(1, Number(graph.height) || 1);
+    var routes = analysisLineageEdgeRoutes(graph);
+    var edges = (graph.edges || []).map(function (edge, index) {
+      var path = routes[index];
+      if (!path) return "";
+      var stroke = palette.edges[edge.kind] || palette.borderStrong;
+      var dash = edge.kind === "filter"
+        ? ' stroke-dasharray="5 4"'
+        : (edge.kind === "sort" ? ' stroke-dasharray="3 3"' : "");
+      return '<path d="' + path + '" fill="none" stroke="' + stroke +
+        '" stroke-width="1.4"' + dash +
+        ' marker-end="url(#lineageExportArrow)"/>';
+    }).join("");
+    var nodes = (graph.nodes || []).map(function (node) {
+      var group = node.group || "model";
+      var color = palette.groups[group] || palette.borderStrong;
+      var seed = node.side === "root";
+      var stroke = seed ? palette.accent : palette.border;
+      var strokeWidth = seed ? 2 : 1;
+      var context = analysisLineageContext(node);
+      var kind = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
+      var sub = kind + (context ? " \u00b7 " + context : "");
+      var status = node.status ? String(tStatus(node.status)).toUpperCase() : "";
+      var count = Number(node.count) > 1 ? String(Number(node.count)) : "";
+      var title = analysisLineageSvgClip(node.label, 28);
+      var detail = analysisLineageSvgClip(sub, 40);
+      return '<g transform="translate(' + node.x + ',' + node.y + ')">' +
+        '<rect width="' + node.w + '" height="' + node.h +
+        '" rx="8" fill="' + palette.surface + '" stroke="' + stroke +
+        '" stroke-width="' + strokeWidth + '"/>' +
+        '<rect width="4" height="' + node.h + '" rx="2" fill="' + color + '"/>' +
+        '<text x="14" y="22" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="12.5" font-weight="600" fill="' + palette.text + '">' +
+        escapeHtml(title) + '</text>' +
+        '<text x="14" y="40" font-family="Segoe UI, Arial, sans-serif" ' +
+        'font-size="10.5" fill="' + palette.text3 + '">' +
+        escapeHtml(detail) + '</text>' +
+        (status
+          ? '<text x="14" y="55" font-family="Segoe UI, Arial, sans-serif" ' +
+            'font-size="9.5" font-weight="600" letter-spacing="0.5" fill="' +
+            palette.text3 + '">' + escapeHtml(status) + '</text>'
+          : "") +
+        (count
+          ? '<rect x="' + (node.w - 32) + '" y="10" width="22" height="16" ' +
+            'rx="8" fill="' + palette.surface3 + '"/>' +
+            '<text x="' + (node.w - 21) + '" y="21" text-anchor="middle" ' +
+            'font-family="Segoe UI, Arial, sans-serif" font-size="10" fill="' +
+            palette.text3 + '">' + escapeHtml(count) + '</text>'
+          : "") +
+        "</g>";
+    }).join("");
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width +
+      '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '">' +
+      '<defs><marker id="lineageExportArrow" viewBox="0 0 8 8" refX="7" ' +
+      'refY="4" markerWidth="6" markerHeight="6" orient="auto">' +
+      '<path d="M0 0L8 4L0 8z" fill="' + palette.borderStrong + '"/>' +
+      "</marker></defs>" +
+      '<rect width="' + width + '" height="' + height + '" fill="' +
+      palette.background + '"/>' +
+      '<g>' + edges + "</g><g>" + nodes + "</g></svg>";
+  }
+
+  function analysisLineagePngData(svg) {
+    return new Promise(function (resolve, reject) {
+      var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var image = new Image();
+      image.onload = function () {
+        try {
+          var longest = Math.max(image.width, image.height, 1);
+          var scale = Math.max(0.5, Math.min(2, 8000 / longest));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.width * scale));
+          canvas.height = Math.max(1, Math.round(image.height * scale));
+          var context = canvas.getContext("2d");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/png"));
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          reject(error);
+        }
+      };
+      image.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error(t("Image export failed")));
+      };
+      image.src = url;
+    });
+  }
+
+  function analysisLineageTargetMatches(target) {
+    var current = state.analysisLineageTarget;
+    return Boolean(
+      current && state.analysisLineage &&
+      current.kind === target.kind &&
+      current.table === target.table &&
+      current.name === target.name
+    );
+  }
+
+  function analysisLineageFetchGraph(target) {
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId || !apiReady()) {
+      return Promise.reject(new Error(t("Run the analysis first")));
+    }
+    var path = "/api/analysis/lineage?dataset_id=" +
+      encodeURIComponent(datasetId) +
+      "&kind=" + encodeURIComponent(target.kind) +
+      "&table=" + encodeURIComponent(target.table) +
+      "&name=" + encodeURIComponent(target.name) +
+      "&direction=both&category=all&outline_mode=compact&depth=4";
+    return api().get(path);
+  }
+
+  function analysisExportLineageImage(target, format) {
+    if (!target) return;
+    var graphPromise = analysisLineageTargetMatches(target)
+      ? Promise.resolve(state.analysisLineage)
+      : analysisLineageFetchGraph(target);
+    graphPromise.then(function (graph) {
+      var svg = analysisLineageSvgDocument(graph);
+      return (format === "png" ? analysisLineagePngData(svg) : Promise.resolve(svg))
+        .then(function (content) {
+          return api().post("/api/analysis/lineage/image", {
+            table: target.table,
+            name: target.name || target.table,
+            format: format,
+            content: content
+          });
+        });
+    }).then(function (data) {
+      if (!data || !data.path) return;
+      toast(t("Export: ") + data.path);
+      api().post("/api/files/open", { path: data.path, mode: "open" })
+        .catch(function () {});
     }).catch(reportError);
   }
 
@@ -3432,6 +3633,8 @@
     $("#analysisLineageOutlineMode").hidden = !outline;
     var zoom = $("#analysisLineageZoomOut");
     if (zoom) zoom.closest(".graph-zoom").hidden = outline;
+    var exportGroup = $("#analysisLineageExport");
+    if (exportGroup) exportGroup.hidden = outline;
     analysisLineageViewButtons();
   }
 
@@ -3516,14 +3719,15 @@
     (graph.nodes || []).forEach(function (node) {
       byId[node.id] = node;
     });
-    $("#analysisLineageEdges").innerHTML = (graph.edges || []).map(function (edge) {
+    var routes = analysisLineageEdgeRoutes(graph);
+    $("#analysisLineageEdges").innerHTML = (graph.edges || []).map(function (edge, index) {
       var source = byId[edge.from];
       var target = byId[edge.to];
       if (!source || !target) return "";
       return '<path class="lineage-edge kind-' + escapeHtml(edge.kind || "depend") +
         '" data-edge-from="' + escapeHtml(edge.from) +
         '" data-edge-to="' + escapeHtml(edge.to) +
-        '" d="' + analysisLineageEdgePath(source, target) +
+        '" d="' + (routes[index] || analysisLineageEdgePath(source, target)) +
         '" marker-end="url(#lineageArrow)"></path>';
     }).join("");
     $("#analysisLineageNodes").innerHTML = (graph.nodes || []).map(
@@ -3670,6 +3874,78 @@
       return '<li><details class="lo-branch" open><summary>' + row +
         "</summary>" + children + "</details></li>";
     }).join("") + "</ul>";
+  }
+
+  function analysisLineageRoutePath(x1, y1, laneX, y2, x2) {
+    if (Math.abs(y2 - y1) < 1) {
+      return "M" + x1 + " " + y1 + " H" + x2;
+    }
+    var radius = Math.min(
+      10,
+      Math.abs(y2 - y1) / 2,
+      Math.abs(laneX - x1) / 2,
+      Math.abs(x2 - laneX) / 2
+    );
+    var direction = y2 > y1 ? 1 : -1;
+    return "M" + x1 + " " + y1 +
+      " H" + (laneX - radius) +
+      " Q" + laneX + " " + y1 + " " + laneX + " " + (y1 + direction * radius) +
+      " V" + (y2 - direction * radius) +
+      " Q" + laneX + " " + y2 + " " + (laneX + radius) + " " + y2 +
+      " H" + x2;
+  }
+
+  function analysisLineageEdgeRoutes(graph) {
+    var nodes = {};
+    (graph.nodes || []).forEach(function (node) {
+      nodes[node.id] = node;
+    });
+    var groups = {};
+    var backward = [];
+    (graph.edges || []).forEach(function (edge, index) {
+      var source = nodes[edge.from];
+      var target = nodes[edge.to];
+      if (!source || !target) return;
+      var x1 = source.x + source.w;
+      var y1 = source.y + source.h / 2;
+      var x2 = target.x;
+      var y2 = target.y + target.h / 2;
+      if (x2 > x1 + 8) {
+        var key = Math.round(x1) + ":" + Math.round(x2);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push({ index: index, x1: x1, y1: y1, x2: x2, y2: y2 });
+      } else {
+        backward.push({
+          index: index,
+          x1: x1,
+          y1: y1,
+          x2: target.x + target.w,
+          y2: y2
+        });
+      }
+    });
+    var routes = {};
+    Object.keys(groups).forEach(function (key) {
+      var items = groups[key].slice().sort(function (left, right) {
+        return left.y2 - right.y2 || left.y1 - right.y1;
+      });
+      var gap = items[0].x2 - items[0].x1;
+      items.forEach(function (item, index) {
+        var fraction = items.length === 1
+          ? 0.5
+          : 0.18 + 0.64 * (index / (items.length - 1));
+        var laneX = item.x1 + gap * fraction;
+        routes[item.index] = analysisLineageRoutePath(
+          item.x1, item.y1, laneX, item.y2, item.x2
+        );
+      });
+    });
+    backward.forEach(function (item, index) {
+      var outer = Math.max(item.x1, item.x2) + 24 + (index % 5) * 7;
+      routes[item.index] = "M" + item.x1 + " " + item.y1 +
+        " H" + outer + " V" + item.y2 + " H" + item.x2;
+    });
+    return routes;
   }
 
   function analysisLineageEdgePath(source, target) {
@@ -6883,6 +7159,12 @@
       analysisLineageZoomBy(1 / 1.25);
     });
     $("#analysisLineageZoomFit").addEventListener("click", analysisLineageFit);
+    $("#analysisLineageExportSvg").addEventListener("click", function () {
+      analysisExportLineageImage(state.analysisLineageTarget, "svg");
+    });
+    $("#analysisLineageExportPng").addEventListener("click", function () {
+      analysisExportLineageImage(state.analysisLineageTarget, "png");
+    });
     $("#analysisLineageDirection").addEventListener("click", function (event) {
       var button = event.target.closest("[data-lineage-direction]");
       if (!button) return;

@@ -596,6 +596,32 @@ class AnalysisPresenterTests(unittest.TestCase):
                     self.store, DATASET, "column", "Dim Customer", "Customer Name"
                 )
 
+    def test_export_lineage_image_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(presenter, "outputs_dir", return_value=Path(tmp)):
+                data = presenter.export_lineage_image(
+                    self.store,
+                    {
+                        "table": "Sales",
+                        "name": "Amount",
+                        "format": "svg",
+                        "content": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                    },
+                )
+            self.assertTrue(data["path"].endswith("_lineage.svg"))
+            self.assertTrue(Path(data["path"]).exists())
+            with patch.object(presenter, "outputs_dir", return_value=Path(tmp)):
+                with self.assertRaises(ExtractionError):
+                    presenter.export_lineage_image(
+                        self.store,
+                        {
+                            "table": "Sales",
+                            "name": "Amount",
+                            "format": "png",
+                            "content": "not-a-png",
+                        },
+                    )
+
     def test_export_dependencies_writes_csv(self) -> None:
         presenter._session(DATASET)
         with tempfile.TemporaryDirectory() as tmp:
@@ -691,6 +717,23 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.assertEqual(mock.call_args.kwargs["direction"], "downstream")
         self.assertEqual(mock.call_args.kwargs["depth"], 3)
         self.assertEqual(mock.call_args.kwargs["category"], "reports")
+
+    def test_lineage_image_endpoint_delegates(self) -> None:
+        payload = {
+            "format": "svg",
+            "content": "<svg></svg>",
+            "table": "KPI",
+            "name": "Total",
+        }
+        with patch.object(
+            presenter, "export_lineage_image", return_value={"path": "x.svg"}
+        ) as mock:
+            response = self.client.post(
+                "/api/analysis/lineage/image", json=payload
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["path"], "x.svg")
+        self.assertEqual(mock.call_args.args[1], payload)
 
     def test_lineage_endpoint_rejects_bad_depth(self) -> None:
         response = self.client.get(

@@ -763,7 +763,13 @@
   "Outline mode": "Mode daftar",
   "Compact": "Ringkas",
   "Full": "Lengkap",
-  "Open lineage": "Buka lineage"
+  "Open lineage": "Buka lineage",
+  "Lineage graph (SVG)": "Grafik lineage (SVG)",
+  "Lineage graph (PNG)": "Grafik lineage (PNG)",
+  "Export lineage graph": "Ekspor grafik lineage",
+  "Export lineage graph (SVG)": "Ekspor grafik lineage (SVG)",
+  "Export lineage graph (PNG)": "Ekspor grafik lineage (PNG)",
+  "Image export failed": "Ekspor gambar gagal"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan
@@ -819,6 +825,12 @@
   "Table.SplitColumn tanpa argumen lengkap.": "Table.SplitColumn is missing arguments.",
   "Table.RenameColumns memakai daftar rename dinamis.": "Table.RenameColumns uses a dynamic rename list.",
   "Nama tabel harus diisi.": "Table name is required.",
+  "Format gambar harus svg atau png.": "Image format must be svg or png.",
+  "Isi gambar lineage kosong.": "Lineage image content is empty.",
+  "Isi SVG tidak valid.": "SVG content is not valid.",
+  "SVG tidak boleh memuat script.": "SVG must not contain scripts.",
+  "Data PNG tidak valid.": "PNG data is not valid.",
+  "Ukuran gambar melebihi 25 MB.": "Image size exceeds 25 MB.",
   "Mode outline harus 'compact' atau 'full'.": "Outline mode must be 'compact' or 'full'."
 };
   var serverPatterns = [
@@ -831,6 +843,7 @@
     [new RegExp("^Rename kolom dinamis \\(Table.TransformColumnNames\\) tidak bisa dipastikan\\.$"), "Dynamic column rename (Table.TransformColumnNames) cannot be verified."],
     [new RegExp("^Table.Pivot mengubah nama kolom secara dinamis\\.$"), "Table.Pivot changes column names dynamically."],
     [new RegExp("^Table.Combine menggabungkan tabel; kolom tidak bisa dipastikan\\.$"), "Table.Combine merges tables; columns cannot be verified."],
+    [new RegExp("^Tidak bisa menulis gambar lineage: (.*)\\. Tutup file yang sedang dibuka lalu coba lagi\\.$"), "Could not write the lineage image: $1. Close the open file and try again."],
     [new RegExp("^Tabel tidak ditemukan di hasil analisa\\. Jalankan analisa ulang\\.$"), "Table was not found in the analysis results. Run the analysis again."],
     [new RegExp("^Baris (TMSCHEMA_[A-Z_]+) untuk '(.*)'\\[(.*)\\] tidak ditemukan\\. Jalankan analisa ulang atau periksa nama objek\\.$"), "$1 row for '$2'[$3] was not found. Run the analysis again or check the object name."],
     [new RegExp("^Query data mentah gagal: (.*)$"), "Preview query failed: $1"],

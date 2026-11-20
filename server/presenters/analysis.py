@@ -19,6 +19,7 @@ from core.analysis_export import (
     dependency_rows,
     write_dependencies_csv,
     write_lineage_files,
+    write_lineage_image,
 )
 from core.analysis_lineage import build_lineage, build_table_lineage
 from core.analysis_query import (
@@ -1243,6 +1244,31 @@ def export_lineage(
     except OSError as exc:
         raise ExtractionError(
             f"Tidak bisa menulis berkas ekspor: {exc}. Tutup file yang sedang "
+            "dibuka lalu coba lagi."
+        ) from exc
+
+
+def export_lineage_image(
+    store: SettingsStore, payload: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Tulis gambar lineage (SVG/PNG) dari payload klien ke ``outputs``."""
+    table = str(payload.get("table") or "")
+    name = str(payload.get("name") or "")
+    image_format = str(payload.get("format") or "").strip().lower()
+    content = payload.get("content")
+    try:
+        return write_lineage_image(
+            str(content or ""),
+            outputs_dir(),
+            table=table,
+            name=name,
+            image_format=image_format,
+        )
+    except ValueError as exc:
+        raise ExtractionError(str(exc)) from exc
+    except OSError as exc:
+        raise ExtractionError(
+            f"Tidak bisa menulis gambar lineage: {exc}. Tutup file yang sedang "
             "dibuka lalu coba lagi."
         ) from exc
 

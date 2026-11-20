@@ -26,6 +26,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Dialog lineage punya mode **Outline Compact/Full**: node yang muncul berulang
   diringkas di mode ringkas dan diperluas di mode lengkap. Ekspor lineage dan
   dependensi juga menerima `kind=table` (menggabungkan kolom + measure tabel).
+- Graph lineage memakai **routing ortogonal** dengan lane di celah antar-kolom,
+  sehingga edge tidak menembus node; edge mundur berbelok di luar kanan node.
+- Toolbar lineage dan submenu **Exports** bisa menyimpan graph sebagai **SVG**
+  atau **PNG** ke `outputs\` (nama `Lineage_<tabel>_<item>_lineage`). PNG
+  dibuat di browser dengan skala maksimum 8000 px, lalu server memvalidasi
+  isi dan ukuran berkas sebelum menulis.
 
 ## 2026-11-20 - Rilis 0.5.0
 

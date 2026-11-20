@@ -14,6 +14,7 @@ from core.analysis_export import (
     safe_name,
     write_dependencies_csv,
     write_lineage_files,
+    write_lineage_image,
 )
 
 
@@ -129,6 +130,61 @@ class LineageExportTests(unittest.TestCase):
             )
             self.assertEqual(len(result["paths"]), 2)
             self.assertTrue(all(path.endswith(".csv") for path in result["paths"]))
+
+
+class ImageExportTests(unittest.TestCase):
+    PNG_1X1 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+        "z8BQDwAFgwJ/lK3Z9wAAAABJRU5ErkJggg=="
+    )
+
+    def test_writes_svg_and_png(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            svg = write_lineage_image(
+                '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                tmp,
+                table="Sales",
+                name="Amount",
+                image_format="svg",
+            )
+            self.assertTrue(svg["path"].endswith("Lineage_Sales_Amount_lineage.svg"))
+            self.assertTrue(Path(svg["path"]).exists())
+            png = write_lineage_image(
+                "data:image/png;base64," + self.PNG_1X1,
+                tmp,
+                table="Sales",
+                name="Sales",
+                image_format="png",
+            )
+            self.assertTrue(png["path"].endswith("Lineage_Sales_lineage.png"))
+            self.assertTrue(
+                Path(png["path"]).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+            )
+
+    def test_rejects_invalid_image_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for content, fmt in (
+                ("<div></div>", "svg"),
+                ("<svg><script>alert(1)</script></svg>", "svg"),
+                ("not-a-png", "png"),
+                ("", "svg"),
+            ):
+                with self.assertRaises(ValueError):
+                    write_lineage_image(
+                        content,
+                        tmp,
+                        table="Sales",
+                        name="Amount",
+                        image_format=fmt,
+                    )
+            with self.assertRaises(ValueError):
+                write_lineage_image(
+                    "<svg></svg>",
+                    tmp,
+                    table="Sales",
+                    name="Amount",
+                    image_format="gif",
+                )
 
 
 class DependencyExportTests(unittest.TestCase):

@@ -7,6 +7,8 @@ ini hanya memformat berkas dan tidak menghitung ulang dependensi.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import csv
 import json
 import re
@@ -14,6 +16,8 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+IMAGE_FORMATS = {"svg": ".svg", "png": ".png"}
+MAX_IMAGE_BYTES = 25 * 1024 * 1024
 NODE_FIELDS = (
     "node_id",
     "kind",
@@ -113,6 +117,45 @@ def write_lineage_files(
         "nodes": len(nodes),
         "edges": len(edges),
     }
+
+
+def write_lineage_image(
+    content: str,
+    directory: Path | str,
+    *,
+    table: str,
+    name: str,
+    image_format: str,
+) -> dict[str, Any]:
+    """Tulis gambar lineage (SVG/PNG) yang dihasilkan klien ke ``outputs``."""
+    fmt = str(image_format or "").strip().lower()
+    if fmt not in IMAGE_FORMATS:
+        raise ValueError("Format gambar harus svg atau png.")
+    text = str(content or "").strip()
+    if not text:
+        raise ValueError("Isi gambar lineage kosong.")
+    if fmt == "svg":
+        if not text.lower().startswith("<svg"):
+            raise ValueError("Isi SVG tidak valid.")
+        if "<script" in text.lower():
+            raise ValueError("SVG tidak boleh memuat script.")
+        data = text.encode("utf-8")
+    else:
+        if text.startswith("data:image/png;base64,"):
+            text = text[len("data:image/png;base64,"):]
+        try:
+            data = base64.b64decode(text, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("Data PNG tidak valid.") from exc
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("Data PNG tidak valid.")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError("Ukuran gambar melebihi 25 MB.")
+    stem = output_stem(table, name)
+    path = Path(directory) / f"Lineage_{stem}_lineage{IMAGE_FORMATS[fmt]}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return {"path": str(path), "bytes": len(data), "format": fmt}
 
 
 def _analysis_of(result: Any, kind: str, table: str, name: str) -> Any:

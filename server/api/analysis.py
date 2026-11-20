@@ -70,6 +70,13 @@ def lineage_export(
     return presenter.export_lineage(settings_of(request), payload or {})
 
 
+@router.post("/lineage/image")
+def lineage_image(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return presenter.export_lineage_image(settings_of(request), payload or {})
+
+
 @router.post("/dependencies/export")
 def dependencies_export(
     request: Request, payload: dict[str, Any] | None = None
