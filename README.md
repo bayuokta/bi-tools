@@ -114,7 +114,7 @@ python -m server --no-browser --port 8800
   - **Generate TSD** membuat satu HTML mandiri (screenshot sebagai data URI) + sidecar JSON; pratinjau menampilkan statistik halaman/visual/tabel/measure/TODO dan tombol **Buka dokumen** (CSP ketat, tanpa JavaScript).
   - **Hapus cache** hanya menghapus folder cache report terpilih; preferensi TSD tersimpan, pilihan workspace/report dan nama dokumen berlaku per sesi.
 - **Analisa Semantic Model dari web**:
-  - Pilih workspace (katalog) dan semantic model (daftar dataset workspace lewat REST). Analisa langsung berjalan otomatis (debounce 750 ms) memakai data model saat itu; tidak ada snapshot lama yang dimuat dari database. Checkbox **Include report usage (pages, visuals, filters)** (default aktif) mengatur apakah definisi report ikut diunduh; mematikannya membuat analisa ±6 detik dan kolom/measure tanpa referensi menjadi **Perlu dicek**.
+  - Pilih workspace (katalog) dan semantic model (daftar dataset workspace lewat REST). Analisa **tidak** berjalan otomatis: tekan **Analyze now** di panel hasil atau **Analysis** di kanan atas. Tidak ada snapshot lama yang dimuat dari database. Checkbox **Include report usage (pages, visuals, filters)** (default aktif) mengatur apakah definisi report ikut diunduh; mematikannya membuat analisa ±6 detik dan kolom/measure tanpa referensi menjadi **Perlu dicek**. Mengubah checkbox setelah ada hasil hanya memunculkan pengingat untuk menjalankan analisa lagi.
   - Hasil disimpan hanya di **sesi in-memory** server (satu koneksi SQLite per dataset). `data\bi_tools.db` tidak lagi menerima tabel `usage_*` dari halaman ini, sehingga tidak ada data basi; setelah server di-restart, detail report dan ekspor meminta analisa ulang.
   - **Analisa** mengukur ukuran kolom (data + hierarki + dictionary) dan memindai pemakaian report; **Hentikan** mengirim pembatalan dan menyimpan hasil parsial dengan cakupan belum lengkap.
   - Kartu ringkasan menampilkan ukuran dataset, jumlah kolom/measure, kolom/measure tidak dipakai beserta ukuran, serta report/halaman/visual dan cakupan report. Tujuh tab: **Semua hasil**, **Tables**, **Relationships**, **Report results**, **DAX expressions**, **M queries**, dan **Health**.
@@ -344,7 +344,7 @@ Pemakaian dibaca dari definisi report, **bukan** dari nama field saja:
 
 Hasil web **tidak ditulis ke `data\bi_tools.db`**. Halaman Analisa memakai satu koneksi SQLite **in-memory per dataset** selama proses server berjalan, memakai skema yang sama (`usage_report`, `usage_field`, `usage_column`, `usage_measure`, `usage_m_query`, `usage_model_ref`, `usage_unresolved`, `usage_scan_run`). Konsekuensinya:
 
-- Memilih semantic model langsung menjalankan analisa (tanpa memuat snapshot lama dari disk); hasil sebelumnya hanya dipakai sebagai cache definisi report di sesi yang sama.
+- Memilih semantic model hanya menyiapkan analisa; job berjalan setelah **Analyze now** atau **Analysis** diklik (tanpa memuat snapshot lama dari disk). Hasil sebelumnya hanya dipakai sebagai cache definisi report di sesi yang sama.
 - Analisa ulang hanya mengunduh definisi report yang `modifiedDateTime`-nya berubah, jadi run kedua dalam sesi yang sama kembali ±6 detik untuk XMLA.
 - Setelah server di-restart, hasil hilang: detail report dan ekspor XLSX meminta analisa ulang.
 - Checkbox **Include report usage (pages, visuals, filters)** (default aktif) bisa dimatikan untuk analisa cepat tanpa mengunduh report; kolom/measure tanpa referensi model lalu berstatus **Perlu dicek** dan tab `Report results` kosong.
@@ -375,6 +375,26 @@ Tab **Health** merangkum temuan dari `core\model_health.py` tanpa request tambah
 | Kritis | kolom/measure dengan error, visual yang memuat field tak terpetakan |
 | Peringatan | tabel yang seluruh kolom/measure-nya tidak dipakai, tabel tanpa relasi, relasi dua arah, relasi many-to-many, dictionary kolom ≥ 50% ukuran kolom (min 1 MB), halaman tanpa visual |
 | Info | relasi tidak aktif, relasi terdeteksi otomatis, halaman tersembunyi berisi visual, calculated column tidak dipakai, report tanpa tema |
+
+Tombol **Rules** di toolbar Health membuka dialog yang menjelaskan setiap aturan (sumber data, ambang, dan saran tindakan). Ikon `i` di sel **Rule** membuka dialog yang sama dan menyorot aturan tersebut.
+
+| Aturan | Sumber data | Ambang |
+|---|---|---|
+| `column_error`, `measure_error` | `TMSCHEMA_COLUMNS`/`TMSCHEMA_MEASURES` (`ErrorMessage`) | — |
+| `unused_table` | verdict kolom + measure tabel | semua berstatus `Tidak dipakai` |
+| `isolated_table` | `TMSCHEMA_RELATIONSHIPS` | tabel tidak muncul sebagai from/to |
+| `bidirectional_relationship` | `CrossFilteringBehavior` | `bothDirections` |
+| `many_to_many_relationship` | `FromCardinality`/`ToCardinality` | kedua sisi `many` |
+| `inactive_relationship` | `IsActive` | `false` |
+| `auto_relationship` | nama relasi / `RelationshipIsAuto` | `AutoDetected_`/GUID |
+| `large_dictionary` | `DISCOVER_STORAGE_TABLE_COLUMNS` (`DICTIONARY_SIZE`) | ≥ 50% ukuran kolom dan ≥ 1 MB |
+| `unused_calculated_column` | verdict kolom + ukuran VertiPaq | calculated + `Tidak dipakai` + ukuran > 0 |
+| `page_without_visuals` | definisi report (`usage_page.visual_count`) | 0 visual |
+| `hidden_page_with_visuals` | definisi report (visibilitas halaman) | hidden + visual > 0 |
+| `missing_theme` | definisi report (tema) | tema kosong |
+| `broken_visual` | hasil pindai report (`usage_unresolved`) | ada field tak terpetakan |
+
+Semua aturan bersifat heuristik internal tool ini, bukan standar resmi Microsoft.
 
 Klik baris membuka detail kolom/measure, lineage tabel, atau tab **Report results**. Kolom **Visual rusak** di tab Report results memakai visual unik dari field tak terpetakan, dan **Skor praktik** dihitung hanya untuk report berstatus `ok`:
 

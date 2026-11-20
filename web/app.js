@@ -90,6 +90,7 @@
     analysisForceOpen: null,
     analysisSettings: {},
     analysisRunning: false,
+    analysisTarget: null,
     analysisTimer: null,
     analysisMenuTarget: null,
     analysisMenuFocus: null,
@@ -2103,25 +2104,6 @@
     });
   }
 
-  function analysisScheduleRun(delay) {
-    if (state.analysisTimer) window.clearTimeout(state.analysisTimer);
-    state.analysisTimer = window.setTimeout(function () {
-      state.analysisTimer = null;
-      analysisAutoRun();
-    }, typeof delay === "number" ? delay : 750);
-  }
-
-  function analysisAutoRun() {
-    if (!getSelectValue("modelSelect")) return;
-    if (state.jobId) {
-      $("#analyzeSummary").textContent = t(
-        "Another job is still running. Try again when it finishes."
-      );
-      return;
-    }
-    analysisRun(true);
-  }
-
   function analysisNote(result) {
     var stamp = String(result.analyzed_at || "")
       .replace("T", " ").slice(0, 16);
@@ -2201,6 +2183,7 @@
     $("#expandRows").hidden = !config.expandable;
     $("#collapseRows").hidden = !config.expandable;
     $("#relViewSwitch").hidden = name !== "relationships";
+    $("#healthRulesInfo").hidden = name !== "health";
     if (name === "relationships") analysisSyncRelView();
     var options = config.filters.map(function (pair) {
       return { value: pair[0], label: pair[1] };
@@ -4631,6 +4614,181 @@
     return t(HEALTH_RULES[rule] || rule);
   }
 
+  var HEALTH_RULE_HELP = [
+    {
+      rule: "column_error",
+      severity: "critical",
+      description: "The model reports an error for this column.",
+      source: "TMSCHEMA_COLUMNS (ErrorMessage)",
+      action: "Open Column details and fix the DAX or data type error in Power BI Desktop, then run the analysis again."
+    },
+    {
+      rule: "measure_error",
+      severity: "critical",
+      description: "The model reports an error for this measure.",
+      source: "TMSCHEMA_MEASURES (ErrorMessage)",
+      action: "Open Measure details and fix the DAX expression in Power BI Desktop, then run the analysis again."
+    },
+    {
+      rule: "unused_table",
+      severity: "warning",
+      description: "Every column and measure in this table has the status Not used.",
+      source: "Column and measure verdicts from this analysis",
+      action: "Confirm the table is not needed by any report or model object before removing it."
+    },
+    {
+      rule: "isolated_table",
+      severity: "warning",
+      description: "This table has no relationship to any other table.",
+      source: "TMSCHEMA_RELATIONSHIPS",
+      action: "Check whether the table should be connected to the model or is intentionally standalone."
+    },
+    {
+      rule: "bidirectional_relationship",
+      severity: "warning",
+      description: "This relationship filters in both directions.",
+      source: "TMSCHEMA_RELATIONSHIPS (CrossFilteringBehavior)",
+      action: "Keep bidirectional filtering only where required; otherwise switch it to a single direction."
+    },
+    {
+      rule: "many_to_many_relationship",
+      severity: "warning",
+      description: "Both sides of this relationship have many-side cardinality.",
+      source: "TMSCHEMA_RELATIONSHIPS (FromCardinality and ToCardinality)",
+      action: "Review the model design; many-to-many relationships often need a bridge table."
+    },
+    {
+      rule: "inactive_relationship",
+      severity: "info",
+      description: "This relationship is inactive.",
+      source: "TMSCHEMA_RELATIONSHIPS (IsActive)",
+      action: "Confirm it is used with USERELATIONSHIP; remove it if it is no longer needed."
+    },
+    {
+      rule: "auto_relationship",
+      severity: "info",
+      description: "Power BI created this relationship automatically.",
+      source: "Relationship name or RelationshipIsAuto",
+      action: "Review the name, columns, and cardinality; recreate it explicitly if it should be part of the model."
+    },
+    {
+      rule: "large_dictionary",
+      severity: "warning",
+      description: "The column dictionary takes at least half of the column size.",
+      source: "DISCOVER_STORAGE_TABLE_COLUMNS (DICTIONARY_SIZE)",
+      threshold: "At least 50% of column size and at least 1 MB.",
+      action: "Confirm the column is required; reduce distinct text values, change the data type, or hide it from report authors."
+    },
+    {
+      rule: "unused_calculated_column",
+      severity: "info",
+      description: "This calculated column is not used and still consumes memory.",
+      source: "Column verdict and VertiPaq storage sizes",
+      action: "Remove the calculated column if no report, relationship, or model object needs it."
+    },
+    {
+      rule: "page_without_visuals",
+      severity: "warning",
+      description: "This report page has no visuals.",
+      source: "Report definition (usage_page.visual_count)",
+      action: "Remove the empty page or add the missing content."
+    },
+    {
+      rule: "hidden_page_with_visuals",
+      severity: "info",
+      description: "This page is hidden but still contains visuals.",
+      source: "Report definition (page visibility)",
+      action: "Confirm it is a tooltip or navigation page; otherwise unhide or remove it."
+    },
+    {
+      rule: "missing_theme",
+      severity: "info",
+      description: "The report does not use a custom theme.",
+      source: "Report definition (theme)",
+      action: "Optional: apply a theme for consistent formatting. This is informational only."
+    },
+    {
+      rule: "broken_visual",
+      severity: "critical",
+      description: "The visual references fields that cannot be mapped to the model.",
+      source: "Report scan (usage_unresolved)",
+      action: "Open Report results, inspect the visual, and fix or remove the broken field references."
+    }
+  ];
+
+  function analysisHealthRulesMarkup() {
+    var groups = [
+      ["critical", "Critical"],
+      ["warning", "Warning"],
+      ["info", "Info"]
+    ];
+    var parts = [];
+    groups.forEach(function (group) {
+      var items = HEALTH_RULE_HELP.filter(function (item) {
+        return item.severity === group[0];
+      });
+      if (!items.length) return;
+      var chipClass = group[0] === "critical" ? "chip-danger"
+        : (group[0] === "warning" ? "chip-warn" : "chip-info");
+      parts.push(
+        '<section class="health-rule-group"><h3 class="health-rule-group-title">' +
+        '<span class="chip ' + chipClass + '"><span class="dot"></span>' +
+        escapeHtml(t(group[1])) + "</span>" +
+        '<span class="helper">' + fmtInt(items.length) + " " + t("rules") +
+        "</span></h3>"
+      );
+      items.forEach(function (item) {
+        parts.push(
+          '<article class="health-rule" id="healthRule-' + escapeHtml(item.rule) +
+          '"><div class="health-rule-head"><h4>' +
+          escapeHtml(analysisHealthRuleLabel(item.rule)) + "</h4></div>" +
+          '<p class="health-rule-desc">' + escapeHtml(t(item.description)) + "</p>" +
+          '<dl class="health-rule-meta">' +
+          "<dt>" + escapeHtml(t("Source")) + "</dt><dd>" +
+          escapeHtml(t(item.source)) + "</dd>" +
+          (item.threshold
+            ? "<dt>" + escapeHtml(t("Threshold")) + "</dt><dd>" +
+              escapeHtml(t(item.threshold)) + "</dd>"
+            : "") +
+          "<dt>" + escapeHtml(t("Suggested action")) + "</dt><dd>" +
+          escapeHtml(t(item.action)) + "</dd></dl></article>"
+        );
+      });
+      parts.push("</section>");
+    });
+    parts.push(
+      '<section class="health-rule-group health-rule-group--score">' +
+      '<h3 class="health-rule-group-title"><span class="chip chip-accent">' +
+      escapeHtml(t("Practice score")) + "</span></h3>" +
+      '<p class="health-rule-desc">' +
+      escapeHtml(t("Score starts at 100 for reports with status ok and subtracts:")) +
+      "</p><ul class=\"health-rule-formula\">" +
+      "<li>" + escapeHtml(t("5 points per visual with unmapped fields (max 30).")) + "</li>" +
+      "<li>" + escapeHtml(t("3 points per page without visuals (max 15).")) + "</li>" +
+      "<li>" + escapeHtml(t("1 point per unmapped field (max 20).")) + "</li>" +
+      "</ul><p class=\"health-rule-desc\">" +
+      escapeHtml(t("Theme and hidden pages do not reduce the score because both can be intentional.")) +
+      "</p></section>"
+    );
+    return parts.join("");
+  }
+
+  function analysisOpenHealthRules(rule) {
+    var dialog = $("#analysisHealthRulesDialog");
+    if (!dialog) return;
+    $("#analysisHealthRulesBody").innerHTML = analysisHealthRulesMarkup();
+    var target = rule ? $("#healthRule-" + rule) : null;
+    if (target) {
+      target.classList.add("is-highlight");
+      target.scrollIntoView({ block: "start" });
+    }
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+    if (target) {
+      window.setTimeout(function () { target.scrollIntoView({ block: "start" }); }, 0);
+    }
+  }
+
   function analysisPracticeTitle(report) {
     var practice = ((state.analysis && state.analysis.health) || {}).practice || {};
     var entry = report && report.report_id ? practice[report.report_id] : null;
@@ -5164,7 +5322,12 @@
           '<span class="chip ' + severityClass + '"><span class="dot"></span>' +
             escapeHtml(t(severityLabel)) + "</span>",
           escapeHtml(t(item.area === "report" ? "Report" : "Model")),
-          escapeHtml(analysisHealthRuleLabel(item.rule)),
+          '<span class="health-rule-cell">' +
+            escapeHtml(analysisHealthRuleLabel(item.rule)) +
+            '<button type="button" class="health-rule-info" data-health-rule-info="' +
+            escapeHtml(item.rule) + '" title="' + escapeHtml(t("About this rule")) +
+            '" aria-label="' + escapeHtml(t("About this rule")) + '">i</button>' +
+          "</span>",
           analysisNameCell(item.object || "—", icons[item.kind] || "group", {
             level: 0, menu: isModelItem
           }),
@@ -5379,11 +5542,15 @@
       tableWrap.hidden = true;
       graph.hidden = true;
       empty.hidden = false;
-      $("#analyzeSummary").textContent = t("Not analyzed yet");
-      $("#analyzeEmptyTitle").textContent = t("No analysis results yet");
-      $("#analyzeEmptyText").textContent =
-        t("Choose a workspace and semantic model. Analysis starts automatically and only reads the model.");
-      $("#analyzeFromEmpty").hidden = false;
+      var hasModel = Boolean(getSelectValue("modelSelect"));
+      $("#analyzeSummary").textContent = hasModel
+        ? t("Ready to analyze") : t("Not analyzed yet");
+      $("#analyzeEmptyTitle").textContent = hasModel
+        ? t("Ready to analyze") : t("No analysis results yet");
+      $("#analyzeEmptyText").textContent = hasModel
+        ? t("Press Analyze now or Analysis to start. Only reads the model.")
+        : t("Choose a workspace and semantic model, then press Analyze now.");
+      $("#analyzeFromEmpty").hidden = !hasModel;
       return;
     }
     var tab = state.analysisTab;
@@ -5823,17 +5990,19 @@
     analysisRender();
   }
 
-  function analysisRun(auto) {
+  function analysisRun() {
     if (!apiReady()) return;
     if (state.jobId) {
-      if (!auto) toast(t("Another job is still running"));
+      toast(t("Another job is still running"));
       return;
     }
     if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
-      if (!auto) toast(t("Choose a workspace and semantic model first"));
+      toast(t("Choose a workspace and semantic model first"));
       return;
     }
     state.analysisRunning = true;
+    state.analysisTarget = getSelectValue("modelSelect");
+    var target = state.analysisTarget;
     $("#stopAnalyze").hidden = false;
     $("#analyzeSummary").textContent = t("Analyzing the semantic model…");
     startJob({
@@ -5845,9 +6014,22 @@
       onDone: function (snapshot) {
         state.analysisRunning = false;
         $("#stopAnalyze").hidden = true;
+        var same = target === getSelectValue("modelSelect");
+        state.analysisTarget = null;
+        if (!same) {
+          toast(t("Analysis finished for a previous model and was not applied."));
+          analysisRender();
+          return;
+        }
         if (snapshot.result) {
           analysisApply(snapshot.result, analysisNote(snapshot.result));
         }
+      },
+      onError: function () {
+        state.analysisRunning = false;
+        $("#stopAnalyze").hidden = true;
+        state.analysisTarget = null;
+        analysisRender();
       }
     });
   }
@@ -6858,13 +7040,16 @@
     $("#modelSelect").addEventListener("change", function () {
       state.analysis = null;
       state.analysisNote = "";
+      state.analysisTarget = null;
       analysisRender();
-      analysisScheduleRun();
     });
     $("#includeReports").addEventListener("change", function () {
       analysisSyncReportOptions();
       analysisSavePrefs();
-      if (getSelectValue("modelSelect")) analysisScheduleRun();
+      if (state.analysis) {
+        toast(t("Run analysis again to apply the new report usage setting."));
+      }
+      analysisRender();
     });
     $("#includeOther").addEventListener("change", analysisSavePrefs);
     $("#includePersonal").addEventListener("change", analysisSavePrefs);
@@ -7073,6 +7258,13 @@
       analysisSetSort(header.getAttribute("data-analysis-sort"));
     });
     $("#analyzeBody").addEventListener("click", function (event) {
+      var ruleInfo = event.target.closest("[data-health-rule-info]");
+      if (ruleInfo) {
+        event.preventDefault();
+        event.stopPropagation();
+        analysisOpenHealthRules(ruleInfo.getAttribute("data-health-rule-info"));
+        return;
+      }
       var menuButton = event.target.closest("[data-analysis-menu]");
       if (menuButton) {
         var menuRow = menuButton.closest("tr[data-item-kind]");
@@ -7348,6 +7540,20 @@
       state.analysisItemRawError = "";
       state.analysisItemTab = "properties";
       $("#analysisItemPane").innerHTML = "";
+    });
+    $("#healthRulesInfo").addEventListener("click", function () {
+      analysisOpenHealthRules();
+    });
+    $("#closeHealthRules").addEventListener("click", function () {
+      $("#analysisHealthRulesDialog").close();
+    });
+    $("#doneHealthRules").addEventListener("click", function () {
+      $("#analysisHealthRulesDialog").close();
+    });
+    $("#analysisHealthRulesDialog").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) {
+        $("#analysisHealthRulesDialog").close();
+      }
     });
     $("#closeAnalysisRawMeta").addEventListener("click", function () {
       $("#analysisRawMetaDialog").close();

@@ -361,6 +361,34 @@ html[data-theme="light"] .segmented button[aria-pressed="true"]{ box-shadow:0 1p
 .health-score.is-good{ color:var(--ok); }
 .health-score.is-warn{ color:var(--warn); }
 .health-score.is-low{ color:var(--danger); }
+.health-rule-cell{ display:inline-flex; align-items:center; gap:6px; }
+.health-rule-info{
+  width:16px; height:16px; padding:0; flex:none; border-radius:50%;
+  border:1px solid var(--border-strong); background:var(--surface);
+  color:var(--text-3); font-size:10px; font-weight:700; line-height:1;
+  cursor:pointer; display:inline-grid; place-items:center;
+}
+.health-rule-info:hover{ color:var(--accent-text); border-color:var(--accent); }
+.dialog--health-rules{ width:min(760px, 94vw); }
+.health-rules{ display:flex; flex-direction:column; gap:16px; }
+.health-rule-group-title{
+  display:flex; align-items:center; gap:8px; margin:0 0 8px;
+  font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3);
+}
+.health-rule{
+  padding:12px 14px; margin-bottom:8px; border:1px solid var(--border);
+  border-radius:var(--r-md); background:var(--surface-2);
+}
+.health-rule.is-highlight{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.health-rule-head h4{ margin:0 0 4px; font-size:13.5px; }
+.health-rule-desc{ margin:0 0 8px; color:var(--text-2); }
+.health-rule-meta{
+  display:grid; grid-template-columns:max-content 1fr; gap:4px 12px;
+  margin:0; font-size:12px;
+}
+.health-rule-meta dt{ color:var(--text-3); }
+.health-rule-meta dd{ margin:0; overflow-wrap:anywhere; }
+.health-rule-formula{ margin:0 0 8px; padding-left:18px; color:var(--text-2); }
 
 .stat-list{ display:flex; flex-direction:column; }
 .stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed var(--border); }

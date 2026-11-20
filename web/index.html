@@ -649,6 +649,7 @@
                   </div>
                   <button class="btn btn-sm" id="expandRows" type="button">Expand</button>
                   <button class="btn btn-sm" id="collapseRows" type="button">Collapse</button>
+                  <button class="btn btn-sm" id="healthRulesInfo" type="button" hidden data-i18n="Rules" aria-label="Health rules" data-i18n-aria-label="Health rules">Rules</button>
                   <button class="btn btn-sm" id="exportXlsx" type="button" data-i18n="Export XLSX">Export XLSX</button>
                 </div>
               </div>
@@ -1376,6 +1377,25 @@
   <div class="dialog-foot">
     <button class="btn" id="copyAnalysisItemJson" type="button" data-i18n="Copy JSON">Copy JSON</button>
     <button class="btn btn-primary" id="doneAnalysisItem" type="button" data-i18n="Close">Close</button>
+  </div>
+</dialog>
+
+<dialog class="dialog dialog--health-rules" id="analysisHealthRulesDialog" aria-labelledby="analysisHealthRulesTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="analysisHealthRulesTitle" data-i18n="Health rules">Health rules</h2>
+      <p class="helper" data-i18n="Heuristic checks built from the analysis result. No extra Power BI requests are made.">Heuristic checks built from the analysis result. No extra Power BI requests are made.</p>
+    </div>
+    <button class="dialog-close" id="closeHealthRules" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body health-rules" id="analysisHealthRulesBody"></div>
+  <div class="dialog-foot">
+    <span class="helper" data-i18n="Not an official Microsoft standard.">Not an official Microsoft standard.</span>
+    <span class="spacer"></span>
+    <span class="helper mono" data-i18n="Rules v1">Rules v1</span>
+    <button class="btn btn-primary" id="doneHealthRules" type="button" data-i18n="Close">Close</button>
   </div>
 </dialog>
 

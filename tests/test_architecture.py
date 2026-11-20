@@ -318,7 +318,7 @@ class WebLayerTests(unittest.TestCase):
             text = (ROOT / "core" / name).read_text(encoding="utf-8")
             self.assertNotRegex(text, r"(?m)^\s*(print\(|input\()")
 
-    def test_web_analysis_is_realtime_without_sqlite_snapshot(self) -> None:
+    def test_web_analysis_starts_only_from_buttons(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
@@ -326,8 +326,15 @@ class WebLayerTests(unittest.TestCase):
         )
         self.assertIn('id="includeReports"', html)
         self.assertIn('include_reports: $("#includeReports").checked', js)
-        self.assertIn("function analysisScheduleRun(", js)
-        self.assertIn("function analysisAutoRun(", js)
+        self.assertNotIn("analysisScheduleRun", js)
+        self.assertNotIn("analysisAutoRun", js)
+        self.assertIn(
+            '$("#runAnalyze").addEventListener("click", analysisRun)', js
+        )
+        self.assertIn(
+            '$("#analyzeFromEmpty").addEventListener("click", analysisRun)', js
+        )
+        self.assertIn("state.analysisTarget", js)
         self.assertNotIn("analysisLoadSnapshot", js)
         self.assertNotIn("/api/analysis/snapshot?dataset_id=", js)
         self.assertIn('sqlite3.connect(":memory:"', presenter)
@@ -511,6 +518,47 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('"columns": [', presenter)
         self.assertNotIn("function processPartitions(", js)
         self.assertIn('$("#processSelectedPartitions").addEventListener', js)
+
+    def test_health_rules_dialog_and_rule_coverage(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        core = (ROOT / "core" / "model_health.py").read_text(encoding="utf-8")
+        for marker in (
+            'id="healthRulesInfo"',
+            'id="analysisHealthRulesDialog"',
+            'id="analysisHealthRulesBody"',
+            'id="closeHealthRules"',
+            'id="doneHealthRules"',
+        ):
+            self.assertIn(marker, html)
+        for name in ("analysisHealthRulesMarkup", "analysisOpenHealthRules"):
+            self.assertEqual(
+                js.count(f"function {name}("),
+                1,
+                f"helper {name} harus dideklarasikan tepat satu kali",
+            )
+        for rule in (
+            "column_error",
+            "measure_error",
+            "unused_table",
+            "isolated_table",
+            "bidirectional_relationship",
+            "many_to_many_relationship",
+            "inactive_relationship",
+            "auto_relationship",
+            "large_dictionary",
+            "unused_calculated_column",
+            "page_without_visuals",
+            "hidden_page_with_visuals",
+            "missing_theme",
+            "broken_visual",
+        ):
+            self.assertIn(f'"{rule}"', core, f"aturan {rule} hilang dari core")
+            self.assertIn(
+                f'rule: "{rule}"',
+                js,
+                f"aturan {rule} belum punya entri bantuan di UI",
+            )
 
 
 if __name__ == "__main__":

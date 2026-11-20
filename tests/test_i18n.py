@@ -84,6 +84,22 @@ class DictionaryTests(unittest.TestCase):
         missing = sorted(key for key in keys if key not in self.dictionary)
         self.assertEqual(missing, [], "kunci t() tanpa terjemahan")
 
+    def test_health_rule_help_exists_in_dictionary(self) -> None:
+        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        start = script.index("var HEALTH_RULE_HELP = [")
+        end = script.index("\n  ];", start)
+        block = script[start:end]
+        keys = set(
+            re.findall(
+                r'^\s+(?:description|source|action|threshold): '
+                r'"((?:[^"\\]|\\.)*)",?$',
+                block,
+                re.M,
+            )
+        )
+        missing = sorted(key for key in keys if key not in self.dictionary)
+        self.assertEqual(missing, [], "teks bantuan aturan tanpa terjemahan")
+
 
 class MarkupTests(unittest.TestCase):
     def setUp(self) -> None:

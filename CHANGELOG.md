@@ -16,6 +16,13 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tanpa relasi, relasi dua arah/many-to-many/tidak aktif/otomatis, dictionary
   kolom besar, halaman tanpa visual, halaman tersembunyi, report tanpa tema,
   dan calculated column tidak dipakai.
+- Tombol **Rules** (dan ikon `i` di sel Rule) membuka dialog yang menjelaskan
+  setiap aturan: sumber data, ambang, dan saran tindakan, termasuk rincian
+  rumus skor praktik.
+- Analisa semantic model kini **manual**: memilih model tidak lagi memulai job.
+  Tekan **Analyze now** di panel hasil atau **Analysis** di kanan atas. Mengubah
+  *Include report usage* hanya memberi pengingat untuk menjalankan ulang, dan
+  hasil job lama diabaikan bila model diganti saat job berjalan.
 - Klik baris Health membuka detail kolom/measure, lineage tabel, atau tab
   **Report results**; filter severity dan sort tersedia.
 - Kolom **Visual rusak** dan **Skor praktik** di tab Report results kini
