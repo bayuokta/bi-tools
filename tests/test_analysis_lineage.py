@@ -509,6 +509,105 @@ in
                 result, kind="column", table="T", name="C", category="ngawur"
             )
 
+    def test_m_split_column_steps(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Split Column" = Table.SplitColumn(dbo_Sales, "Dealer",
+        Splitter.SplitTextByDelimiter("-"), {"Code", "Name"}),
+    #"Renamed Columns" = Table.RenameColumns(#"Split Column", {"Name", "Dealer Name"})
+in
+    #"Renamed Columns"
+"""
+        column = column_analysis("Sales", "Dealer Name")
+        result = make_result(
+            columns=[column],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(
+            result, kind="column", table="Sales", name="Dealer Name"
+        )
+        labels = [
+            node["label"] for node in data["nodes"] if node["kind"] == "mstep"
+        ]
+        self.assertIn("Split Column", labels)
+        self.assertIn("Renamed Columns", labels)
+        meta = data["m_lineage"]
+        self.assertEqual(meta["status"], "complete")
+        self.assertEqual(meta["warnings"], [])
+
+    def test_m_transform_columns_is_partial(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Transformed Columns" = Table.TransformColumns(
+        dbo_Sales, {{"Amount", each _ * 2, type number}})
+in
+    #"Transformed Columns"
+"""
+        column = column_analysis("Sales", "Amount")
+        result = make_result(
+            columns=[column],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(result, kind="column", table="Sales", name="Amount")
+        meta = data["m_lineage"]
+        self.assertEqual(meta["status"], "partial")
+        self.assertTrue(
+            any(item["status"] == "transform_columns" for item in meta["warnings"])
+        )
+        self.assertIn("TransformColumns", meta["reason"])
+        labels = [
+            node["label"] for node in data["nodes"] if node["kind"] == "mstep"
+        ]
+        self.assertIn("Transformed Columns", labels)
+
+    def test_m_single_pair_rename(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Renamed" = Table.RenameColumns(dbo_Sales, {"Old", "New"})
+in
+    #"Renamed"
+"""
+        column = column_analysis("Sales", "New")
+        result = make_result(
+            columns=[column],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(result, kind="column", table="Sales", name="New")
+        self.assertEqual(data["m_lineage"]["status"], "complete")
+        self.assertTrue(
+            any(
+                node["kind"] == "mstep" and node["label"] == "Renamed"
+                for node in data["nodes"]
+            )
+        )
+
     def test_layout_is_deterministic_and_spaced(self) -> None:
         measure = measure_analysis(
             "M",

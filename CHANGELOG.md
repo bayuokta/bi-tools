@@ -7,6 +7,19 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Analisa Semantic Model
+
+- Lineage M kini mengenali `Table.SplitColumn`, `Table.TransformColumns`, dan
+  `Table.RenameColumns` dengan pasangan tunggal. Kolom hasil split/transform
+  tetap tercatat sebagai langkah M.
+- Dialog lineage menampilkan chip **M lineage** (`Complete`, `Partial`,
+  `Unavailable`) beserta alasan, dan panel **M warnings** per tabel
+  (`TransformColumns`, rename/kolom dinamis, fungsi tak dikenal, dll.).
+- Keyakinan dihitung per kolom; `Table.TransformColumns` dan rename dinamis
+  ditandai `Partial`, sedangkan tabel tanpa ekspresi M `Unavailable`.
+
 ## 2026-11-20 - Rilis 0.5.0
 
 Analisa semantic model di web kini realtime, punya menu konteks per baris,

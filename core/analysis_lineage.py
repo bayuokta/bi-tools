@@ -17,7 +17,11 @@ import re
 from collections import defaultdict, deque
 from typing import Any, Iterable, Mapping
 
-from core.m_lineage import build_lineage as build_m_lineage
+from core.m_lineage import (
+    build_lineage as build_m_lineage,
+    column_confidence,
+    warning_rows,
+)
 
 MAX_NODES = 250
 MAX_USAGE_PER_PAGE = 8
@@ -597,6 +601,7 @@ def build_lineage(
             }
     m_edges: list[tuple[str, str]] = []
     m_step_truncated = 0
+    m_lineage_meta: dict[str, Any] | None = None
     if wanted == "column":
         seed_column = column_analyses[seed_id].column
         seed_table = seed_column.table
@@ -611,6 +616,12 @@ def build_lineage(
             expression = table_query.get("expression", "")
             datasource: str | None = None
             has_steps = False
+            m_lineage_meta = {
+                "table": seed_table,
+                "status": "unavailable",
+                "reason": "Tabel tidak punya ekspresi M.",
+                "warnings": [],
+            }
             if expression:
                 parsed = build_m_lineage(expression)
                 aliases: dict[str, Any] = {}
@@ -686,6 +697,32 @@ def build_lineage(
                         context=str(parsed.origin or ""),
                         group="mquery",
                     )
+                status = column_confidence(parsed, seed_column.column)
+                reason = ""
+                if status == "unavailable":
+                    reason = "Kolom tidak ditemukan di hasil lineage M."
+                else:
+                    seed_key = seed_column.column.casefold()
+                    for warning in parsed.warnings:
+                        if (
+                            warning.column
+                            and warning.column.casefold() == seed_key
+                        ):
+                            reason = warning.detail
+                            break
+                    if not reason and column_lineage is not None:
+                        reason = str(column_lineage.detail or "")
+                    if not reason:
+                        for warning in parsed.warnings:
+                            if not warning.column:
+                                reason = warning.detail
+                                break
+                m_lineage_meta = {
+                    "table": seed_table,
+                    "status": status,
+                    "reason": reason,
+                    "warnings": warning_rows(parsed),
+                }
             if not has_steps:
                 m_edges.append((mquery, seed_id))
             if datasource:
@@ -950,6 +987,7 @@ def build_lineage(
         "direction": mode,
         "depth": limit,
         "category": scope,
+        "m_lineage": m_lineage_meta,
         "nodes": nodes,
         "edges": list(graph.edges.values()),
         "outline": _build_outline(graph, seed_id),

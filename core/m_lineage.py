@@ -359,6 +359,28 @@ def _parse_pairs(expr: str) -> list[tuple[str, str]] | None:
     return pairs
 
 
+def _parse_transform_columns(expr: str) -> list[str] | None:
+    """Ambil nama kolom dari daftar `Table.TransformColumns` (elemen pertama)."""
+    value = _strip_outer(expr.strip())
+    if not (value.startswith("{") and value.endswith("}")):
+        return None
+    items = split_top_level(value[1:-1])
+    names: list[str] = []
+    for item in items:
+        pair = _strip_outer(item.strip())
+        if pair.startswith("{") and pair.endswith("}"):
+            parts = split_top_level(pair[1:-1])
+        else:
+            parts = split_top_level(item)
+        if not parts:
+            return None
+        name = _parse_name(parts[0])
+        if name is None:
+            return None
+        names.append(name)
+    return names
+
+
 def _parse_type_table(expr: str) -> list[str] | None:
     """Ambil nama kolom dari `type table [a = _t, b = _t]`."""
     match = re.search(r"\btype\s+table\s*\[", expr)
@@ -498,7 +520,6 @@ _PASSTHROUGH = {
     "table.skip",
     "table.reverse",
     "table.changetype",
-    "table.transformcolumns",
     "table.replacevalue",
     "table.replaceregex",
     "table.filldown",
@@ -706,7 +727,12 @@ def _apply_function(
         return state
 
     if lowered == "table.renamecolumns":
-        pairs = _parse_pairs(args[1]) if len(args) >= 2 else None
+        expr = args[1] if len(args) >= 2 else ""
+        pairs = _parse_pairs(expr) if expr else None
+        if pairs is None:
+            single = _parse_string_list(expr) if expr else None
+            if single is not None and len(single) == 2:
+                pairs = [(single[0], single[1])]
         if pairs is None:
             warnings.append(
                 Warning(step, "", "dynamic_rename", "Table.RenameColumns memakai daftar rename dinamis.")
@@ -796,6 +822,79 @@ def _apply_function(
         logic = _strip_outer(args[2]).strip() if len(args) >= 3 else ""
         state.columns[new_name] = _derived_column(
             state, new_name, used, step, logic=logic, function=name
+        )
+        return state
+
+    if lowered == "table.splitcolumn":
+        if len(args) < 4:
+            warnings.append(
+                Warning(step, "", "unresolved", "Table.SplitColumn tanpa argumen lengkap.")
+            )
+            state.columns_known = False
+            return state
+        source = _parse_name(args[1])
+        names = _parse_string_list(args[3])
+        if not source or not names:
+            warnings.append(
+                Warning(
+                    step,
+                    "",
+                    "dynamic_columns",
+                    "Table.SplitColumn memakai kolom hasil split dinamis.",
+                )
+            )
+            state.columns_known = False
+            return state
+        _ensure_column(state, source, step, warnings)
+        logic = _strip_outer(args[2]).strip() if len(args) >= 3 else ""
+        for new_name in names:
+            column = _derived_column(
+                state,
+                new_name,
+                [source],
+                step,
+                detail="Kolom hasil split.",
+                logic=logic,
+                function=name,
+            )
+            column.confidence = "medium"
+            state.columns[new_name] = column
+        if source not in names:
+            state.columns.pop(source, None)
+        return state
+
+    if lowered == "table.transformcolumns":
+        names = _parse_transform_columns(args[1]) if len(args) >= 2 else None
+        if not names:
+            warnings.append(
+                Warning(
+                    step,
+                    "",
+                    "dynamic_columns",
+                    "Table.TransformColumns memakai daftar kolom dinamis.",
+                )
+            )
+            state.columns_known = False
+            return state
+        for column_name in names:
+            column = _ensure_column(state, column_name, step, warnings)
+            _record_step(column, step, name, column_name, column_name)
+            if column.confidence == "high":
+                column.confidence = "medium"
+            if not column.detail:
+                column.detail = (
+                    "Transformasi Table.TransformColumns tidak dianalisa; "
+                    "sumber kolom tetap."
+                )
+        warnings.append(
+            Warning(
+                step,
+                "",
+                "transform_columns",
+                "Table.TransformColumns pada "
+                + ", ".join(names)
+                + ": logika transformasi tidak dianalisa.",
+            )
         )
         return state
 
@@ -966,6 +1065,72 @@ def build_lineage(m_text: str) -> LineageResult:
     result.source_object = final.source_object
     result.columns_known = final.columns_known
     return result
+
+
+PARTIAL_WARNING_STATUSES = {
+    "dynamic_columns",
+    "dynamic_rename",
+    "unresolved",
+    "unknown_function",
+    "rename_conflict",
+    "orphan_rename",
+    "transform_columns",
+}
+
+
+def lineage_confidence(result: LineageResult) -> str:
+    """Tingkat keyakinan lineage M: complete/partial/unavailable."""
+    if not result.columns:
+        return "unavailable"
+    if not result.columns_known:
+        return "partial"
+    if any(warning.status in PARTIAL_WARNING_STATUSES for warning in result.warnings):
+        return "partial"
+    return "complete"
+
+
+def column_confidence(result: LineageResult, column_name: str) -> str:
+    """Keyakinan lineage M untuk satu kolom (complete/partial/unavailable)."""
+    wanted = str(column_name or "").casefold()
+    column = None
+    for name, value in (result.columns or {}).items():
+        if str(name).casefold() == wanted:
+            column = value
+            break
+    if column is None:
+        return "unavailable"
+    if column.confidence == "low" or column.status in {
+        "unresolved",
+        "orphan_rename",
+        "rename_conflict",
+        "dynamic_rename",
+        "unknown_function",
+    }:
+        return "partial"
+    for warning in result.warnings:
+        if (
+            warning.column
+            and warning.column.casefold() == wanted
+            and warning.status in PARTIAL_WARNING_STATUSES
+        ):
+            return "partial"
+    for warning in result.warnings:
+        if not warning.column and warning.status in PARTIAL_WARNING_STATUSES:
+            return "partial"
+    return "complete"
+
+
+def warning_rows(result: LineageResult, limit: int = 20) -> list[dict[str, Any]]:
+    """Baris warning M siap dikirim ke web (dibatasi ``limit``)."""
+    return [
+        {
+            "step": warning.step,
+            "column": warning.column,
+            "status": warning.status,
+            "detail": warning.detail,
+        }
+        for warning in result.warnings[:limit]
+    ]
 
 
 def apply_lineage(

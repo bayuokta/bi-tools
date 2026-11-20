@@ -1203,3 +1203,16 @@ tr.is-menu-open .row-menu-btn,
 .dep-sub{ color:var(--text-3); font-size:11px; margin-left:6px; }
 .item-note{ margin:8px 0 0; font-size:11.5px; color:var(--text-3); }
 .item-flags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+
+.lineage-m{ display:flex; align-items:center; gap:8px; min-width:0; }
+.m-warnings{ font-size:11.5px; color:var(--text-2); position:relative; }
+.m-warnings summary{ cursor:pointer; white-space:nowrap; }
+.m-warning-list{
+  list-style:none; margin:6px 0 0; padding:8px 10px; max-height:120px; overflow:auto;
+  min-width:260px; max-width:420px; border:1px solid var(--border); border-radius:var(--r-md);
+  background:var(--surface); box-shadow:var(--shadow); position:absolute; bottom:calc(100% + 6px);
+  right:0; z-index:5;
+}
+.m-warning-list li{ padding:3px 0; border-bottom:1px solid var(--border); font-size:11px; }
+.m-warning-list li:last-child{ border-bottom:0; }
+.m-warning-step{ color:var(--text-3); }

@@ -3349,6 +3349,9 @@
     $("#analysisLineageEdges").innerHTML = "";
     $("#analysisLineageOutline").innerHTML = "";
     $("#analysisLineageNotice").textContent = "";
+    $("#analysisLineageM").hidden = true;
+    $("#analysisLineageMDetails").hidden = true;
+    $("#analysisLineageMList").innerHTML = "";
     $("#analysisLineageSub").textContent = analysisLineageSubtitle();
     analysisLineageDirectionButtons();
     analysisLineageViewButtons();
@@ -3481,8 +3484,48 @@
     state.analysisLineageZoom = 1;
     state.analysisLineageHighlight = null;
     $("#analysisLineageNotice").textContent = analysisLineageNotice(graph);
+    analysisLineageRenderM(graph.m_lineage);
     analysisLineageFocusSeed();
     analysisLineageApplyView();
+  }
+
+  function analysisLineageRenderM(meta) {
+    var box = $("#analysisLineageM");
+    if (!box) return;
+    if (!meta || !meta.status) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    var labels = {
+      complete: "Complete",
+      partial: "Partial",
+      unavailable: "Unavailable"
+    };
+    var classes = {
+      complete: "chip-ok",
+      partial: "chip-warn",
+      unavailable: "chip-danger"
+    };
+    var chip = $("#analysisLineageMStatus");
+    chip.className = "chip " + (classes[meta.status] || "chip-idle");
+    chip.textContent = t("M lineage") + ": " +
+      t(labels[meta.status] || meta.status);
+    chip.title = tr(meta.reason || "");
+    var warnings = meta.warnings || [];
+    $("#analysisLineageMDetails").hidden = warnings.length === 0;
+    $("#analysisLineageMSummary").textContent =
+      t("M warnings") + " (" + warnings.length + ")";
+    $("#analysisLineageMList").innerHTML = warnings.map(function (warning) {
+      var parts = [];
+      if (warning.step) {
+        parts.push('<span class="m-warning-step">' +
+          escapeHtml(warning.step) + "</span>");
+      }
+      if (warning.column) parts.push(escapeHtml(warning.column));
+      parts.push(escapeHtml(tr(warning.detail || warning.status || "")));
+      return "<li>" + parts.join(" \u00b7 ") + "</li>";
+    }).join("");
   }
 
   function analysisLineageContext(node) {

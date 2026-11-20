@@ -754,7 +754,11 @@
   "Group-by columns": "Kolom group-by",
   "Model extension": "Ekstensi model",
   "Build dependency ignore": "Abaikan dependensi build",
-  "Another job is still running. Try again.": "Pekerjaan lain masih berjalan. Coba lagi."
+  "Another job is still running. Try again.": "Pekerjaan lain masih berjalan. Coba lagi.",
+  "M lineage": "Lineage M",
+  "M warnings": "Peringatan M",
+  "Partial": "Sebagian",
+  "Unavailable": "Tidak tersedia"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan
@@ -801,11 +805,25 @@
   "Tidak ada referensi di report maupun model.": "No references in reports or the model.",
   "Belum ada referensi, tetapi cakupan report belum lengkap.": "No references yet, but report coverage is incomplete.",
   "Hanya dirujuk measure lain yang juga tidak dipakai.": "Only referenced by other unused measures.",
-  "Hanya dirujuk measure lain; cakupan report belum lengkap.": "Only referenced by other measures; report coverage is incomplete."
+  "Hanya dirujuk measure lain; cakupan report belum lengkap.": "Only referenced by other measures; report coverage is incomplete.",
+  "Tabel tidak punya ekspresi M.": "Table has no M expression.",
+  "Kolom tidak ditemukan di hasil lineage M.": "Column was not found in the M lineage result.",
+  "Transformasi Table.TransformColumns tidak dianalisa; sumber kolom tetap.": "Table.TransformColumns was not analyzed; the source column is unchanged.",
+  "Table.SplitColumn memakai kolom hasil split dinamis.": "Table.SplitColumn uses a dynamic list of split columns.",
+  "Table.TransformColumns memakai daftar kolom dinamis.": "Table.TransformColumns uses a dynamic column list.",
+  "Table.SplitColumn tanpa argumen lengkap.": "Table.SplitColumn is missing arguments.",
+  "Table.RenameColumns memakai daftar rename dinamis.": "Table.RenameColumns uses a dynamic rename list."
 };
   var serverPatterns = [
     [new RegExp("^Tidak bisa menulis berkas ekspor: (.*)\\. Tutup file yang sedang dibuka lalu coba lagi\\.$"), "Could not write export file: $1. Close the file that is open and try again."],
     [new RegExp("^Metadata TMSCHEMA tidak bisa dibaca: (.*)$"), "TMSCHEMA metadata could not be read: $1"],
+    [new RegExp("^Table.TransformColumns pada (.*): logika transformasi tidak dianalisa\\.$"), "Table.TransformColumns on $1: the transformation logic was not analyzed."],
+    [new RegExp("^Kolom '(.*)' tidak ada pada langkah sebelumnya\\.$"), "Column '$1' was not present in the previous step."],
+    [new RegExp("^Fungsi '(.*)' belum dikenali; lineage kolom diturunkan sebagai passthrough\\.$"), "Function '$1' is not recognized; column lineage is treated as passthrough."],
+    [new RegExp("^Melewati fungsi yang belum dikenali: (.*)\\.$"), "Passed through an unrecognized function: $1."],
+    [new RegExp("^Rename kolom dinamis \\(Table.TransformColumnNames\\) tidak bisa dipastikan\\.$"), "Dynamic column rename (Table.TransformColumnNames) cannot be verified."],
+    [new RegExp("^Table.Pivot mengubah nama kolom secara dinamis\\.$"), "Table.Pivot changes column names dynamically."],
+    [new RegExp("^Table.Combine menggabungkan tabel; kolom tidak bisa dipastikan\\.$"), "Table.Combine merges tables; columns cannot be verified."],
     [new RegExp("^Baris (TMSCHEMA_[A-Z_]+) untuk '(.*)'\\[(.*)\\] tidak ditemukan\\. Jalankan analisa ulang atau periksa nama objek\\.$"), "$1 row for '$2'[$3] was not found. Run the analysis again or check the object name."],
     [new RegExp("^Query data mentah gagal: (.*)$"), "Preview query failed: $1"],
     [new RegExp("^Dipakai di (\\d+) titik pada (\\d+) report\\.$"), "Used at $1 points across $2 reports."],
