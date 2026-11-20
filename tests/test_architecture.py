@@ -59,6 +59,21 @@ class LayerGuardTests(unittest.TestCase):
     def test_no_token_in_connection_string(self) -> None:
         self.assertEqual(matching(r"password\s*="), [])
 
+    def test_http_delete_method_is_forbidden(self) -> None:
+        # Kebijakan tool: operasi hapus/bersihkan memakai POST (.../clear,
+        # .../cancel). DELETE hanya boleh muncul sebagai SQL "DELETE FROM".
+        patterns = (
+            r"\brequest\(\s*[\"']DELETE[\"']",
+            r"\bjson\(\s*[\"']DELETE[\"']",
+            r"\b_call\(\s*[\"']DELETE[\"']",
+            r"\b_try\(\s*[\"']DELETE[\"']",
+            r"\b_paged\(\s*[\"']DELETE[\"']",
+            r"@router\.delete\(",
+            r"\.delete\(",
+        )
+        found = sorted({hit for pattern in patterns for hit in matching(pattern)})
+        self.assertEqual(found, [], "metode HTTP DELETE dilarang di API apa pun")
+
     def test_auth_module_stays_pure_python(self) -> None:
         text = (ROOT / "core" / "auth.py").read_text(encoding="utf-8")
         self.assertNotRegex(text, r"(?m)^\s*(import clr|import pythonnet|from pythonnet)")

@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from core.api import ApiError, Transport
+from core.errors import ExtractionError
 
 
 class FakeResponse:
@@ -98,6 +99,12 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret-token")
         self.assertNotIn("params", kwargs)
         self.assertNotIn("json", kwargs)
+
+    def test_delete_method_is_rejected_before_request(self) -> None:
+        transport, session, _ = make_transport([FakeResponse(200, {})], [])
+        with self.assertRaises(ExtractionError):
+            transport.request("DELETE", "items")
+        self.assertEqual(session.calls, [])
 
     def test_429_honours_retry_after(self) -> None:
         sleeps: list[float] = []

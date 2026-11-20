@@ -151,6 +151,91 @@ python -m server --no-browser --port 8800
   - **Export CSV** menulis `Lineage_<nama>.csv` ke `outputs\` (UTF-8 BOM, header Inggris) dan membuka filenya. Tombol **SVG**/**PNG** mengekspor kanvas yang sedang tampil ke `Lineage_<nama>.svg`/`.png` (PNG maksimal 8000 px sisi terpanjang). Tidak ada scan dari tab ini; scan tetap dijalankan dari Pengaturan.
   - Filter **Node type** di toolbar kanvas menyembunyikan node/edge tipe lain tanpa menghitung ulang posisi; indikator `x / y` menunjukkan jumlah node yang tampil. Ekspor gambar mengikuti filter, sedangkan CSV tetap memuat seluruh lineage.
 
+## API yang dipakai
+
+Semua HTTP keluar lewat `core\api\transport.py` (token Bearer, retry `429`/`5xx`, long running operation, pagination). **Tidak ada metode HTTP `DELETE`** ke API mana pun; operasi hapus/bersihkan memakai `POST` (`.../clear`, `.../cancel`).
+
+### Microsoft Entra
+
+| Method | Endpoint | Kegunaan |
+|---|---|---|
+| POST | `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token` | Token client credentials (MSAL) untuk scope Fabric dan Power BI |
+
+### Fabric API (`api.fabric.microsoft.com`)
+
+| Method | Endpoint | Kegunaan |
+|---|---|---|
+| POST | `workspaces/{workspaceId}/reports/{reportId}/getDefinition` | Definisi PBIR report |
+| GET | `operations/{operationId}` | Polling LRO (`202` + `Location`) |
+| GET | `operations/{operationId}/result` | Hasil operasi bila tidak ada di body status |
+
+### Power BI Admin REST (`api.powerbi.com/v1.0/myorg`)
+
+| Method | Endpoint | Kegunaan |
+|---|---|---|
+| GET | `admin/reports?$filter=datasetId eq '<guid>'&$top=&$skip=` | Report pemakai dataset (lintas workspace) |
+| GET | `admin/reports/{reportId}/subscriptions` | Subscription report (maks. 200 request/jam) |
+| GET | `admin/groups?$top=&$skip=` | Sinkronisasi katalog workspace |
+| GET | `admin/workspaces/modified?modifiedSince=&excludePersonalWorkspaces=` | Workspace yang berubah |
+| POST | `admin/workspaces/getInfo` | Scanner API (batch 100 workspace) |
+| GET | `admin/workspaces/scanStatus/{scanId}` | Status scan |
+| GET | `admin/workspaces/scanResult/{scanId}` | Hasil scan |
+
+### Power BI Member REST
+
+| Method | Endpoint | Kegunaan |
+|---|---|---|
+| GET | `groups` | Fallback daftar workspace (non-admin) |
+| GET | `groups/{workspaceId}/datasets` | Daftar dataset |
+| GET | `groups/{workspaceId}/reports` | Daftar report |
+| GET | `groups/{workspaceId}/dataflows` | Dataflow |
+| GET | `groups/{workspaceId}/dataflows/{id}/datasources` | Datasource dataflow |
+| GET | `groups/{workspaceId}/dataflows/{id}/upstreamDataflows` | Lineage dataflow |
+| GET | `groups/{workspaceId}/datasets/{id}/datasources` | Datasource dataset |
+| GET | `groups/{workspaceId}/dashboards` | Dashboard |
+| GET | `groups/{workspaceId}/dashboards/{id}/tiles` | Tile dashboard |
+| GET | `groups/{workspaceId}/reports/{reportId}` | Metadata report (embed/capture) |
+| GET | `groups/{workspaceId}/datasets/{datasetId}` | Metadata dataset (embed) |
+| POST | `GenerateToken` | Embed token untuk screenshot TSD |
+
+### Bukan REST
+
+| Protokol | Kegunaan |
+|---|---|
+| XMLA / ADOMD | DMV `DISCOVER_*` dan `TMSCHEMA_*` (read-only) |
+| XMLA / TOM | TMSL `refresh` partisi (satu-satunya jalur tulis, konfirmasi `PROCESS`) |
+| Browser Playwright | Memuat `app.powerbi.com` untuk capture; mengunduh Chromium |
+
+### API lokal web (server sendiri)
+
+| Prefix | Method | Endpoint |
+|---|---|---|
+| `/api/analysis` | GET | `state`, `workspaces/{id}/datasets`, `snapshot`, `report-detail`, `lineage`, `details` |
+| `/api/analysis` | POST | `lineage/export`, `lineage/image`, `dependencies/export`, `preview`, `raw-metadata`, `run`, `preferences`, `export` |
+| `/api/catalog` | GET | `status` |
+| `/api/catalog` | POST | `sync`, `scan` |
+| `/api/files` | GET | `browse`, `outputs` |
+| `/api/files` | POST | `open` |
+| `/api/jobs` | GET | ``, `{id}`, `{id}/stream` |
+| `/api/jobs` | POST | `{id}/cancel` |
+| `/api/lineage` | GET | `state`, `search`, `node/{id}` |
+| `/api/lineage` | POST | `export`, `image` |
+| `/api/metadata` | GET | `instances`, `pbix`, `workspaces`, `workspaces/{id}/contents` |
+| `/api/metadata` | POST | `run` |
+| `/api/partitions` | GET | `state`, `workspaces/{id}/datasets` |
+| `/api/partitions` | POST | `inventory`, `refresh` |
+| `/api/settings` | GET | `` |
+| `/api/settings` | PUT | `credentials`, `rls`, `paths`, `catalog`, `ui`, `extraction` |
+| `/api/settings` | POST | `test-token` |
+| `/api/system` | GET | `state` |
+| `/api/system` | POST | `shutdown` |
+| `/api/health` | GET | health check |
+| `/api/tsd` | GET | `state`, `manual`, `preview` |
+| `/api/tsd` | POST | `state`, `run`, `capture`, `cache/clear` |
+| `/api/tsd` | PUT | `manual` |
+
+Semua endpoint lokal memakai token sesi cookie (`HttpOnly`, `SameSite=Strict`) dan validasi `Host`/`Origin`; tidak ada `DELETE` dan tidak ada CORS.
+
 ## Perintah baris
 
 Report (tidak butuh Power BI Desktop terbuka):
@@ -554,6 +639,7 @@ Workflow `.github\workflows\web-smoke.yml` menjalankan uji yang sama saat `web\`
 - Import vs DirectQuery tidak dibaca dari file (isi `DataModel` berupa backup XPress9). Mode per tabel dilaporkan dari XMLA saat model diekstrak (`Import`, `DirectQuery`, `Dual`, dan sebagainya).
 - Untuk live connection, metadata model tidak tersedia di file. Ekstraksi report berjalan dengan validasi dilewati atau memakai workbook model yang sudah ada (`TIDAK DIVALIDASI` bila tidak ada), dan hanya `Report_Metadata.xlsx` yang dibuat.
 - Report dari Power BI Service diambil lewat `POST /v1/workspaces/{workspaceId}/reports/{reportId}/getDefinition` (Fabric API, long running operation). Part `InlineBase64` ditulis ke folder temporary sebagai PBIR sebelum diekstrak; `StaticResources` tidak dipakai.
+- **Metode HTTP `DELETE` dilarang** untuk API apa pun (Power BI, Fabric, API lokal). Operasi hapus/bersihkan memakai `POST` (`/api/tsd/cache/clear`, `/api/jobs/{id}/cancel`); `Transport.request` menolak `DELETE` sebelum dikirim. Larangan ini hanya metode HTTP; `DELETE FROM` pada SQLite lokal tetap dipakai untuk pemeliharaan tabel.
 - Report service harus memakai format PBIR. Report PBIR-Legacy (satu file `report.json`) tidak bisa diekstrak; simpan ulang report sebagai PBIR di Power BI Desktop lalu publish lagi.
 - Semantic model dari service diekstrak lewat XMLA. Halaman Ekstraksi Service selalu memakai endpoint workspace + catalog; pemanggil CLI/`core\jobs.py` juga menerima instance Power BI Desktop (port + catalog). Jika cakupan menyertakan report, definition report service dipakai sebagai sumber kolom usage model tanpa perlu file `.pbix`.
 - Token hanya disimpan di memori proses. Satu service principal dipakai untuk Fabric API (`https://api.fabric.microsoft.com/.default`), Power BI REST, dan XMLA (`https://analysis.windows.net/powerbi/api/.default`); token Power BI yang sama dipakai embed/Scanner/ADOMD. Token disegarkan 2 menit sebelum kedaluwarsa, termasuk lewat `OnAccessTokenExpired` pada koneksi ADOMD.

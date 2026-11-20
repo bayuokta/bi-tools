@@ -155,8 +155,28 @@ ISCC.exe /DMyAppVersion=<versi> packaging\bi-tools.iss            # installer sa
 python -m unittest discover -s tests -t .       # uji
 ```
 
+## API yang dipakai
+
+Semua HTTP lewat `core\api\transport.py`. **Dilarang memakai metode HTTP `DELETE`**; operasi hapus/bersihkan memakai `POST` (`.../clear`, `.../cancel`).
+
+| Kelompok | Method | Endpoint |
+|---|---|---|
+| Entra | POST | `login.microsoftonline.com/{tenant}/oauth2/v2.0/token` (MSAL) |
+| Fabric | POST | `workspaces/{ws}/reports/{id}/getDefinition` |
+| Fabric | GET | `operations/{id}`, `operations/{id}/result` |
+| Admin REST | GET | `admin/reports` (`$filter=datasetId`), `admin/reports/{id}/subscriptions`, `admin/groups`, `admin/workspaces/modified`, `admin/workspaces/scanStatus/{id}`, `admin/workspaces/scanResult/{id}` |
+| Admin REST | POST | `admin/workspaces/getInfo` |
+| Member REST | GET | `groups`, `groups/{ws}/datasets`, `groups/{ws}/reports`, `groups/{ws}/dataflows`, `groups/{ws}/dataflows/{id}/datasources`, `groups/{ws}/dataflows/{id}/upstreamDataflows`, `groups/{ws}/datasets/{id}/datasources`, `groups/{ws}/dashboards`, `groups/{ws}/dashboards/{id}/tiles`, `groups/{ws}/reports/{id}`, `groups/{ws}/datasets/{id}` |
+| Member REST | POST | `GenerateToken` (embed token) |
+| XMLA | - | ADOMD DMV (`DISCOVER_*`, `TMSCHEMA_*`, read-only); TOM TMSL `refresh` (jalur tulis partisi) |
+| Browser | - | `app.powerbi.com` via Playwright + unduh Chromium |
+| API lokal | GET/POST/PUT | `/api/analysis`, `/api/catalog`, `/api/files`, `/api/jobs`, `/api/lineage`, `/api/metadata`, `/api/partitions`, `/api/settings`, `/api/system`, `/api/tsd`, `/api/health` — tanpa `DELETE` |
+
+Rincian lengkap per endpoint ada di `README.md` bagian **API yang dipakai**.
+
 ## Aturan arsitektur
 
+- **Dilarang memakai metode HTTP `DELETE` pada API apa pun** (Power BI, Fabric, maupun API lokal). Operasi hapus/bersihkan memakai `POST` (`/api/tsd/cache/clear`, `/api/jobs/{id}/cancel`). `Transport.request` menolak `DELETE` sebelum request dikirim, dan `tests\test_architecture.py` menjaga tidak ada pemakaian `DELETE`/`requests.delete(`. Larangan ini khusus metode HTTP; `DELETE FROM` pada SQLite lokal tetap boleh untuk pemeliharaan tabel.
 - `core\` tidak boleh memakai `print`, `input`, `argparse`, atau `SystemExit`. Lapor progres lewat parameter `log`, dan kesalahan lewat `ExtractionError`.
 - `core\` tidak boleh mengimpor FastAPI/uvicorn atau PySide6; `server\` tidak boleh mengimpor `app\`; `cli\` tidak boleh mengimpor `server\`.
 - `core\requests.py` adalah satu sumber pemetaan input: cakupan (`SCOPE_*`/`split_scope`), validasi GUID/endpoint/path, dan `CaptureOptions`. Web/CLI tidak menyusun `CaptureOptions` atau `extract_report`/`extract_model` sendiri.

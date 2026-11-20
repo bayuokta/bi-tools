@@ -191,6 +191,14 @@ class Transport:
         headers: dict[str, str] | None = None,
     ) -> Any:
         """Kirim request; kembalikan respons untuk status di ``allow``."""
+        if str(method or "").strip().upper() == "DELETE":
+            # Kebijakan tool: tidak pernah memakai metode HTTP DELETE. Operasi
+            # hapus/bersihkan memakai POST (mis. cache/clear, jobs/{id}/cancel).
+            raise ExtractionError(
+                "Metode HTTP DELETE dilarang di tool ini. Gunakan POST "
+                "(mis. .../clear atau .../cancel); larangan berlaku untuk API "
+                "Power BI, Fabric, maupun API lokal."
+            )
         url = self._url(path_or_url)
         optional: dict[str, Any] = {}
         if params is not None:

@@ -9,6 +9,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ## Belum dirilis
 
+### Kebijakan API
+
+- Inventaris API (Fabric, Power BI Admin/member REST, XMLA, API lokal) didokumentasikan di `README.md` dan `AGENTS.md`.
+- Metode HTTP **`DELETE` dilarang** untuk API apa pun; `Transport.request` menolak sebelum request dikirim, dan `tests\test_architecture.py` menjaga tidak ada pemakaian `DELETE`/`requests.delete(`. Operasi hapus/bersihkan memakai `POST` (`.../clear`, `.../cancel`).
+
 ### Pengujian & antarmuka
 
 - Smoke test browser (`tests\test_web_smoke.py`, `RUN_WEB_SMOKE=1`) menjalankan
