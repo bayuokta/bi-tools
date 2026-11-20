@@ -9,6 +9,16 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ## Belum dirilis
 
+### Analisa Semantic Model
+
+- **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
+  untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
+  cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription
+  aktif pada report seperti itu membuat `coverage_complete=False` dan kolom
+  tanpa referensi menjadi `Perlu dicek`; 401/403 dan 429 tidak mengubah
+  coverage. Chip jumlah subscription muncul di tab **Report results**, ekspor
+  XLSX menambah sheet `12_Subscriptions`, dan CLI menampilkan ringkasannya.
+
 ### Kebijakan API
 
 - Inventaris API (Fabric, Power BI Admin/member REST, XMLA, API lokal) didokumentasikan di `README.md` dan `AGENTS.md`.

@@ -830,6 +830,13 @@ def serialize_result(
     broken_counts = broken_visual_counts(result)
     reports = []
     pages_map = dict(getattr(result, "report_pages", {}) or {})
+    subs_by_report: dict[str, int] = {}
+    for sub in getattr(result, "subscriptions", []) or []:
+        if not isinstance(sub, Mapping):
+            continue
+        key = str(sub.get("report_id") or "")
+        if key:
+            subs_by_report[key] = subs_by_report.get(key, 0) + 1
     for item in result.reports or []:
         if not isinstance(item, Mapping):
             continue
@@ -857,6 +864,7 @@ def serialize_result(
                 "health_score": (health["practice"].get(report_id) or {}).get("score"),
                 "is_active": bool(item.get("is_active", 1)),
                 "theme": str(item.get("theme") or ""),
+                "subscriptions": int(subs_by_report.get(report_id, 0)),
                 "pages": [
                     {
                         "page_id": str(page.get("page_id") or ""),
@@ -953,6 +961,11 @@ def serialize_result(
         "columns": column_rows,
         "measures": measure_rows,
         "reports": reports,
+        "subscriptions": list(getattr(result, "subscriptions", []) or []),
+        "subscription_status": str(
+            getattr(result, "subscription_status", "ok") or "ok"
+        ),
+        "subscription_note": str(getattr(result, "subscription_note", "") or ""),
         "health": health,
         "best_practice": build_best_practice(result),
         "tables": table_rows,

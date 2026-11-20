@@ -61,6 +61,11 @@ from .metadata_common import (
 )
 from .best_practice import build_best_practice
 from .model_health import build_health
+from .subscriptions import (
+    MAX_SUBSCRIPTION_REPORTS,
+    SUBSCRIPTION_TTL_HOURS,
+    parse_subscriptions,
+)
 from .model import (
     LiveModel,
     build_columns,
@@ -90,6 +95,9 @@ from .usage_store import (
     save_model_refs,
     save_report,
     save_run,
+    save_subscriptions,
+    subscription_scans,
+    subscriptions as stored_subscriptions,
     unresolved as stored_unresolved,
     utc_now,
 )
@@ -155,6 +163,10 @@ BEST_PRACTICE_COLUMNS = [
 BEST_PRACTICE_RULE_COLUMNS = [
     "Rule ID", "Rule", "Category", "Severity", "Status", "Findings",
     "Score", "Reason",
+]
+SUBSCRIPTION_COLUMNS = [
+    "Report ID", "Subscription ID", "Title", "Page", "Frequency", "Enabled",
+    "Attachment", "Start", "End", "Receiver count", "Receivers",
 ]
 
 
@@ -857,6 +869,9 @@ class AnalysisResult:
     m_queries: list[dict[str, Any]] = field(default_factory=list)
     report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     reports_included: bool = True
+    subscriptions: list[dict[str, Any]] = field(default_factory=list)
+    subscription_status: str = "ok"
+    subscription_note: str = ""
 
     @property
     def unused(self) -> list[ColumnAnalysis]:
@@ -1301,6 +1316,7 @@ class ScanCounters:
     fetch_ms: int = 0
     scan_ms: int = 0
     workers: int = 1
+    subscription_unmapped: int = 0
 
     @property
     def complete(self) -> bool:
@@ -1308,6 +1324,8 @@ class ScanCounters:
 
         Report di My Workspace (personal) dan RDL tidak dihitung karena
         memang tidak bisa dianalisa; report inaccessible tetap menghalangi.
+        Report tak terpindai yang punya subscription aktif juga menghalangi
+        karena field-nya tidak bisa dipetakan.
         """
         return (
             not self.cancelled
@@ -1315,6 +1333,7 @@ class ScanCounters:
             and self.inaccessible == 0
             and self.unresolved == 0
             and self.incomplete == 0
+            and self.subscription_unmapped == 0
         )
 
 
@@ -1735,6 +1754,130 @@ def _fetch_definition(
         loader.close()
 
 
+UNSCANNABLE_STATUSES = ("unsupported", "personal", "inaccessible")
+
+
+@dataclass
+class SubscriptionCollection:
+    """Hasil pemeriksaan subscription untuk report yang tak terpindai."""
+
+    items: list[dict[str, Any]] = field(default_factory=list)
+    status: str = "ok"
+    note: str = ""
+    unmapped: int = 0
+    checked: int = 0
+
+
+def collect_subscriptions(
+    conn: Any,
+    principal: ServicePrincipal,
+    *,
+    dataset_id: str,
+    entries: Iterable[ReportEntry],
+    log: Log = _silent,
+) -> SubscriptionCollection:
+    """Baca subscription report yang tidak bisa dipindai (RDL/personal/403).
+
+    Hanya report dengan status tersimpan ``unsupported``/``personal``/
+    ``inaccessible`` yang diperiksa, maksimal ``MAX_SUBSCRIPTION_REPORTS`` per
+    run dan di-cache ``SUBSCRIPTION_TTL_HOURS``. Report yang punya subscription
+    aktif menandakan kolom tanpa referensi tidak boleh diklaim "Tidak dipakai".
+    """
+    result = SubscriptionCollection()
+    statuses = {
+        str(row.get("report_id") or ""): str(row.get("status") or "")
+        for row in stored_reports(conn, dataset_id)
+    }
+    candidates = [
+        entry
+        for entry in entries
+        if statuses.get(entry.report_id) in UNSCANNABLE_STATUSES
+    ]
+    if not candidates:
+        return result
+    scans = subscription_scans(conn, dataset_id)
+    existing = stored_subscriptions(conn, dataset_id)
+    client: PowerBILineageClient | None = None
+    try:
+        for entry in candidates[:MAX_SUBSCRIPTION_REPORTS]:
+            cached = scans.get(entry.report_id) or {}
+            if (
+                str(cached.get("status") or "") == "ok"
+                and _recently_scanned(
+                    cached.get("scanned_at"), hours=SUBSCRIPTION_TTL_HOURS
+                )
+            ):
+                items = [
+                    row
+                    for row in existing
+                    if str(row.get("report_id") or "") == entry.report_id
+                ]
+            else:
+                if client is None:
+                    try:
+                        client = PowerBILineageClient(principal, log=log)
+                    except Exception as exc:  # noqa: BLE001 - opsional, jangan gagalkan analisa
+                        result.status = "unavailable"
+                        result.note = (
+                            "Subscription tidak bisa diperiksa: "
+                            f"{str(exc).splitlines()[0][:200]}"
+                        )
+                        log(f"Subscription      : {result.note}")
+                        break
+                try:
+                    raw = client.report_subscriptions(entry.report_id)
+                except ApiError as exc:
+                    code = int(getattr(exc, "status_code", 0) or 0)
+                    message = str(exc).splitlines()[0][:300]
+                    if code in (401, 403):
+                        result.status = "unavailable"
+                        result.note = (
+                            f"Subscription tidak bisa dibaca (HTTP {code}); "
+                            "perlu peran Fabric administrator."
+                        )
+                        log(f"Subscription      : {result.note}")
+                        break
+                    if code == 429:
+                        result.status = "throttled"
+                        result.note = (
+                            "Kuota subscription API tercapai (200/jam); "
+                            "sisa report dilewati pada run ini."
+                        )
+                        log(f"Subscription      : {result.note}")
+                        break
+                    save_subscriptions(
+                        conn,
+                        dataset_id,
+                        entry.report_id,
+                        [],
+                        status="failed",
+                        message=message,
+                    )
+                    result.status = "partial"
+                    result.note = "Sebagian subscription gagal dibaca."
+                    log(f"Subscription {entry.label}: {message}")
+                    continue
+                items = [
+                    item.payload()
+                    for item in parse_subscriptions(entry.report_id, raw)
+                ]
+                save_subscriptions(
+                    conn, dataset_id, entry.report_id, items, status="ok"
+                )
+            result.checked += 1
+            result.items.extend(items)
+            if any(bool(item.get("is_enabled")) for item in items):
+                result.unmapped += 1
+                log(
+                    f"Subscription {entry.label}: {len(items)} subscription "
+                    "(report tidak bisa dipindai)."
+                )
+    finally:
+        if client is not None:
+            client.close()
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Entry point jaringan
 # ---------------------------------------------------------------------------
@@ -1926,6 +2069,21 @@ def analyze_dataset(
                     f"{counters.scan_ms / 1000:.1f} dtk · "
                     f"{counters.workers} worker."
                 )
+            subscription = collect_subscriptions(
+                conn,
+                principal,
+                dataset_id=dataset_id,
+                entries=entries,
+                log=log,
+            )
+            counters.subscription_unmapped = subscription.unmapped
+            if subscription.checked or subscription.status != "ok":
+                detail = f"{subscription.checked} report tak terpindai diperiksa"
+                if subscription.unmapped:
+                    detail += f" · {subscription.unmapped} punya subscription aktif"
+                if subscription.note:
+                    detail += f" · {subscription.note}"
+                log(f"Subscription      : {detail}")
             usage_rows = field_usage(conn, dataset_id)
             report_rows = stored_reports(conn, dataset_id)
             page_rows = stored_report_pages(conn, dataset_id)
@@ -1934,6 +2092,7 @@ def analyze_dataset(
             coverage = coverage_text(counters)
         else:
             counters = ScanCounters()
+            subscription = SubscriptionCollection()
             usage_rows = []
             report_rows = []
             page_rows = {}
@@ -1967,6 +2126,9 @@ def analyze_dataset(
             report_pages=page_rows,
             reports_included=include_reports,
         )
+        result.subscriptions = list(subscription.items)
+        result.subscription_status = subscription.status
+        result.subscription_note = subscription.note
         save_run(
             conn,
             {
@@ -1998,6 +2160,8 @@ def analyze_dataset(
                 "fetch_ms": counters.fetch_ms,
                 "scan_ms": counters.scan_ms,
                 "scan_workers": counters.workers,
+                "subscription_unmapped": counters.subscription_unmapped,
+                "subscription_status": subscription.status,
             },
         )
     finally:
@@ -2193,7 +2357,7 @@ def snapshot_from_connection(
     ]
     coverage = str(run.get("coverage") or "")
     reports_included = coverage != COVERAGE_MODEL_ONLY
-    return build_analysis(
+    result = build_analysis(
         stats=stats,
         usage_rows=field_usage(conn, dataset_id) if reports_included else [],
         model_refs=references,
@@ -2225,6 +2389,11 @@ def snapshot_from_connection(
         m_queries=stored_m_queries(conn, dataset_id),
         reports_included=reports_included,
     )
+    result.subscriptions = (
+        stored_subscriptions(conn, dataset_id) if reports_included else []
+    )
+    result.subscription_status = str(run.get("subscription_status") or "ok")
+    return result
 
 
 def coverage_text(counters: ScanCounters) -> str:
@@ -2249,6 +2418,10 @@ def coverage_text(counters: ScanCounters) -> str:
         parts.append(f"{counters.incomplete} belum dipindai")
     if counters.cancelled:
         parts.append("dibatalkan")
+    if counters.subscription_unmapped:
+        parts.append(
+            f"{counters.subscription_unmapped} subscription pada report tak terpindai"
+        )
     return " · ".join(parts)
 
 
@@ -2355,6 +2528,9 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             "Best practice rules",
             f"{best_practice.get('evaluated', 0)}/{best_practice.get('rule_count', 0)} evaluated",
         ),
+        ("Subscriptions", len(result.subscriptions)),
+        ("Subscription status", result.subscription_status or "-"),
+        ("Subscription note", result.subscription_note or ""),
     ]
     for status, count in sorted(result.status_counts.items()):
         summary_rows.append((f"Status column {status}", count))
@@ -2641,6 +2817,28 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             pd.DataFrame(best_practice_rule_rows, columns=BEST_PRACTICE_RULE_COLUMNS),
             "11_BestPractice_Model_Rules",
             {"Rule": 50, "Reason": 56},
+        )
+        subscription_rows = [
+            {
+                "Report ID": str(item.get("report_id") or ""),
+                "Subscription ID": str(item.get("subscription_id") or ""),
+                "Title": str(item.get("title") or ""),
+                "Page": str(item.get("page_name") or ""),
+                "Frequency": str(item.get("frequency") or ""),
+                "Enabled": "Yes" if item.get("is_enabled") else "No",
+                "Attachment": str(item.get("attachment_format") or ""),
+                "Start": str(item.get("start_date") or ""),
+                "End": str(item.get("end_date") or ""),
+                "Receiver count": int(item.get("receiver_count") or 0),
+                "Receivers": ", ".join(item.get("receivers") or []),
+            }
+            for item in result.subscriptions
+        ]
+        write_sheet(
+            writer,
+            pd.DataFrame(subscription_rows, columns=SUBSCRIPTION_COLUMNS),
+            "12_Subscriptions",
+            {"Title": 40, "Receivers": 60},
         )
     return path
 

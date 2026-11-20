@@ -275,6 +275,21 @@ class PowerBILineageClient:
         """Report di satu workspace (untuk pilihan sumber report)."""
         return self._list(f"groups/{workspace_id}/reports")
 
+    def report_subscriptions(self, report_id: str) -> list[dict[str, Any]]:
+        """Subscription satu report (Admin REST, butuh Fabric administrator).
+
+        Kuota endpoint ini 200 request/jam; pemanggil wajib membatasi jumlah
+        report dan menyimpan cache. Kegagalan HTTP diteruskan sebagai
+        :class:`ApiError` supaya pemanggil bisa membedakan 401/403/429.
+        """
+        data = self._call(
+            "GET", f"admin/reports/{str(report_id).strip()}/subscriptions"
+        )
+        value = data.get("value") if isinstance(data, dict) else data
+        if not isinstance(value, list):
+            return []
+        return [row for row in value if isinstance(row, dict)]
+
     def reports_for_dataset(
         self, dataset_id: str, *, page_size: int = PAGE_SIZE
     ) -> list[dict[str, Any]]:

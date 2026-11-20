@@ -5039,14 +5039,20 @@
       var rootId = "report:" + reportId;
       var rootOpen = analysisIsOpen(rootId, false, true);
       var isApp = /\[App\]/i.test(reportName);
+      var reportCell = analysisNameCell(reportName, "report", {
+        level: 0, toggleId: rootId, open: rootOpen,
+        href: analysisReportUrl(report.workspace_id, report.report_id)
+      });
+      if (report.subscriptions) {
+        reportCell += ' <span class="chip chip-idle" title="' +
+          escapeHtml(t("Subscriptions in this report")) + '">' +
+          fmtInt(report.subscriptions) + " " + t("subs") + "</span>";
+      }
       rows.push({
         level: 0,
         group: true,
         cells: analysisReportCells(
-          analysisNameCell(reportName, "report", {
-            level: 0, toggleId: rootId, open: rootOpen,
-            href: analysisReportUrl(report.workspace_id, report.report_id)
-          }),
+          reportCell,
           isApp ? "Apps" : "Local report", report.format || report.workspace_name || "—",
           report.visual_count || 0, report.page_count || 0, report.theme || "—",
           undefined,

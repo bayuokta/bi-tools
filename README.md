@@ -513,7 +513,7 @@ Ekspor XLSX menambah sheet `10_BestPractice_Model` (temuan) dan `11_BestPractice
 
 ### Batasan
 
-- Subscription, alert, Excel/ad-hoc (Analyze in Excel), Q&A, dan personalisasi user tidak terdeteksi.
+- Subscription report dideteksi lewat Admin API **hanya untuk report yang tidak bisa dipindai** (RDL/personal/inaccessible), dengan cache 24 jam dan batas 25 report per run. Subscription aktif pada report seperti itu membuat kolom tanpa referensi menjadi `Perlu dicek`, bukan `Tidak dipakai`. Data alert, Excel/ad-hoc (Analyze in Excel), Q&A, personalisasi user, dan pemetaan field RDL/personal tetap tidak terdeteksi. Kuota endpoint subscription 200 request/jam.
 - Report RDL/paginated tidak dianalisa field-nya dan dilaporkan sebagai `unsupported`.
 - Report di My Workspace tidak dapat diakses service principal; default dilewati (bisa diikutkan, tetapi akan 404).
 - Report dari Power BI App (`[App] …`) selalu dilewati; pemakaian yang hanya ada di salinan app tidak dihitung.

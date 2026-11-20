@@ -22,6 +22,9 @@ from core.usage_store import (
     reports,
     save_columns,
     save_m_queries,
+    save_subscriptions,
+    subscription_scans,
+    subscriptions,
     unresolved,
     save_report,
     save_run,
@@ -264,6 +267,40 @@ class UsageStoreTests(unittest.TestCase):
         self.assertEqual(last["fetch_ms"], 1250)
         self.assertEqual(last["scan_ms"], 300)
         self.assertEqual(last["scan_workers"], 2)
+
+    def test_subscription_snapshot_and_cache(self) -> None:
+        save_subscriptions(
+            self.conn,
+            "ds",
+            "r1",
+            [
+                {
+                    "subscription_id": "sub-1",
+                    "title": "Daily",
+                    "artifact_type": "Report",
+                    "page_name": "Overview",
+                    "frequency": "Daily",
+                    "is_enabled": True,
+                    "attachment_format": "PNG",
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-12-31",
+                    "receiver_count": 2,
+                    "receivers": ["a@example.com", "b@example.com"],
+                }
+            ],
+        )
+        rows = subscriptions(self.conn, "ds")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["page_name"], "Overview")
+        self.assertTrue(rows[0]["is_enabled"])
+        self.assertEqual(
+            rows[0]["receivers"], ["a@example.com", "b@example.com"]
+        )
+        scans = subscription_scans(self.conn, "ds")
+        self.assertEqual(scans["r1"]["status"], "ok")
+
+        save_subscriptions(self.conn, "ds", "r1", [], status="ok")
+        self.assertEqual(subscriptions(self.conn, "ds"), [])
 
     def test_m_query_snapshot_is_replaced_per_dataset(self) -> None:
         save_m_queries(
