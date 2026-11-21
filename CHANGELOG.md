@@ -29,6 +29,27 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   DB2/SAP HANA/Sybase/Informix/Analysis Services kini dikenali (sebelumnya
   jatuh ke `table`), dan konektor database yang belum punya pola di
   `CONNECTOR_PATTERNS` tidak lagi masuk bucket tabel `mquery` pada TSD.
+- **Cakupan konektor M dari korpus nyata**: registry `CONNECTOR_SPECS` kini
+  mengenali `PowerBI.Dataflows` (rantai `workspaceId`/`dataflowId` tidak lagi
+  mengotori label), `GoogleBigQueryAad`, `Odbc.Query`/`Odbc.DataSource`,
+  `SapBusinessWarehouse.Cubes`, `UsageMetricsDataConnector`,
+  `GoogleSheets.Contents`, `Parquet.Document`, `SharePoint.Contents`,
+  `Pdf.Data`, `AzureStorage.*`, `Excel.CurrentWorkbook`, `Web.Page`, dan
+  `Html.Table`. Navigasi berakhir `[Content]`/`[Value]` (Folder/SharePoint)
+  ikut dibaca. Koneksi **native query** memakai label `server.database`/DSN,
+  path/URL lengkap dan nama parameter disimpan sebagai keterangan node, dan
+  parameter tidak pernah masuk label. `Value.NativeQuery`, `Table.Combine`,
+  `if then else`, serta `let` bersarang kini mempertahankan origin.
+- **Warning M yang jujur**: `Table.PromoteHeaders` (3.052 query pada korpus
+  uji), fungsi skalar (`Date.*`, `Text.*`, `List.*`, `#date`), passthrough
+  (`Table.ReplaceErrorValues`, `Table.RemoveRowsWithErrors`,
+  `Table.ExpandListColumn`, ...), dan `Cube.*` tidak lagi memicu
+  `unknown_function`; kolom yang tidak bisa dipastikan ditandai
+  `columns_known=False` tanpa warning. Pada korpus 9.832 query M, baris
+  berwarning turun dari 72% ke 7,1% dan `unknown_function` dari 8.138 ke 24
+  (hanya fungsi buatan pengguna). `m_query_corpus.py` menambah laporan
+  dev-only; korpus pelanggan tidak di-commit, regresi memakai
+  `tests\data\m_query_patterns.json` yang anonim.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription

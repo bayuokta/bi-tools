@@ -1950,8 +1950,27 @@
   ];
   var LINEAGE_ORIGIN_LABELS = {
     sql: "SQL Server",
+    "analysis services": "Analysis Services",
+    bigquery: "BigQuery",
+    snowflake: "Snowflake",
+    postgresql: "PostgreSQL",
+    mysql: "MySQL",
+    oracle: "Oracle",
+    teradata: "Teradata",
+    db2: "DB2",
+    "sap hana": "SAP HANA",
+    "sap bw": "SAP BW",
+    sybase: "Sybase",
+    informix: "Informix",
+    odbc: "ODBC",
+    dataverse: "Dataverse",
     dataflow: "Power BI Dataflow",
+    dataset: "Dataset",
+    "usage metrics": "Usage Metrics",
     file: "File",
+    googlesheets: "Google Sheets",
+    "azure storage": "Azure Storage",
+    web: "Web",
     odata: "OData",
     sharepoint: "SharePoint",
     inline: "Inline table",
@@ -4142,6 +4161,9 @@
     } else if (node.kind === "mquery") {
       sub = t("M query");
       note = context;
+    } else if (node.kind === "datasource") {
+      sub = kindLabel;
+      note = [context, detail].filter(Boolean).join(" \u00b7 ");
     } else if (node.group === "usage" || node.group === "more") {
       sub = t("Used in") + " " + kindLabel.toLowerCase() +
         (detail ? " (" + detail + ")" : "");

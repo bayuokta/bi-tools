@@ -133,6 +133,17 @@ def _mquery_id(table: str) -> str:
     return f"mquery:{table}"
 
 
+def _m_source_detail(parsed: Any) -> str:
+    """Keterangan sumber untuk node datasource (path/URL, parameter, native)."""
+    parts = [str(item) for item in (getattr(parsed, "details", []) or []) if item]
+    params = [str(item) for item in (getattr(parsed, "source_params", []) or []) if item]
+    if params:
+        parts.append("param:" + ", ".join(params))
+    if getattr(parsed, "native_query", False):
+        parts.append("native query")
+    return " · ".join(parts)
+
+
 class _Graph:
     """Akumulator node/edge dengan batas jumlah node."""
 
@@ -1679,6 +1690,7 @@ def build_lineage(
                         parsed.source_object or parsed.origin or "Datasource"
                     ),
                     context=str(parsed.origin or ""),
+                    detail=_m_source_detail(parsed),
                     group="mquery",
                     group_key=f"source:{table_name}",
                     container=f"artifact:source:{table_name}",
@@ -2125,6 +2137,7 @@ def build_table_lineage(
                             parsed.source_object or parsed.origin or "Datasource"
                         ),
                         "context": str(parsed.origin or ""),
+                        "detail": _m_source_detail(parsed),
                         "group": "mquery",
                         "role": "card",
                         "group_key": f"source:{name}",

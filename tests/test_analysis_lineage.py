@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from core.analysis_lineage import MAX_USAGE_PER_PAGE, build_lineage, build_table_lineage
 from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
@@ -1589,6 +1591,229 @@ class SourcePathTests(unittest.TestCase):
 
         self.assertEqual(node["label"], "my-project.sales_ds.orders")
         self.assertEqual(node["context"], "bigquery")
+
+    def test_powerbi_dataflow_skips_service_ids(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            "    Source = PowerBI.Dataflows(null),\n"
+            '    Workspaces = Source{[Id="Workspaces"]}[Data],\n'
+            '    W = Workspaces{[workspaceId="ws-guid"]}[Data],\n'
+            '    D = W{[dataflowId="df-guid"]}[Data],\n'
+            '    E = D{[entity="Attribusi", version=""]}[Data]\n'
+            "in\n"
+            "    E"
+        )
+
+        self.assertEqual(parsed.origin, "dataflow")
+        self.assertEqual(parsed.source_path, ["Attribusi"])
+        self.assertEqual(parsed.source_object, "Attribusi")
+        self.assertEqual(parsed.warnings, [])
+
+    def test_folder_navigation_content_gives_file_name(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Folder.Files("D:\\folder"),\n'
+            '    F = Source{[#"Folder Path"="D:\\folder\\", Name="a.csv"]}[Content],\n'
+            "    C = Csv.Document(F)\n"
+            "in\n"
+            "    C"
+        )
+
+        self.assertEqual(parsed.origin, "file")
+        self.assertEqual(parsed.source_object, "a.csv")
+        self.assertIn("path:D:\\folder", parsed.details)
+
+    def test_odbc_query_uses_dsn_and_never_leaks_secret(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Odbc.Query("dsn=AISO4W;Pwd=rahasia", "select 1")\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.origin, "odbc")
+        self.assertEqual(parsed.source_object, "AISO4W")
+        self.assertTrue(parsed.native_query)
+        self.assertNotIn("rahasia", parsed.source_object)
+        self.assertNotIn("rahasia", " ".join(parsed.details))
+
+    def test_sql_native_query_uses_connection_label(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Sql.Database("srv", "db", [Query="select 1"])\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.source_object, "srv.db")
+        self.assertTrue(parsed.native_query)
+        self.assertEqual(parsed.warnings, [])
+
+    def test_native_query_keeps_origin_and_parameter_names(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Value.NativeQuery(PostgreSQL.Database(Server, #"Database AISAM"), '
+            '"select * from log.x", null, [EnableFolding=true])\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.origin, "postgresql")
+        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.source_params, ["Server", "Database AISAM"])
+        self.assertTrue(parsed.native_query)
+        self.assertEqual(parsed.warnings, [])
+
+    def test_bigquery_aad_parameter_is_not_part_of_label(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            "    Source = GoogleBigQueryAad.Database(projectID, [Implementation=\"2.0\"]),\n"
+            '    DB = Source{[Name=projectID, Kind="Database"]}[Data],\n'
+            "    Q = Value.NativeQuery(DB, \"select 1\")\n"
+            "in\n"
+            "    Q"
+        )
+
+        self.assertEqual(parsed.origin, "bigquery")
+        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.source_params, ["projectID"])
+        self.assertTrue(parsed.native_query)
+
+    def test_google_sheets_and_usage_metrics(self) -> None:
+        sheets = build_m_lineage(
+            "let\n"
+            '    Source = GoogleSheets.Contents("https://docs.google.com/spreadsheets/d/abc/edit#gid=1"),\n'
+            '    T = Source{[name="target", ItemKind="Table"]}[Data]\n'
+            "in\n"
+            "    T"
+        )
+        usage = build_m_lineage(
+            "let\n"
+            "    Source = UsageMetricsDataConnector.GetMetricsData(null, null, null, null)\n"
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(sheets.origin, "googlesheets")
+        self.assertEqual(sheets.source_object, "target")
+        self.assertIn("url:https://docs.google.com/spreadsheets/d/abc/edit", sheets.details)
+        self.assertEqual(usage.origin, "usage metrics")
+        self.assertEqual(usage.source_object, "Usage Metrics")
+
+    def test_header_reset_and_scalar_functions_do_not_warn(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            "    Source = Table.FromRows({{1}}, {\"Column1\"}),\n"
+            "    P = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),\n"
+            "    T = Table.Transpose(P),\n"
+            "    D = Table.AddColumn(T, \"Today\", each Date.From(DateTime.LocalNow()))\n"
+            "in\n"
+            "    D"
+        )
+
+        self.assertEqual(parsed.origin, "inline")
+        self.assertFalse(parsed.columns_known)
+        self.assertEqual(
+            [warning.status for warning in parsed.warnings if warning.status == "unknown_function"],
+            [],
+        )
+
+    def test_conditional_and_combine_keep_origin(self) -> None:
+        conditional = build_m_lineage(
+            "let\n"
+            '    Source = Sql.Database("srv", "db"),\n'
+            '    T = Source{[Schema="dbo", Item="X"]}[Data],\n'
+            '    R = if Flag = "All" then T else Table.FirstN(T, 5)\n'
+            "in\n"
+            "    R"
+        )
+        combined = build_m_lineage(
+            "let\n"
+            '    Source = Table.Combine({#"Detail Sales", #"Detail AFS"})\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(conditional.origin, "sql")
+        self.assertEqual(conditional.source_object, "dbo.X")
+        self.assertEqual(combined.origin, "")
+        self.assertEqual(combined.references, ["Detail Sales", "Detail AFS"])
+        self.assertEqual(combined.warnings, [])
+
+    def test_expand_list_column_is_passthrough(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Sql.Database("srv", "db"),\n'
+            '    T = Source{[Schema="dbo", Item="X"]}[Data],\n'
+            '    E = Table.ExpandListColumn(T, "Items")\n'
+            "in\n"
+            "    E"
+        )
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.warnings, [])
+
+    def test_concatenated_url_is_not_used_as_label(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Web.Contents("https://example.net/" & Path)\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.origin, "web")
+        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.details, [])
+
+    def test_datasource_node_carries_source_detail(self) -> None:
+        text = (
+            "let\n"
+            '    Source = Value.NativeQuery(PostgreSQL.Database(Server, "db"), "select 1")\n'
+            "in\n"
+            "    Source"
+        )
+        data = build_lineage(
+            make_result(
+                columns=[column_analysis("orders", "amount")],
+                m_queries=[
+                    {
+                        "name": "orders",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": text,
+                    }
+                ],
+            ),
+            kind="column",
+            table="orders",
+            name="amount",
+        )
+        node = next(
+            node for node in data["nodes"] if node["kind"] == "datasource"
+        )
+
+        self.assertEqual(node["label"], "db")
+        self.assertIn("param:Server", node["detail"])
+        self.assertIn("native query", node["detail"])
+
+
+class MQueryPatternFixtureTests(unittest.TestCase):
+    """Regresi pola M anonim yang disimpan di tests/data."""
+
+    def test_anonymized_patterns(self) -> None:
+        path = Path(__file__).parent / "data" / "m_query_patterns.json"
+        patterns = json.loads(path.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(patterns), 8)
+        for pattern in patterns:
+            with self.subTest(pattern=pattern["name"]):
+                parsed = build_m_lineage(pattern["expression"])
+                self.assertEqual(parsed.origin, pattern["origin"])
+                self.assertEqual(parsed.source_object, pattern["source_object"])
+                self.assertEqual(
+                    [warning.status for warning in parsed.warnings if warning.status == "unknown_function"],
+                    [],
+                )
 
 
 if __name__ == "__main__":

@@ -16,6 +16,9 @@ TSD_assets/
 # Database dan data lokal (jangan di-commit)
 data/
 outputs/
+# Fixture uji tetap di-commit (bukan data runtime)
+!tests/data/
+!tests/data/**
 
 # Python
 __pycache__/
@@ -43,6 +46,9 @@ _pbir/
 
 # Hasil analisa semantic model (regenerate dari script)
 Analisa_Semantic_Model_*.xlsx
+
+# Korpus query M untuk uji parser (berisi ekspresi pelanggan)
+m-query*.csv
 
 # Workbook metadata hasil generate (regenerate dari script; jangan di-commit)
 /Report_Metadata.xlsx

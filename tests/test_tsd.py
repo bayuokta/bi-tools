@@ -835,9 +835,32 @@ class ContextTests(TsdTestCase):
             ('let S = Snowflake.Databases("a", "w") in S', "Snowflake"),
             ('let S = Teradata.Database("h") in S', "Teradata"),
             ('let S = AzureSql.Database("h", "d") in S', "Azure SQL"),
+            ("let S = Odbc.Query(\"dsn=X\", \"select 1\") in S", "ODBC"),
+            ('let S = SapBusinessWarehouse.Cubes("h") in S', "SAP BW"),
+            ('let S = GoogleSheets.Contents("https://x") in S', "Google Sheets"),
+            ("let S = Parquet.Document(File.Contents(\"a.parquet\")) in S", "Parquet"),
+            ("let S = PowerBI.Dataflows(null) in S", "Power BI Dataflows"),
+            (
+                "let S = UsageMetricsDataConnector.GetMetricsData(null) in S",
+                "Usage Metrics",
+            ),
         ):
             self.assertEqual(_infer_connector(expression), label, expression)
-            self.assertEqual(_connector_kind(label)[0], "database", label)
+
+    def test_infer_connector_buckets(self) -> None:
+        for expression, bucket in (
+            ("let S = Odbc.Query(\"dsn=X\", \"select 1\") in S", "database"),
+            ('let S = SapBusinessWarehouse.Cubes("h") in S', "database"),
+            ('let S = GoogleSheets.Contents("https://x") in S', "file"),
+            ("let S = Parquet.Document(File.Contents(\"a.parquet\")) in S", "file"),
+            ("let S = PowerBI.Dataflows(null) in S", "live"),
+            (
+                "let S = UsageMetricsDataConnector.GetMetricsData(null) in S",
+                "live",
+            ),
+        ):
+            label = _infer_connector(expression)
+            self.assertEqual(_connector_kind(label)[0], bucket, expression)
 
     def test_calculated_and_calculation_group_tables_are_skipped(self) -> None:
         frames = {

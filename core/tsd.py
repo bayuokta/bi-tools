@@ -105,6 +105,8 @@ FILE_CONNECTORS = (
     "access",
     "xml",
     "parquet",
+    "google sheet",
+    "azure storage",
 )
 
 LIVE_CONNECTORS = (
@@ -112,6 +114,7 @@ LIVE_CONNECTORS = (
     "dataset",
     "powerplatform",
     "power bi",
+    "usage metric",
 )
 
 # Query yang dibuat di dalam Power BI (Enter Data / M murni) tidak punya sumber
@@ -1075,8 +1078,11 @@ def _connector_kind(connector: str) -> tuple[str, str]:
 
 CONNECTOR_PATTERNS = (
     ("PowerPlatform.Dataflows", "PowerPlatform.Dataflows"),
+    ("PowerBI.Dataflows", "Power BI Dataflows"),
     ("PowerPlatform.Datasets", "PowerPlatform.Datasets"),
     ("Fabric.Dataflows", "Fabric Dataflows"),
+    ("Fabric.Datasets", "Fabric Datasets"),
+    ("UsageMetricsDataConnector.GetMetricsData", "Usage Metrics"),
     ("AnalysisServices.Database", "Analysis Services"),
     ("AzureSynapseAnalytics.Database", "Azure Synapse"),
     ("AzureSql.Database", "Azure SQL"),
@@ -1087,9 +1093,12 @@ CONNECTOR_PATTERNS = (
     ("Oracle.Database", "Oracle"),
     ("Teradata.Database", "Teradata"),
     ("SapHana.Database", "SAP HANA"),
+    ("SapBusinessWarehouse.Cubes", "SAP BW"),
     ("DB2.Database", "DB2"),
     ("Sybase.Database", "Sybase"),
     ("Informix.Database", "Informix"),
+    ("Odbc.Query", "ODBC"),
+    ("Odbc.DataSource", "ODBC"),
     ("Dataverse.Contents", "Dataverse"),
     ("CommonDataService.Database", "Dataverse"),
     ("Sql.Database", "SQL Server"),
@@ -1097,14 +1106,23 @@ CONNECTOR_PATTERNS = (
     ("OData.Feed", "OData"),
     ("SharePoint.Tables", "SharePoint"),
     ("SharePoint.Files", "SharePoint"),
+    ("SharePoint.Contents", "SharePoint"),
     ("Excel.Workbook", "Excel"),
+    ("Excel.CurrentWorkbook", "Excel"),
     ("Csv.Document", "CSV"),
     ("Folder.Files", "Folder"),
     ("Pdf.Tables", "PDF"),
+    ("Pdf.Data", "PDF"),
+    ("Parquet.Document", "Parquet"),
+    ("GoogleSheets.Contents", "Google Sheets"),
+    ("AzureStorage.Blobs", "Azure Storage"),
+    ("AzureStorage.DataLake", "Azure Storage"),
     ("Json.Document", "JSON"),
     ("Xml.Tables", "XML"),
+    ("Html.Table", "Web"),
     ("File.Contents", "File"),
     ("Web.Contents", "Web"),
+    ("Web.Page", "Web"),
 )
 
 

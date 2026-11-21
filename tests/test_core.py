@@ -28,6 +28,7 @@ import verify_reference
 from core.errors import ExtractionError
 from core.jobs import run_metadata_job, run_report_job
 from core.metadata_common import parse_report_field, report_aggregation_label, scan_report_usage
+from core.model import extract_connector
 from core.pbix import (
     LIVE_CONNECTION,
     LOCAL_MODEL,
@@ -1039,6 +1040,26 @@ class ReportOutputDirTests(unittest.TestCase):
             )
 
             self.assertTrue(out_file.exists())
+
+
+class ConnectorRecognitionTests(unittest.TestCase):
+    """Connector sumber baru dikenali `extract_connector` untuk 15_Data_Sources."""
+
+    def test_source_connectors_are_recognized(self) -> None:
+        cases = {
+            "let S = PowerBI.Dataflows(null) in S": "PowerBI.Dataflows",
+            "let S = Odbc.Query(\"dsn=X\", \"select 1\") in S": "Odbc.Query",
+            "let S = GoogleBigQueryAad.Database(p) in S": "GoogleBigQueryAad.Database",
+            "let S = SapBusinessWarehouse.Cubes(\"h\") in S": "SapBusinessWarehouse.Cubes",
+            "let S = GoogleSheets.Contents(\"u\") in S": "GoogleSheets.Contents",
+            "let S = Parquet.Document(File.Contents(\"a\")) in S": "Parquet.Document",
+            "let S = UsageMetricsDataConnector.GetMetricsData(null) in S": (
+                "UsageMetricsDataConnector.GetMetricsData"
+            ),
+        }
+        for expression, name in cases.items():
+            with self.subTest(connector=name):
+                self.assertEqual(extract_connector(expression)[0], name)
 
 
 if __name__ == "__main__":

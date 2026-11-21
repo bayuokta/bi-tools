@@ -1,0 +1,74 @@
+[
+  {
+    "name": "sql_server_schema_item",
+    "expression": "let\n    Source = Sql.Database(\"sql.example.net\", \"SalesDB\"),\n    dbo_Sales = Source{[Schema=\"dbo\", Item=\"Sales\"]}[Data]\nin\n    dbo_Sales",
+    "origin": "sql",
+    "source_object": "dbo.Sales"
+  },
+  {
+    "name": "sql_server_native_query",
+    "expression": "let\n    Source = Sql.Database(\"sql.example.net\", \"SalesDB\", [Query=\"select * from dbo.Sales\"])\nin\n    Source",
+    "origin": "sql",
+    "source_object": "sql.example.net.SalesDB"
+  },
+  {
+    "name": "bigquery_project_dataset_table",
+    "expression": "let\n    Source = GoogleBigQuery.Database(null),\n    proj = Source{[Name=\"analytics\"]}[Data],\n    ds = proj{[Name=\"sales_ds\", Kind=\"Schema\"]}[Data],\n    tbl = ds{[Name=\"orders\", Kind=\"Table\"]}[Data]\nin\n    tbl",
+    "origin": "bigquery",
+    "source_object": "analytics.sales_ds.orders"
+  },
+  {
+    "name": "snowflake_database_schema_table",
+    "expression": "let\n    Source = Snowflake.Databases(\"acct.snowflakecomputing.com\", \"WH\"),\n    db = Source{[Name=\"ANALYTICS\"]}[Data],\n    sch = db{[Name=\"PUBLIC\", Kind=\"Schema\"]}[Data],\n    tbl = sch{[Name=\"ORDERS\", Kind=\"Table\"]}[Data]\nin\n    tbl",
+    "origin": "snowflake",
+    "source_object": "ANALYTICS.PUBLIC.ORDERS"
+  },
+  {
+    "name": "postgresql_name_navigation",
+    "expression": "let\n    Source = PostgreSQL.Database(\"pg.example.net\", \"app\"),\n    public = Source{[Name=\"public\"]}[Data],\n    orders = public{[Name=\"orders\"]}[Data]\nin\n    orders",
+    "origin": "postgresql",
+    "source_object": "public.orders"
+  },
+  {
+    "name": "odbc_query_dsn",
+    "expression": "let\n    Source = Odbc.Query(\"dsn=WarehouseDSN;Pwd=example\", \"select * from reporting.orders\")\nin\n    Source",
+    "origin": "odbc",
+    "source_object": "WarehouseDSN"
+  },
+  {
+    "name": "powerbi_dataflow_entity",
+    "expression": "let\n    Source = PowerBI.Dataflows(null),\n    Workspaces = Source{[Id=\"Workspaces\"]}[Data],\n    W = Workspaces{[workspaceId=\"00000000-0000-0000-0000-000000000000\"]}[Data],\n    D = W{[dataflowId=\"11111111-1111-1111-1111-111111111111\"]}[Data],\n    E = D{[entity=\"Attribusi\", version=\"\"]}[Data]\nin\n    E",
+    "origin": "dataflow",
+    "source_object": "Attribusi"
+  },
+  {
+    "name": "folder_file_content",
+    "expression": "let\n    Source = Folder.Files(\"D:\\data\"),\n    F = Source{[#\"Folder Path\"=\"D:\\data\\\", Name=\"a.csv\"]}[Content],\n    C = Csv.Document(F)\nin\n    C",
+    "origin": "file",
+    "source_object": "a.csv"
+  },
+  {
+    "name": "google_sheets_table",
+    "expression": "let\n    Source = GoogleSheets.Contents(\"https://docs.google.com/spreadsheets/d/example/edit#gid=1\"),\n    T = Source{[name=\"target\", ItemKind=\"Table\"]}[Data]\nin\n    T",
+    "origin": "googlesheets",
+    "source_object": "target"
+  },
+  {
+    "name": "parquet_document",
+    "expression": "let\n    Source = Parquet.Document(File.Contents(\"D:\\\\data\\\\orders.parquet\"))\nin\n    Source",
+    "origin": "file",
+    "source_object": "orders.parquet"
+  },
+  {
+    "name": "inline_table",
+    "expression": "let\n    Source = #table({\"A\", \"B\"}, {{1, 2}})\nin\n    Source",
+    "origin": "inline",
+    "source_object": "inline"
+  },
+  {
+    "name": "odata_entity",
+    "expression": "let\n    Source = OData.Feed(\"https://example.net/odata\"),\n    Customers = Source{[Name=\"Customers\"]}[Data]\nin\n    Customers",
+    "origin": "odata",
+    "source_object": "Customers"
+  }
+]
