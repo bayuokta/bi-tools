@@ -9,6 +9,7 @@ from pathlib import Path
 from core.analysis_lineage import MAX_USAGE_PER_PAGE, build_lineage, build_table_lineage
 from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
 from core.m_lineage import build_lineage as build_m_lineage
+from core.m_lineage import build_lineage_resolver
 from core.usage_service import (
     STATUS_UNUSED,
     STATUS_USED,
@@ -1650,6 +1651,33 @@ class SourcePathTests(unittest.TestCase):
         self.assertTrue(parsed.native_query)
         self.assertEqual(parsed.warnings, [])
 
+    def test_sql_native_query_uses_table_label(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Sql.Database("srv", "db", '
+            '[Query="select * from dbo.Sales"])\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.source_object, "dbo.Sales")
+        self.assertTrue(parsed.native_query)
+        self.assertIn("connection:srv.db", parsed.details)
+
+    def test_odbc_native_query_uses_table_label(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Odbc.Query("dsn=WarehouseDSN;Pwd=secret", '
+            '"select * from dbo.Orders")\n'
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.source_object, "dbo.Orders")
+        self.assertTrue(parsed.native_query)
+        self.assertIn("connection:WarehouseDSN", parsed.details)
+        self.assertNotIn("secret", " ".join(parsed.details))
+
     def test_native_query_keeps_origin_and_parameter_names(self) -> None:
         parsed = build_m_lineage(
             "let\n"
@@ -1918,6 +1946,16 @@ class SharedQueryTests(unittest.TestCase):
 
         self.assertEqual(parsed.source_object, "")
         self.assertEqual(parsed.references, ["MissingQuery"])
+
+    def test_shared_resolver_reuses_references(self) -> None:
+        resolver = build_lineage_resolver(self.registry())
+        first = build_m_lineage("let Source = Base in Source", resolver=resolver)
+        second = build_m_lineage("let Source = detail in Source", resolver=resolver)
+
+        self.assertEqual(first.source_object, "dbo.Sales")
+        self.assertEqual(second.source_object, "dbo.Sales")
+        self.assertEqual(set(second.columns), {"id", "amount"})
+        self.assertEqual(len(resolver.cache), 2)
 
     def test_analysis_datasource_uses_resolved_shared_query(self) -> None:
         result = make_result(

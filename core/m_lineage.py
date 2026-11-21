@@ -154,11 +154,15 @@ class ConnectorSpec:
     inherit: bool = False
     is_table: bool = False
     native: bool = False
+    # Indeks argumen SQL native (mis. Odbc.Query(dsn, sql)).
+    sql_arg: int = -1
+    # True bila SQL native ada di record options `[Query="..."]`.
+    query_option: bool = False
 
 
 CONNECTOR_SPECS: dict[str, ConnectorSpec] = {
     # Database relasional / analitik
-    "sql.database": ConnectorSpec("sql", "connection", (0, 1)),
+    "sql.database": ConnectorSpec("sql", "connection", (0, 1), query_option=True),
     "sql.databases": ConnectorSpec("sql", "connection", (0,)),
     "azuresql.database": ConnectorSpec("sql", "connection", (0, 1)),
     "azuresynapseanalytics.database": ConnectorSpec("sql", "connection", (0, 1)),
@@ -179,7 +183,9 @@ CONNECTOR_SPECS: dict[str, ConnectorSpec] = {
     "saphana.database": ConnectorSpec("sap hana", "connection", (0, 1)),
     "sybase.database": ConnectorSpec("sybase", "connection", (0, 1)),
     "informix.database": ConnectorSpec("informix", "connection", (0, 1)),
-    "odbc.query": ConnectorSpec("odbc", "connection", (0,), native=True),
+    "odbc.query": ConnectorSpec(
+        "odbc", "connection", (0,), native=True, sql_arg=1
+    ),
     "odbc.datasource": ConnectorSpec("odbc", "connection", (0,)),
     "sapbusinesswarehouse.cubes": ConnectorSpec("sap bw", "connection", (0,)),
     "dataverse.contents": ConnectorSpec("dataverse", "url", (0,)),
@@ -930,6 +936,22 @@ def _native_parameters(sql: str) -> list[str]:
     return names
 
 
+def _query_option_sql(args: list[str]) -> str:
+    """Teks SQL dari record options `[Query="..."]` (literal saja)."""
+    for arg in args:
+        value = _strip_outer(arg.strip())
+        if not (value.startswith("[") and value.endswith("]")):
+            continue
+        for part in split_top_level(value[1:-1]):
+            key, separator, raw = part.partition("=")
+            if not separator or key.strip().casefold() != "query":
+                continue
+            raw = raw.strip()
+            if _is_string_literal(raw):
+                return unquote(raw)
+    return ""
+
+
 
 # ---------------------------------------------------------------------------
 # Struktur M: let, function call, navigasi
@@ -1323,7 +1345,7 @@ class _Resolver:
         _, expression = item
         self.stack.append(key)
         try:
-            result = build_lineage(expression, _resolver=self)
+            result = build_lineage(expression, resolver=self)
         finally:
             self.stack.pop()
         self.cache[key] = result
@@ -1385,6 +1407,22 @@ def _apply_connector(
     # Opsi native query pada Sql.Database(..., [Query="..."]).
     if any(re.search(r"\bQuery\s*=", arg) for arg in args):
         state.native_query = True
+    sql_text = ""
+    if spec.query_option:
+        sql_text = _query_option_sql(args)
+    elif 0 <= spec.sql_arg < len(args):
+        raw = _strip_outer(args[spec.sql_arg].strip())
+        if _is_string_literal(raw):
+            sql_text = unquote(raw)
+    if sql_text and not state.source_path:
+        table = _native_table(sql_text)
+        if table:
+            _append_source_path(state, [table])
+            if state.connection_path:
+                _add_unique(
+                    state.details,
+                    ["connection:" + ".".join(state.connection_path)],
+                )
     return state
 
 
@@ -1949,19 +1987,20 @@ def _evaluate(
 def build_lineage(
     m_text: str,
     registry: dict[str, str] | None = None,
-    _resolver: _Resolver | None = None,
+    resolver: _Resolver | None = None,
 ) -> LineageResult:
     """Bangun lineage kolom dari teks query M sebuah partisi.
 
     ``registry`` memetakan nama query/shared expression ke ekspresinya agar
     referensi `#"Nama"` bisa ditelusuri (memo + guard siklus).
+    ``resolver`` memungkinkan beberapa pemanggilan berbagi cache referensi
+    dalam satu graph (pakai ``build_lineage_resolver``).
     """
     result = LineageResult()
     if not m_text or not m_text.strip():
         result.warnings.append(Warning("", "", "no_query", "Partisi tidak memiliki query M."))
         return result
 
-    resolver = _resolver
     if resolver is None and registry:
         resolver = _Resolver(registry)
 
@@ -1991,6 +2030,11 @@ def build_lineage(
     result.references = list(final.references)
     result.literal_text = final.literal_text
     return result
+
+
+def build_lineage_resolver(registry: dict[str, str] | None) -> _Resolver | None:
+    """Resolver referensi bersama untuk beberapa pemanggilan ``build_lineage``."""
+    return _Resolver(registry) if registry else None
 
 
 PARTIAL_WARNING_STATUSES = {

@@ -20,6 +20,7 @@ from typing import Any, Iterable, Mapping
 
 from core.m_lineage import (
     build_lineage as build_m_lineage,
+    build_lineage_resolver,
     column_confidence,
     lineage_confidence,
     warning_rows,
@@ -1582,6 +1583,7 @@ def build_lineage(
                 "expression": str(item.get("expression") or ""),
             }
     m_registry = _m_query_registry(result)
+    m_resolver = build_lineage_resolver(m_registry)
     def walk(adjacency: Mapping[str, set[str]]) -> dict[str, int]:
         found = {seed_id: 0}
         queue: deque[str] = deque([seed_id])
@@ -1630,7 +1632,7 @@ def build_lineage(
             "warnings": [],
         }
         if expression:
-            parsed = build_m_lineage(expression, registry=m_registry)
+            parsed = build_m_lineage(expression, resolver=m_resolver)
             aliases: dict[str, Any] = {}
             for key, parsed_column in (parsed.columns or {}).items():
                 for alias in [
@@ -2092,6 +2094,7 @@ def build_table_lineage(
                 "expression": str(item.get("expression") or ""),
             }
     m_registry = _m_query_registry(result)
+    m_resolver = build_lineage_resolver(m_registry)
     if not column_analyses and not table_measures and name not in mqueries:
         raise ValueError(
             "Tabel tidak ditemukan di hasil analisa. Jalankan analisa ulang."
@@ -2139,7 +2142,7 @@ def build_table_lineage(
             "warnings": [],
         }
         if expression:
-            parsed = build_m_lineage(expression, registry=m_registry)
+            parsed = build_m_lineage(expression, resolver=m_resolver)
             reason = ""
             for warning in parsed.warnings:
                 reason = warning.detail

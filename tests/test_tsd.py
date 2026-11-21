@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from core.errors import ExtractionError
+from core.connector_catalog import CATALOG_PATH, load_catalog
 from core.m_lineage import CONNECTOR_SPECS, build_lineage
 from core.model import CONNECTORS
 from core.pbi_capture import CaptureOptions, ScreenshotSet
@@ -1400,6 +1401,25 @@ class ConnectorRegistryTests(unittest.TestCase):
         )
 
         self.assertEqual(missing, [])
+
+    def test_catalog_covers_lineage_connectors(self) -> None:
+        catalog = load_catalog()
+
+        self.assertTrue(CATALOG_PATH.exists())
+        self.assertGreaterEqual(len(catalog), 80)
+        missing = sorted(
+            name for name in CONNECTOR_SPECS if name.casefold() not in catalog
+        )
+        self.assertEqual(missing, [])
+
+    def test_snowflake_is_documented_without_a_sample(self) -> None:
+        entry = load_catalog().get("snowflake.databases")
+
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.category, "Database")
+        self.assertIn("server", entry.parameters)
+        self.assertIn("warehouse", entry.parameters)
+        self.assertIn("snowflake", entry.url)
 
 
 class MColumnLogicTests(unittest.TestCase):

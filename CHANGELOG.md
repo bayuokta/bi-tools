@@ -7,10 +7,25 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-21 - Rilis 0.5.2
 
 ### Analisa Semantic Model
 
+- **Katalog konektor dari dokumentasi**: `rules\m_connectors.json` menyimpan
+  snapshot 85 fungsi halaman M `accessing-data-functions` plus connector yang
+  tidak tercantum di sana (Snowflake, BigQuery, Parquet, dataflow, dataset).
+  `sync_connector_catalog.py` membuat ulang katalog, dan
+  `core\connector_catalog.py` membacanya tanpa network. Tes memastikan setiap
+  `CONNECTOR_SPECS` punya entri katalog; Snowflake kini tervalidasi dari
+  halaman connector resmi (`Snowflake.Databases(server, warehouse, options)`)
+  tanpa menunggu sampel pelanggan.
+- **Native SQL `Sql.Database`/`Odbc.Query`**: klausa `FROM` literal kini
+  menjadi label sumber (`dbo.Sales`), sedangkan koneksi asal disimpan sebagai
+  `connection:srv.db`/`connection:DSN` di detail. `Value.NativeQuery` memakai
+  aturan yang sama; CTE/subquery/tabel dinamis tetap dilewati.
+- **Satu resolver per graph**: `build_lineage_resolver` membuat cache referensi
+  shared query sekali per dialog lineage; semua rantai M memakai resolver yang
+  sama sehingga ekspresi shared query tidak di-parse berulang.
 - **Detail outline lineage**: View column lineage menampilkan peran pemakaian di
   setiap baris (visual `Values/Data/Y-Axis`, filter visual/page/report, sort,
   formatting), nama/tipe visual, status merah untuk `Tidak dipakai`, dan batas

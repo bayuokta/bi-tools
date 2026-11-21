@@ -9,7 +9,7 @@
     "name": "sql_server_native_query",
     "expression": "let\n    Source = Sql.Database(\"sql.example.net\", \"SalesDB\", [Query=\"select * from dbo.Sales\"])\nin\n    Source",
     "origin": "sql",
-    "source_object": "sql.example.net.SalesDB"
+    "source_object": "dbo.Sales"
   },
   {
     "name": "bigquery_project_dataset_table",
@@ -33,7 +33,7 @@
     "name": "odbc_query_dsn",
     "expression": "let\n    Source = Odbc.Query(\"dsn=WarehouseDSN;Pwd=example\", \"select * from reporting.orders\")\nin\n    Source",
     "origin": "odbc",
-    "source_object": "WarehouseDSN"
+    "source_object": "reporting.orders"
   },
   {
     "name": "powerbi_dataflow_entity",
@@ -82,5 +82,11 @@
     "expression": "let\n    SqlQuery = \"select `work_date`, `qty` from `\"&DatasetID&\"`.`sales_daily` where `work_date` >= '\"&Date.ToText(Date.From(RangeStart), [Format=\"yyyy-MM-dd\"])&\"'\",\n    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID, [Implementation = \"2.0\"]){[Name = ProjectID]}[Data], SqlQuery, null, [EnableFolding = true]),\n    Renamed = Table.RenameColumns(Source, {{\"work_date\", \"Date\"}, {\"qty\", \"QTY\"}})\nin\n    Renamed",
     "origin": "bigquery",
     "source_object": "sales_daily"
+  },
+  {
+    "name": "snowflake_documented_name_chain",
+    "expression": "let\n    Source = Snowflake.Databases(\"contoso.snowflakecomputing.com\", \"CONTOSO_WH\"),\n    db = Source{[Name=\"ANALYTICS\"]}[Data],\n    sch = db{[Name=\"PUBLIC\", Kind=\"Schema\"]}[Data],\n    tbl = sch{[Name=\"ORDERS\", Kind=\"Table\"]}[Data]\nin\n    tbl",
+    "origin": "snowflake",
+    "source_object": "ANALYTICS.PUBLIC.ORDERS"
   }
 ]
