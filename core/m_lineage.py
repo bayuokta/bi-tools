@@ -116,6 +116,8 @@ class State:
     details: list[str] = field(default_factory=list)
     native_query: bool = False
     references: list[str] = field(default_factory=list)
+    # Teks hasil evaluasi string literal / konkatenasi (dipakai native query).
+    literal_text: str | None = None
 
     @property
     def source_object(self) -> str:
@@ -755,6 +757,175 @@ def _merge_states(candidates: list[State]) -> State:
     return merged
 
 
+def _text_part(
+    expr: str, states: dict[str, State], step: str, warnings: list[Warning]
+) -> str:
+    """Teks satu bagian konkatenasi; parameter menjadi placeholder `{Nama}`."""
+    value = _strip_outer(strip_comments(expr).strip())
+    if not value:
+        return ""
+    if _is_string_literal(value):
+        return unquote(value)
+    if _is_identifier(value):
+        name = unquote(value)
+        found = states.get(name)
+        if found is not None and found.literal_text is not None:
+            return found.literal_text
+        return "{" + name + "}"
+    return "{" + value + "}"
+
+
+def _find_sql_from(text: str) -> int:
+    """Posisi `FROM` level atas pada teks SQL (lewati string/komentar)."""
+    depth = 0
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if char == "'":
+            index += 1
+            while index < length:
+                if text[index] == "'":
+                    if index + 1 < length and text[index + 1] == "'":
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            continue
+        if char in '"`':
+            quote = char
+            index += 1
+            while index < length and text[index] != quote:
+                index += 1
+            index += 1
+            continue
+        if text.startswith("--", index):
+            while index < length and text[index] not in "\r\n":
+                index += 1
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            index = length if end < 0 else end + 2
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif depth == 0 and text[index : index + 4].lower() == "from":
+            before = text[index - 1] if index else " "
+            after = text[index + 4] if index + 4 < length else " "
+            if not (before.isalnum() or before == "_") and not (
+                after.isalnum() or after == "_"
+            ):
+                return index
+        index += 1
+    return -1
+
+
+_SQL_FROM_TARGET = re.compile(r"[^\s,;)]+")
+_SQL_NON_TABLE_WORDS = {"select", "values", "unnest", "lateral", "table", "dual"}
+
+
+def _strip_sql_identifier(part: str) -> str:
+    text = part.strip()
+    if len(text) >= 2 and text[0] in '`"[' and text[-1] in '`"]':
+        return text[1:-1]
+    return text
+
+
+def _sql_path_parts(token: str) -> list[str]:
+    """Pecah target SQL pada titik di luar kutip (`` `a.b.c` `` tetap utuh)."""
+    parts: list[str] = []
+    buffer: list[str] = []
+    quote = ""
+    for char in token:
+        if quote:
+            buffer.append(char)
+            if char == quote:
+                quote = ""
+            continue
+        if char in '`"[':
+            quote = "]" if char == "[" else char
+            buffer.append(char)
+            continue
+        if char == ".":
+            parts.append("".join(buffer))
+            buffer = []
+            continue
+        buffer.append(char)
+    parts.append("".join(buffer))
+    result: list[str] = []
+    for part in parts:
+        text = _strip_sql_identifier(part)
+        result.extend(item for item in text.split(".") if item.strip())
+    return result
+
+
+def _sql_target_parts(sql: str) -> list[str]:
+    """Bagian target `FROM` yang sudah dibersihkan dari placeholder M."""
+    text = (sql or "").strip()
+    if not text or re.match(r"^(with|declare)\b", text, re.I):
+        return []
+    position = _find_sql_from(text)
+    if position < 0:
+        return []
+    rest = text[position + 4 :].lstrip()
+    if not rest or rest.startswith("("):
+        return []
+    match = _SQL_FROM_TARGET.match(rest)
+    if not match:
+        return []
+    if rest[match.end() :].lstrip().startswith("("):
+        # Target berupa fungsi tabel (mis. UNNEST(...)), bukan nama tabel.
+        return []
+    parts: list[str] = []
+    for part in _sql_path_parts(match.group(0)):
+        cleaned = re.sub(r"\{[^{}]*\}", "", part)
+        parts.append(cleaned)
+    return parts
+
+
+def _native_table(sql: str) -> str:
+    """Nama tabel dari native SQL sederhana; kosong bila dinamis/CTE."""
+    parts = _sql_target_parts(sql)
+    if not parts or not parts[-1]:
+        # Bagian tabel dinamis (`{Table}`) bukan nama tabel.
+        return ""
+    literal = [
+        part
+        for part in parts
+        if part
+        and "{" not in part
+        and part.casefold() not in _SQL_NON_TABLE_WORDS
+        and re.fullmatch(r"[A-Za-z_][\w$]*", part)
+    ]
+    return ".".join(literal)
+
+
+def _native_parameters(sql: str) -> list[str]:
+    """Parameter M yang muncul pada target FROM native SQL (mis. dataset)."""
+    text = (sql or "").strip()
+    if not text:
+        return []
+    position = _find_sql_from(text)
+    if position < 0:
+        return []
+    rest = text[position + 4 :].lstrip()
+    if not rest or rest.startswith("("):
+        return []
+    match = _SQL_FROM_TARGET.match(rest)
+    if not match:
+        return []
+    raw_parts = _sql_path_parts(match.group(0))
+    names: list[str] = []
+    for part in raw_parts:
+        for name in re.findall(r"\{([A-Za-z_][\w.]*)\}", part):
+            if name not in names:
+                names.append(name)
+    return names
+
+
 
 # ---------------------------------------------------------------------------
 # Struktur M: let, function call, navigasi
@@ -1173,6 +1344,13 @@ def _apply_function(
         state = _evaluate(args[0], states, step, warnings) if args else State()
         state.is_table = True
         state.native_query = True
+        if len(args) >= 2 and not state.source_path:
+            sql_state = _evaluate(args[1], states, step, warnings)
+            sql_text = sql_state.literal_text or ""
+            table = _native_table(sql_text)
+            if table:
+                _append_source_path(state, [table])
+            _add_unique(state.source_params, _native_parameters(sql_text))
         return state
 
     if lowered in _SCALAR_FUNCTIONS or lowered.startswith(_SCALAR_PREFIXES):
@@ -1576,6 +1754,9 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
     if not value:
         return State()
 
+    if _is_string_literal(value):
+        return State(is_table=False, literal_text=unquote(value))
+
     # `let` bersarang di dalam satu langkah.
     if _find_word(value, "let") == 0:
         steps, final_expr = parse_let(value)
@@ -1643,6 +1824,15 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
         state.columns = {}
         state.columns_known = False
         return state
+
+    parts = split_top_level(value, "&")
+    if len(parts) > 1:
+        return State(
+            is_table=False,
+            literal_text="".join(
+                _text_part(part, states, step, warnings) for part in parts
+            ),
+        )
 
     if _is_identifier(value):
         name = unquote(value)

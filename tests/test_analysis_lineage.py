@@ -1660,7 +1660,7 @@ class SourcePathTests(unittest.TestCase):
         )
 
         self.assertEqual(parsed.origin, "postgresql")
-        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.source_object, "log.x")
         self.assertEqual(parsed.source_params, ["Server", "Database AISAM"])
         self.assertTrue(parsed.native_query)
         self.assertEqual(parsed.warnings, [])
@@ -1765,6 +1765,53 @@ class SourcePathTests(unittest.TestCase):
         self.assertEqual(parsed.origin, "web")
         self.assertEqual(parsed.source_object, "")
         self.assertEqual(parsed.details, [])
+
+    def test_native_query_extracts_table_from_concatenated_sql(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    SqlQuery = "select * from `" & DatasetID & "`.`sales_daily`",\n'
+            "    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID)"
+            "{[Name = ProjectID]}[Data], SqlQuery)\n"
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.origin, "bigquery")
+        self.assertEqual(parsed.source_object, "sales_daily")
+        self.assertEqual(parsed.source_path, ["sales_daily"])
+        self.assertEqual(parsed.source_params, ["ProjectID", "DatasetID"])
+        self.assertTrue(parsed.native_query)
+
+    def test_native_query_skips_cte_and_dynamic_table(self) -> None:
+        cte = build_m_lineage(
+            "let\n"
+            '    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID), '
+            '"WITH x AS (SELECT 1) SELECT * FROM x")\n'
+            "in\n"
+            "    Source"
+        )
+        dynamic = build_m_lineage(
+            "let\n"
+            '    SqlQuery = "select * from `" & DatasetID & "`.`" & TableName & "`",\n'
+            "    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID), SqlQuery)\n"
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(cte.source_object, "")
+        self.assertEqual(dynamic.source_object, "")
+        self.assertEqual(dynamic.source_params, ["ProjectID", "DatasetID", "TableName"])
+
+    def test_native_query_ignores_from_inside_string_literal(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            "    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID), "
+            "\"select 'from fake' as note from sales.orders\")\n"
+            "in\n"
+            "    Source"
+        )
+
+        self.assertEqual(parsed.source_object, "sales.orders")
 
     def test_datasource_node_carries_source_detail(self) -> None:
         text = (

@@ -70,5 +70,17 @@
     "expression": "let\n    Source = OData.Feed(\"https://example.net/odata\"),\n    Customers = Source{[Name=\"Customers\"]}[Data]\nin\n    Customers",
     "origin": "odata",
     "source_object": "Customers"
+  },
+  {
+    "name": "bigquery_aad_incremental_parameterized",
+    "expression": "let\n    Source = GoogleBigQueryAad.Database(ProjectID, [Implementation = \"2.0\", UseStorageApi = null]),\n    Nav1 = Source{[Name = ProjectID, Kind = \"Database\"]}[Data],\n    Nav2 = Nav1{[Name = DatasetID, Kind = \"Schema\"]}[Data],\n    Nav3 = Nav2{[Name = \"sales_profile\", Kind = \"Table\"]}[Data],\n    Selected = Table.SelectColumns(Nav3, {\"engine_no\", \"qty\"}),\n    Renamed = Table.RenameColumns(Selected, {{\"engine_no\", \"Engine No\"}, {\"qty\", \"QTY\"}}),\n    Filtered = Table.SelectRows(Renamed, each [Engine No] <> null and [QTY] >= RangeStart and [QTY] < RangeEnd)\nin\n    Filtered",
+    "origin": "bigquery",
+    "source_object": "sales_profile"
+  },
+  {
+    "name": "bigquery_aad_native_concatenated_sql",
+    "expression": "let\n    SqlQuery = \"select `work_date`, `qty` from `\"&DatasetID&\"`.`sales_daily` where `work_date` >= '\"&Date.ToText(Date.From(RangeStart), [Format=\"yyyy-MM-dd\"])&\"'\",\n    Source = Value.NativeQuery(GoogleBigQueryAad.Database(ProjectID, [Implementation = \"2.0\"]){[Name = ProjectID]}[Data], SqlQuery, null, [EnableFolding = true]),\n    Renamed = Table.RenameColumns(Source, {{\"work_date\", \"Date\"}, {\"qty\", \"QTY\"}})\nin\n    Renamed",
+    "origin": "bigquery",
+    "source_object": "sales_daily"
   }
 ]

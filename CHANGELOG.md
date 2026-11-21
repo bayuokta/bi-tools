@@ -50,6 +50,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   (hanya fungsi buatan pengguna). `m_query_corpus.py` menambah laporan
   dev-only; korpus pelanggan tidak di-commit, regresi memakai
   `tests\data\m_query_patterns.json` yang anonim.
+- **Native query BigQuery**: `Value.NativeQuery` mengambil nama tabel dari
+  klausa `FROM` sederhana, termasuk SQL yang dirangkai `&` dengan placeholder
+  parameter (`` ... from `"&DatasetID&"`.`sales_daily` ``). CTE, subquery,
+  target fungsi seperti `UNNEST(...)`, dan tabel dinamis dilewati; parameter
+  pada klausa `FROM` masuk ke detail (`param:DatasetID`). Fixture menambah dua
+  pola BigQuery AAD: incremental berparameter (navigasi
+  `Database`/`Schema`/`Table` + `RangeStart`/`RangeEnd`) dan native SQL
+  terangkai.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription
