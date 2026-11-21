@@ -27,6 +27,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tanpa langkah M kartu tabel pindah ke Model dependencies. Graf padat
   dipadatkan otomatis ke header halaman/report, edge ke report kedua memakai
   koridor di atas artifact, dan ekspor SVG/PNG ikut menggambar artifact/grup.
+- **Dependency langsung di lineage**: graph lineage tidak lagi menggambar
+  referensi DAX transitive sebagai garis langsung. `ModelReference.depth`
+  membedakan dependency langsung (1) dan transitive (2+); graph hanya memakai
+  depth 1, sedangkan `04_Model_Usage` menampilkan kolom **Depth** agar impact
+  analysis tetap terlihat. Contoh: `Engine No → # KK Acquired` kini hanya lewat
+  `# Unit Sales`.
 - **Hierarki dan drag lineage**: kartu di dalam grup disusun sebagai pohon
   (induk di tengah anak-anaknya) dan rantai M kolom upstream ikut tampil untuk
   measure (maksimal 3 kolom, 8 langkah per rantai). Header **Report** terhubung

@@ -155,6 +155,20 @@ def fmt_pages(pages: set[tuple[int, str]]) -> str:
 # ---------------------------------------------------------------------------
 # DAX dependency graph
 # ---------------------------------------------------------------------------
+_DEPENDENCY_DEPTH = re.compile(r"\(kedalaman\s+(\d+)\)")
+
+
+def reference_depth(detail: str) -> int:
+    """Baca depth referensi dari teks detail (fallback snapshot lama)."""
+    match = _DEPENDENCY_DEPTH.search(str(detail or ""))
+    if not match:
+        return 1
+    try:
+        return max(1, int(match.group(1)))
+    except (TypeError, ValueError):
+        return 1
+
+
 def strip_dax_literals(code: str) -> str:
     out: list[str] = []
     i = 0

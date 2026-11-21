@@ -16,12 +16,14 @@ from core.usage_store import (
     last_run,
     m_queries,
     mark_reports_inactive,
+    model_refs,
     report_detail,
     report_pages,
     report_cache,
     reports,
     save_columns,
     save_m_queries,
+    save_model_refs,
     save_subscriptions,
     subscription_scans,
     subscriptions,
@@ -81,6 +83,44 @@ class UsageStoreTests(unittest.TestCase):
         cached = report_cache(self.conn, "ds")["r1"]
         self.assertEqual(cached["status"], "ok")
         self.assertEqual(cached["field_count"], 2)
+
+    def test_model_ref_depth_roundtrip_and_legacy_fallback(self) -> None:
+        save_model_refs(
+            self.conn,
+            "ds",
+            [
+                {
+                    "table": "Sales",
+                    "column": "Qty",
+                    "kind": "measure",
+                    "object": "'Sales'[Total]",
+                    "detail": "measure 'Total' (kedalaman 1)",
+                    "blocking": False,
+                    "depth": 1,
+                },
+                {
+                    "table": "Sales",
+                    "column": "Qty",
+                    "kind": "measure",
+                    "object": "'Sales'[Helper]",
+                    "detail": "measure 'Helper' (kedalaman 2)",
+                    "blocking": False,
+                    "depth": 2,
+                },
+            ],
+        )
+        refs = model_refs(self.conn, "ds")[("sales", "qty")]
+        by_object = {row["object"]: row for row in refs}
+        self.assertEqual(by_object["'Sales'[Total]"]["depth"], 1)
+        self.assertEqual(by_object["'Sales'[Helper]"]["depth"], 2)
+
+        self.conn.execute(
+            "UPDATE usage_model_ref SET depth = 1 WHERE object = ?",
+            ("'Sales'[Helper]",),
+        )
+        legacy = model_refs(self.conn, "ds")[("sales", "qty")]
+        legacy_by_object = {row["object"]: row for row in legacy}
+        self.assertEqual(legacy_by_object["'Sales'[Helper]"]["depth"], 2)
 
     def test_report_pages_groups_per_page(self) -> None:
         self.save()

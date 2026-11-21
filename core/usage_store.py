@@ -23,6 +23,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
+from .metadata_common import reference_depth
 from .report_usage import ReportUsage, UsageRecord
 
 SCHEMA = """
@@ -90,6 +91,7 @@ CREATE TABLE IF NOT EXISTS usage_column (
 CREATE TABLE IF NOT EXISTS usage_model_ref (
   dataset_id TEXT, table_name TEXT, column_name TEXT,
   kind TEXT, object TEXT, detail TEXT, blocking INTEGER DEFAULT 1,
+  depth INTEGER DEFAULT 1,
   PRIMARY KEY (dataset_id, table_name, column_name, kind, object)
 );
 CREATE INDEX IF NOT EXISTS ix_usage_model_ref_column
@@ -166,6 +168,9 @@ MIGRATIONS = {
     },
     "usage_measure": {
         "description": "TEXT",
+    },
+    "usage_model_ref": {
+        "depth": "INTEGER DEFAULT 1",
     },
     "usage_report": {
         "theme": "TEXT",
@@ -806,6 +811,7 @@ def save_model_refs(
             str(row.get("object") or ""),
             str(row.get("detail") or ""),
             1 if row.get("blocking", True) else 0,
+            int(row.get("depth") or 1),
         )
         for row in rows
     ]
@@ -813,8 +819,9 @@ def save_model_refs(
         conn.executemany(
             """
             INSERT OR REPLACE INTO usage_model_ref (
-              dataset_id, table_name, column_name, kind, object, detail, blocking
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+              dataset_id, table_name, column_name, kind, object, detail,
+              blocking, depth
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )
@@ -840,6 +847,10 @@ def model_refs(
                 "object": row["object"],
                 "detail": row["detail"],
                 "blocking": bool(row["blocking"]),
+                "depth": max(
+                    int(row["depth"] or 1),
+                    reference_depth(str(row["detail"] or "")),
+                ),
             }
         )
     return grouped

@@ -100,6 +100,14 @@ _MODEL_KINDS = {
 }
 
 
+def _direct_reference(reference: Any) -> bool:
+    """True bila referensi adalah dependency langsung (depth 1)."""
+    try:
+        return int(getattr(reference, "depth", 1) or 1) <= 1
+    except (TypeError, ValueError):
+        return True
+
+
 def _parse_object(text: str) -> tuple[str, str]:
     """Baca ``'Tabel'[Kolom]`` menjadi pasangan tabel/kolom."""
     value = str(text or "").strip()
@@ -1436,6 +1444,8 @@ def build_lineage(
     for owner_id, analysis in column_analyses.items():
         column = analysis.column
         for reference in getattr(analysis, "model_refs", []) or []:
+            if not _direct_reference(reference):
+                continue
             ref_kind = str(reference.kind or "")
             object_text = str(reference.object or "")
             detail = str(reference.detail or "")
@@ -1464,6 +1474,8 @@ def build_lineage(
 
     for owner_id, analysis in measure_analyses.items():
         for reference in getattr(analysis, "model_refs", []) or []:
+            if not _direct_reference(reference):
+                continue
             ref_kind = str(reference.kind or "")
             object_text = str(reference.object or "")
             detail = str(reference.detail or "")
@@ -2087,6 +2099,8 @@ def build_table_lineage(
             if column_id not in graph.nodes:
                 continue
             for reference in getattr(analysis, "model_refs", []) or []:
+                if not _direct_reference(reference):
+                    continue
                 if str(reference.kind or "") != "measure":
                     continue
                 ref_table, ref_name = _parse_object(str(reference.object or ""))

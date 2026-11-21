@@ -1259,7 +1259,14 @@ class WriteWorkbookTests(unittest.TestCase):
                         }
                     ],
                     model_refs=[
-                        ModelReference("measure", "'Sales'[Total]", "measure", blocking=False)
+                        ModelReference("measure", "'Sales'[Total]", "measure", blocking=False),
+                        ModelReference(
+                            "measure",
+                            "'Sales'[Helper]",
+                            "measure (kedalaman 2)",
+                            blocking=False,
+                            depth=2,
+                        ),
                     ],
                 )
             ],
@@ -1321,6 +1328,11 @@ class WriteWorkbookTests(unittest.TestCase):
         measures = pd.read_excel(book, "08_Measures")
         self.assertEqual(measures.loc[0, "Measure"], "Total")
         self.assertEqual(measures.loc[0, "Status"], STATUS_USED)
+        model_usage = pd.read_excel(book, "04_Model_Usage")
+        self.assertIn("Depth", list(model_usage.columns))
+        self.assertEqual(
+            sorted(int(value) for value in model_usage["Depth"]), [1, 2]
+        )
         health = pd.read_excel(book, "09_Health", keep_default_na=False)
         self.assertEqual(list(health.columns)[:3], ["Severity", "Area", "Rule"])
         self.assertIn("isolated_table", list(health["Rule"]))
@@ -1470,6 +1482,20 @@ class ModelReferenceTests(unittest.TestCase):
 
         self.assertTrue(measure_refs)
         self.assertFalse(measure_refs[0].blocking)
+
+    def test_reference_depth_separates_direct_and_indirect(self) -> None:
+        refs = model_references(self.model())
+        qty_refs = [
+            ref for ref in refs[("sales", "qty")] if ref.kind == "measure"
+        ]
+        by_object = {ref.object: ref for ref in qty_refs}
+
+        self.assertEqual(by_object["'Sales'[Total Sales]"].depth, 1)
+        self.assertEqual(by_object["'Sales'[Helper]"].depth, 2)
+
+        measure_refs = measure_references(self.model())
+        total_refs = measure_refs[("sales", "total sales")]
+        self.assertEqual(total_refs[0].depth, 1)
 
 
 class AnalyzeDatasetSessionTests(unittest.TestCase):

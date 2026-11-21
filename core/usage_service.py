@@ -56,6 +56,7 @@ from .lineage_service import reports_using_dataset
 from .lineage_store import DEFAULT_DB, close_quietly, connect
 from .metadata_common import (
     find_dax_refs,
+    reference_depth,
     strip_dax_literals,
     write_sheet,
 )
@@ -138,7 +139,7 @@ REPORT_USAGE_COLUMNS = [
     "Detail", "Visual hidden",
 ]
 MODEL_USAGE_COLUMNS = [
-    "Table", "Column", "Kind", "Object", "Detail", "Blocking",
+    "Table", "Column", "Kind", "Object", "Detail", "Depth", "Blocking",
 ]
 REPORT_COLUMNS = [
     "Report", "Report ID", "Workspace ID", "Format", "Modified at",
@@ -392,6 +393,7 @@ class ModelReference:
     blocking: bool = True
     source_table: str = ""
     source_measure: str = ""
+    depth: int = 1
 
 
 @dataclass
@@ -452,6 +454,7 @@ def measure_references(
         blocking: bool,
         source_table: str = "",
         source_measure: str = "",
+        depth: int = 1,
     ) -> None:
         key = (str(table).casefold(), str(measure).casefold())
         if key not in measure_keys:
@@ -468,6 +471,7 @@ def measure_references(
                 blocking=blocking,
                 source_table=source_table,
                 source_measure=source_measure,
+                depth=depth,
             )
         )
 
@@ -488,6 +492,7 @@ def measure_references(
             blocking=False,
             source_table=origin_table,
             source_measure=origin,
+            depth=int(dependency.get("depth") or 1),
         )
 
     for row in model.raw["TMSCHEMA_CALCULATION_ITEMS"]:
@@ -609,6 +614,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
         detail: str,
         *,
         blocking: bool = True,
+        depth: int = 1,
     ) -> None:
         table_name = str(table or "")
         column_name = str(column or "")
@@ -619,7 +625,13 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             return
         seen.add(key)
         refs[(key[0], key[1])].append(
-            ModelReference(kind=kind, object=obj, detail=detail, blocking=blocking)
+            ModelReference(
+                kind=kind,
+                object=obj,
+                detail=detail,
+                blocking=blocking,
+                depth=depth,
+            )
         )
 
     for dependency in build_dependencies(measures, columns_rows, tables):
@@ -637,6 +649,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             f"measure '{measure_table}'[{measure}] "
             f"(kedalaman {dependency['depth']})",
             blocking=False,
+            depth=int(dependency.get("depth") or 1),
         )
 
     for row in columns_rows:
@@ -2014,6 +2027,7 @@ def analyze_dataset(
                         "blocking": reference.blocking,
                         "source_table": reference.source_table,
                         "source_measure": reference.source_measure,
+                        "depth": reference.depth,
                     }
                     for reference in items
                 ]
@@ -2031,6 +2045,7 @@ def analyze_dataset(
                     "object": reference.object,
                     "detail": reference.detail,
                     "blocking": reference.blocking,
+                    "depth": reference.depth,
                 }
                 for (table, column), items in references.items()
                 for reference in items
@@ -2312,6 +2327,10 @@ def snapshot_from_connection(
                 blocking=bool(item.get("blocking")),
                 source_table=str(item.get("source_table") or ""),
                 source_measure=str(item.get("source_measure") or ""),
+                depth=max(
+                    int(item.get("depth") or 1),
+                    reference_depth(str(item.get("detail") or "")),
+                ),
             )
             for item in items
         ]
@@ -2345,6 +2364,10 @@ def snapshot_from_connection(
                 blocking=bool(item.get("blocking")),
                 source_table=str(item.get("source_table") or ""),
                 source_measure=str(item.get("source_measure") or ""),
+                depth=max(
+                    int(item.get("depth") or 1),
+                    reference_depth(str(item.get("detail") or "")),
+                ),
             )
             for item in row.get("refs") or []
         ]
@@ -2611,6 +2634,7 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
                     "Kind": reference.kind,
                     "Object": reference.object,
                     "Detail": reference.detail,
+                    "Depth": int(getattr(reference, "depth", 1) or 1),
                     "Blocking": "Yes" if reference.blocking else "No",
                 }
             )
@@ -2666,7 +2690,7 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             writer,
             pd.DataFrame(model_usage_rows, columns=MODEL_USAGE_COLUMNS),
             "04_Model_Usage",
-            {"Object": 34, "Detail": 56},
+            {"Object": 34, "Detail": 56, "Depth": 8},
         )
         write_sheet(
             writer,

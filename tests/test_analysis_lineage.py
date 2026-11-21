@@ -1281,6 +1281,62 @@ in
         self.assertTrue(targets)
         self.assertTrue(targets.issubset(set(steps)))
 
+    def test_transitive_reference_does_not_create_direct_edge(self) -> None:
+        def measure_ref(name: str, *, depth: int) -> ModelReference:
+            return ModelReference(
+                kind="measure",
+                object=f"'_Measures'[{name}]",
+                detail=f"measure '{name}' (kedalaman {depth})",
+                blocking=False,
+                depth=depth,
+            )
+
+        engine = column_analysis(
+            "OCRKK",
+            "Engine No",
+            refs=[
+                measure_ref("# Unit", depth=1),
+                measure_ref("# KK", depth=2),
+            ],
+        )
+        status = column_analysis(
+            "OCRKK",
+            "Status Kartu Keluarga",
+            refs=[measure_ref("# KK", depth=1)],
+        )
+        unit = measure_analysis(
+            "_Measures",
+            "# Unit",
+            refs=[
+                ModelReference(
+                    kind="measure",
+                    object="'_Measures'[# KK]",
+                    detail="measure '# KK' (kedalaman 1)",
+                    blocking=False,
+                    depth=1,
+                )
+            ],
+        )
+        target = measure_analysis("_Measures", "# KK")
+        data = build_lineage(
+            make_result(columns=[engine, status], measures=[unit, target]),
+            kind="measure",
+            table="_Measures",
+            name="# KK",
+        )
+        edges = {(edge["from"], edge["to"]) for edge in data["edges"]}
+        self.assertIn(("col:OCRKK:Engine No", "measure:_Measures:# Unit"), edges)
+        self.assertIn(
+            ("measure:_Measures:# Unit", "measure:_Measures:# KK"), edges
+        )
+        self.assertIn(
+            ("col:OCRKK:Status Kartu Keluarga", "measure:_Measures:# KK"),
+            edges,
+        )
+        self.assertNotIn(
+            ("col:OCRKK:Engine No", "measure:_Measures:# KK"), edges
+        )
+
     def test_highlight_edges_keep_direct_visuals_when_dense(self) -> None:
         records = [
             usage(page=f"P{page}", visual=f"{page}-{visual}")

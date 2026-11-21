@@ -106,6 +106,7 @@ def _ref_rows(refs: Iterable[Any], kinds: Iterable[str]) -> list[dict[str, Any]]
             "object": object_text,
             "detail": str(getattr(ref, "detail", "") or ""),
             "blocking": bool(getattr(ref, "blocking", False)),
+            "depth": int(getattr(ref, "depth", 1) or 1),
         }
         row.update(_target_for_ref(kind, object_text))
         rows.append(row)
