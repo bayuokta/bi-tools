@@ -7,7 +7,8 @@ akhir ke kolom asli di sumbernya.
 
 Yang ditangani:
   - navigasi sumber: Sql.Database + {[Schema, Item]}, dataflow {[entity]},
-    tabel inline (Table.FromRows / #table)
+    konektor ber-navigasi `Name` (BigQuery/Snowflake/PostgreSQL/OData), tabel
+    inline (Table.FromRows / #table)
   - Table.SelectColumns, Table.RemoveColumns
   - Table.RenameColumns (termasuk rename berantai)
   - Table.DuplicateColumn
@@ -83,6 +84,7 @@ class LineageResult:
     warnings: list[Warning] = field(default_factory=list)
     origin: str = ""
     source_object: str = ""
+    source_path: list[str] = field(default_factory=list)
     columns_known: bool = False
 
 
@@ -92,12 +94,75 @@ class State:
 
     columns: dict[str, ColumnLineage] = field(default_factory=dict)
     origin: str = ""
-    source_object: str = ""
+    # Level path sumber dari luar ke dalam (mis. ["dbo", "Sales"] atau
+    # ["proyek", "dataset", "tabel"]). `source_object` adalah turunannya.
+    source_path: list[str] = field(default_factory=list)
     columns_known: bool = False
     is_table: bool = False
 
+    @property
+    def source_object(self) -> str:
+        return ".".join(self.source_path)
+
     def clone(self) -> "State":
         return copy.deepcopy(self)
+
+
+# ---------------------------------------------------------------------------
+# Adapter konektor: fungsi M sumber -> origin
+# ---------------------------------------------------------------------------
+# Origin dipakai sebagai `context` node datasource dan sebagai penentu keyakinan
+# lineage M (`_confidence_for`). Setiap konektor database yang navigasinya
+# memakai `Item`/`Name` wajib terdaftar; konektor di luar daftar ini tidak
+# ditebak namanya (path tetap dibaca, origin jatuh ke `table`).
+CONNECTOR_ORIGINS: dict[str, str] = {
+    "sql.database": "sql",
+    "sql.databases": "sql",
+    "azuresql.database": "sql",
+    "azuresynapseanalytics.database": "sql",
+    "analysisservices.database": "analysis services",
+    "analysisservices.databases": "analysis services",
+    "googlebigquery.database": "bigquery",
+    "snowflake.databases": "snowflake",
+    "postgresql.database": "postgresql",
+    "mysql.database": "mysql",
+    "oracle.database": "oracle",
+    "teradata.database": "teradata",
+    "db2.database": "db2",
+    "saphana.database": "sap hana",
+    "sybase.database": "sybase",
+    "informix.database": "informix",
+    "powerplatform.dataflows": "dataflow",
+    "fabric.dataflows": "dataflow",
+    "odata.feed": "odata",
+    "sharepoint.tables": "sharepoint",
+    "sharepoint.files": "sharepoint",
+}
+
+DATABASE_ORIGINS = frozenset(
+    {
+        "sql",
+        "analysis services",
+        "bigquery",
+        "snowflake",
+        "postgresql",
+        "mysql",
+        "oracle",
+        "teradata",
+        "db2",
+        "sap hana",
+        "sybase",
+        "informix",
+        "table",
+    }
+)
+KNOWN_ORIGINS = DATABASE_ORIGINS | {
+    "dataflow",
+    "odata",
+    "sharepoint",
+    "file",
+    "inline",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +568,45 @@ def parse_navigation(expr: str) -> tuple[str, dict[str, str]] | None:
     return value[:open_pos].strip(), key_values
 
 
+def navigation_levels(key_values: dict[str, str]) -> list[str]:
+    """Level path sumber dari satu navigasi `Base{[Key=Value,...]}[Data]`.
+
+    Bentuk yang dikenal:
+
+    - ``{[Schema="dbo", Item="Sales"]}`` (SQL Server, Azure SQL, Synapse)
+    - ``{[entity="Sales"]}`` (dataflow)
+    - ``{[Name="proyek"]}`` lalu ``{[Name="dataset", Kind="Schema"]}`` lalu
+      ``{[Name="tabel"]}`` (BigQuery, Snowflake, PostgreSQL, MySQL, OData)
+
+    Tidak ada level yang dikarang: kunci yang tidak dikenal menghasilkan daftar
+    kosong, sehingga label tetap memakai origin konektor saja.
+    """
+    entity = str(key_values.get("entity") or "").strip()
+    if entity:
+        return [entity]
+    schema = str(key_values.get("Schema") or "").strip()
+    item = str(key_values.get("Item") or "").strip()
+    if schema or item:
+        return [level for level in (schema, item) if level]
+    for key in ("Name", "Id"):
+        value = str(key_values.get(key) or "").strip()
+        if value:
+            return [value]
+    return []
+
+
+def _append_source_path(state: State, levels: list[str]) -> None:
+    """Tambahkan level path sumber tanpa mengulang level yang sudah di ujung."""
+    cleaned = [str(level or "").strip() for level in levels]
+    cleaned = [level for level in cleaned if level]
+    if not cleaned:
+        return
+    path = list(state.source_path)
+    if path[-len(cleaned):] == cleaned:
+        return
+    state.source_path = path + cleaned
+
+
 # ---------------------------------------------------------------------------
 # Simulasi state
 # ---------------------------------------------------------------------------
@@ -533,7 +637,7 @@ _PASSTHROUGH = {
 
 
 def _confidence_for(origin: str) -> str:
-    if origin in {"sql", "dataflow", "table", "file", "odata", "sharepoint", "inline"}:
+    if origin in KNOWN_ORIGINS:
         return "high"
     return "medium"
 
@@ -630,14 +734,9 @@ def _apply_function(
 ) -> State:
     lowered = name.lower()
 
-    if lowered in {"sql.database", "sql.databases"}:
-        return State(origin="sql", is_table=False)
-    if lowered == "powerplatform.dataflows":
-        return State(origin="dataflow", is_table=False)
-    if lowered in {"odata.feed"}:
-        return State(origin="odata", is_table=False)
-    if lowered in {"sharepoint.tables", "sharepoint.files"}:
-        return State(origin="sharepoint", is_table=False)
+    connector_origin = CONNECTOR_ORIGINS.get(lowered)
+    if connector_origin:
+        return State(origin=connector_origin, is_table=False)
     if lowered in {"excel.workbook", "csv.document", "json.document", "xml.tables", "folder.files", "file.contents", "web.contents"}:
         base = _evaluate(args[0], states, step, warnings) if args else State()
         base.is_table = lowered in {"excel.workbook"}
@@ -648,7 +747,7 @@ def _apply_function(
         return _evaluate(args[0], states, step, warnings) if args else State(is_table=False)
 
     if lowered == "table.fromrows":
-        state = State(origin="inline", source_object="inline", is_table=True, columns_known=True)
+        state = State(origin="inline", source_path=["inline"], is_table=True, columns_known=True)
         columns = _parse_type_table(expr)
         if columns is None and len(args) >= 2:
             columns = _parse_type_table(args[1])
@@ -674,7 +773,7 @@ def _apply_function(
         return state
 
     if lowered in {"#table", "table.fromrecords", "table.fromvalue", "table.fromlist"}:
-        state = State(origin="inline", source_object="inline", is_table=True, columns_known=False)
+        state = State(origin="inline", source_path=["inline"], is_table=True, columns_known=False)
         columns = _parse_string_list(args[0]) if args and lowered == "#table" else None
         if columns is None and lowered == "table.fromrecords":
             columns = None
@@ -1013,18 +1112,18 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
         base = _evaluate(base_expr, states, step, warnings)
         state = base.clone()
         state.is_table = True
+        levels = navigation_levels(key_values)
+        if levels:
+            _append_source_path(state, levels)
+            # Navigasi turun ke tabel: kolom tabel tujuan tidak terbaca dari M.
+            state.columns = {}
+            state.columns_known = False
         if "entity" in key_values:
             state.origin = "dataflow"
-            state.source_object = key_values["entity"]
-            state.columns = {}
-            state.columns_known = False
-        elif "Item" in key_values:
-            schema = key_values.get("Schema", "")
-            state.source_object = f"{schema}.{key_values['Item']}" if schema else key_values["Item"]
-            if state.origin not in {"sql", "dataflow", "table", "file", "odata", "sharepoint"}:
-                state.origin = "table"
-            state.columns = {}
-            state.columns_known = False
+        elif not state.origin:
+            # Konektor tidak dikenal: tetap tandai sebagai tabel generik,
+            # jangan menebak nama konektornya.
+            state.origin = "table"
         return state
 
     call = parse_function_call(value)
@@ -1063,6 +1162,7 @@ def build_lineage(m_text: str) -> LineageResult:
     result.columns = final.columns
     result.origin = final.origin
     result.source_object = final.source_object
+    result.source_path = list(final.source_path)
     result.columns_known = final.columns_known
     return result
 

@@ -21,6 +21,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   sebagai fallback ketika `QueryDefinition` kosong, sehingga query M seperti
   `OCRKK` menampilkan langkah M di lineage, tab M queries, ekspor, dan Best
   Practice.
+- **Sumber lineage per konektor**: node `datasource` tidak lagi hanya mengenal
+  SQL Server. `core\m_lineage.py` membaca path bertingkat dari navigasi M:
+  BigQuery `proyek.dataset.tabel`, Snowflake `database.schema.tabel`,
+  PostgreSQL/MySQL `schema.tabel`, Azure SQL/Synapse `schema.tabel`, dataflow
+  `entity`, serta Excel/SharePoint/OData. Origin PostgreSQL/Oracle/Teradata/
+  DB2/SAP HANA/Sybase/Informix/Analysis Services kini dikenali (sebelumnya
+  jatuh ke `table`), dan konektor database yang belum punya pola di
+  `CONNECTOR_PATTERNS` tidak lagi masuk bucket tabel `mquery` pada TSD.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription

@@ -6,6 +6,7 @@ import unittest
 
 from core.analysis_lineage import MAX_USAGE_PER_PAGE, build_lineage, build_table_lineage
 from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
+from core.m_lineage import build_lineage as build_m_lineage
 from core.usage_service import (
     STATUS_UNUSED,
     STATUS_USED,
@@ -1456,6 +1457,138 @@ in
         }
         self.assertTrue(highlight_targets.issubset(visual_ids))
         self.assertGreater(len(data["highlight_edges"]), len(data["canvas_edges"]))
+
+
+class SourcePathTests(unittest.TestCase):
+    """Path sumber per konektor: BigQuery, Snowflake, PostgreSQL, OData, SQL."""
+
+    def test_bigquery_reads_project_dataset_table(self) -> None:
+        text = (
+            "let\n"
+            "    Source = GoogleBigQuery.Database(null),\n"
+            '    proj = Source{[Name="my-project"]}[Data],\n'
+            '    ds = proj{[Name="sales_ds", Kind="Schema"]}[Data],\n'
+            '    tbl = ds{[Name="orders", Kind="Table"]}[Data],\n'
+            '    #"Renamed Columns" = Table.RenameColumns(tbl, {{"amount", "Total"}})\n'
+            "in\n"
+            '    #"Renamed Columns"'
+        )
+        parsed = build_m_lineage(text)
+
+        self.assertEqual(parsed.origin, "bigquery")
+        self.assertEqual(parsed.source_path, ["my-project", "sales_ds", "orders"])
+        self.assertEqual(
+            parsed.source_object, "my-project.sales_ds.orders"
+        )
+        self.assertIn("Total", parsed.columns)
+
+    def test_snowflake_reads_database_schema_table(self) -> None:
+        text = (
+            "let\n"
+            '    Source = Snowflake.Databases("acct", "WH"),\n'
+            '    db = Source{[Name="ANALYTICS"]}[Data],\n'
+            '    sch = db{[Name="PUBLIC", Kind="Schema"]}[Data],\n'
+            '    tbl = sch{[Name="ORDERS", Kind="Table"]}[Data]\n'
+            "in\n"
+            "    tbl"
+        )
+        parsed = build_m_lineage(text)
+
+        self.assertEqual(parsed.origin, "snowflake")
+        self.assertEqual(parsed.source_path, ["ANALYTICS", "PUBLIC", "ORDERS"])
+
+    def test_postgresql_keeps_origin_on_name_navigation(self) -> None:
+        text = (
+            "let\n"
+            '    Source = PostgreSQL.Database("host", "db"),\n'
+            '    public = Source{[Name="public"]}[Data],\n'
+            '    orders = public{[Name="orders"]}[Data]\n'
+            "in\n"
+            "    orders"
+        )
+        parsed = build_m_lineage(text)
+
+        self.assertEqual(parsed.origin, "postgresql")
+        self.assertEqual(parsed.source_object, "public.orders")
+
+    def test_sql_server_schema_item_unchanged(self) -> None:
+        text = (
+            "let\n"
+            '    Source = Sql.Database("server", "db"),\n'
+            '    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data]\n'
+            "in\n"
+            "    dbo_Sales"
+        )
+        parsed = build_m_lineage(text)
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.source_path, ["dbo", "Sales"])
+
+    def test_odata_and_dataflow_keep_single_level(self) -> None:
+        odata = build_m_lineage(
+            "let\n"
+            '    Source = OData.Feed("https://x/odata"),\n'
+            '    Customers = Source{[Name="Customers"]}[Data]\n'
+            "in\n"
+            "    Customers"
+        )
+        dataflow = build_m_lineage(
+            "let\n"
+            "    Source = PowerPlatform.Dataflows(null),\n"
+            '    ent = Source{[entity="Sales"]}[Data]\n'
+            "in\n"
+            "    ent"
+        )
+
+        self.assertEqual(odata.origin, "odata")
+        self.assertEqual(odata.source_object, "Customers")
+        self.assertEqual(dataflow.origin, "dataflow")
+        self.assertEqual(dataflow.source_object, "Sales")
+
+    def test_unknown_connector_does_not_invent_name(self) -> None:
+        parsed = build_m_lineage(
+            "let\n"
+            '    Source = Contoso.Connector("x"),\n'
+            '    T = Source{[Name="Thing"]}[Data]\n'
+            "in\n"
+            "    T"
+        )
+
+        self.assertEqual(parsed.origin, "table")
+        self.assertEqual(parsed.source_object, "Thing")
+
+    def test_datasource_node_uses_full_path(self) -> None:
+        text = (
+            "let\n"
+            "    Source = GoogleBigQuery.Database(null),\n"
+            '    proj = Source{[Name="my-project"]}[Data],\n'
+            '    ds = proj{[Name="sales_ds", Kind="Schema"]}[Data],\n'
+            '    tbl = ds{[Name="orders", Kind="Table"]}[Data]\n'
+            "in\n"
+            "    tbl"
+        )
+        data = build_lineage(
+            make_result(
+                columns=[column_analysis("orders", "amount")],
+                m_queries=[
+                    {
+                        "name": "orders",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": text,
+                    }
+                ],
+            ),
+            kind="column",
+            table="orders",
+            name="amount",
+        )
+        node = next(
+            node for node in data["nodes"] if node["kind"] == "datasource"
+        )
+
+        self.assertEqual(node["label"], "my-project.sales_ds.orders")
+        self.assertEqual(node["context"], "bigquery")
 
 
 if __name__ == "__main__":

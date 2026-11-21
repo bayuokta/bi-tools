@@ -829,6 +829,16 @@ class ContextTests(TsdTestCase):
             "CSV",
         )
 
+    def test_infer_connector_for_database_families(self) -> None:
+        for expression, label in (
+            ("let S = GoogleBigQuery.Database(null) in S", "Google BigQuery"),
+            ('let S = Snowflake.Databases("a", "w") in S', "Snowflake"),
+            ('let S = Teradata.Database("h") in S', "Teradata"),
+            ('let S = AzureSql.Database("h", "d") in S', "Azure SQL"),
+        ):
+            self.assertEqual(_infer_connector(expression), label, expression)
+            self.assertEqual(_connector_kind(label)[0], "database", label)
+
     def test_calculated_and_calculation_group_tables_are_skipped(self) -> None:
         frames = {
             "02_Tables": pd.DataFrame(
