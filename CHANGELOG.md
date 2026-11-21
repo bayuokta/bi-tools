@@ -11,6 +11,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Analisa Semantic Model
 
+- **Detail outline lineage**: View column lineage menampilkan peran pemakaian di
+  setiap baris (visual `Values/Data/Y-Axis`, filter visual/page/report, sort,
+  formatting), nama/tipe visual, status merah untuk `Tidak dipakai`, dan batas
+  outline 2000 baris. Depth outline 6 sementara graph tetap 4.
+- **M query partisi incremental**: `m_query_rows` memakai `source_expression`
+  sebagai fallback ketika `QueryDefinition` kosong, sehingga query M seperti
+  `OCRKK` menampilkan langkah M di lineage, tab M queries, ekspor, dan Best
+  Practice.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription

@@ -1318,6 +1318,10 @@ tr.is-menu-open .row-menu-btn,
   flex:none; font-size:9px; font-weight:600; letter-spacing:.04em;
   text-transform:uppercase; color:var(--text-3);
 }
+.lo-status.is-unused{ color:var(--danger); }
+.lo-status.is-blocker{ color:var(--warn); }
+.lo-status.is-check{ color:#d67500; }
+.lo-row.is-unused{ background:var(--danger-soft); }
 
 .dialog--raw{ width:min(900px, calc(100vw - 32px)); }
 .raw-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }

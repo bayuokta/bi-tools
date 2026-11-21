@@ -1252,7 +1252,12 @@ def m_query_rows(
             },
         )
         entry["count"] += 1
-        expression = str(row.get("source") or "").strip()
+        # Partisi incremental menyimpan M query di SourceExpression refresh
+        # policy, bukan di QueryDefinition. Pakai sebagai fallback agar
+        # lineage/tab M queries tidak kehilangan langkah.
+        expression = str(
+            row.get("source") or row.get("source_expression") or ""
+        ).strip()
         if expression and not entry["expression"]:
             entry["expression"] = expression
         mode = str(row.get("mode") or "")

@@ -30,7 +30,7 @@ MAX_USAGE_PER_PAGE = 8
 MAX_DEPTH = 8
 MAX_M_STEPS = 8
 MAX_M_COLUMNS = 3
-OUTLINE_MAX_ROWS = 500
+OUTLINE_MAX_ROWS = 2000
 
 DIRECTIONS = ("both", "upstream", "downstream")
 CATEGORIES = (
@@ -314,6 +314,8 @@ class _Graph:
                     "usage_kind": usage_kind,
                     "label": label,
                     "detail": str(record.get("detail") or ""),
+                    "visual_title": str(record.get("visual_title") or ""),
+                    "visual_type": str(record.get("visual_type") or ""),
                     "count": 0,
                     "hidden": True,
                 },
@@ -322,6 +324,10 @@ class _Graph:
             entry["hidden"] = entry["hidden"] and bool(record.get("is_hidden"))
             if kind != "visual" and not entry["detail"]:
                 entry["detail"] = str(record.get("detail") or "")
+            if not entry["visual_title"]:
+                entry["visual_title"] = str(record.get("visual_title") or "")
+            if not entry["visual_type"]:
+                entry["visual_type"] = str(record.get("visual_type") or "")
         ordered = sorted(
             unique.items(),
             key=lambda item: (
@@ -345,8 +351,10 @@ class _Graph:
                     "role": "card",
                     "container": container_id,
                     "group_key": page_node_id,
-                    "usage_kind": usage_kind,
+                    "usage_kind": entry["usage_kind"],
                     "detail": entry["detail"],
+                    "visual_title": entry["visual_title"],
+                    "visual_type": entry["visual_type"],
                     "count": entry["count"],
                     "hidden": entry["hidden"],
                     "side": "downstream",
@@ -1244,6 +1252,11 @@ def _build_outline(
                 "context": str(node.get("context") or ""),
                 "status": str(node.get("status") or ""),
                 "count": int(node.get("count") or 0),
+                "detail": str(node.get("detail") or ""),
+                "usage_kind": str(node.get("usage_kind") or ""),
+                "visual_title": str(node.get("visual_title") or ""),
+                "visual_type": str(node.get("visual_type") or ""),
+                "hidden": bool(node.get("hidden")),
                 "children": [],
             }
             repeated = child_id in seen

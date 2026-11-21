@@ -3875,6 +3875,7 @@
     $("#analysisLineageTreeEdges").innerHTML = "";
     $("#analysisLineageNotice").textContent = "";
     analysisLineageShowEmpty(t("Loading lineage…"), "");
+    var depth = state.analysisLineageView === "outline" ? 6 : 4;
     var path = "/api/analysis/lineage?dataset_id=" + encodeURIComponent(datasetId) +
       "&kind=" + encodeURIComponent(target.kind) +
       "&table=" + encodeURIComponent(target.table) +
@@ -3882,7 +3883,7 @@
       "&direction=" + encodeURIComponent(state.analysisLineageDirection) +
       "&category=" + encodeURIComponent(state.analysisLineageCategory) +
       "&outline_mode=" + encodeURIComponent(state.analysisLineageOutlineMode) +
-      "&depth=4";
+      "&depth=" + depth;
     api().get(path).then(function (data) {
       state.analysisLineage = data;
       $("#analysisLineageSub").textContent = analysisLineageSubtitle();
@@ -4226,27 +4227,57 @@
     return sections.join("");
   }
 
+  function analysisLineageOutlineUsage(item) {
+    var kind = String(item.usage_kind || "");
+    var detail = String(item.detail || "").trim();
+    var text = "";
+    if (kind === "field") text = t("Used in visual");
+    else if (kind === "filter-visual") text = t("Visual level filter");
+    else if (kind === "filter-page") text = t("Page level filter");
+    else if (kind === "filter-report") text = t("Report level filter");
+    else if (kind === "filter-query") text = t("Visual filter");
+    else if (kind === "sort") text = t("Sort");
+    else if (kind === "format") text = t("Formatting");
+    if (!text) return "";
+    return detail ? text + " (" + detail + ")" : text;
+  }
+
   function analysisLineageOutlineList(items) {
     if (!items || !items.length) return "";
     return '<ul class="lo-list">' + items.map(function (item) {
       var icon = ANALYSIS_ICONS[LINEAGE_KIND_ICONS[item.kind] || "group"] || "";
       var kinds = [t(LINEAGE_KIND_LABELS[item.kind] || "Node")];
+      var usage = analysisLineageOutlineUsage(item);
+      if (usage) kinds.push(usage);
+      if (item.visual_title && item.visual_title !== item.label) {
+        kinds.push(item.visual_title);
+      }
+      if (item.visual_type) kinds.push(item.visual_type);
+      if (item.hidden) kinds.push(t("Hidden"));
       var context = analysisLineageContext(item);
       if (context) kinds.push(context);
       var sub = kinds.join(" \u00b7 ");
+      var statusClass = item.status
+        ? " " + analysisLineageStatusClass(item.status)
+        : "";
       var status = item.status
-        ? '<span class="lo-status">' + escapeHtml(tStatus(item.status)) + "</span>"
+        ? '<span class="lo-status' + statusClass + '">' +
+          escapeHtml(tStatus(item.status)) + "</span>"
         : "";
       var count = Number(item.count) > 1
         ? '<span class="lo-count">' + Number(item.count) + "</span>"
         : "";
       var repeat = item.repeat ? '<span class="lo-repeat">\u2026</span>' : "";
-      var row = '<span class="lo-row" data-node-id="' + escapeHtml(item.id) +
+      var rowClass = "lo-row" +
+        (item.status === "Tidak dipakai" ? " is-unused" : "");
+      var titleText = item.label + (sub ? " \u00b7 " + sub : "");
+      var row = '<span class="' + rowClass + '" data-node-id="' + escapeHtml(item.id) +
         '" data-node-kind="' + escapeHtml(item.kind) +
         '" data-node-table="' + escapeHtml(
           item.kind === "table" ? item.label : (item.context || "")
         ) +
-        '" data-node-name="' + escapeHtml(item.label) + '">' +
+        '" data-node-name="' + escapeHtml(item.label) +
+        '" title="' + escapeHtml(titleText) + '">' +
         '<span class="lo-icon">' + icon + "</span>" +
         '<span class="lo-text"><span class="lo-title">' + escapeHtml(item.label) +
         '</span><span class="lo-sub">' + escapeHtml(sub) +
@@ -8786,9 +8817,14 @@
       if (!button) return;
       var value = button.getAttribute("data-lineage-view");
       if (["graph", "outline"].indexOf(value) === -1) return;
+      var changed = value !== state.analysisLineageView;
       state.analysisLineageView = value;
       analysisLineageApplyView();
-      analysisLineageApplySearch();
+      if (changed) {
+        analysisLoadLineage();
+      } else {
+        analysisLineageApplySearch();
+      }
     });
     $("#analysisLineageOutlineMode").addEventListener("click", function (event) {
       var button = event.target.closest("[data-outline-mode]");

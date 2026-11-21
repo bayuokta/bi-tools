@@ -1074,6 +1074,52 @@ in
         self.assertGreater(first["width"], 0)
         self.assertGreater(first["height"], 0)
 
+    def test_outline_items_carry_visual_usage_details(self) -> None:
+        records = [
+            usage(
+                report="R1",
+                page="P1",
+                visual="V1",
+                title="Trend KK",
+                usage_kind="field",
+                detail="Values",
+            ),
+            usage(
+                report="R1",
+                page="P1",
+                visual="V2",
+                title="Trend filter",
+                usage_kind="filter-visual",
+                detail="Advanced",
+            ),
+        ]
+        data = build_lineage(
+            make_result(measures=[measure_analysis("M", "Calc", records=records)]),
+            kind="measure",
+            table="M",
+            name="Calc",
+        )
+        items: list[dict] = []
+
+        def walk(nodes: list[dict]) -> None:
+            for node in nodes or []:
+                items.append(node)
+                walk(node.get("children") or [])
+
+        walk(data["outline"]["downstream"])
+        visual = next(
+            node for node in items
+            if node["kind"] == "visual" and node["usage_kind"] == "field"
+        )
+        filter_item = next(
+            node for node in items
+            if node["kind"] == "filter" and node["usage_kind"] == "filter-visual"
+        )
+        self.assertEqual(visual["detail"], "Values")
+        self.assertEqual(visual["visual_type"], "tableEx")
+        self.assertEqual(filter_item["detail"], "Advanced")
+        self.assertEqual(filter_item["visual_title"], "Trend filter")
+
     def test_tree_layout_centers_parent_between_children(self) -> None:
         def consumer(name: str) -> ModelReference:
             return ModelReference(

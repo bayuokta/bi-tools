@@ -1205,6 +1205,23 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertNotIn("CalcTable", by_name)
         self.assertEqual(rows[0]["kind"], "Tabel")
 
+    def test_m_query_rows_reads_incremental_source_expression(self) -> None:
+        rows = m_query_rows(
+            [
+                {
+                    "table": "OCRKK",
+                    "source": "",
+                    "source_expression": "let Source = Sql.Database(...) in Source",
+                    "mode": "Import",
+                    "state": "ready",
+                }
+            ],
+            [],
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertIn("Sql.Database", rows[0]["expression"])
+
     def test_model_snapshot_keeps_table_mode_and_relationships(self) -> None:
         value = ModelStats(
             model_name="Model",
