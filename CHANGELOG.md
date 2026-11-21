@@ -58,6 +58,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   pola BigQuery AAD: incremental berparameter (navigasi
   `Database`/`Schema`/`Table` + `RangeStart`/`RangeEnd`) dan native SQL
   terangkai.
+- **Resolusi shared query**: `build_lineage(..., registry=...)` menelusuri
+  referensi `#"Nama"`/nama query ke ekspresi shared query dengan memo dan
+  guard siklus (`MAX_QUERY_DEPTH` 8). `core\analysis_lineage.py::_m_query_registry`
+  membangun registry dari baris `Tabel` **dan** `Expression` di `m_queries`,
+  sehingga `Table.Combine`/`Table.NestedJoin` yang sumbernya shared query
+  memakai datasource sebenarnya dan menampilkan detail `ref:<Nama>`.
+  Referensi yang tidak ditemukan tetap dicatat di `references` tanpa warning;
+  siklus tidak membuat rekursi tak berujung.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription

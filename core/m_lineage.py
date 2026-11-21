@@ -96,6 +96,8 @@ class LineageResult:
     native_query: bool = False
     # Query yang sumbernya query lain (`#"Nama"`) dan belum bisa ditelusuri.
     references: list[str] = field(default_factory=list)
+    # Teks hasil evaluasi string literal / konkatenasi (dipakai native query).
+    literal_text: str | None = None
 
 
 @dataclass
@@ -1288,16 +1290,77 @@ def _derived_column(
     )
 
 
+MAX_QUERY_DEPTH = 8
+
+
+class _Resolver:
+    """Cache dan guard siklus untuk referensi query M (`#"Nama"`)."""
+
+    def __init__(self, registry: dict[str, str] | None) -> None:
+        self.registry: dict[str, tuple[str, str]] = {}
+        for name, expression in (registry or {}).items():
+            text = str(name or "").strip()
+            body = str(expression or "").strip()
+            if text and body:
+                self.registry[text.casefold()] = (text, body)
+        self.cache: dict[str, LineageResult] = {}
+        self.stack: list[str] = []
+
+    def lineage(self, name: str) -> LineageResult | None:
+        key = str(name or "").strip().casefold()
+        if not key:
+            return None
+        cached = self.cache.get(key)
+        if cached is not None:
+            return cached
+        item = self.registry.get(key)
+        if item is None:
+            return None
+        if key in self.stack or len(self.stack) >= MAX_QUERY_DEPTH:
+            return None
+        _, expression = item
+        self.stack.append(key)
+        try:
+            result = build_lineage(expression, _resolver=self)
+        finally:
+            self.stack.pop()
+        self.cache[key] = result
+        return result
+
+    def canonical(self, name: str) -> str:
+        item = self.registry.get(str(name or "").strip().casefold())
+        return item[0] if item else str(name or "").strip()
+
+    def state(self, name: str) -> State | None:
+        result = self.lineage(name)
+        if result is None:
+            return None
+        return State(
+            columns=copy.deepcopy(result.columns),
+            origin=result.origin,
+            source_path=list(result.source_path),
+            connection_path=list(result.connection_path),
+            columns_known=result.columns_known,
+            is_table=True,
+            source_params=list(result.source_params),
+            details=list(result.details),
+            native_query=result.native_query,
+            references=list(result.references),
+            literal_text=result.literal_text,
+        )
+
+
 def _apply_connector(
     spec: ConnectorSpec,
     args: list[str],
     states: dict[str, State],
     step: str,
     warnings: list[Warning],
+    resolver: _Resolver | None = None,
 ) -> State:
     """Bangun state sumber dari satu connector yang sudah terdaftar."""
     if spec.inherit and args:
-        state = _evaluate(args[0], states, step, warnings).clone()
+        state = _evaluate(args[0], states, step, warnings, resolver).clone()
         if not state.origin:
             state.origin = spec.origin
     else:
@@ -1330,22 +1393,31 @@ def _apply_function(
     states: dict[str, State],
     step: str,
     warnings: list[Warning],
+    resolver: _Resolver | None = None,
 ) -> State:
     lowered = name.lower()
 
     spec = CONNECTOR_SPECS.get(lowered)
     if spec is not None:
-        return _apply_connector(spec, args, states, step, warnings)
+        return _apply_connector(spec, args, states, step, warnings, resolver)
     if lowered in {"binary.decompress", "binary.fromtext", "text.frombinary"}:
-        return _evaluate(args[0], states, step, warnings) if args else State(is_table=False)
+        return (
+            _evaluate(args[0], states, step, warnings, resolver)
+            if args
+            else State(is_table=False)
+        )
 
     if lowered == "value.nativequery":
         # Native query tetap memakai sumber dan path tabel basisnya.
-        state = _evaluate(args[0], states, step, warnings) if args else State()
+        state = (
+            _evaluate(args[0], states, step, warnings, resolver)
+            if args
+            else State()
+        )
         state.is_table = True
         state.native_query = True
         if len(args) >= 2 and not state.source_path:
-            sql_state = _evaluate(args[1], states, step, warnings)
+            sql_state = _evaluate(args[1], states, step, warnings, resolver)
             sql_text = sql_state.literal_text or ""
             table = _native_table(sql_text)
             if table:
@@ -1354,7 +1426,11 @@ def _apply_function(
         return state
 
     if lowered in _SCALAR_FUNCTIONS or lowered.startswith(_SCALAR_PREFIXES):
-        return _evaluate(args[0], states, step, warnings) if args else State(is_table=False)
+        return (
+            _evaluate(args[0], states, step, warnings, resolver)
+            if args
+            else State(is_table=False)
+        )
 
     if lowered == "table.fromrows":
         state = State(origin="inline", source_path=["inline"], is_table=True, columns_known=True)
@@ -1403,7 +1479,9 @@ def _apply_function(
                 )
         return state
 
-    base = _evaluate(args[0], states, step, warnings) if args else State()
+    base = (
+        _evaluate(args[0], states, step, warnings, resolver) if args else State()
+    )
     state = base.clone()
     state.is_table = True
 
@@ -1730,7 +1808,9 @@ def _apply_function(
 
     if lowered == "table.combine":
         items = _parse_expression_list(args[0]) if args else []
-        candidates = [_evaluate(item, states, step, warnings) for item in items]
+        candidates = [
+            _evaluate(item, states, step, warnings, resolver) for item in items
+        ]
         if not candidates:
             state.columns = {}
             state.columns_known = False
@@ -1749,7 +1829,13 @@ def _apply_function(
     return state
 
 
-def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[Warning]) -> State:
+def _evaluate(
+    expr: str,
+    states: dict[str, State],
+    step: str,
+    warnings: list[Warning],
+    resolver: _Resolver | None = None,
+) -> State:
     value = _strip_outer(strip_comments(expr).strip())
     if not value:
         return State()
@@ -1764,9 +1850,9 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
             local = dict(states)
             for step_name, step_expr in steps:
                 local[step_name] = _evaluate(
-                    step_expr, local, step_name, warnings
+                    step_expr, local, step_name, warnings, resolver
                 )
-            return _evaluate(final_expr, local, step, warnings)
+            return _evaluate(final_expr, local, step, warnings, resolver)
 
     # `if ... then ... else ...`: cabang membawa sumber yang sama.
     if _find_word(value, "if") == 0:
@@ -1780,7 +1866,7 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
                 ]
                 return _merge_states(
                     [
-                        _evaluate(branch, states, step, warnings)
+                        _evaluate(branch, states, step, warnings, resolver)
                         for branch in branches
                     ]
                 )
@@ -1788,7 +1874,7 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
     navigation = parse_navigation(value)
     if navigation is not None:
         base_expr, key_values, literal_keys, accessor = navigation
-        base = _evaluate(base_expr, states, step, warnings)
+        base = _evaluate(base_expr, states, step, warnings, resolver)
         state = base.clone()
         state.is_table = accessor == "Data"
         levels = navigation_levels(key_values, literal_keys)
@@ -1812,12 +1898,14 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
     call = parse_function_call(value)
     if call is not None:
         function_name, args = call
-        return _apply_function(function_name, args, value, states, step, warnings)
+        return _apply_function(
+            function_name, args, value, states, step, warnings, resolver
+        )
 
     field_access = _parse_field_access(value)
     if field_access is not None:
         base_expr, is_table = field_access
-        base = _evaluate(base_expr, states, step, warnings)
+        base = _evaluate(base_expr, states, step, warnings, resolver)
         state = base.clone()
         state.is_table = is_table or state.is_table
         # Akses field/record bukan tabel utuh: kolomnya tidak bisa dipastikan.
@@ -1840,7 +1928,14 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
             return State(is_table=False)
         if name in states:
             return states[name].clone()
-        # Query lain (`#"Nama"` / nama shared query) belum bisa ditelusuri.
+        if resolver is not None:
+            resolved = resolver.state(name)
+            if resolved is not None:
+                _add_unique(
+                    resolved.details, [f"ref:{resolver.canonical(name)}"]
+                )
+                return resolved
+        # Query lain (`#"Nama"` / nama shared query) yang tidak ada di registry.
         return State(is_table=False, references=[name])
 
     return State(is_table=False)
@@ -1849,20 +1944,34 @@ def _evaluate(expr: str, states: dict[str, State], step: str, warnings: list[War
 # ---------------------------------------------------------------------------
 # API utama
 # ---------------------------------------------------------------------------
-def build_lineage(m_text: str) -> LineageResult:
-    """Bangun lineage kolom dari teks query M sebuah partisi."""
+def build_lineage(
+    m_text: str,
+    registry: dict[str, str] | None = None,
+    _resolver: _Resolver | None = None,
+) -> LineageResult:
+    """Bangun lineage kolom dari teks query M sebuah partisi.
+
+    ``registry`` memetakan nama query/shared expression ke ekspresinya agar
+    referensi `#"Nama"` bisa ditelusuri (memo + guard siklus).
+    """
     result = LineageResult()
     if not m_text or not m_text.strip():
         result.warnings.append(Warning("", "", "no_query", "Partisi tidak memiliki query M."))
         return result
 
+    resolver = _resolver
+    if resolver is None and registry:
+        resolver = _Resolver(registry)
+
     states: dict[str, State] = {}
     steps, final_expr = parse_let(m_text)
     for step_name, expr in steps:
-        states[step_name] = _evaluate(expr, states, step_name, result.warnings)
+        states[step_name] = _evaluate(
+            expr, states, step_name, result.warnings, resolver
+        )
 
     if final_expr:
-        final = _evaluate(final_expr, states, "<in>", result.warnings)
+        final = _evaluate(final_expr, states, "<in>", result.warnings, resolver)
     elif steps:
         final = states.get(steps[-1][0], State())
     else:
@@ -1878,6 +1987,7 @@ def build_lineage(m_text: str) -> LineageResult:
     result.details = list(final.details)
     result.native_query = final.native_query
     result.references = list(final.references)
+    result.literal_text = final.literal_text
     return result
 
 

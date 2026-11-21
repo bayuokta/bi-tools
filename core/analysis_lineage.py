@@ -144,6 +144,21 @@ def _m_source_detail(parsed: Any) -> str:
     return " · ".join(parts)
 
 
+def _m_query_registry(result: Any) -> dict[str, str]:
+    """Peta nama tabel/shared expression -> ekspresi M untuk resolusi referensi."""
+    registry: dict[str, str] = {}
+    for item in getattr(result, "m_queries", []) or []:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("kind") or "") not in {"Tabel", "Expression"}:
+            continue
+        name = str(item.get("name") or "").strip()
+        expression = str(item.get("expression") or "").strip()
+        if name and expression:
+            registry[name] = expression
+    return registry
+
+
 class _Graph:
     """Akumulator node/edge dengan batas jumlah node."""
 
@@ -1566,6 +1581,7 @@ def build_lineage(
                 "source": str(item.get("source") or ""),
                 "expression": str(item.get("expression") or ""),
             }
+    m_registry = _m_query_registry(result)
     def walk(adjacency: Mapping[str, set[str]]) -> dict[str, int]:
         found = {seed_id: 0}
         queue: deque[str] = deque([seed_id])
@@ -1614,7 +1630,7 @@ def build_lineage(
             "warnings": [],
         }
         if expression:
-            parsed = build_m_lineage(expression)
+            parsed = build_m_lineage(expression, registry=m_registry)
             aliases: dict[str, Any] = {}
             for key, parsed_column in (parsed.columns or {}).items():
                 for alias in [
@@ -2069,6 +2085,7 @@ def build_table_lineage(
                 "source": str(item.get("source") or ""),
                 "expression": str(item.get("expression") or ""),
             }
+    m_registry = _m_query_registry(result)
     if not column_analyses and not table_measures and name not in mqueries:
         raise ValueError(
             "Tabel tidak ditemukan di hasil analisa. Jalankan analisa ulang."
@@ -2116,7 +2133,7 @@ def build_table_lineage(
             "warnings": [],
         }
         if expression:
-            parsed = build_m_lineage(expression)
+            parsed = build_m_lineage(expression, registry=m_registry)
             reason = ""
             for warning in parsed.warnings:
                 reason = warning.detail

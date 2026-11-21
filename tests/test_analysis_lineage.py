@@ -1845,9 +1845,115 @@ class SourcePathTests(unittest.TestCase):
         self.assertIn("native query", node["detail"])
 
 
+class SharedQueryTests(unittest.TestCase):
+    """Resolusi referensi query/shared expression via registry."""
+
+    def registry(self) -> dict[str, str]:
+        return {
+            "Base": (
+                "let\n"
+                '    Source = Sql.Database("srv", "db"),\n'
+                '    T = Source{[Schema="dbo", Item="Sales"]}[Data]\n'
+                "in\n"
+                "    T"
+            ),
+            "Detail": (
+                "let\n"
+                "    Source = Base,\n"
+                '    T = Table.SelectColumns(Source, {"id", "amount"})\n'
+                "in\n"
+                "    T"
+            ),
+        }
+
+    def test_resolves_shared_query_reference(self) -> None:
+        parsed = build_m_lineage(
+            "let Source = Base in Source", registry=self.registry()
+        )
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.source_object, "dbo.Sales")
+        self.assertIn("ref:Base", parsed.details)
+        self.assertEqual(parsed.references, [])
+
+    def test_case_insensitive_and_transitive_reference(self) -> None:
+        parsed = build_m_lineage(
+            "let Source = detail in Source", registry=self.registry()
+        )
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.source_object, "dbo.Sales")
+        self.assertIn("ref:Base", parsed.details)
+        self.assertIn("ref:Detail", parsed.details)
+        self.assertEqual(set(parsed.columns), {"id", "amount"})
+
+    def test_combine_resolves_all_references(self) -> None:
+        parsed = build_m_lineage(
+            "let Source = Table.Combine({#\"Base\", #\"Detail\"}) in Source",
+            registry=self.registry(),
+        )
+
+        self.assertEqual(parsed.origin, "sql")
+        self.assertEqual(parsed.source_object, "dbo.Sales")
+        self.assertIn("ref:Base", parsed.details)
+        self.assertIn("ref:Detail", parsed.details)
+
+    def test_cycle_does_not_recurse(self) -> None:
+        parsed = build_m_lineage(
+            "let Source = A in Source",
+            registry={
+                "A": "let Source = B in Source",
+                "B": "let Source = A in Source",
+            },
+        )
+
+        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.references, ["A"])
+
+    def test_unknown_reference_is_kept(self) -> None:
+        parsed = build_m_lineage("let Source = MissingQuery in Source")
+
+        self.assertEqual(parsed.source_object, "")
+        self.assertEqual(parsed.references, ["MissingQuery"])
+
+    def test_analysis_datasource_uses_resolved_shared_query(self) -> None:
+        result = make_result(
+            columns=[column_analysis("orders", "amount")],
+            m_queries=[
+                {
+                    "name": "orders",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": "let Source = SharedOrders in Source",
+                },
+                {
+                    "name": "SharedOrders",
+                    "kind": "Expression",
+                    "source": "Model",
+                    "expression": (
+                        "let\n"
+                        '    Source = Sql.Database("srv", "db"),\n'
+                        '    T = Source{[Schema="dbo", Item="Orders"]}[Data]\n'
+                        "in\n"
+                        "    T"
+                    ),
+                },
+            ],
+        )
+        data = build_lineage(
+            result, kind="column", table="orders", name="amount"
+        )
+        node = next(
+            node for node in data["nodes"] if node["kind"] == "datasource"
+        )
+
+        self.assertEqual(node["label"], "dbo.Orders")
+        self.assertEqual(node["context"], "sql")
+        self.assertIn("ref:SharedOrders", node["detail"])
+
+
 class MQueryPatternFixtureTests(unittest.TestCase):
     """Regresi pola M anonim yang disimpan di tests/data."""
-
     def test_anonymized_patterns(self) -> None:
         path = Path(__file__).parent / "data" / "m_query_patterns.json"
         patterns = json.loads(path.read_text(encoding="utf-8"))
