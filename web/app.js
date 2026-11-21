@@ -4063,6 +4063,24 @@
     chip.textContent = t("M lineage") + ": " +
       t(labels[meta.status] || meta.status);
     chip.title = tr(meta.reason || "");
+    var source = $("#analysisLineageMSource");
+    if (source) {
+      var parts = [];
+      if (meta.source) parts.push(String(meta.source));
+      if (meta.origin) {
+        parts.push(t(LINEAGE_ORIGIN_LABELS[meta.origin] || meta.origin));
+      }
+      if (meta.native) parts.push(t("Native query"));
+      if (meta.params && meta.params.length) {
+        parts.push(t("Parameters") + ": " + meta.params.join(", "));
+      }
+      if (meta.references && meta.references.length) {
+        parts.push(t("Query refs") + ": " + meta.references.join(", "));
+      }
+      source.textContent = parts.join(" \u00b7 ");
+      source.title = String(meta.detail || "");
+      source.hidden = parts.length === 0;
+    }
     var warnings = meta.warnings || [];
     $("#analysisLineageMDetails").hidden = warnings.length === 0;
     $("#analysisLineageMSummary").textContent =
@@ -4264,6 +4282,22 @@
     return detail ? text + " (" + detail + ")" : text;
   }
 
+  function analysisLineageOutlineSource(item) {
+    if (item.kind !== "datasource") return "";
+    var parts = String(item.detail || "").split(" \u00b7 ");
+    var keep = [];
+    parts.forEach(function (part) {
+      var text = String(part || "").trim();
+      if (!text) return;
+      if (text.indexOf("ref:") === 0 || text.indexOf("param:") === 0) {
+        keep.push(text);
+      } else if (text === "native query") {
+        keep.push(t("Native query"));
+      }
+    });
+    return keep.join(" \u00b7 ");
+  }
+
   function analysisLineageOutlineList(items) {
     if (!items || !items.length) return "";
     return '<ul class="lo-list">' + items.map(function (item) {
@@ -4278,6 +4312,8 @@
       if (item.hidden) kinds.push(t("Hidden"));
       var context = analysisLineageContext(item);
       if (context) kinds.push(context);
+      var source = analysisLineageOutlineSource(item);
+      if (source) kinds.push(source);
       var sub = kinds.join(" \u00b7 ");
       var statusClass = item.status
         ? " " + analysisLineageStatusClass(item.status)
@@ -4293,6 +4329,9 @@
       var rowClass = "lo-row" +
         (item.status === "Tidak dipakai" ? " is-unused" : "");
       var titleText = item.label + (sub ? " \u00b7 " + sub : "");
+      if (item.kind === "datasource" && item.detail) {
+        titleText += " \u00b7 " + item.detail;
+      }
       var row = '<span class="' + rowClass + '" data-node-id="' + escapeHtml(item.id) +
         '" data-node-kind="' + escapeHtml(item.kind) +
         '" data-node-table="' + escapeHtml(

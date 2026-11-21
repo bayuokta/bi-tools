@@ -107,6 +107,8 @@ FILE_CONNECTORS = (
     "parquet",
     "google sheet",
     "azure storage",
+    "hdfs",
+    "hadoop",
 )
 
 LIVE_CONNECTORS = (
@@ -1117,9 +1119,13 @@ CONNECTOR_PATTERNS = (
     ("GoogleSheets.Contents", "Google Sheets"),
     ("AzureStorage.Blobs", "Azure Storage"),
     ("AzureStorage.DataLake", "Azure Storage"),
+    ("Hdfs.Files", "HDFS"),
+    ("Hadoop.Files", "Hadoop"),
     ("Json.Document", "JSON"),
     ("Xml.Tables", "XML"),
     ("Html.Table", "Web"),
+    ("Html.BrowserContents", "Web"),
+    ("Web.BrowserContents", "Web"),
     ("File.Contents", "File"),
     ("Web.Contents", "Web"),
     ("Web.Page", "Web"),

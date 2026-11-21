@@ -196,6 +196,8 @@ CONNECTORS = [
     "Excel.CurrentWorkbook",
     "Csv.Document",
     "Json.Document",
+    "Xml.Tables",
+    "File.Contents",
     "SharePoint.Files",
     "SharePoint.Contents",
     "SharePoint.Tables",
@@ -230,6 +232,9 @@ CONNECTORS = [
     "Parquet.Document",
     "Pdf.Tables",
     "Pdf.Data",
+    "Web.BrowserContents",
+    "Html.Table",
+    "Html.BrowserContents",
 ]
 CONNECTORS.sort(key=len, reverse=True)
 

@@ -214,6 +214,8 @@ CONNECTOR_SPECS: dict[str, ConnectorSpec] = {
     "googlesheets.contents": ConnectorSpec("googlesheets", "url", (0,)),
     "azurestorage.blobs": ConnectorSpec("azure storage", "url", (0,)),
     "azurestorage.datalake": ConnectorSpec("azure storage", "url", (0,)),
+    "hdfs.files": ConnectorSpec("file", "url", (0,)),
+    "hadoop.files": ConnectorSpec("file", "url", (0,)),
     "web.contents": ConnectorSpec("web", "url", (0,)),
     "web.page": ConnectorSpec("web", inherit=True),
     "web.browsercontents": ConnectorSpec("web", "url", (0,)),

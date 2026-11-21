@@ -66,6 +66,17 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   memakai datasource sebenarnya dan menampilkan detail `ref:<Nama>`.
   Referensi yang tidak ditemukan tetap dicatat di `references` tanpa warning;
   siklus tidak membuat rekursi tak berujung.
+- **Detail sumber di Outline dan panel M lineage**: baris `datasource` kini
+  menampilkan `ref:`, `param:`, dan `Native query` (path/URL lengkap di
+  tooltip), dan panel **M lineage** menampilkan label sumber, origin,
+  parameter, referensi query, serta chip native — bukan hanya warning. Hasil
+  resolusi shared query dan parameter konektor langsung terlihat tanpa
+  membuka graph.
+- **Registry konektor konsisten**: daftar `CONNECTOR_SPECS` (lineage),
+  `CONNECTORS` (model/`15_Data_Sources`), dan `CONNECTOR_PATTERNS` (TSD) kini
+  dijaga tes. `Hdfs.Files`/`Hadoop.Files` mendapat origin file + bucket TSD
+  file, dan `File.Contents`, `Xml.Tables`, `Web.BrowserContents`, `Html.Table`,
+  `Html.BrowserContents` dikenali `extract_connector`.
 - **Subscription report** dideteksi lewat `GET admin/reports/{id}/subscriptions`
   untuk report yang tidak bisa dipindai (RDL/personal/inaccessible), dengan
   cache 24 jam, batas 25 report/run, dan kuota 200 request/jam. Subscription

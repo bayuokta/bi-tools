@@ -1843,6 +1843,9 @@ class SourcePathTests(unittest.TestCase):
         self.assertEqual(node["label"], "db")
         self.assertIn("param:Server", node["detail"])
         self.assertIn("native query", node["detail"])
+        self.assertEqual(data["m_lineage"]["source"], "db")
+        self.assertTrue(data["m_lineage"]["native"])
+        self.assertIn("Server", data["m_lineage"]["params"])
 
 
 class SharedQueryTests(unittest.TestCase):

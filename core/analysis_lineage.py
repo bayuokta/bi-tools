@@ -1736,6 +1736,12 @@ def build_lineage(
                 "status": status,
                 "reason": reason,
                 "warnings": warning_rows(parsed),
+                "source": parsed.source_object,
+                "origin": parsed.origin,
+                "params": list(parsed.source_params),
+                "references": list(parsed.references),
+                "native": bool(parsed.native_query),
+                "detail": _m_source_detail(parsed),
             }
         if not has_steps:
             m_edges.append(
@@ -2143,6 +2149,12 @@ def build_table_lineage(
                 "status": lineage_confidence(parsed),
                 "reason": reason,
                 "warnings": warning_rows(parsed),
+                "source": parsed.source_object,
+                "origin": parsed.origin,
+                "params": list(parsed.source_params),
+                "references": list(parsed.references),
+                "native": bool(parsed.native_query),
+                "detail": _m_source_detail(parsed),
             }
             if parsed.origin or parsed.source_object:
                 datasource = f"datasource:{name}"

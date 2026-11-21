@@ -11,11 +11,13 @@ from unittest.mock import patch
 import pandas as pd
 
 from core.errors import ExtractionError
-from core.m_lineage import build_lineage
+from core.m_lineage import CONNECTOR_SPECS, build_lineage
+from core.model import CONNECTORS
 from core.pbi_capture import CaptureOptions, ScreenshotSet
 from core.tsd import (
     SCREENSHOT_ASSET_DIR,
     TEMPLATE_PATH,
+    CONNECTOR_PATTERNS,
     _connector_kind,
     _filters,
     _infer_connector,
@@ -1377,6 +1379,27 @@ class ScreenshotContextTests(TsdTestCase):
         html = output.read_text(encoding="utf-8")
         self.assertIn("data:image/png;base64,", html)
         self.assertIn('loading="lazy"', html)
+
+
+class ConnectorRegistryTests(unittest.TestCase):
+    """Tiga daftar konektor (lineage, model, TSD) tidak boleh melenceng."""
+
+    def test_lineage_and_model_connector_lists_match(self) -> None:
+        specs = {name.casefold() for name in CONNECTOR_SPECS}
+        model = {name.casefold() for name in CONNECTORS}
+
+        self.assertEqual(sorted(model - specs), [])
+        self.assertEqual(sorted(specs - model), [])
+
+    def test_tsd_patterns_cover_all_lineage_connectors(self) -> None:
+        patterns = [name.casefold() for name, _label in CONNECTOR_PATTERNS]
+        missing = sorted(
+            name
+            for name in CONNECTOR_SPECS
+            if not any(pattern in name.casefold() for pattern in patterns)
+        )
+
+        self.assertEqual(missing, [])
 
 
 class MColumnLogicTests(unittest.TestCase):
