@@ -14,7 +14,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - **Detail outline lineage**: View column lineage menampilkan peran pemakaian di
   setiap baris (visual `Values/Data/Y-Axis`, filter visual/page/report, sort,
   formatting), nama/tipe visual, status merah untuk `Tidak dipakai`, dan batas
-  outline 2000 baris. Depth outline 6 sementara graph tetap 4.
+  outline 2000 baris. Depth outline 6 sementara graph tetap 4. Di sisi
+  **Depends on**, rantai langkah M diringkas: kolom langsung ke M query lalu
+  datasource, sedangkan graph tetap menampilkan langkah M.
 - **M query partisi incremental**: `m_query_rows` memakai `source_expression`
   sebagai fallback ketika `QueryDefinition` kosong, sehingga query M seperti
   `OCRKK` menampilkan langkah M di lineage, tab M queries, ekspor, dan Best

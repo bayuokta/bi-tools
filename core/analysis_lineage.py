@@ -1234,14 +1234,43 @@ def _build_outline(
             node_id,
         )
 
+    def upstream_ids(node_id: str) -> list[str]:
+        """Parent upstream tanpa node mstep (langsung ke M query/datasource)."""
+        ids: list[str] = []
+        kept: set[str] = set()
+        visited_steps: set[str] = set()
+
+        def visit(current: str) -> None:
+            for child_id in sorted(incoming.get(current, ()), key=sort_key):
+                node = graph.nodes.get(child_id)
+                if node is None:
+                    continue
+                if str(node.get("kind") or "") == "mstep":
+                    if child_id in visited_steps:
+                        continue
+                    visited_steps.add(child_id)
+                    visit(child_id)
+                    continue
+                if child_id not in kept:
+                    kept.add(child_id)
+                    ids.append(child_id)
+
+        visit(node_id)
+        return ids
+
     def build(
         node_id: str,
         adjacency: Mapping[str, set[str]],
         level: int,
         seen: set[str],
+        collapse_msteps: bool = False,
     ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        for child_id in sorted(adjacency.get(node_id, ()), key=sort_key):
+        if collapse_msteps:
+            children = upstream_ids(node_id)
+        else:
+            children = sorted(adjacency.get(node_id, ()), key=sort_key)
+        for child_id in children:
             node = graph.nodes.get(child_id)
             if node is None:
                 continue
@@ -1270,12 +1299,20 @@ def _build_outline(
                 else:
                     seen.add(child_id)
                     branch = seen
-                item["children"] = build(child_id, adjacency, level + 1, branch)
+                item["children"] = build(
+                    child_id,
+                    adjacency,
+                    level + 1,
+                    branch,
+                    collapse_msteps,
+                )
             items.append(item)
         return items
 
     return {
-        "upstream": build(seed_id, incoming, 1, {seed_id}),
+        "upstream": build(
+            seed_id, incoming, 1, {seed_id}, collapse_msteps=True
+        ),
         "downstream": build(seed_id, outgoing, 1, {seed_id}),
     }
 

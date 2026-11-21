@@ -483,6 +483,46 @@ in
             )
         )
 
+    def test_outline_collapses_m_steps_but_keeps_mquery_and_datasource(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Removed Other Columns" = Table.SelectColumns(dbo_Sales, {"Amount"}),
+    #"Renamed Columns" = Table.RenameColumns(#"Removed Other Columns", {{"Amount", "Total Amount"}})
+in
+    #"Renamed Columns"
+"""
+        data = build_lineage(
+            make_result(
+                columns=[column_analysis("Sales", "Total Amount")],
+                m_queries=[
+                    {
+                        "name": "Sales",
+                        "kind": "Tabel",
+                        "source": "Import",
+                        "expression": expression,
+                    }
+                ],
+            ),
+            kind="column",
+            table="Sales",
+            name="Total Amount",
+        )
+        upstream: list[dict] = []
+
+        def walk(items: list[dict]) -> None:
+            for item in items:
+                upstream.append(item)
+                walk(item.get("children") or [])
+
+        walk(data["outline"]["upstream"])
+        kinds = {item["kind"] for item in upstream}
+        self.assertNotIn("mstep", kinds)
+        self.assertIn("mquery", kinds)
+        self.assertIn("datasource", kinds)
+        self.assertTrue(any(item["label"] == "dbo.Sales" for item in upstream))
+
     def test_mquery_without_steps_becomes_model_card(self) -> None:
         result = make_result(
             columns=[column_analysis("Sales", "Amount")],
