@@ -588,7 +588,13 @@ var NEWLINE = String.fromCharCode(10);
     api().post("/api/files/open", { path: folder, mode: "open" }).catch(reportError);
   }
 
+  function clearJobState() {
+    state.jobId = null;
+    state.jobStream = null;
+  }
+
   function finishJob(options, snapshot) {
+    clearJobState();
     var status = (snapshot && snapshot.status) || "done";
     if (state.extractTimer) {
       window.clearInterval(state.extractTimer);
@@ -640,23 +646,24 @@ var NEWLINE = String.fromCharCode(10);
   }
 
   function pollJob(jobId, options) {
-    var timer = window.setInterval(function () {
+    var timer = 0;
+    function check() {
       api().get("/api/jobs/" + encodeURIComponent(jobId)).then(function (snapshot) {
         if (snapshot.status === "running") return;
         window.clearInterval(timer);
-        state.jobId = null;
-        state.jobStream = null;
+        clearJobState();
         if (options.button) options.button.disabled = false;
         (snapshot.log || []).slice(state.jobLogCount || 0).forEach(logLine);
         finishJob(options, snapshot);
       }).catch(function (error) {
         window.clearInterval(timer);
-        state.jobId = null;
-        state.jobStream = null;
+        clearJobState();
         if (options.button) options.button.disabled = false;
         reportError(error);
       });
-    }, 1500);
+    }
+    timer = window.setInterval(check, 1500);
+    check();
   }
 
   function startJob(options) {
@@ -665,8 +672,24 @@ var NEWLINE = String.fromCharCode(10);
       return;
     }
     if (state.jobId) {
-      if (options.onBusy) options.onBusy();
-      else toast(t("Another job is still running"));
+      var pending = state.jobId;
+      api().get("/api/jobs/" + encodeURIComponent(pending)).then(function (snapshot) {
+        if (snapshot.status === "running") {
+          if (options.onBusy) options.onBusy();
+          else toast(t("Another job is still running"));
+          return;
+        }
+        if (state.jobStream && state.jobStream.close) state.jobStream.close();
+        clearJobState();
+        if (options.button) options.button.disabled = false;
+        startJob(options);
+      }).catch(function () {
+        // Job dari sesi/server lama: bersihkan state lokal lalu coba lagi.
+        if (state.jobStream && state.jobStream.close) state.jobStream.close();
+        clearJobState();
+        if (options.button) options.button.disabled = false;
+        startJob(options);
+      });
       return;
     }
     state.jobLogCount = 0;
@@ -684,8 +707,7 @@ var NEWLINE = String.fromCharCode(10);
           state.lastJob = snapshot;
         },
         onEnd: function (end) {
-          state.jobId = null;
-          state.jobStream = null;
+          clearJobState();
           if (options.button) options.button.disabled = false;
           var snapshot = state.lastJob || { status: end.status };
           finishJob(options, snapshot);

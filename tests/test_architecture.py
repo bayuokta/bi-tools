@@ -556,6 +556,14 @@ class WebLayerTests(unittest.TestCase):
                     "tanpa app.* (helper ada di app.js)",
                 )
 
+    def test_job_start_recovers_from_stale_local_state(self) -> None:
+        app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function clearJobState(", app)
+        self.assertIn(
+            'api().get("/api/jobs/" + encodeURIComponent(pending))', app
+        )
+        self.assertIn("startJob(options);", app)
+
     def test_partition_helpers_live_in_partition_module(self) -> None:
         partition = (ROOT / "web" / "js" / "views" / "partitions-lineage.js").read_text(
             encoding="utf-8"
