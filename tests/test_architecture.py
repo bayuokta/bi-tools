@@ -530,6 +530,24 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 
+    def test_partition_helpers_live_in_partition_module(self) -> None:
+        partition = (ROOT / "web" / "js" / "views" / "partitions-lineage.js").read_text(
+            encoding="utf-8"
+        )
+        for name in (
+            "partitionRows",
+            "partitionSelectedRows",
+            "partitionTime",
+            "partitionRefreshLabel",
+        ):
+            self.assertIn(f"function {name}(", partition)
+        app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("partitionRows", app)
+        analysis = (ROOT / "web" / "js" / "views" / "analysis.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("function partitionRows(", analysis)
+
     def test_web_compare_is_read_only_and_roles_tab_exists(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

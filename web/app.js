@@ -76,11 +76,7 @@ import {
   analysisSyncReportOptions,
   applyAnalysisCellTitles,
   applyAnalysisZoom,
-  copyTextValue,
-  partitionRefreshLabel,
-  partitionRows,
-  partitionSelectedRows,
-  partitionTime
+  copyTextValue
 } from "./js/views/analysis.js";
 import {
   applyReportDefaults,

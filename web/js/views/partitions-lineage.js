@@ -5,6 +5,29 @@ import { fmtInt } from "../core/format.js";
 import { t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
+  // -- Partisi ------------------------------------------------------------
+  function partitionRows() {
+    return (state.partitions && state.partitions.partitions) || [];
+  }
+
+  function partitionSelectedRows() {
+    return partitionRows().filter(function (_row, index) {
+      return Boolean(state.partitionSelected[index]);
+    });
+  }
+
+  function partitionTime(value) {
+    var text = String(value || "").replace("T", " ");
+    return text ? text.slice(0, 19) : "-";
+  }
+
+  function partitionRefreshLabel(value) {
+    var select = $("#partitionRefreshType");
+    if (!select) return value;
+    var option = select.options[select.selectedIndex];
+    return option ? option.textContent : value;
+  }
+
   export function partitionLoadState() {
     if (!app.apiReady()) return Promise.resolve();
     return app.api().get("/api/partitions/state").then(function (data) {

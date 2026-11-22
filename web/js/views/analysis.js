@@ -5352,26 +5352,3 @@ import { state } from "../core/state.js";
     }).catch(reportError);
   }
 
-  // -- Partisi ------------------------------------------------------------
-  export function partitionRows() {
-    return (state.partitions && state.partitions.partitions) || [];
-  }
-
-  export function partitionSelectedRows() {
-    return partitionRows().filter(function (_row, index) {
-      return Boolean(state.partitionSelected[index]);
-    });
-  }
-
-  export function partitionTime(value) {
-    var text = String(value || "").replace("T", " ");
-    return text ? text.slice(0, 19) : "-";
-  }
-
-  export function partitionRefreshLabel(value) {
-    var select = $("#partitionRefreshType");
-    if (!select) return value;
-    var option = select.options[select.selectedIndex];
-    return option ? option.textContent : value;
-  }
-
