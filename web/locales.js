@@ -1057,7 +1057,9 @@
   "Update behavior (read-only)": "Perilaku update (read-only)",
   "Use TMSL (not TMDL) for comparison": "Gunakan TMSL (bukan TMDL) untuk perbandingan",
   "Use interactive login": "Gunakan login interaktif",
-  "groups shown": "grup ditampilkan"
+  "groups shown": "grup ditampilkan",
+  "Warnings": "Peringatan",
+  "Measure dependency warnings": "Peringatan dependensi measure"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

@@ -7,6 +7,16 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.6.2
+
+### Compare Semantic Model
+
+- **Peringatan dependensi measure** mengikuti opsi ALM: referensi DAX ke kolom/
+  measure yang tidak ada di model yang sama dicatat di snapshot TOM dan
+  ditampilkan sebagai jumlah **Warnings** di ringkasan Compare.
+- Opsi `Display warnings for measure dependencies` sekarang benar-benar
+  mengaktifkan/mematikan pemeriksaan itu.
+
 ## 2026-11-22 - Rilis 0.6.1
 
 ### Compare Semantic Model — TOM/TMDL persis

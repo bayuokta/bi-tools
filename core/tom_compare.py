@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from .errors import ExtractionError
+from .metadata_common import find_dax_refs
 from .model_compare import normalize_options
 from .tmdl_utils import (
     clean_object_definition,
@@ -129,6 +130,53 @@ def _add(
             "definition": definition,
         }
     )
+
+
+def _dependency_warnings(model: Any, settings: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Peringatan DAX referensi ke measure/kolom yang tidak ada (opsional)."""
+    if not settings.get("measure_dependencies"):
+        return []
+    tables = [str(table.Name) for table in model.Tables]
+    columns = {
+        (str(table.Name), str(column.Name))
+        for table in model.Tables
+        for column in table.Columns
+    }
+    measures = {
+        str(measure.Name)
+        for table in model.Tables
+        for measure in table.Measures
+    }
+    warnings: list[dict[str, Any]] = []
+    for table in model.Tables:
+        for measure in table.Measures:
+            expression = str(getattr(measure, "Expression", "") or "")
+            if not expression:
+                continue
+            column_refs, measure_refs = find_dax_refs(expression, tables)
+            missing_columns = [
+                f"{column_table}[{column}]"
+                for column_table, column in column_refs
+                if (column_table, column) not in columns
+            ]
+            missing_measures = [name for name in measure_refs if name not in measures]
+            if not missing_columns and not missing_measures:
+                continue
+            details = []
+            if missing_columns:
+                details.append("kolom: " + ", ".join(sorted(set(missing_columns))))
+            if missing_measures:
+                details.append("measure: " + ", ".join(sorted(set(missing_measures))))
+            warnings.append(
+                {
+                    "type": "Measure dependency",
+                    "table": str(table.Name),
+                    "measure": str(measure.Name),
+                    "message": "Referensi tidak ditemukan di model — " + "; ".join(details),
+                }
+            )
+    warnings.sort(key=lambda item: (item["table"].casefold(), item["measure"].casefold()))
+    return warnings
 
 
 def snapshot_from_server(
@@ -305,6 +353,7 @@ def snapshot_from_server(
             "compatibility_mode": str(database.CompatibilityMode),
         },
         "objects": objects,
+        "warnings": _dependency_warnings(model, settings),
     }
 
 

@@ -184,5 +184,9 @@ def compare_snapshots(
     return {
         "options": settings,
         "items": items,
+        "warnings": [
+            *list(source.get("warnings") or []),
+            *list(target.get("warnings") or []),
+        ],
         "stats": {**counts, "by_type": by_type},
     }

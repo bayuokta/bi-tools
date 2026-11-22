@@ -100,6 +100,14 @@ class CompareSnapshotTests(unittest.TestCase):
         self.assertTrue(options["roles"])
         self.assertTrue(options["partitions"])
 
+    def test_snapshot_warnings_are_merged(self) -> None:
+        source = snapshot([obj("Table", "Sales", "Sales", "table 'Sales'")])
+        source["warnings"] = [{"measure": "Total", "message": "missing"}]
+        target = snapshot([])
+        result = compare_snapshots(source, target)
+        self.assertEqual(len(result["warnings"]), 1)
+        self.assertEqual(result["warnings"][0]["measure"], "Total")
+
     def test_line_diff_marks_changed_lines(self) -> None:
         source = snapshot([obj("Measure", "Sales|Total", "Total", "measure Total =\n\tSUM(Sales[Amount])", "Sales")])
         target = snapshot([obj("Measure", "Sales|Total", "Total", "measure Total =\n\tSUM(Sales[Amount]) + 1", "Sales")])

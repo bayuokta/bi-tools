@@ -417,6 +417,7 @@ Halaman ini membandingkan dua semantic model dari Power BI Service atau instance
 - Status: **Same definition**, **Different definition**, **Source only**, **Target only**.
 - Aksi disarankan: `Skip`, `Create`, `Update`, `Delete`; aksi target-only default `Skip`.
 - Default opsi mengikuti ALM Toolkit: **roles/partitions/annotations/lineage off**, measure/relationship/expression/measure-dependency on. Opsi lain lewat tombol **Options**.
+- Opsi **Display warnings for measure dependencies** menandai DAX yang merujuk kolom/measure yang tidak ada di model yang sama; jumlahnya tampil di ringkasan.
 - Tabel hasil berupa tree seperti ALM: Table → Measure/Relationship/Calculation item; root Data source/Expression/Role/Perspective/Culture.
 - Panel bawah menampilkan definisi **TMDL/TMSL persis dari TOM** untuk baris yang dipilih, dengan highlight baris berbeda.
 - **Validate** hanya validasi lokal; **Generate script** menulis manifest definisi TOM ke `outputs\`; **Export CSV** menulis seluruh hasil.

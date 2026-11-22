@@ -276,6 +276,12 @@ export function applyCompareResult(result) {
     })[0] || result.items[0];
     state.compareActive = first ? first.id : null;
   }
+  if (result && (result.warnings || []).length) {
+    app.addLog(
+      t("Measure dependency warnings") + ": " + fmtInt(result.warnings.length),
+      "warn"
+    );
+  }
   renderCompare();
 }
 
@@ -451,6 +457,11 @@ function renderCompareMetrics() {
     $("#cmpStatTarget").textContent = (state.compare.target && state.compare.target.label) || "—";
     $("#cmpStatCompared").textContent = fmtInt(compareItems().length);
     $("#cmpStatTime").textContent = state.compare.generated_at || "—";
+    var warnings = state.compare.warnings || [];
+    $("#cmpStatWarnings").textContent = fmtInt(warnings.length);
+    $("#cmpStatWarnings").title = warnings.map(function (item) {
+      return item.measure + ": " + item.message;
+    }).join("\n");
   }
 }
 
