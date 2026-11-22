@@ -531,30 +531,79 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("sqlite3", core)
 
     def test_view_modules_use_app_bridge_for_ui_helpers(self) -> None:
+        """Helper app.js harus diakses lewat ``app.*``, bukan identifier bebas.
+
+        Termasuk referensi tanpa pemanggilan seperti ``.catch(reportError)``
+        yang tidak tertangkap pemeriksaan ``nama(`` biasa.
+        """
+
         app_api = (ROOT / "web" / "js" / "core" / "app_api.js").read_text(
             encoding="utf-8"
         )
-        names = re.findall(r'^\s+(\w+): missing\("', app_api, re.M)
+        names = sorted(
+            set(re.findall(r'^\s+(\w+): missing\("', app_api, re.M)) - {"api"}
+        )
         self.assertTrue(names)
         for path in (ROOT / "web" / "js" / "views").rglob("*.js"):
             text = path.read_text(encoding="utf-8")
+            # Buang template/string/komentar agar teks seperti "/api/..." tidak
+            # dianggap kode.
+            code = re.sub(r"`(?:[^`\\]|\\.)*`", '""', text, flags=re.S)
+            code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', code)
+            code = re.sub(r"'(?:[^'\\]|\\.)*'", "''", code)
+            code = re.sub(r"/\*.*?\*/", "", code, flags=re.S)
+            code = re.sub(r"//[^\n]*", "", code)
+            local = set(
+                re.findall(r"^\s*(?:export\s+)?function\s+(\w+)\s*\(", code, re.M)
+            )
+            local |= set(
+                re.findall(r"^\s*(?:const|let|var)\s+(\w+)\s*=", code, re.M)
+            )
+            imports: set[str] = set()
+            for match in re.finditer(r"import\s*\{([^}]*)\}\s*from", code):
+                for part in match.group(1).split(","):
+                    alias = part.strip().split(" as ")[-1].strip()
+                    if alias:
+                        imports.add(alias)
             for name in names:
-                if re.search(r"^\s*function\s+" + re.escape(name) + r"\s*\(", text, re.M):
-                    continue
-                if re.search(
-                    r"^\s*(?:const|let|var)\s+" + re.escape(name) + r"\s*=",
-                    text,
-                    re.M,
-                ):
+                if name in local or name in imports:
                     continue
                 bare = re.search(
-                    r"(?<![.\w])" + re.escape(name) + r"\s*\(", text
+                    r"(?<![.\w])" + re.escape(name) + r"\b(?!\s*:)", code
                 )
-                self.assertIsNone(
-                    bare,
-                    f"{path.relative_to(ROOT).as_posix()} memanggil {name}() "
-                    "tanpa app.* (helper ada di app.js)",
+                if bare is None:
+                    continue
+                self.fail(
+                    f"{path.relative_to(ROOT).as_posix()} memakai "
+                    f"{name} tanpa app.* (helper ada di app.js)"
                 )
+
+    def test_main_actions_do_not_preblock_stale_jobs(self) -> None:
+        """Guard job lokal di view membuat job basi tidak bisa pulih."""
+
+        for name, marker in (
+            ("analysis.js", "export function analysisRun("),
+            ("metadata-tsd.js", "export function runExtraction("),
+            ("metadata-tsd.js", "export function runTsd("),
+            ("partitions-lineage.js", "export function partitionLoadInventory("),
+            ("partitions-lineage.js", "export function partitionConfirmProcess("),
+        ):
+            text = (ROOT / "web" / "js" / "views" / name).read_text(
+                encoding="utf-8"
+            )
+            start = text.index(marker)
+            end = text.find("\n  }", start)
+            body = text[start:end]
+            self.assertNotIn(
+                "if (state.jobId",
+                body,
+                f"{name}: {marker} masih memblokir job basi sebelum startJob",
+            )
+            self.assertNotIn(
+                "if (state.partitionRunning",
+                body,
+                f"{name}: {marker} memakai flag running yang bisa basi",
+            )
 
     def test_job_start_recovers_from_stale_local_state(self) -> None:
         app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
@@ -593,6 +642,7 @@ class WebLayerTests(unittest.TestCase):
             "partitionItemRow",
             "partitionToggleTable",
             "partitionSelectTable",
+            "partitionSetAllOpen",
         ):
             self.assertIn(f"function {name}(", partition)
         self.assertIn("state.partitionOpen", partition)

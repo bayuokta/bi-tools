@@ -330,10 +330,6 @@ import { state } from "../core/state.js";
 
   export function runExtraction() {
     if (!app.apiReady()) return;
-    if (state.jobId) {
-      app.toast(t("Another job is still running"));
-      return;
-    }
     if (state.batchMode) {
       var selected = batchSelectedIds();
       if (selected.length < 2) {
@@ -516,7 +512,7 @@ import { state } from "../core/state.js";
     return app.api().post("/api/tsd/state", tsdPayload()).then(function (data) {
       renderTsdState(data);
       return data;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function scheduleTsdInspect() {
@@ -579,10 +575,6 @@ import { state } from "../core/state.js";
 
   export function runTsd() {
     if (!app.apiReady()) return;
-    if (state.jobId) {
-      app.toast(t("Another job is still running"));
-      return;
-    }
     startTsdProgress(t("Preparing the TSD document…"));
     app.startJob({
       kind: "tsd",
@@ -611,7 +603,7 @@ import { state } from "../core/state.js";
         return { value: item.id, label: item.label, data: item };
       }), "Choose a report…");
       return data;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function captureTsdScreenshots() {
@@ -648,7 +640,7 @@ import { state } from "../core/state.js";
     app.api().post("/api/tsd/cache/clear", tsdPayload()).then(function (data) {
       if (data.state) renderTsdState(data.state);
       app.toast(data.removed ? t("Screenshot cache cleared") : t("No cache yet"));
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function openTsdDocument() {
@@ -673,7 +665,7 @@ import { state } from "../core/state.js";
       app.toast(t("Output folder not set"));
       return;
     }
-    app.api().post("/api/files/open", { path: folder, mode: "open" }).catch(reportError);
+    app.api().post("/api/files/open", { path: folder, mode: "open" }).catch(app.reportError);
   }
 
   export function loadTsdManual(quiet) {
@@ -689,7 +681,7 @@ import { state } from "../core/state.js";
       if (!quiet) app.toast(data.exists ? t("Manual context loaded") : t("Sidecar not found"));
       scheduleTsdInspect();
       return data;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function saveTsdManualFile(data, quiet) {
@@ -706,7 +698,7 @@ import { state } from "../core/state.js";
       if (!quiet) app.toast(t("Manual context saved"));
       scheduleTsdInspect();
       return result;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   function tsdManualPath() {

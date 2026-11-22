@@ -46,6 +46,13 @@ _pbir/
 
 # Hasil analisa semantic model (regenerate dari script)
 Analisa_Semantic_Model_*.xlsx
+# Ekspor lineage/dependensi yang tidak sengaja diletakkan di root
+/Dependencies_*.csv
+/Dependencies_*.xlsx
+/Lineage_*.csv
+/Lineage_*.json
+/Lineage_*.svg
+/Lineage_*.png
 
 # Korpus query M untuk uji parser (berisi ekspresi pelanggan)
 m-query*.csv

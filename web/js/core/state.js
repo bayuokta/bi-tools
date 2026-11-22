@@ -44,6 +44,7 @@ export const state = {
   outputs: null,
   jobId: null,
   jobStream: null,
+  jobPending: false,
   jobLogCount: 0,
   lastJob: null,
   pickDir: "",

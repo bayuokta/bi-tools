@@ -121,8 +121,9 @@ import { state } from "../core/state.js";
       '" aria-label="' + escapeHtml(open ? t("Collapse ") : t("Expand ")) +
       escapeHtml(group.table) + '">' + PARTITION_CHEVRON + "</button>" +
       "<span>" + escapeHtml(group.table) + "</span>" + incremental +
+      '<span class="partition-count">' + escapeHtml(badge) + "</span>" +
       "</div></td>" +
-      "<td>" + escapeHtml(badge) + "</td>" +
+      '<td class="cell-muted">—</td>' +
       "<td class=\"cell-num\">" +
       (summary.rows == null ? "-" : fmtInt(summary.rows)) + "</td>" +
       "<td>" + escapeHtml(summary.range || "-") + "</td>" +
@@ -221,10 +222,13 @@ import { state } from "../core/state.js";
     state.partitions = result;
     state.partitionLoaded = true;
     state.partitionSelected = {};
-    state.partitionOpen = {};
     var rows = partitionRows();
     var tables = {};
     rows.forEach(function (row) { tables[row.table] = true; });
+    // Pertahankan grup yang sedang terbuka saat inventaris dimuat ulang.
+    Object.keys(state.partitionOpen).forEach(function (key) {
+      if (!tables[key]) delete state.partitionOpen[key];
+    });
     var stamp = partitionTime(result.loaded_at);
     $("#partitionSummary").textContent =
       fmtInt(rows.length) + t(" partitions · ") +
@@ -300,6 +304,15 @@ import { state } from "../core/state.js";
     partitionRender();
   }
 
+  export function partitionSetAllOpen(open) {
+    partitionGroups().forEach(function (group) {
+      if (group.items.length < 2) return;
+      if (open) state.partitionOpen[group.table] = true;
+      else delete state.partitionOpen[group.table];
+    });
+    partitionRender();
+  }
+
   export function partitionToggleAll(checked) {
     state.partitionSelected = {};
     if (checked) {
@@ -357,10 +370,6 @@ import { state } from "../core/state.js";
       app.toast(t("Select at least one partition first"));
       return;
     }
-    if (state.jobId) {
-      app.toast(t("Another job is still running"));
-      return;
-    }
     partitionCloseDialog();
     state.partitionRunning = true;
     app.startJob({
@@ -393,10 +402,6 @@ import { state } from "../core/state.js";
     var datasetId = getSelectValue("partitionDatasetSelect");
     if (!workspaceId || !datasetId) {
       app.toast(t("Choose a workspace and semantic model first"));
-      return;
-    }
-    if (state.partitionRunning || state.jobId) {
-      app.toast(t("Another job is still running"));
       return;
     }
     state.partitionRunning = true;
@@ -555,7 +560,7 @@ import { state } from "../core/state.js";
       lineageRenderResults(data.results || []);
       if (data.message) $("#lineageCount").textContent = tr(data.message);
       return data;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function lineageSearch() {
@@ -634,7 +639,7 @@ import { state } from "../core/state.js";
         item.setAttribute("aria-pressed", String(item.dataset.id === state.rootId));
       });
       return data;
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function applyLineageZoom() {
@@ -1067,10 +1072,10 @@ import { state } from "../core/state.js";
         app.toast(format.toUpperCase() + ": " + data.path);
         app.api().post("/api/files/open", { path: data.path, mode: "open" })
           .catch(function () {});
-      }).catch(reportError);
+      }).catch(app.reportError);
     };
     if (format === "png") {
-      analysisLineagePngData(svg).then(send).catch(reportError);
+      analysisLineagePngData(svg).then(send).catch(app.reportError);
     } else {
       send(svg);
     }
@@ -1089,6 +1094,6 @@ import { state } from "../core/state.js";
       app.toast("CSV: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 

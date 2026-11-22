@@ -98,8 +98,8 @@ Modul ini memanggil helper UI di `app.js` lewat `app.*` (`applyMetaSteps`,
 Partisi: `partitionLoadState`, `partitionLoadDatasets`, `partitionLoadInventory`,
 `partitionApply`, `partitionRender`, `partitionGroups`, `partitionGroupSummary`,
 `partitionGroupRow`, `partitionItemRow`, `partitionToggleTable`,
-`partitionSelectTable`, `partitionToggleAll`, `partitionOpenConfirm`,
-`partitionConfirmProcess`, `partitionCloseDialog`.
+`partitionSelectTable`, `partitionSetAllOpen`, `partitionToggleAll`,
+`partitionOpenConfirm`, `partitionConfirmProcess`, `partitionCloseDialog`.
 
 Lineage SQLite: `lineageLoadState`, `lineageSearch`, `lineageOpen`,
 `lineageSelectNode`, `lineageRenderGraph`, `lineageRenderDetail`,

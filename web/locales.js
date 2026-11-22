@@ -191,6 +191,8 @@
   "English": "English",
   "Enter a keyword or filter first": "Isi kata kunci atau filter terlebih dahulu",
   "Expand ": "Bentangkan ",
+  "Expand all": "Bentangkan semua",
+  "Collapse all": "Ciutkan semua",
   "Expand all panels": "Buka semua panel expand",
   "Export XLSX": "Ekspor XLSX",
   "Export: ": "Ekspor: ",

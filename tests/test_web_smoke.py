@@ -212,6 +212,84 @@ class WebSmokeTests(unittest.TestCase):
             heading = page.inner_text(f"#view-{view} .view-title").strip()
             self.assertEqual(heading, title, view)
 
+    def test_partition_inventory_groups_render(self) -> None:
+        """Modul Partisi dirender dengan state palsu tanpa XMLA.
+
+        Menangkap kesalahan runtime seperti ``partitionRows is not defined``
+        yang tidak terlihat oleh tes statis maupun view kosong.
+        """
+
+        page = self.open_page()
+        self.show_view(page, "partisi")
+        rows = [
+            {
+                "table": "Dates",
+                "partition": "Dates",
+                "rows": 365,
+                "range": "",
+                "range_start": "",
+                "range_end": "",
+                "range_source": "",
+                "mode": "Import",
+                "source_type": "M",
+                "state": "Ready",
+                "last_processed": "2026-11-20T10:00:00",
+                "modified": "2026-11-20T10:00:00",
+            }
+        ]
+        for index in range(1, 6):
+            rows.append(
+                {
+                    "table": "Sales",
+                    "partition": f"2025-{index:02d}",
+                    "rows": 1000 * index,
+                    "range": f"2025-{index:02d}",
+                    "range_start": f"2025-{index:02d}-01",
+                    "range_end": f"2025-{index:02d}-28",
+                    "range_source": "RangeStart",
+                    "mode": "Import",
+                    "source_type": "PolicyRangePartitionSource",
+                    "state": "Ready",
+                    "last_processed": "2026-11-20T10:00:00",
+                    "modified": "2026-11-20T10:00:00",
+                }
+            )
+
+        page.evaluate(
+            """async (rows) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/partitions-lineage.js');
+                state.partitions = { partitions: rows, loaded_at: '2026-11-22T00:00:00' };
+                state.partitionLoaded = true;
+                state.partitionSelected = {};
+                state.partitionOpen = {};
+                view.partitionRender();
+            }""",
+            rows,
+        )
+
+        self.assertTrue(page.is_visible("#partitionTableWrap"))
+        self.assertEqual(page.locator("#partitionBody tr.partition-group").count(), 1)
+        self.assertEqual(page.locator("#partitionBody tr.partition-child").count(), 0)
+        self.assertEqual(
+            page.locator("#partitionBody tr.partition-item:not(.partition-child)").count(),
+            1,
+        )
+        self.assertIn("Sales", page.inner_text("#partitionBody tr.partition-group"))
+        self.assertIn("5 partitions", page.inner_text("#partitionBody tr.partition-group"))
+
+        page.click("#partitionBody tr.partition-group td:nth-child(4)")
+        self.assertEqual(page.locator("#partitionBody tr.partition-child").count(), 5)
+
+        page.check("#partitionBody .partition-group-check")
+        self.assertIn("5", page.inner_text("#partitionSelectionSummary"))
+        self.assertIn("selected", page.inner_text("#partitionSelectionSummary"))
+
+        page.click("#partitionCollapseAll")
+        self.assertEqual(page.locator("#partitionBody tr.partition-child").count(), 0)
+        page.click("#partitionExpandAll")
+        self.assertEqual(page.locator("#partitionBody tr.partition-child").count(), 5)
+
     def test_extraction_and_tsd_steps_render(self) -> None:
         page = self.open_page()
         self.show_view(page, "ekstraksi")

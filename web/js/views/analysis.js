@@ -1156,7 +1156,7 @@ import { state } from "../core/state.js";
       if (!path) return;
       app.toast(t("Export: ") + path);
       app.api().post("/api/files/open", { path: path, mode: "open" }).catch(function () {});
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   function analysisExportDependencies(target) {
@@ -1174,7 +1174,7 @@ import { state } from "../core/state.js";
       }
       app.toast(t("Export: ") + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   function analysisLineageSvgPalette() {
@@ -1427,7 +1427,7 @@ import { state } from "../core/state.js";
       app.toast(t("Export: ") + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   function analysisLineageMermaid(graph) {
@@ -1460,7 +1460,7 @@ import { state } from "../core/state.js";
       "&direction=both&category=all&depth=4";
     app.api().get(path).then(function (graph) {
       copyTextValue(analysisLineageMermaid(graph));
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 
   export function analysisResetPreview() {
@@ -5289,10 +5289,6 @@ import { state } from "../core/state.js";
 
   export function analysisRun() {
     if (!app.apiReady()) return;
-    if (state.jobId) {
-      app.toast(t("Another job is still running"));
-      return;
-    }
     if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
       app.toast(t("Choose a workspace and semantic model first"));
       return;
@@ -5335,7 +5331,7 @@ import { state } from "../core/state.js";
     if (!state.jobId || !app.apiReady()) return;
     app.api().post("/api/jobs/" + encodeURIComponent(state.jobId) + "/cancel", {})
       .then(function () { app.toast(t("Stop request sent")); })
-      .catch(reportError);
+      .catch(app.reportError);
   }
 
   export function analysisExport() {
@@ -5349,6 +5345,6 @@ import { state } from "../core/state.js";
       app.toast(t("Export: ") + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
-    }).catch(reportError);
+    }).catch(app.reportError);
   }
 

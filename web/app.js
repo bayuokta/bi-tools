@@ -126,6 +126,7 @@ import {
   partitionOpenConfirm,
   partitionRender,
   partitionSelectTable,
+  partitionSetAllOpen,
   partitionToggleAll,
   partitionToggleTable,
   setLineageZoom
@@ -593,6 +594,7 @@ var NEWLINE = String.fromCharCode(10);
   function clearJobState() {
     state.jobId = null;
     state.jobStream = null;
+    state.jobPending = false;
   }
 
   function finishJob(options, snapshot) {
@@ -694,11 +696,18 @@ var NEWLINE = String.fromCharCode(10);
       });
       return;
     }
+    if (state.jobPending) {
+      if (options.onBusy) options.onBusy();
+      else toast(t("Another job is still running"));
+      return;
+    }
     state.jobLogCount = 0;
     if (!options.silent) setConsole(true);
     addLog((options.label || t("Job")) + t(" started."), "info");
     if (options.button) options.button.disabled = true;
+    state.jobPending = true;
     api().post(options.path, options.body || {}).then(function (data) {
+      state.jobPending = false;
       state.jobId = data.job_id;
       state.jobStream = api().streamJob(data.job_id, {
         onLog: function (line) {
@@ -1183,10 +1192,21 @@ var NEWLINE = String.fromCharCode(10);
       partitionRender();
     });
     $("#partitionBody").addEventListener("click", function (event) {
+      if (event.target.closest(".partition-group-check")) return;
       var toggle = event.target.closest("[data-part-toggle]");
-      if (!toggle) return;
+      var row = toggle ? null : event.target.closest("tr.partition-group");
+      var table = toggle
+        ? toggle.getAttribute("data-part-toggle")
+        : (row ? row.getAttribute("data-part-table") : "");
+      if (!table) return;
       event.preventDefault();
-      partitionToggleTable(toggle.getAttribute("data-part-toggle"));
+      partitionToggleTable(table);
+    });
+    $("#partitionExpandAll").addEventListener("click", function () {
+      partitionSetAllOpen(true);
+    });
+    $("#partitionCollapseAll").addEventListener("click", function () {
+      partitionSetAllOpen(false);
     });
     $("#closePartitionDialog").addEventListener("click", partitionCloseDialog);
     $("#cancelPartitionDialog").addEventListener("click", partitionCloseDialog);
