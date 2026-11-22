@@ -1433,14 +1433,16 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
   height:clamp(320px,45vh,620px); min-height:320px; overflow:auto; resize:vertical; padding:8px 0;
   background:var(--console-bg); font-family:var(--font-mono); font-size:11.5px; line-height:1.65;
 }
-.diff-line{ display:flex; min-width:max-content; }
-.diff-line .ln{ flex:none; width:38px; padding-right:10px; text-align:right; color:var(--text-3); user-select:none; }
-.diff-line .lt{ white-space:pre; padding-right:18px; color:var(--text-2); }
+.diff-line{ display:flex; min-width:max-content; min-height:1.65em; align-items:stretch; }
+.diff-line .ln{ flex:none; width:38px; padding-right:10px; text-align:right; color:var(--text-3); user-select:none; min-height:1.65em; line-height:1.65; }
+.diff-line .lt{ white-space:pre; padding-right:18px; color:var(--text-2); min-height:1.65em; line-height:1.65; }
 .diff-line.is-source{ background:#e2f6c5; }
 .diff-line.is-target{ background:#ffd6d5; }
 .diff-line.is-spacer{
   min-width:100%;
   width:100%;
+  height:1.65em;
+  min-height:1.65em;
   background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(127,127,127,.18) 5px 6px);
   box-shadow:inset 1px 0 0 #e57373,inset -1px 0 0 #e57373;
 }

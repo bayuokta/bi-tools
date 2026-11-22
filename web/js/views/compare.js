@@ -556,6 +556,10 @@ function renderCompareDiff() {
   var language = compareLanguage(state.compare && state.compare.options);
   renderDiffPane("#cmpDiffSource", "#cmpDiffSourceMeta", rows, "source", language);
   renderDiffPane("#cmpDiffTarget", "#cmpDiffTargetMeta", rows, "target", language);
+  var sourcePane = $("#cmpDiffSource");
+  var targetPane = $("#cmpDiffTarget");
+  if (sourcePane) sourcePane.scrollTop = 0;
+  if (targetPane) targetPane.scrollTop = 0;
   var stats = diff.stats || {};
   $("#cmpDiffSummary").textContent = rows.length
     ? fmtInt(stats.blocks || 0) + " " + t("blocks") + " · +" +
