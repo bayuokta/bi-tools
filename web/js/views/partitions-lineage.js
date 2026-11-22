@@ -41,7 +41,7 @@ import { state } from "../core/state.js";
       );
       setSelectOptions("partitionDatasetSelect", [], "Choose a semantic model…");
       var missing = data.credentials_missing || [];
-      setChip(
+      app.setChip(
         $("#partitionSourceChip"),
         missing.length ? "warn" : "idle",
         missing.length ? t("Credentials are incomplete") : t("Not loaded")
@@ -94,7 +94,7 @@ import { state } from "../core/state.js";
     $("#partitionSummary").textContent =
       fmtInt(rows.length) + t(" partitions · ") +
       fmtInt(Object.keys(tables).length) + t(" tables · ") + stamp;
-    setChip($("#partitionSourceChip"), "ok", t("Loaded via XMLA"));
+    app.setChip($("#partitionSourceChip"), "ok", t("Loaded via XMLA"));
     var warnings = result.warnings || [];
     $("#partitionHint").textContent = warnings.length
       ? warnings.map(tr).join(" · ")
@@ -216,7 +216,7 @@ import { state } from "../core/state.js";
     }
     partitionCloseDialog();
     state.partitionRunning = true;
-    startJob({
+    app.startJob({
       kind: "partitions-refresh",
       path: "/api/partitions/refresh",
       body: {
@@ -253,7 +253,7 @@ import { state } from "../core/state.js";
       return;
     }
     state.partitionRunning = true;
-    startJob({
+    app.startJob({
       kind: "partitions-inventory",
       path: "/api/partitions/inventory",
       body: { workspace_id: workspaceId, dataset_id: datasetId },

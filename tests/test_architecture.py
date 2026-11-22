@@ -530,6 +530,32 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 
+    def test_view_modules_use_app_bridge_for_ui_helpers(self) -> None:
+        app_api = (ROOT / "web" / "js" / "core" / "app_api.js").read_text(
+            encoding="utf-8"
+        )
+        names = re.findall(r'^\s+(\w+): missing\("', app_api, re.M)
+        self.assertTrue(names)
+        for path in (ROOT / "web" / "js" / "views").rglob("*.js"):
+            text = path.read_text(encoding="utf-8")
+            for name in names:
+                if re.search(r"^\s*function\s+" + re.escape(name) + r"\s*\(", text, re.M):
+                    continue
+                if re.search(
+                    r"^\s*(?:const|let|var)\s+" + re.escape(name) + r"\s*=",
+                    text,
+                    re.M,
+                ):
+                    continue
+                bare = re.search(
+                    r"(?<![.\w])" + re.escape(name) + r"\s*\(", text
+                )
+                self.assertIsNone(
+                    bare,
+                    f"{path.relative_to(ROOT).as_posix()} memanggil {name}() "
+                    "tanpa app.* (helper ada di app.js)",
+                )
+
     def test_partition_helpers_live_in_partition_module(self) -> None:
         partition = (ROOT / "web" / "js" / "views" / "partitions-lineage.js").read_text(
             encoding="utf-8"
