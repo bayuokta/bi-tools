@@ -7,6 +7,39 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.6.4
+
+### Perbaikan web
+
+- Semua jalur error di modul view sekarang memakai `app.reportError`: kegagalan
+  ekspor lineage/dependensi/gambar, simpan sidecar TSD, hapus cache screenshot,
+  buka folder, pencarian lineage, dan pembatalan job menampilkan pesan lagi
+  (sebelumnya `ReferenceError: reportError is not defined`).
+- Guard job lokal di tombol **Analysis**, **Extraction**, **TSD**, dan **Partisi**
+  dihapus. `startJob()` selalu mengecek status job ke server lebih dulu, jadi job
+  basi setelah koneksi SSE putus tidak lagi mengunci tombol sampai halaman
+  di-refresh.
+- `state.jobPending` menahan klik ganda selama POST job berlangsung.
+
+### Partisi
+
+- Tombol **Expand all** dan **Collapse all** untuk membuka/menutup semua grup
+  tabel sekaligus.
+- Klik di mana pun pada baris grup (kecuali checkbox) membuka atau menutup grup.
+- Status grup yang terbuka dipertahankan saat inventaris dimuat ulang selama
+  tabelnya masih ada.
+- Nama tabel dan badge jumlah partisi berada di kolom **Table**; kolom
+  **Partition** pada baris grup berisi `—`.
+
+### Tes dan dokumentasi
+
+- Tes arsitektur memindai semua referensi helper `app.js` (termasuk
+  `.catch(reportError)`), bukan hanya pemanggilan `nama(`.
+- Smoke test browser merender inventaris partisi dengan state palsu: grup,
+  expand/collapse, pilih semua, dan Expand all/Collapse all.
+- README diperbaiki: versi pengembangan usang dihapus, jalur TOM Partisi
+  dijelaskan sebagai proses CLI anak, dan pengelompokan partisi didokumentasikan.
+
 ## 2026-11-22 - Rilis 0.6.3
 
 ### Compare Semantic Model
