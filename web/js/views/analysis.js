@@ -2,6 +2,7 @@ import { app } from "../core/app_api.js";
 import { getSelectValue, setSelectOptions, setSelectValue } from "../core/combo.js";
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { decimalText, fileMeta, fmtInt, sizeText } from "../core/format.js";
+import { highlightCode } from "../core/highlight.js";
 import { currentLanguage, t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
@@ -1076,7 +1077,7 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (query.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' + escapeHtml(query.expression) + "</pre>";
+        '</h3><pre class="detail-code">' + highlightCode(query.expression, "dax") + "</pre>";
     }
     analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html);
   }
@@ -1609,7 +1610,7 @@ import { state } from "../core/state.js";
         escapeHtml(t("Reload")) + "</button></p>";
     } else if (state.analysisItemRaw) {
       pane.innerHTML = '<pre class="detail-code">' +
-        escapeHtml(analysisPrettyJson(state.analysisItemRaw)) + "</pre>";
+        highlightCode(analysisPrettyJson(state.analysisItemRaw), "json") + "</pre>";
     } else {
       pane.innerHTML = '<p class="helper">' +
         escapeHtml(t("Loading metadata…")) + "</p>";
@@ -1652,7 +1653,7 @@ import { state } from "../core/state.js";
     if (details.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
         '</h3><pre class="detail-code">' +
-        escapeHtml(details.expression) + "</pre>";
+        highlightCode(details.expression, "dax") + "</pre>";
     }
     return html;
   }
@@ -1900,7 +1901,7 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (item.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' + escapeHtml(item.expression) + "</pre>";
+        '</h3><pre class="detail-code">' + highlightCode(item.expression, "dax") + "</pre>";
     }
     return html;
   }
@@ -1917,7 +1918,7 @@ import { state } from "../core/state.js";
     state.analysisDetailsExpression = String(item.expression || "");
     if (mode === "dax") {
       $("#analysisDetailsBody").innerHTML = item.expression
-        ? '<pre class="detail-code">' + escapeHtml(item.expression) + "</pre>"
+        ? '<pre class="detail-code">' + highlightCode(item.expression, "dax") + "</pre>"
         : '<p class="detail-empty">' + escapeHtml(t("(no DAX expression)")) + "</p>";
     } else {
       $("#analysisDetailsBody").innerHTML = analysisDetailsMarkup(item, target.kind);
@@ -3280,7 +3281,7 @@ import { state } from "../core/state.js";
         numCols: [5, 7]
       });
       if (!open) return;
-      if (showExpression) rows.push({ kind: "code", code: data.expression });
+      if (showExpression) rows.push({ kind: "code", code: data.expression, language: "dax" });
       rows = rows.concat(analysisChildGroups(data, id));
     });
     return {
@@ -4287,7 +4288,7 @@ import { state } from "../core/state.js";
         ],
         numCols: [4]
       });
-      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression });
+      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression, language: "dax" });
     });
     return {
       headers: [
@@ -4330,7 +4331,7 @@ import { state } from "../core/state.js";
           warning
         ]
       });
-      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression });
+      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression, language: "plain" });
     });
     return {
       headers: [
@@ -4761,7 +4762,7 @@ import { state } from "../core/state.js";
       }
       if (row.kind === "code") {
         return '<tr class="code-row"><td colspan="' + headers.length + '"><pre>' +
-          escapeHtml(row.code) + "</pre></td></tr>";
+          (row.language === "plain" ? escapeHtml(row.code) : highlightCode(row.code, row.language || "dax")) + "</pre></td></tr>";
       }
       if (row.kind === "html") {
         return '<tr class="' + (row.cls || "analysis-sub") + '"><td colspan="' +

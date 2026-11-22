@@ -420,6 +420,7 @@ Halaman ini membandingkan dua semantic model dari Power BI Service atau instance
 - Opsi **Display warnings for measure dependencies** menandai DAX yang merujuk kolom/measure yang tidak ada di model yang sama; jumlahnya tampil di ringkasan.
 - Tabel hasil berupa tree seperti ALM: Table → Measure/Relationship/Calculation item; root Data source/Expression/Role/Perspective/Culture.
 - Panel bawah menampilkan definisi **TMDL/TMSL persis dari TOM** untuk baris yang dipilih, dengan highlight baris berbeda.
+- DAX/JSON memakai Prism lokal; TMDL memakai grammar lexical lokal. Panel definisi lebih tinggi dan bisa ditarik (`resize: vertical`).
 - **Validate** hanya validasi lokal; **Generate script** menulis manifest definisi TOM ke `outputs\`; **Export CSV** menulis seluruh hasil.
 - Tidak ada tombol Apply/endpoint tulis. Terapkan script secara manual.
 
@@ -479,8 +480,11 @@ Cakupan selalu ditampilkan, misalnya `38 report · 25 dipindai · 12 personal di
 
 Report di **My Workspace** (`PersonalGroup`) dilewati secara default dan tidak dihitung sebagai penghalang cakupan; centang **Sertakan report My Workspace (personal)** (atau `--include-personal`) bila salinan itu memang ingin dianalisa. Report dari **Power BI App** (`[App] …`) selalu dilewati dan juga tidak menghalangi cakupan. Report di workspace biasa yang ditolak 403/404 dicatat `inaccessible`, dicoba ulang paling cepat 24 jam kemudian (atau saat `--refresh`), dan tetap menurunkan cakupan.
 
-### Tab Roles (RLS/OLS)
+### Highlight DAX
 
+Ekspresi DAX di tab **DAX expressions**, dialog detail measure/calculated column, dan baris kode tabel memakai Prism lokal (`web\vendor\prism\`) dengan grammar DAX resmi. Tidak ada CDN dan tidak ada build step.
+
+### Tab Roles (RLS/OLS)
 Tab **Roles** menampilkan role model beserta member dan table permission:
 
 - Role: nama, model permission, jumlah member, sumber RLS.

@@ -8,6 +8,7 @@ import {
 } from "../core/combo.js";
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
+import { compareLanguage, highlightLine } from "../core/highlight.js";
 import { t } from "../core/i18n.js";
 import { state, store } from "../core/state.js";
 
@@ -485,7 +486,7 @@ function renderCompareDetail() {
       escapeHtml(t(item.action || "Skip")) + "</p>";
 }
 
-function renderDiffPane(element, meta, lines) {
+function renderDiffPane(element, meta, lines, language) {
   $(meta).textContent = lines.length
     ? fmtInt(lines.length) + " " + t("lines") + " · " +
       fmtInt(lines.filter(function (line) { return line.changed; }).length) + " " + t("changed")
@@ -494,7 +495,7 @@ function renderDiffPane(element, meta, lines) {
     ? lines.map(function (line) {
         return '<div class="diff-line' + (line.changed ? " is-changed" : "") + '">' +
           '<span class="ln">' + line.number + '</span>' +
-          '<span class="lt">' + escapeHtml(line.text) + "</span></div>";
+          '<span class="lt">' + highlightLine(line.text, language) + "</span></div>";
       }).join("")
     : '<div class="diff-line"><span class="lt">' + escapeHtml(t("No definition")) + "</span></div>";
 }
@@ -511,8 +512,9 @@ function renderCompareDiff() {
   panel.hidden = false;
   $("#cmpDiffName").textContent = item.name;
   var diff = item.diff || { source: [], target: [] };
-  renderDiffPane("#cmpDiffSource", "#cmpDiffSourceMeta", diff.source || []);
-  renderDiffPane("#cmpDiffTarget", "#cmpDiffTargetMeta", diff.target || []);
+  var language = compareLanguage(state.compare && state.compare.options);
+  renderDiffPane("#cmpDiffSource", "#cmpDiffSourceMeta", diff.source || [], language);
+  renderDiffPane("#cmpDiffTarget", "#cmpDiffTargetMeta", diff.target || [], language);
 }
 
 function syncCompareToolbar() {

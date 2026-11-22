@@ -27,6 +27,8 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 | `web\js\core\i18n.js` | `i18n`, `t`, `tr`, `currentLanguage`. |
 | `web\js\core\format.js` | `decimalText`, `fmtInt`, `sizeText`, `fileMeta`. |
 | `web\js\core\combo.js` | Komponen combo: enhance select, popup, pencarian, set/get options. |
+| `web\js\core\highlight.js` | Prism DAX/JSON + grammar TMDL lexical; `highlightCode`, `highlightLine`, `compareLanguage`. |
+| `web\vendor\prism\` | Prism 1.29 core + DAX + JSON + LICENSE, vendored lokal (tanpa CDN). |
 | `web\js\core\app_api.js` | Jembatan sementara: `app.toast`, `app.startJob`, `app.api`, dll. Diisi `app.js` sebelum `init()`. |
 | `web\js\views\analysis.js` | Seluruh logika halaman Analisa (payload, tabel, menu, detail, lineage, health, best practice, relationships, roles). |
 | `web\js\views\compare.js` | Halaman Compare semantic model: picker sumber/target, job compare read-only, tree hasil, detail TMDL/TMSL persis, options dialog, validate/export/script. |
@@ -121,6 +123,7 @@ Helper node bersama: `clipLabel`, `lineageTypeName`, `nodeHue`,
 - Aksi: `selectCompareRow`, `validateCompare`, `exportCompare`, `generateCompareScript`, `initCompareEvents`.
 - Halaman read-only; `#cmpApply` selalu disabled.
 - Definisi yang ditampilkan adalah output TOM/TMDL atau TMSL persis; JS tidak menyusun/menebak definisi.
+- Diff pane memakai `.diff-code` tinggi `clamp(320px,45vh,620px)` dan highlight per baris (TMDL atau JSON/TMSL).
 
 ## Peta `js\views\analysis.js`
 

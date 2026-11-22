@@ -566,6 +566,27 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("import clr", compare_presenter)
         self.assertNotIn("tom_compare", compare_presenter)
 
+    def test_web_highlighting_is_local_and_offline(self) -> None:
+        vendor = ROOT / "web" / "vendor" / "prism"
+        for name in (
+            "prism-core.min.js",
+            "prism-dax.min.js",
+            "prism-json.min.js",
+            "LICENSE",
+        ):
+            self.assertTrue((vendor / name).exists(), name)
+        markup = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("vendor/prism/prism-core.min.js", markup)
+        self.assertIn("vendor/prism/prism-dax.min.js", markup)
+        self.assertIn("vendor/prism/prism-json.min.js", markup)
+        self.assertNotIn("cdn.", markup)
+        highlight = (ROOT / "web" / "js" / "core" / "highlight.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("languages.tmdl", highlight)
+        self.assertIn("highlightCode", highlight)
+        self.assertIn("highlightLine", highlight)
+
     def test_web_analysis_has_nine_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for tab in ("all", "tables", "relationships", "roles", "report", "dax", "m", "health", "bestpractice"):
