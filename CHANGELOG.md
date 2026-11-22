@@ -7,6 +7,26 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.5.3
+
+### UI Web
+
+- **Modularisasi tanpa framework/build step**: `web\app.js` turun dari ±9.400
+  baris menjadi ±2.100 baris. Helper inti pindah ke `web\js\core\` (`state`,
+  `dom`, `i18n`, `format`, `combo`, `app_api`), sedangkan view pindah ke
+  `web\js\views\` (`analysis`, `metadata-tsd`, `partitions-lineage`).
+- **ES module native**: `<script type="module" src="app.js">`; `locales.js`
+  dan `api.js` tetap classic script dan tetap dimuat lebih dulu. Tidak ada
+  npm, bundler, CDN, atau framework baru.
+- **Peta navigasi web**: `web\ARCHITECTURE.md` memuat struktur file, anchor
+  fungsi, kelompok `state`, konvensi DOM, aturan i18n, dan tes penjaga. Pekerjaan
+  UI tidak perlu membaca seluruh `app.js`.
+- **Jembatan sementara** `web\js\core\app_api.js` untuk helper UI yang masih di
+  `app.js`; modul view memanggil `app.toast`, `app.startJob`, `app.api`, dll.
+- **Tes penjaga diperluas**: `test_i18n.py` dan `test_architecture.py` memindai
+  semua modul JS; tes baru memastikan `web\` tetap tanpa `package.json`,
+  `node_modules`, impor eksternal, atau CDN.
+
 ## 2026-11-21 - Rilis 0.5.2
 
 ### Analisa Semantic Model

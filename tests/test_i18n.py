@@ -53,6 +53,13 @@ def read_dictionary() -> dict[str, str]:
     return json.loads(text[start:end])
 
 
+def script_text() -> str:
+    """Semua JS sumber UI (app.js + modul), tanpa kamus locales.js."""
+    files = [ROOT / "web" / "app.js"]
+    files.extend(sorted((ROOT / "web" / "js").rglob("*.js")))
+    return "\n".join(path.read_text(encoding="utf-8") for path in files)
+
+
 class DictionaryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.dictionary = read_dictionary()
@@ -96,14 +103,14 @@ class DictionaryTests(unittest.TestCase):
         self.assertEqual(missing, [], "kunci data-i18n tanpa terjemahan")
 
     def test_every_script_literal_exists_in_dictionary(self) -> None:
-        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        script = script_text()
         keys = set(re.findall(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*\)', script))
         keys |= set(re.findall(r"\bt\(\s*`((?:[^`\\]|\\.)*)`\s*\)", script))
         missing = sorted(key for key in keys if key not in self.dictionary)
         self.assertEqual(missing, [], "kunci t() tanpa terjemahan")
 
     def test_no_indonesian_ui_phrases_in_script(self) -> None:
-        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        script = script_text()
         for phrase in SCRIPT_INDONESIAN_LEFTOVERS:
             self.assertNotIn(
                 phrase,
@@ -112,7 +119,7 @@ class DictionaryTests(unittest.TestCase):
             )
 
     def test_health_rule_help_exists_in_dictionary(self) -> None:
-        script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        script = script_text()
         start = script.index("var HEALTH_RULE_HELP = [")
         end = script.index("\n  ];", start)
         block = script[start:end]
@@ -131,7 +138,7 @@ class DictionaryTests(unittest.TestCase):
 class MarkupTests(unittest.TestCase):
     def setUp(self) -> None:
         self.markup = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        self.script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.script = script_text()
 
     def test_english_is_the_base_language(self) -> None:
         self.assertIn('<html lang="en"', self.markup)

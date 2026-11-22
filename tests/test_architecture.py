@@ -20,6 +20,13 @@ def source_files() -> list[Path]:
     return files
 
 
+def web_script_text() -> str:
+    """Semua JS sumber UI (app.js + modul di web/js), tanpa locales.js."""
+    files = [ROOT / "web" / "app.js"]
+    files.extend(sorted((ROOT / "web" / "js").rglob("*.js")))
+    return "\n".join(path.read_text(encoding="utf-8") for path in files)
+
+
 def matching(pattern: str) -> list[str]:
     regex = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
     hits: list[str] = []
@@ -149,7 +156,7 @@ class WebLayerTests(unittest.TestCase):
     def test_web_helpers_are_defined_once(self) -> None:
         # Duplikat deklarasi pernah menutupi helper (parentDir) tanpa error
         # sintaks; setiap helper inti harus tepat satu deklarasi.
-        text = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        text = web_script_text()
         for name in (
             "parentDir",
             "browseRow",
@@ -194,8 +201,27 @@ class WebLayerTests(unittest.TestCase):
         # terpotong; opsi harus flex:none dan placeholder tidak ikut daftar.
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("flex:0 0 auto", css)
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         self.assertIn('item.value !== ""', js)
+
+    def test_web_stays_static_without_framework_or_build_step(self) -> None:
+        web = ROOT / "web"
+        self.assertFalse((web / "package.json").exists())
+        self.assertFalse((web / "node_modules").exists())
+        self.assertFalse((web / "vite.config.js").exists())
+        for path in web.rglob("*.js"):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(r"""(?:from|import)\s+["']([^"']+)["']""", text):
+                target = match.group(1)
+                self.assertTrue(
+                    target.startswith("."),
+                    f"{path.relative_to(ROOT).as_posix()} mengimpor "
+                    f"dependensi eksternal: {target}",
+                )
+        markup = (web / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('src="http', markup)
+        self.assertNotIn("cdn.", markup)
+        self.assertIn('<script type="module" src="app.js"></script>', markup)
 
     def test_web_endpoint_help_is_a_tooltip_icon(self) -> None:
         text = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
@@ -218,7 +244,7 @@ class WebLayerTests(unittest.TestCase):
             self.assertIn(marker, text, f"desain TSD kehilangan {marker}")
 
     def test_web_analysis_table_and_report_structure(self) -> None:
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn(".row-inline .select{ flex:1 1 auto; min-width:0; }", css)
         self.assertIn('relSvg.addEventListener("pointerdown"', js)
@@ -244,7 +270,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_lineage_is_live_and_zoomable(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn('id="lineageZoomIn"', html)
         self.assertIn('id="lineageZoomOut"', html)
@@ -277,7 +303,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_lineage_has_image_export_and_node_type_filter(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         api = (ROOT / "server" / "api" / "lineage.py").read_text(encoding="utf-8")
         for marker in ('id="exportSvg"', 'id="exportPng"', 'id="lineageNodeType"'):
@@ -312,7 +338,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_metadata_and_tsd_are_one_workflow(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertNotIn('data-view="tsd"', html)
         self.assertIn('id="metaSteps"', html)
@@ -330,7 +356,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_sidebar_and_partisi_page(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         self.assertIn('id="appSidebar"', html)
         self.assertIn('id="sidebarToggle"', html)
         self.assertIn('data-view="partisi"', html)
@@ -358,7 +384,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_analysis_starts_only_from_buttons(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
             encoding="utf-8"
         )
@@ -382,7 +408,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_analysis_context_menu_phase_one(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         for marker in (
             'id="analysisMenu"',
@@ -425,7 +451,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_web_analysis_lineage_graph_uses_backend_layout(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
             encoding="utf-8"
         )
@@ -508,7 +534,7 @@ class WebLayerTests(unittest.TestCase):
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         for tab in ("all", "tables", "relationships", "report", "dax", "m", "health", "bestpractice"):
             self.assertIn(f'data-analysis-tab="{tab}"', html)
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
             encoding="utf-8"
         )
@@ -562,7 +588,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         core = (ROOT / "core" / "model_health.py").read_text(encoding="utf-8")
         for marker in (
             'id="healthRulesInfo"',
@@ -604,7 +630,7 @@ class WebLayerTests(unittest.TestCase):
 
     def test_best_practice_tab_and_catalog_dialog(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        js = web_script_text()
         for marker in (
             'id="bpSummary"',
             'id="bpScore"',
