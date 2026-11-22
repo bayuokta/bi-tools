@@ -109,6 +109,7 @@ export const state = {
   partitions: null,
   partitionLoaded: false,
   partitionSelected: {},
+  partitionOpen: {},
   partitionRunning: false,
   partitionStateLoaded: false,
   relView: "graph",

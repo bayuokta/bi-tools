@@ -95,10 +95,11 @@ Modul ini memanggil helper UI di `app.js` lewat `app.*` (`applyMetaSteps`,
 
 ## Peta `js\views\partitions-lineage.js`
 
-Partisi: `partitionLoadState`, `partitionLoadInventory`, `partitionRender`,
-`partitionRenderTable`, `partitionSelect`, `partitionToggleAll`,
-`partitionOpenConfirm`, `partitionConfirmProcess`, `partitionLoadDatasets`,
-`partitionCloseDialog`.
+Partisi: `partitionLoadState`, `partitionLoadDatasets`, `partitionLoadInventory`,
+`partitionApply`, `partitionRender`, `partitionGroups`, `partitionGroupSummary`,
+`partitionGroupRow`, `partitionItemRow`, `partitionToggleTable`,
+`partitionSelectTable`, `partitionToggleAll`, `partitionOpenConfirm`,
+`partitionConfirmProcess`, `partitionCloseDialog`.
 
 Lineage SQLite: `lineageLoadState`, `lineageSearch`, `lineageOpen`,
 `lineageSelectNode`, `lineageRenderGraph`, `lineageRenderDetail`,
@@ -194,7 +195,7 @@ Satu objek `state` dimutasi in-place. Kelompok penting:
   `lineageHasDb`, `lineageQuery`, `lineageZoom`, `lineagePanX`, `lineagePanY`,
   `lineageNodeType`, `lineageLayout`.
 - Partisi: `partitions`, `partitionLoaded`, `partitionSelected`,
-  `partitionRunning`, `partitionStateLoaded`.
+  `partitionOpen`, `partitionRunning`, `partitionStateLoaded`.
 - Picker: `pickDir`, `pickFile`, `pickKind`, `pickExt`, `pickCallback`.
 
 ## Konvensi DOM

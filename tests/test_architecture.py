@@ -582,6 +582,26 @@ class WebLayerTests(unittest.TestCase):
         )
         self.assertNotIn("function partitionRows(", analysis)
 
+    def test_partition_inventory_groups_by_table(self) -> None:
+        partition = (ROOT / "web" / "js" / "views" / "partitions-lineage.js").read_text(
+            encoding="utf-8"
+        )
+        for name in (
+            "partitionGroups",
+            "partitionGroupSummary",
+            "partitionGroupRow",
+            "partitionItemRow",
+            "partitionToggleTable",
+            "partitionSelectTable",
+        ):
+            self.assertIn(f"function {name}(", partition)
+        self.assertIn("state.partitionOpen", partition)
+        state = (ROOT / "web" / "js" / "core" / "state.js").read_text(encoding="utf-8")
+        self.assertIn("partitionOpen:", state)
+        app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("partitionToggleTable", app)
+        self.assertIn("partitionSelectTable", app)
+
     def test_web_compare_is_read_only_and_roles_tab_exists(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

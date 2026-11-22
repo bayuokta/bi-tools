@@ -125,7 +125,9 @@ import {
   partitionLoadState,
   partitionOpenConfirm,
   partitionRender,
+  partitionSelectTable,
   partitionToggleAll,
+  partitionToggleTable,
   setLineageZoom
 } from "./js/views/partitions-lineage.js";
 
@@ -1161,18 +1163,30 @@ var NEWLINE = String.fromCharCode(10);
       state.partitions = null;
       state.partitionLoaded = false;
       state.partitionSelected = {};
+      state.partitionOpen = {};
       partitionRender();
     });
     $("#partitionSelectAll").addEventListener("change", function () {
       partitionToggleAll(this.checked);
     });
     $("#partitionBody").addEventListener("change", function (event) {
+      var group = event.target.closest(".partition-group-check");
+      if (group) {
+        partitionSelectTable(group.getAttribute("data-part-table"), group.checked);
+        return;
+      }
       var input = event.target.closest(".partition-check");
       if (!input) return;
       var index = String(input.getAttribute("data-index"));
       if (input.checked) state.partitionSelected[index] = true;
       else delete state.partitionSelected[index];
       partitionRender();
+    });
+    $("#partitionBody").addEventListener("click", function (event) {
+      var toggle = event.target.closest("[data-part-toggle]");
+      if (!toggle) return;
+      event.preventDefault();
+      partitionToggleTable(toggle.getAttribute("data-part-toggle"));
     });
     $("#closePartitionDialog").addEventListener("click", partitionCloseDialog);
     $("#cancelPartitionDialog").addEventListener("click", partitionCloseDialog);

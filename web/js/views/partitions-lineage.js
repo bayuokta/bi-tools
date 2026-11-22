@@ -5,6 +5,8 @@ import { fmtInt } from "../core/format.js";
 import { t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
+  var PARTITION_CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
   // -- Partisi ------------------------------------------------------------
   function partitionRows() {
     return (state.partitions && state.partitions.partitions) || [];
@@ -26,6 +28,137 @@ import { state } from "../core/state.js";
     if (!select) return value;
     var option = select.options[select.selectedIndex];
     return option ? option.textContent : value;
+  }
+
+  function partitionUnique(items, field) {
+    var seen = {};
+    items.forEach(function (item) {
+      var value = String(item.row[field] || "").trim();
+      if (value) seen[value] = true;
+    });
+    return Object.keys(seen).sort();
+  }
+
+  function partitionLatest(items, field) {
+    var values = items
+      .map(function (item) { return String(item.row[field] || ""); })
+      .filter(Boolean)
+      .sort();
+    return values.length ? values[values.length - 1] : "";
+  }
+
+  function partitionGroups() {
+    var groups = [];
+    var byTable = {};
+    partitionRows().forEach(function (row, index) {
+      var table = String(row.table || "");
+      if (!byTable[table]) {
+        byTable[table] = { table: table, items: [] };
+        groups.push(byTable[table]);
+      }
+      byTable[table].items.push({ row: row, index: index });
+    });
+    return groups;
+  }
+
+  function partitionGroupSummary(group) {
+    var rows = group.items.map(function (item) { return item.row; });
+    var total = rows.reduce(function (sum, row) {
+      return sum + (Number(row.rows) || 0);
+    }, 0);
+    var hasRows = rows.some(function (row) { return row.rows != null; });
+    var ranges = group.items
+      .map(function (item) {
+        return {
+          start: String(item.row.range_start || ""),
+          end: String(item.row.range_end || "")
+        };
+      })
+      .filter(function (item) { return item.start || item.end; })
+      .sort(function (left, right) {
+        return (left.start || left.end).localeCompare(right.start || right.end);
+      });
+    var range = ranges.length
+      ? (ranges[0].start || ranges[0].end) + " – " +
+        (ranges[ranges.length - 1].end || ranges[ranges.length - 1].start)
+      : "";
+    var incremental = rows.some(function (row) {
+      var type = String(row.source_type || "").toLowerCase();
+      return type.indexOf("policy") !== -1 || Boolean(row.range_start) ||
+        Boolean(row.range_end);
+    });
+    return {
+      count: rows.length,
+      rows: hasRows ? total : null,
+      range: range,
+      modes: partitionUnique(group.items, "mode"),
+      sources: partitionUnique(group.items, "source_type"),
+      states: partitionUnique(group.items, "state"),
+      lastProcessed: partitionLatest(group.items, "last_processed"),
+      modified: partitionLatest(group.items, "modified"),
+      incremental: incremental
+    };
+  }
+
+  function partitionGroupRow(group, summary, selectedCount, open) {
+    var checked = selectedCount === summary.count;
+    var indeterminate = selectedCount > 0 && !checked;
+    var badge = summary.count + " " + t(summary.count === 1 ? "partition" : "partitions");
+    var incremental = summary.incremental
+      ? '<span class="chip chip-accent partition-badge">' + t("Incremental") + "</span>"
+      : "";
+    return '<tr class="group-row partition-group" data-part-table="' +
+      escapeHtml(group.table) + '">' +
+      '<td><input type="checkbox" class="partition-group-check" data-part-table="' +
+      escapeHtml(group.table) + '" aria-label="' +
+      escapeHtml(t("Select all partitions of ") + group.table) + '"' +
+      (checked ? " checked" : "") +
+      (indeterminate ? ' data-indeterminate="1"' : "") + "></td>" +
+      '<td class="cell-name"><div class="partition-group-name" data-part-toggle="' +
+      escapeHtml(group.table) + '">' +
+      '<button type="button" class="row-toggle" data-part-toggle="' +
+      escapeHtml(group.table) + '" aria-expanded="' + (open ? "true" : "false") +
+      '" aria-label="' + escapeHtml(open ? t("Collapse ") : t("Expand ")) +
+      escapeHtml(group.table) + '">' + PARTITION_CHEVRON + "</button>" +
+      "<span>" + escapeHtml(group.table) + "</span>" + incremental +
+      "</div></td>" +
+      "<td>" + escapeHtml(badge) + "</td>" +
+      "<td class=\"cell-num\">" +
+      (summary.rows == null ? "-" : fmtInt(summary.rows)) + "</td>" +
+      "<td>" + escapeHtml(summary.range || "-") + "</td>" +
+      "<td>" + escapeHtml(summary.modes.join(", ") || "-") + "</td>" +
+      "<td>" + escapeHtml(summary.sources.join(", ") || "-") + "</td>" +
+      "<td>" + escapeHtml(summary.states.join(", ") || "-") + "</td>" +
+      "<td>" + escapeHtml(partitionTime(summary.lastProcessed)) + "</td>" +
+      "<td>" + escapeHtml(partitionTime(summary.modified)) + "</td></tr>";
+  }
+
+  function partitionItemRow(row, index, child) {
+    var selected = Boolean(state.partitionSelected[index]);
+    var rowsText = row.rows == null ? "-" : fmtInt(row.rows);
+    var range = row.range || "-";
+    var rangeTitle = row.range_source
+      ? t("Range source: ") + row.range_source
+      : "";
+    return '<tr class="partition-item' + (child ? " partition-child" : "") +
+      (selected ? " is-selected" : "") + '" data-part-index="' + index +
+      '" data-level="' + (child ? 1 : 0) + '">' +
+      '<td><input type="checkbox" class="partition-check" data-index="' + index +
+      '" aria-label="' + escapeHtml(t("Select partition ") + row.table + " / " + row.partition) +
+      '"' + (selected ? " checked" : "") + "></td>" +
+      '<td class="cell-name" title="' + escapeHtml(row.table || "") + '">' +
+      escapeHtml(child ? "" : (row.table || "")) + "</td>" +
+      '<td class="cell-name' + (child ? " partition-indent" : "") +
+      '" title="' + escapeHtml(row.partition || "") + '">' +
+      escapeHtml(row.partition || "") + "</td>" +
+      '<td class="cell-num">' + rowsText + "</td>" +
+      '<td title="' + escapeHtml(rangeTitle) + '">' + escapeHtml(range) + "</td>" +
+      "<td>" + escapeHtml(row.mode || "-") + "</td>" +
+      "<td>" + escapeHtml(row.source_type || "-") + "</td>" +
+      "<td>" + escapeHtml(row.state || "-") + "</td>" +
+      "<td>" + escapeHtml(partitionTime(row.last_processed)) + "</td>" +
+      "<td>" + escapeHtml(partitionTime(row.modified)) + "</td>" +
+      "</tr>";
   }
 
   export function partitionLoadState() {
@@ -59,6 +192,7 @@ import { state } from "../core/state.js";
     state.partitions = null;
     state.partitionLoaded = false;
     state.partitionSelected = {};
+    state.partitionOpen = {};
     if (!workspaceId || !app.apiReady()) {
       setSelectOptions("partitionDatasetSelect", [], "Choose a semantic model…");
       partitionRender();
@@ -87,6 +221,7 @@ import { state } from "../core/state.js";
     state.partitions = result;
     state.partitionLoaded = true;
     state.partitionSelected = {};
+    state.partitionOpen = {};
     var rows = partitionRows();
     var tables = {};
     rows.forEach(function (row) { tables[row.table] = true; });
@@ -123,34 +258,46 @@ import { state } from "../core/state.js";
     }
     wrap.hidden = false;
     empty.hidden = true;
-    $("#partitionBody").innerHTML = rows.map(function (row, index) {
-      var selected = Boolean(state.partitionSelected[index]);
-      var rowsText = row.rows == null ? "-" : fmtInt(row.rows);
-      var range = row.range || "-";
-      var rangeTitle = row.range_source
-        ? t("Range source: ") + row.range_source
-        : "";
-      return '<tr data-part-index="' + index + '"' +
-        (selected ? ' class="is-selected"' : "") + ">" +
-        '<td><input type="checkbox" class="partition-check" data-index="' + index +
-        '" aria-label="' + escapeHtml(t("Select partition ") + row.table + " / " + row.partition) +
-        '"' + (selected ? " checked" : "") + "></td>" +
-        '<td class="cell-name" title="' + escapeHtml(row.table || "") + '">' +
-        escapeHtml(row.table || "") + "</td>" +
-        '<td class="cell-name" title="' + escapeHtml(row.partition || "") + '">' +
-        escapeHtml(row.partition || "") + "</td>" +
-        '<td class="cell-num">' + rowsText + "</td>" +
-        '<td title="' + escapeHtml(rangeTitle) + '">' + escapeHtml(range) + "</td>" +
-        "<td>" + escapeHtml(row.mode || "-") + "</td>" +
-        "<td>" + escapeHtml(row.source_type || "-") + "</td>" +
-        "<td>" + escapeHtml(row.state || "-") + "</td>" +
-        "<td>" + escapeHtml(partitionTime(row.last_processed)) + "</td>" +
-        "<td>" + escapeHtml(partitionTime(row.modified)) + "</td>" +
-        "</tr>";
+    $("#partitionBody").innerHTML = partitionGroups().map(function (group) {
+      if (group.items.length === 1) {
+        return partitionItemRow(group.items[0].row, group.items[0].index, false);
+      }
+      var summary = partitionGroupSummary(group);
+      var selectedCount = group.items.filter(function (item) {
+        return Boolean(state.partitionSelected[item.index]);
+      }).length;
+      var open = Boolean(state.partitionOpen[group.table]);
+      var html = partitionGroupRow(group, summary, selectedCount, open);
+      if (open) {
+        group.items.forEach(function (item) {
+          html += partitionItemRow(item.row, item.index, true);
+        });
+      }
+      return html;
     }).join("");
+    $$("#partitionBody .partition-group-check").forEach(function (input) {
+      input.indeterminate = input.getAttribute("data-indeterminate") === "1";
+    });
     if (!state.partitionLoaded) {
       $("#partitionSummary").textContent = t("Not loaded yet");
     }
+  }
+
+  export function partitionToggleTable(table) {
+    if (!table) return;
+    state.partitionOpen[table] = !state.partitionOpen[table];
+    partitionRender();
+  }
+
+  export function partitionSelectTable(table, checked) {
+    partitionGroups().forEach(function (group) {
+      if (group.table !== table) return;
+      group.items.forEach(function (item) {
+        if (checked) state.partitionSelected[item.index] = true;
+        else delete state.partitionSelected[item.index];
+      });
+    });
+    partitionRender();
   }
 
   export function partitionToggleAll(checked) {

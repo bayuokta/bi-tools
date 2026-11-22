@@ -478,6 +478,17 @@ html[data-theme="light"] .segmented button[aria-pressed="true"]{ box-shadow:0 1p
 .data--partitions tr.is-detail td:first-child{ box-shadow:inset 2px 0 0 var(--accent); }
 .data--partitions td.name{ color:var(--text); font-weight:600; }
 
+.data--partitions tr.partition-group td{ background:var(--surface-2); font-weight:600; }
+.data--partitions tr.partition-group:hover td{ background:var(--surface-3); }
+.partition-group-name{ display:flex; align-items:center; gap:8px; min-width:0; cursor:pointer; }
+.partition-group-name .row-toggle{ margin:0; }
+.partition-group-name span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.partition-badge{ flex:none; font-size:10px; padding:1px 6px; }
+.data--partitions tr.partition-child td{ background:transparent; font-weight:400; }
+.data--partitions tr.partition-child td.partition-indent{ padding-left:32px; }
+.data--partitions tr.partition-child:hover td{ background:var(--row-hover); }
+.data--partitions tr.is-selected td{ background:var(--row-sel); }
+
 .partition-run{ margin:0; border:0; border-bottom:1px solid var(--border); border-radius:0; background:var(--surface-2); }
 
 .partition-detail-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
