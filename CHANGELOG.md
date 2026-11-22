@@ -7,6 +7,39 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.6.3
+
+### Compare Semantic Model
+
+- Diff expression memakai baris sejajar seperti ALM Toolkit: baris hapus di kiri,
+  baris tambah di kanan, penanda hatch untuk celah, dan penyorotan perubahan
+  dalam baris.
+- Tinggi baris blok dan baris kosong disamakan supaya kedua panel tetap sejajar;
+  hatch memenuhi lebar panel tanpa border merah.
+- Highlight TMDL/DAX/JSON memakai Prism lokal (tanpa CDN) dengan grammar TMDL
+  ringan; panel expression lebih tinggi dan bisa di-resize.
+
+### Partisi
+
+- Inventaris partisi dikelompokkan per tabel: tabel incremental dengan banyak
+  partisi tampil sebagai satu baris grup yang bisa di-expand/collapse.
+- Baris grup merangkum jumlah partisi, total rows, rentang, mode/source/state
+  unik, waktu proses terbaru, dan chip **Incremental**; checkbox grup memilih
+  seluruh partisi tabel.
+- Selection refresh tetap memakai pasangan `{table, partition}` sehingga payload
+  proses tidak berubah.
+
+### Perbaikan web
+
+- Helper partisi (`partitionRows`, `partitionSelectedRows`, `partitionTime`,
+  `partitionRefreshLabel`) dipindahkan ke modul Partisi supaya tidak lagi muncul
+  `partitionRows is not defined`.
+- Panggilan `setChip`/`startJob` di halaman Partisi memakai jembatan `app.*`.
+- Job lokal yang basi tidak lagi mengunci tombol: status dicek ke server sebelum
+  menolak job baru, dan state dibersihkan pada semua jalur selesai/gagal.
+- Tes penjaga arsitektur baru memastikan helper UI di modul view selalu dipanggil
+  lewat `app.*`.
+
 ## 2026-11-22 - Rilis 0.6.2
 
 ### Compare Semantic Model
