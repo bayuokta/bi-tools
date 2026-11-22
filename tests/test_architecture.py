@@ -569,7 +569,7 @@ class WebLayerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("min-width:100%", css)
-        self.assertIn("is-block-start", css)
+        self.assertNotIn("box-shadow:inset 1px 0 0 #e57373", css)
         self.assertIn("def run_job(", compare_presenter)
         self.assertIn("read_only", compare_presenter)
         self.assertIn("Tidak ada jalur tulis", compare_presenter)
