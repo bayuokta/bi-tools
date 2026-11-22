@@ -7,6 +7,28 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.6.1
+
+### Compare Semantic Model — TOM/TMDL persis
+
+- Snapshot compare sekarang dibuat lewat **TOM di proses CLI anak** dan
+  diserialisasi dengan `TmdlSerializer` (atau `JsonSerializer` untuk TMSL),
+  bukan parser properti buatan sendiri.
+- Server tidak memuat TOM; proses anak memakai token lewat stdin, sehingga
+  koneksi ADOMD di server tetap sehat.
+- Definisi Table memuat kolom persis dari TOM; measure/relationship/expression/
+  role/perspective/culture dibandingkan sebagai objek terpisah.
+- **Options** baru mengikuti ALM Toolkit: perspectives, cultures, roles, TMSL,
+  partitions, annotations, lineage tag, dan warning dependensi measure. Opsi
+  update/apply-only ditampilkan disabled karena compare read-only.
+- Default ALM: roles/partitions/annotations/lineage off, measure/relationship/
+  expression/warning on. TEST vs PRD `Dragon - Simparts` kembali 0 different.
+- Tabel hasil menjadi tree seperti ALM (Table → Measure/Relationship/
+  Calculation item; root Data source/Expression/Role/Perspective/Culture).
+- Panel definisi di bawah menampilkan **TMDL/TMSL persis dari TOM** dan
+  highlight baris berbeda.
+- CLI internal baru: `bi-tools-cli compare --snapshot-json`.
+
 ## 2026-11-22 - Rilis 0.6.0
 
 ### Compare Semantic Model

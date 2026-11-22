@@ -25,6 +25,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "tsd": ("cli.tsd", "dokumen TSD (HTML) dari workbook metadata"),
     "lineage": ("cli.lineage", "scan, pencarian, dan lineage Power BI"),
     "analyze": ("cli.analysis", "ukuran kolom + pemakaian di report"),
+    "compare": ("cli.compare", "snapshot TOM untuk perbandingan semantic model"),
     "partition": ("cli.partition", "inventaris dan refresh partisi semantic model"),
     "install-browser": ("", "unduh Chromium untuk screenshot TSD"),
 }
@@ -41,6 +42,7 @@ Perintah:
   tsd              dokumen TSD (HTML) dari workbook metadata
   lineage          scan, pencarian, dan lineage Power BI
   analyze          ukuran kolom + pemakaian di report
+  compare          snapshot TOM untuk perbandingan semantic model (internal)
   partition        inventaris dan refresh partisi semantic model
   install-browser  unduh Chromium untuk screenshot TSD (default: install chromium)
 

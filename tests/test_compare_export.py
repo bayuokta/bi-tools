@@ -20,6 +20,7 @@ def result() -> dict:
         "generated_at": "2026-11-22 12:00:00",
         "source": {"label": "Workspace / Source"},
         "target": {"label": "Workspace / Target"},
+        "options": {"tmsl": False},
         "items": [
             {
                 "id": "measure:sales|total",
@@ -30,11 +31,8 @@ def result() -> dict:
                 "parent": "Sales",
                 "status": "different",
                 "action": "Update",
-                "properties": [
-                    {"name": "Expression", "source": "SUM(Sales[Amount])", "target": "SUM(Sales[Value])"}
-                ],
-                "source_definition": "Sales[Total]\nExpression: SUM(Sales[Amount])",
-                "target_definition": "Sales[Total]\nExpression: SUM(Sales[Value])",
+                "source_definition": "measure Total = SUM(Sales[Amount])",
+                "target_definition": "measure Total = SUM(Sales[Value])",
             },
             {
                 "id": "table:sales",
@@ -45,8 +43,7 @@ def result() -> dict:
                 "parent": "",
                 "status": "source_only",
                 "action": "Create",
-                "properties": [],
-                "source_definition": "Sales",
+                "source_definition": "table 'Sales'",
                 "target_definition": "",
             },
             {
@@ -58,9 +55,8 @@ def result() -> dict:
                 "parent": "Sales",
                 "status": "target_only",
                 "action": "Delete",
-                "properties": [],
                 "source_definition": "",
-                "target_definition": "Sales[Old]",
+                "target_definition": "measure Old = 1",
             },
         ],
     }
@@ -82,7 +78,8 @@ class CompareExportTests(unittest.TestCase):
         manifest = script_manifest(result())
         self.assertEqual(len(manifest["actions"]), 1)
         self.assertEqual(manifest["actions"][0]["type"], "Measure")
-        self.assertIn("createOrReplace", manifest["actions"][0]["tmsl"])
+        self.assertIn("measure Total", manifest["actions"][0]["definition"])
+        self.assertEqual(manifest["actions"][0]["format"], "tmdl")
         self.assertEqual(len(manifest["manual"]), 1)
         self.assertEqual(manifest["manual"][0]["type"], "Table")
 

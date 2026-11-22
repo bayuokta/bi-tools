@@ -1452,3 +1452,20 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
   .panel--compare-diff .compare-diff{ grid-template-columns:minmax(0,1fr); }
   .metric-strip--compare{ grid-template-columns:repeat(3,minmax(0,1fr)); }
 }
+
+/* -- Compare tree + options ------------------------------------------------ */
+.cmp-object{ display:flex; align-items:center; gap:6px; min-width:0; padding-left:calc(2px + var(--depth)*18px); }
+.cmp-object-name{ overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.cmp-object-icon{ width:16px; height:16px; flex:none; display:grid; place-items:center; color:var(--text-3); }
+.cmp-object-icon svg{ width:14px; height:14px; }
+.cmp-tree-toggle{
+  width:18px; height:18px; flex:none; display:grid; place-items:center; padding:0;
+  border:0; background:transparent; color:var(--text-3); border-radius:4px;
+}
+.cmp-tree-toggle svg{ width:12px; height:12px; transition:transform var(--dur) ease; }
+.cmp-tree-toggle[aria-expanded="true"] svg{ transform:rotate(90deg); }
+.cmp-tree-toggle:hover{ background:var(--surface-3); color:var(--text); }
+.cmp-tree-toggle:focus-visible{ outline:2px solid var(--accent-text); outline-offset:-2px; }
+.form-section{ display:flex; flex-direction:column; gap:8px; padding:10px 0; border-top:1px solid var(--border); }
+.form-section:first-child{ border-top:0; padding-top:0; }
+.form-section-title{ font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin-bottom:2px; }

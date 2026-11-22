@@ -195,6 +195,42 @@ def connect_server(
                 pass
 
 
+@contextmanager
+def connect_desktop_server(
+    port: int,
+    dataset: str,
+    *,
+    dll_dir: str | Path | None = None,
+    server_cls: Any | None = None,
+) -> Iterator[Any]:
+    """Buka TOM ke instance Power BI Desktop (tanpa token)."""
+    if server_cls is None:
+        server_cls, _token, _offset = load_tom(dll_dir)
+    catalog = str(dataset or "").strip()
+    if not catalog:
+        raise TomError("Nama semantic model Desktop kosong.")
+    server = server_cls()
+    connection = (
+        f'Provider=MSOLAP;Data Source="localhost:{int(port)}";'
+        f'Initial Catalog="{escape(catalog)}";Application Name={APPLICATION_NAME};'
+    )
+    try:
+        try:
+            server.Connect(connection)
+        except Exception as exc:  # noqa: BLE001
+            raise TomError(
+                f"Koneksi TOM ke Desktop localhost:{int(port)} gagal: {exc}"
+            ) from exc
+        yield server
+    finally:
+        dispose = getattr(server, "Dispose", None)
+        if callable(dispose):
+            try:
+                dispose()
+            except Exception:  # noqa: BLE001
+                pass
+
+
 # ---------------------------------------------------------------------------
 # Inventaris
 # ---------------------------------------------------------------------------

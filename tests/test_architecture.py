@@ -537,6 +537,10 @@ class WebLayerTests(unittest.TestCase):
             'data-view="compare"',
             'id="view-compare"',
             'id="runCompare"',
+            'id="compareOptions"',
+            'id="compareOptionsDialog"',
+            'id="cmpOptRoles"',
+            'id="cmpOptPartitions"',
             'id="cmpApply"',
             'id="tab-roles"',
             "M6 15l6-6 6 6",
@@ -545,6 +549,8 @@ class WebLayerTests(unittest.TestCase):
         for marker in (
             "function initCompareEvents(",
             "function runCompare(",
+            "function compareGroups(",
+            "function treeRow(",
             "/api/compare/run",
             "/api/compare/export",
             "/api/compare/script",
@@ -557,6 +563,8 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("def run_job(", compare_presenter)
         self.assertIn("read_only", compare_presenter)
         self.assertIn("Tidak ada jalur tulis", compare_presenter)
+        self.assertNotIn("import clr", compare_presenter)
+        self.assertNotIn("tom_compare", compare_presenter)
 
     def test_web_analysis_has_nine_tabs_and_no_mock_model_data(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

@@ -740,6 +740,10 @@
               <p class="view-sub" data-i18n="Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.">Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.</p>
             </div>
             <div class="view-actions">
+              <button class="btn btn-sm" id="compareOptions" type="button" title="Comparison options" data-i18n-title="Comparison options">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h4M12 17h8"></path><circle cx="15" cy="7" r="2.2"></circle><circle cx="9" cy="17" r="2.2"></circle></svg>
+                <span data-i18n="Options">Options</span>
+              </button>
               <button class="btn btn-primary" id="runCompare" type="button">
                 <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
                 <span data-i18n="Run comparison">Run comparison</span>
@@ -819,9 +823,8 @@
               <div class="compare-options">
                 <label class="check"><input type="checkbox" id="cmpOptMeasures" checked> <span data-i18n="Measures &amp; columns">Measures &amp; columns</span></label>
                 <label class="check"><input type="checkbox" id="cmpOptRelations" checked> <span data-i18n="Relationships">Relationships</span></label>
-                <label class="check"><input type="checkbox" id="cmpOptQueries" checked> <span data-i18n="M queries &amp; expressions">M queries &amp; expressions</span></label>
-                <label class="check"><input type="checkbox" id="cmpOptFormat"> <span data-i18n="Format string">Format string</span></label>
-                <label class="check"><input type="checkbox" id="cmpOptRls" checked> <span data-i18n="Roles &amp; RLS">Roles &amp; RLS</span></label>
+                <label class="check"><input type="checkbox" id="cmpOptQueries" checked> <span data-i18n="Expressions">Expressions</span></label>
+                <span class="helper" data-i18n="Roles, partitions, annotations, and TMDL/TMSL mode are in Options.">Roles, partitions, annotations, and TMDL/TMSL mode are in Options.</span>
               </div>
             </div>
           </div>
@@ -855,13 +858,13 @@
                 <div class="table-tools">
                   <label class="tool-field search"><span data-i18n="Search item">Search item</span><input class="input" id="cmpSearch" type="search" placeholder="Source or target item name" data-i18n-placeholder="Source or target item name"></label>
                   <label class="tool-field"><span data-i18n="Status">Status</span><div class="select"><select id="cmpStatusFilter"><option value="all" data-i18n="All statuses">All statuses</option><option value="same" data-i18n="Same definition">Same definition</option><option value="diff" data-i18n="Different definition">Different definition</option><option value="source" data-i18n="Source only">Source only</option><option value="target" data-i18n="Target only">Target only</option></select></div></label>
-                  <label class="tool-field"><span data-i18n="Type">Type</span><div class="select"><select id="cmpTypeFilter"><option value="all" data-i18n="All types">All types</option><option value="Table">Table</option><option value="Column">Column</option><option value="Measure">Measure</option><option value="Relationship">Relationship</option><option value="Expression">Expression</option><option value="M query">M query</option><option value="Role">Role</option></select></div></label>
+                  <label class="tool-field"><span data-i18n="Type">Type</span><div class="select"><select id="cmpTypeFilter"><option value="all" data-i18n="All types">All types</option><option value="Table">Table</option><option value="Measure">Measure</option><option value="Relationship">Relationship</option><option value="Expression">Expression</option><option value="Role">Role</option><option value="Data source">Data source</option><option value="Perspective">Perspective</option><option value="Culture">Culture</option><option value="Calculation item">Calculation item</option></select></div></label>
                   <label class="check" style="margin-bottom:6px"><input type="checkbox" id="cmpOnlyDiff"> <span data-i18n="Only differences">Only differences</span></label>
                   <div class="tool-actions"><button class="btn btn-sm" id="cmpExport" type="button" disabled data-i18n="Export CSV">Export CSV</button></div>
                 </div>
                 <div class="table-scroll compare-table-scroll" id="compareTableWrap" hidden>
                   <table class="data data--compare">
-                    <thead><tr><th data-i18n="Type">Type</th><th data-i18n="Source name">Source name</th><th data-i18n="Status">Status</th><th data-i18n="Target name">Target name</th><th style="width:110px" data-i18n="Action">Action</th></tr></thead>
+                    <thead><tr><th data-i18n="Object">Object</th><th data-i18n="Source name">Source name</th><th data-i18n="Status">Status</th><th data-i18n="Target name">Target name</th><th style="width:110px" data-i18n="Action">Action</th></tr></thead>
                     <tbody id="compareBody"></tbody>
                   </table>
                 </div>
@@ -1343,6 +1346,44 @@
     </main>
   </div>
 </div>
+
+<dialog class="dialog" id="compareOptionsDialog" aria-labelledby="compareOptionsTitle">
+  <div class="dialog-head">
+    <div>
+      <h2 class="dialog-title" id="compareOptionsTitle" data-i18n="Comparison options">Comparison options</h2>
+      <p class="helper" data-i18n="Defaults follow ALM Toolkit. Apply-only options are disabled because this page is read-only.">Defaults follow ALM Toolkit. Apply-only options are disabled because this page is read-only.</p>
+    </div>
+    <button class="dialog-close" id="closeCompareOptions" type="button" aria-label="Close dialog" data-i18n-aria-label="Close dialog">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <div class="form-section">
+      <div class="form-section-title" data-i18n="Comparison options">Comparison options</div>
+      <label class="check"><input type="checkbox" id="cmpOptPerspectives"> <span data-i18n="Include perspectives">Include perspectives</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptCultures"> <span data-i18n="Include cultures">Include cultures</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptRoles"> <span data-i18n="Include roles">Include roles</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptTmsl"> <span data-i18n="Use TMSL (not TMDL) for comparison">Use TMSL (not TMDL) for comparison</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptPartitions"> <span data-i18n="Consider partitions when comparing tables">Consider partitions when comparing tables</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptAnnotations"> <span data-i18n="Consider annotations when comparing">Consider annotations when comparing</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptLineage"> <span data-i18n="Consider Lineage Tag when comparing">Consider Lineage Tag when comparing</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptMeasureDeps" checked> <span data-i18n="Display warnings for measure dependencies">Display warnings for measure dependencies</span></label>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title" data-i18n="Update behavior (read-only)">Update behavior (read-only)</div>
+      <label class="check"><input type="checkbox" id="cmpOptRetainPartitions" disabled> <span data-i18n="For table updates, retain partitions">For table updates, retain partitions</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptRetainPolicyPartitions" disabled> <span data-i18n="Retain only refresh-policy based partitions">Retain only refresh-policy based partitions</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptRetainRefresh" disabled> <span data-i18n="For table updates, retain refresh policy">For table updates, retain refresh policy</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptRetainStorage" disabled> <span data-i18n="For table updates, retain storage mode">For table updates, retain storage mode</span></label>
+      <label class="check"><input type="checkbox" id="cmpOptInteractive" disabled> <span data-i18n="Use interactive login">Use interactive login</span></label>
+      <p class="helper" data-i18n="These options only apply when updating a target. BI Tools Compare is read-only.">These options only apply when updating a target. BI Tools Compare is read-only.</p>
+    </div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="resetCompareOptions" type="button" data-i18n="Reset to ALM defaults">Reset to ALM defaults</button>
+    <button class="btn btn-primary" id="doneCompareOptions" type="button" data-i18n="Done">Done</button>
+  </div>
+</dialog>
 
 <dialog class="dialog" id="folderDialog" aria-labelledby="folderDialogTitle">
   <div class="dialog-head">

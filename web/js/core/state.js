@@ -69,6 +69,8 @@ export const state = {
   compareOnlyDiff: false,
   compareSourceType: "dataset",
   compareTargetType: "dataset",
+  compareOptions: null,
+  compareOpen: {},
   analysisTab: "all",
   analysisSort: "default",
   analysisSortDesc: false,

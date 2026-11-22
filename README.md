@@ -39,14 +39,17 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   report_usage.py               pemakaian field dari definisi report PBIR + PBIR-Legacy
   usage_store.py                tabel SQLite analisa kolom (cache report, pemakaian, snapshot ukuran)
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
-  model_compare.py              snapshot dua semantic model + diff read-only (status/aksi/line diff)
-  compare_export.py             CSV + manifest script TMSL pratinjau hasil compare
+  model_compare.py              diff definisi TMDL/TMSL TOM (read-only)
+  compare_service.py            subprocess snapshot TOM (token stdin)
+  tom_compare.py                serializer objek TOM (TMDL/TMSL) di proses anak
+  tmdl_utils.py                 normalisasi + buang blok TMDL/TMSL
+  compare_export.py             CSV + manifest script dari definisi TOM
   tom_client.py                 koneksi TOM/XMLA + TMSL refresh partisi (jalur tulis)
   partition_service.py          inventaris partisi + row count DMV (proses CLI terpisah)
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
   paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
-cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, partition.py
+cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, compare.py, partition.py
   __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/install-browser)
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
@@ -410,11 +413,13 @@ Skrip mengekstrak ulang ke folder sementara (workbook di folder tooling tidak di
 Halaman ini membandingkan dua semantic model dari Power BI Service atau instance Power BI Desktop. Perbandingan **read-only**: tidak ada perubahan ke model target.
 
 - Sumber/target: Service (workspace + semantic model) atau Desktop (instance yang terbuka).
+- Definisi objek dibaca lewat **TOM di proses CLI anak** dan diserialisasi dengan `TmdlSerializer`/`JsonSerializer`; server tidak memuat TOM agar ADOMD tetap sehat.
 - Status: **Same definition**, **Different definition**, **Source only**, **Target only**.
 - Aksi disarankan: `Skip`, `Create`, `Update`, `Delete`; aksi target-only default `Skip`.
-- Opsi: measure & kolom, relasi, M query & ekspresi, format string, role & RLS.
-- Panel ekspresi menampilkan diff baris sumber/target.
-- **Validate** hanya validasi lokal; **Generate script** menulis manifest TMSL pratinjau ke `outputs\`; **Export CSV** menulis seluruh hasil.
+- Default opsi mengikuti ALM Toolkit: **roles/partitions/annotations/lineage off**, measure/relationship/expression/measure-dependency on. Opsi lain lewat tombol **Options**.
+- Tabel hasil berupa tree seperti ALM: Table → Measure/Relationship/Calculation item; root Data source/Expression/Role/Perspective/Culture.
+- Panel bawah menampilkan definisi **TMDL/TMSL persis dari TOM** untuk baris yang dipilih, dengan highlight baris berbeda.
+- **Validate** hanya validasi lokal; **Generate script** menulis manifest definisi TOM ke `outputs\`; **Export CSV** menulis seluruh hasil.
 - Tidak ada tombol Apply/endpoint tulis. Terapkan script secara manual.
 
 ## Analisa Semantic Model

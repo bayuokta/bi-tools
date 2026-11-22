@@ -1033,7 +1033,31 @@
   "roles": "role",
   "source": "sumber",
   "table permissions": "table permission",
-  "target": "target"
+  "target": "target",
+  "Comparison options": "Opsi perbandingan",
+  "Comparison options reset": "Opsi perbandingan direset",
+  "Consider Lineage Tag when comparing": "Pertimbangkan Lineage Tag saat membandingkan",
+  "Consider annotations when comparing": "Pertimbangkan annotation saat membandingkan",
+  "Consider partitions when comparing tables": "Pertimbangkan partisi saat membandingkan tabel",
+  "Defaults follow ALM Toolkit. Apply-only options are disabled because this page is read-only.": "Default mengikuti ALM Toolkit. Opsi khusus Apply dinonaktifkan karena halaman ini read-only.",
+  "Display warnings for measure dependencies": "Tampilkan peringatan dependensi measure",
+  "Expressions": "Ekspresi",
+  "For table updates, retain partitions": "Untuk update tabel, pertahankan partisi",
+  "For table updates, retain refresh policy": "Untuk update tabel, pertahankan refresh policy",
+  "For table updates, retain storage mode": "Untuk update tabel, pertahankan storage mode",
+  "Include cultures": "Sertakan culture",
+  "Include perspectives": "Sertakan perspective",
+  "Include roles": "Sertakan role",
+  "Options": "Opsi",
+  "Reset to ALM defaults": "Reset ke default ALM",
+  "Retain only refresh-policy based partitions": "Pertahankan hanya partisi berbasis refresh policy",
+  "Roles, partitions, annotations, and TMDL/TMSL mode are in Options.": "Role, partisi, annotation, dan mode TMDL/TMSL ada di Opsi.",
+  "Select a row to see status, action, and definitions.": "Pilih baris untuk melihat status, aksi, dan definisi.",
+  "These options only apply when updating a target. BI Tools Compare is read-only.": "Opsi ini hanya berlaku saat mengubah target. Compare BI Tools bersifat read-only.",
+  "Update behavior (read-only)": "Perilaku update (read-only)",
+  "Use TMSL (not TMDL) for comparison": "Gunakan TMSL (bukan TMDL) untuk perbandingan",
+  "Use interactive login": "Gunakan login interaktif",
+  "groups shown": "grup ditampilkan"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

@@ -26,102 +26,43 @@ CSV_COLUMNS = (
 )
 
 
-def _property_value(item: Mapping[str, Any], name: str) -> str:
-    for property_ in item.get("properties") or []:
-        if str(property_.get("name") or "") == name:
-            return str(property_.get("source") or "")
-    return ""
-
-
-def _tmsl_for(item: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    """TMSL pratinjau untuk tipe yang didukung; alasan bila manual."""
-    kind = str(item.get("type") or "")
-    name = str(item.get("source_name") or item.get("target_name") or item.get("name") or "")
-    if kind == "Measure":
-        expression = _property_value(item, "Expression")
-        if not expression:
-            return None, "Ekspresi measure tidak tersedia di snapshot."
-        measure: dict[str, Any] = {"name": name, "expression": expression}
-        format_string = _property_value(item, "Format string")
-        if format_string and format_string != "—":
-            measure["formatString"] = format_string
-        display_folder = _property_value(item, "Display folder")
-        if display_folder and display_folder != "—":
-            measure["displayFolder"] = display_folder
-        return {"createOrReplace": {"measure": measure}}, ""
-    if kind == "Expression":
-        expression = str(item.get("source_definition") or "")
-        if not expression:
-            return None, "Ekspresi M tidak tersedia."
-        return {
-            "createOrReplace": {
-                "expression": {
-                    "name": name,
-                    "kind": _property_value(item, "Kind") or "m",
-                    "expression": expression,
-                }
-            }
-        }, ""
-    if kind == "Relationship":
-        from_value = _property_value(item, "From")
-        to_value = _property_value(item, "To")
-        if "[" not in from_value or "[" not in to_value:
-            return None, "Kolom relasi tidak lengkap."
-        from_table, from_column = from_value.split("[", 1)
-        to_table, to_column = to_value.split("[", 1)
-        relationship: dict[str, Any] = {
-            "fromTable": from_table.strip("' "),
-            "fromColumn": from_column.rstrip("]"),
-            "toTable": to_table.strip("' "),
-            "toColumn": to_column.rstrip("]"),
-            "crossFilteringBehavior": _property_value(item, "Cross filter") or "oneDirection",
-            "isActive": _property_value(item, "Active") == "Yes",
-        }
-        return {"createOrReplace": {"relationship": relationship}}, ""
-    if kind == "Role":
-        role: dict[str, Any] = {
-            "name": name,
-            "modelPermission": _property_value(item, "Model permission") or "read",
-        }
-        members = _property_value(item, "Members")
-        if members and members != "—":
-            role["members"] = [
-                {"memberName": member.strip()}
-                for member in members.split(",")
-                if member.strip()
-            ]
-        return {"createOrReplace": {"role": role}}, ""
-    return None, f"Tipe {kind or 'objek'} belum didukung untuk script otomatis."
-
-
 def script_manifest(result: Mapping[str, Any]) -> dict[str, Any]:
-    """Manifest script pratinjau dari hasil compare."""
+    """Manifest script dari definisi TOM persis.
+
+    File ini adalah pratinjau; tidak dieksekusi oleh BI Tools. Mode TMSL
+    menghasilkan JSON TMSL; mode TMDL menghasilkan blok TMDL persis dari TOM.
+    """
     actions: list[dict[str, Any]] = []
     manual: list[dict[str, Any]] = []
+    options = result.get("options") or {}
+    tmsl = bool(options.get("tmsl"))
     for item in result.get("items") or []:
         if item.get("action") not in {"Create", "Update"}:
             continue
-        tmsl, reason = _tmsl_for(item)
+        definition = str(item.get("source_definition") or "")
         entry = {
             "type": item.get("type"),
             "name": item.get("name"),
             "parent": item.get("parent") or "",
             "action": item.get("action"),
             "status": item.get("status"),
+            "format": "tmsl" if tmsl else "tmdl",
+            "definition": definition,
         }
-        if tmsl is None:
-            entry["reason"] = reason
+        if item.get("type") in {"Table", "M query", "Data source"}:
+            entry["reason"] = (
+                "Definisi objek ini ikut dalam blok TOM; tinjau sebelum diterapkan."
+            )
             manual.append(entry)
         else:
-            entry["tmsl"] = tmsl
             actions.append(entry)
     return {
         "generated_at": result.get("generated_at") or "",
         "source": result.get("source") or {},
         "target": result.get("target") or {},
         "note": (
-            "Pratinjau read-only. Script tidak dijalankan oleh BI Tools; "
-            "validasi dan terapkan secara manual."
+            "Pratinjau read-only dari serializer TOM. Script tidak dijalankan "
+            "oleh BI Tools; validasi dan terapkan secara manual."
         ),
         "actions": actions,
         "manual": manual,

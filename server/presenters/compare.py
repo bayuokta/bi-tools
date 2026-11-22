@@ -18,12 +18,12 @@ from core.compare_export import (
     write_compare_script,
 )
 from core.errors import ExtractionError
-from core.model import LiveModel
-from core.model_compare import compare_snapshots, snapshot_from_model
+from core.compare_service import read_snapshot
+from core.model_compare import compare_snapshots, normalize_options
 from core.paths import outputs_dir
 from core.requests import CompareRequest, CompareSide
 from core.usage_service import resolve_names
-from core.xmla_client import XmlaError, open_client, workspace_endpoint
+from core.xmla_client import workspace_endpoint
 
 from ..settings_store import SettingsStore
 from .analysis import database_path
@@ -48,7 +48,8 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
 
 def _side_label(side: CompareSide, snapshot: Mapping[str, Any] | None = None) -> str:
     if side.kind == "desktop":
-        name = str((snapshot or {}).get("model") or side.catalog or "Desktop")
+        model = (snapshot or {}).get("model") or {}
+        name = str(model.get("name") if isinstance(model, Mapping) else "") or side.catalog
         return f"{name} · localhost:{side.port}"
     workspace = side.workspace_name or side.workspace_id
     dataset = side.dataset_name or side.dataset_id
@@ -58,21 +59,17 @@ def _side_label(side: CompareSide, snapshot: Mapping[str, Any] | None = None) ->
 def _read_side(
     store: SettingsStore,
     side: CompareSide,
+    options: Mapping[str, Any],
     log: Any,
 ) -> tuple[dict[str, Any], str]:
-    """Baca snapshot satu sisi; Service memakai token, Desktop tanpa token."""
+    """Baca snapshot TOM satu sisi lewat proses CLI anak (tanpa ADOMD)."""
     if side.kind == "desktop":
-        try:
-            client = open_client(port=side.port, catalog=side.catalog)
-        except XmlaError as exc:
-            raise ExtractionError(
-                f"Tidak bisa terhubung ke Desktop localhost:{side.port}: {exc}"
-            ) from exc
-        try:
-            model = LiveModel(client)
-            snapshot = snapshot_from_model(model)
-        finally:
-            client.close()
+        log(f"Membaca Desktop localhost:{side.port} lewat TOM…")
+        snapshot = read_snapshot(
+            port=side.port,
+            catalog=side.catalog,
+            options=options,
+        )
         label = _side_label(side, snapshot)
         log(f"Desktop dibaca: {label}")
         return snapshot, label
@@ -87,24 +84,15 @@ def _read_side(
         workspace_name, dataset_name = resolve_names(
             database, side.workspace_id, side.dataset_id
         )
-    endpoint = workspace_endpoint(
-        principal.tenant_id or "myorg", workspace_name
-    )
+    endpoint = workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
     tokens = EntraTokens(principal)
-    try:
-        client = open_client(
-            endpoint=endpoint, catalog=dataset_name, tokens=tokens
-        )
-    except XmlaError as exc:
-        raise ExtractionError(
-            f"Tidak bisa terhubung ke XMLA '{workspace_name}' / '{dataset_name}': "
-            f"{exc}\nPastikan XMLA Read aktif dan service principal punya akses."
-        ) from exc
-    try:
-        model = LiveModel(client)
-        snapshot = snapshot_from_model(model)
-    finally:
-        client.close()
+    log(f"Membaca dataset '{dataset_name}' lewat TOM…")
+    snapshot = read_snapshot(
+        endpoint=endpoint,
+        catalog=dataset_name,
+        tokens=tokens,
+        options=options,
+    )
     label = _side_label(
         CompareSide(
             kind="dataset",
@@ -118,21 +106,21 @@ def _read_side(
     log(f"Dataset dibaca: {label}")
     return snapshot, label
 
-
 def run_job(
     store: SettingsStore, payload: Mapping[str, Any], log: Any, cancel: Any
 ) -> dict[str, Any]:
     """Baca dua model dan kembalikan hasil perbandingan read-only."""
     request = CompareRequest.from_payload(payload)
+    options = normalize_options(request.options)
     if cancel.is_set():
         raise ExtractionError("Perbandingan dibatalkan.")
     log(f"Sumber: {_side_label(request.source)}")
     log(f"Target: {_side_label(request.target)}")
-    source, source_label = _read_side(store, request.source, log)
+    source, source_label = _read_side(store, request.source, options, log)
     if cancel.is_set():
         raise ExtractionError("Perbandingan dibatalkan.")
-    target, target_label = _read_side(store, request.target, log)
-    result = compare_snapshots(source, target, request.options)
+    target, target_label = _read_side(store, request.target, options, log)
+    result = compare_snapshots(source, target, options)
     result.update(
         {
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
