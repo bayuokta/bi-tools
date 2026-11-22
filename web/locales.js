@@ -1058,6 +1058,7 @@
   "Use TMSL (not TMDL) for comparison": "Gunakan TMSL (bukan TMDL) untuk perbandingan",
   "Use interactive login": "Gunakan login interaktif",
   "groups shown": "grup ditampilkan",
+  "blocks": "blok",
   "Warnings": "Peringatan",
   "Measure dependency warnings": "Peringatan dependensi measure"
 };

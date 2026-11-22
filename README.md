@@ -421,6 +421,7 @@ Halaman ini membandingkan dua semantic model dari Power BI Service atau instance
 - Tabel hasil berupa tree seperti ALM: Table → Measure/Relationship/Calculation item; root Data source/Expression/Role/Perspective/Culture.
 - Panel bawah menampilkan definisi **TMDL/TMSL persis dari TOM** untuk baris yang dipilih, dengan highlight baris berbeda.
 - DAX/JSON memakai Prism lokal; TMDL memakai grammar lexical lokal. Panel definisi lebih tinggi dan bisa ditarik (`resize: vertical`).
+- Diff ditampilkan sejajar: blok sumber hijau, target merah, area kosong hatch; perubahan intra-baris ditandai, dan scroll kedua panel sinkron.
 - **Validate** hanya validasi lokal; **Generate script** menulis manifest definisi TOM ke `outputs\`; **Export CSV** menulis seluruh hasil.
 - Tidak ada tombol Apply/endpoint tulis. Terapkan script secara manual.
 

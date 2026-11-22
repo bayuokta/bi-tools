@@ -543,6 +543,7 @@ class WebLayerTests(unittest.TestCase):
             'id="cmpOptPartitions"',
             'id="cmpApply"',
             'id="tab-roles"',
+            'id="cmpDiffSummary"',
             "M6 15l6-6 6 6",
         ):
             self.assertIn(marker, html)
@@ -551,6 +552,10 @@ class WebLayerTests(unittest.TestCase):
             "function runCompare(",
             "function compareGroups(",
             "function treeRow(",
+            "function renderDiffLine(",
+            "function bindDiffScroll(",
+            "diff-token is-changed",
+            "is-spacer",
             "/api/compare/run",
             "/api/compare/export",
             "/api/compare/script",

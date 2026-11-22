@@ -67,26 +67,128 @@ def _normalized(text: str) -> str:
     return (text or "").replace("\r\n", "\n").replace("\r", "\n").strip("\n")
 
 
-def _line_diff(source_text: str, target_text: str) -> dict[str, list[dict[str, Any]]]:
-    source = source_text.splitlines() if source_text else []
-    target = target_text.splitlines() if target_text else []
-    changed_source: set[int] = set()
-    changed_target: set[int] = set()
+def _inline_segments(source: str, target: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Diff karakter di dalam satu baris replace."""
+    if source == target:
+        return (
+            [{"text": source, "changed": False}],
+            [{"text": target, "changed": False}],
+        )
+    source_segments: list[dict[str, Any]] = []
+    target_segments: list[dict[str, Any]] = []
     matcher = difflib.SequenceMatcher(None, source, target, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag in {"replace", "delete"}:
-            changed_source.update(range(i1, i2))
-        if tag in {"replace", "insert"}:
-            changed_target.update(range(j1, j2))
+        if tag == "equal":
+            value = source[i1:i2]
+            if value:
+                source_segments.append({"text": value, "changed": False})
+                target_segments.append({"text": value, "changed": False})
+            continue
+        if i2 > i1:
+            source_segments.append({"text": source[i1:i2], "changed": True})
+        if j2 > j1:
+            target_segments.append({"text": target[j1:j2], "changed": True})
+    return source_segments, target_segments
+
+
+def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
+    """Diff baris sejajar: equal/delete/insert/replace + spacer."""
+    source = source_text.splitlines() if source_text else []
+    target = target_text.splitlines() if target_text else []
+    rows: list[dict[str, Any]] = []
+    blocks = 0
+    added = 0
+    removed = 0
+    changed = 0
+    matcher = difflib.SequenceMatcher(None, source, target, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for offset in range(i2 - i1):
+                rows.append(
+                    {
+                        "kind": "equal",
+                        "source": {"number": i1 + offset + 1, "text": source[i1 + offset]},
+                        "target": {"number": j1 + offset + 1, "text": target[j1 + offset]},
+                    }
+                )
+            continue
+        blocks += 1
+        if tag == "delete":
+            for index in range(i1, i2):
+                removed += 1
+                rows.append(
+                    {
+                        "kind": "delete",
+                        "source": {"number": index + 1, "text": source[index]},
+                        "target": None,
+                    }
+                )
+            continue
+        if tag == "insert":
+            for index in range(j1, j2):
+                added += 1
+                rows.append(
+                    {
+                        "kind": "insert",
+                        "source": None,
+                        "target": {"number": index + 1, "text": target[index]},
+                    }
+                )
+            continue
+        # replace: pasangkan baris sebanyak mungkin, sisanya delete/insert.
+        source_count = i2 - i1
+        target_count = j2 - j1
+        paired = min(source_count, target_count)
+        for offset in range(paired):
+            source_line = source[i1 + offset]
+            target_line = target[j1 + offset]
+            source_segments, target_segments = _inline_segments(
+                source_line, target_line
+            )
+            changed += 1
+            rows.append(
+                {
+                    "kind": "replace",
+                    "source": {
+                        "number": i1 + offset + 1,
+                        "text": source_line,
+                        "segments": source_segments,
+                    },
+                    "target": {
+                        "number": j1 + offset + 1,
+                        "text": target_line,
+                        "segments": target_segments,
+                    },
+                }
+            )
+        for offset in range(paired, source_count):
+            removed += 1
+            rows.append(
+                {
+                    "kind": "delete",
+                    "source": {"number": i1 + offset + 1, "text": source[i1 + offset]},
+                    "target": None,
+                }
+            )
+        for offset in range(paired, target_count):
+            added += 1
+            rows.append(
+                {
+                    "kind": "insert",
+                    "source": None,
+                    "target": {"number": j1 + offset + 1, "text": target[j1 + offset]},
+                }
+            )
     return {
-        "source": [
-            {"number": index + 1, "text": line, "changed": index in changed_source}
-            for index, line in enumerate(source)
-        ],
-        "target": [
-            {"number": index + 1, "text": line, "changed": index in changed_target}
-            for index, line in enumerate(target)
-        ],
+        "rows": rows,
+        "stats": {
+            "blocks": blocks,
+            "added": added,
+            "removed": removed,
+            "changed": changed,
+            "source_lines": len(source),
+            "target_lines": len(target),
+        },
     }
 
 

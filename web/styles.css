@@ -1436,8 +1436,25 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
 .diff-line{ display:flex; min-width:max-content; }
 .diff-line .ln{ flex:none; width:38px; padding-right:10px; text-align:right; color:var(--text-3); user-select:none; }
 .diff-line .lt{ white-space:pre; padding-right:18px; color:var(--text-2); }
-.diff-line.is-changed{ background:var(--warn-soft); }
-.diff-line.is-changed .ln{ color:var(--warn); }
+.diff-line.is-source{ background:#e2f6c5; }
+.diff-line.is-target{ background:#ffd6d5; }
+.diff-line.is-spacer{
+  background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(127,127,127,.18) 5px 6px);
+}
+.diff-line.is-source .ln,.diff-line.is-target .ln{ color:#5a6570; }
+.diff-line.is-source .lt,.diff-line.is-target .lt{ color:#172018; }
+.diff-line.is-source .token.keyword,.diff-line.is-target .token.keyword{ color:#8a5a00; }
+.diff-line.is-source .token.property,.diff-line.is-target .token.property{ color:#1f4e79; }
+.diff-line.is-source .token.string,.diff-line.is-target .token.string{ color:#1f6b3a; }
+.diff-line.is-source .token.number,.diff-line.is-target .token.number{ color:#8a3b00; }
+.diff-line.is-source .token.comment,.diff-line.is-target .token.comment{ color:#5b6770; }
+.diff-line.is-source .token.function,.diff-line.is-target .token.function{ color:#6a3fb5; }
+.diff-line .diff-token.is-changed{ background:#c9ec9f; border-radius:2px; }
+.diff-line.is-target .diff-token.is-changed{ background:#ffb3b1; }
+.cmp-diff-legend{ display:inline-flex; align-items:center; gap:5px; margin-right:10px; font-size:10.5px; color:var(--text-3); white-space:nowrap; }
+.cmp-legend{ width:10px; height:10px; border-radius:2px; display:inline-block; border:1px solid var(--border); }
+.cmp-legend.is-source{ background:#e2f6c5; }
+.cmp-legend.is-target{ background:#ffd6d5; }
 .cmp-detail-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .cmp-detail-name{ margin:0; font-size:14px; font-weight:600; letter-spacing:-.01em; }
 .cmp-detail-sub{ margin:3px 0 0; font-size:11.5px; color:var(--text-3); }

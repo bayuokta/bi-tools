@@ -49,6 +49,7 @@ var STATUS_CLASSES = {
   source_only: "is-source",
   target_only: "is-target"
 };
+var diffScrollLock = false;
 
 var TYPE_ICONS = {
   Table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.6"/><path d="M3 9h18M9 9v11"/></svg>',
@@ -486,16 +487,46 @@ function renderCompareDetail() {
       escapeHtml(t(item.action || "Skip")) + "</p>";
 }
 
-function renderDiffPane(element, meta, lines, language) {
+function renderDiffLine(line, row, side, language) {
+  if (!line) {
+    return '<div class="diff-line is-spacer"><span class="ln"></span><span class="lt"></span></div>';
+  }
+  var classes = ["diff-line"];
+  if (row.kind === "replace") classes.push("is-replace");
+  if (side === "source" && (row.kind === "delete" || row.kind === "replace")) {
+    classes.push("is-source");
+  }
+  if (side === "target" && (row.kind === "insert" || row.kind === "replace")) {
+    classes.push("is-target");
+  }
+  var content;
+  if (line.segments && line.segments.length) {
+    content = line.segments.map(function (segment) {
+      var html = highlightLine(segment.text, language);
+      if (!segment.changed) return html;
+      return '<span class="diff-token is-changed">' + html + "</span>";
+    }).join("");
+  } else {
+    content = highlightLine(line.text, language);
+  }
+  return '<div class="' + classes.join(" ") + '">' +
+    '<span class="ln">' + line.number + "</span>" +
+    '<span class="lt">' + content + "</span></div>";
+}
+
+function renderDiffPane(element, meta, rows, side, language) {
+  var lines = rows.map(function (row) { return row[side]; }).filter(Boolean);
+  var changed = rows.filter(function (row) {
+    if (side === "source") return row.kind === "delete" || row.kind === "replace";
+    return row.kind === "insert" || row.kind === "replace";
+  }).length;
   $(meta).textContent = lines.length
     ? fmtInt(lines.length) + " " + t("lines") + " · " +
-      fmtInt(lines.filter(function (line) { return line.changed; }).length) + " " + t("changed")
+      fmtInt(changed) + " " + t("changed")
     : t("No definition");
-  $(element).innerHTML = lines.length
-    ? lines.map(function (line) {
-        return '<div class="diff-line' + (line.changed ? " is-changed" : "") + '">' +
-          '<span class="ln">' + line.number + '</span>' +
-          '<span class="lt">' + highlightLine(line.text, language) + "</span></div>";
+  $(element).innerHTML = rows.length
+    ? rows.map(function (row) {
+        return renderDiffLine(row[side], row, side, language);
       }).join("")
     : '<div class="diff-line"><span class="lt">' + escapeHtml(t("No definition")) + "</span></div>";
 }
@@ -511,10 +542,17 @@ function renderCompareDiff() {
   }
   panel.hidden = false;
   $("#cmpDiffName").textContent = item.name;
-  var diff = item.diff || { source: [], target: [] };
+  var diff = item.diff || { rows: [], stats: {} };
+  var rows = diff.rows || [];
   var language = compareLanguage(state.compare && state.compare.options);
-  renderDiffPane("#cmpDiffSource", "#cmpDiffSourceMeta", diff.source || [], language);
-  renderDiffPane("#cmpDiffTarget", "#cmpDiffTargetMeta", diff.target || [], language);
+  renderDiffPane("#cmpDiffSource", "#cmpDiffSourceMeta", rows, "source", language);
+  renderDiffPane("#cmpDiffTarget", "#cmpDiffTargetMeta", rows, "target", language);
+  var stats = diff.stats || {};
+  $("#cmpDiffSummary").textContent = rows.length
+    ? fmtInt(stats.blocks || 0) + " " + t("blocks") + " · +" +
+      fmtInt(stats.added || 0) + " −" + fmtInt(stats.removed || 0) + " · " +
+      fmtInt(stats.changed || 0) + " " + t("changed")
+    : "";
 }
 
 function syncCompareToolbar() {
@@ -591,9 +629,25 @@ function closeOptionsDialog() {
   renderCompare();
 }
 
+function bindDiffScroll(first, second) {
+  function sync(source, target) {
+    source.addEventListener("scroll", function () {
+      if (diffScrollLock) return;
+      diffScrollLock = true;
+      target.scrollTop = source.scrollTop;
+      window.requestAnimationFrame(function () {
+        diffScrollLock = false;
+      });
+    }, { passive: true });
+  }
+  sync(first, second);
+  sync(second, first);
+}
+
 export function initCompareEvents() {
   if (!state.compareOptions) loadOptions();
   syncOptionControls();
+  bindDiffScroll($("#cmpDiffSource"), $("#cmpDiffTarget"));
 
   $$("[data-cmp-side] [data-cmp-type]").forEach(function (button) {
     button.addEventListener("click", function () {

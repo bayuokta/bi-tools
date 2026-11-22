@@ -72,7 +72,14 @@ class CompareSnapshotTests(unittest.TestCase):
         self.assertEqual(measure["action"], ACTION_UPDATE)
         self.assertIn("Sales[Amount]", measure["source_definition"])
         self.assertIn("Sales[Value]", measure["target_definition"])
-        self.assertTrue(any(line["changed"] for line in measure["diff"]["target"]))
+        rows = measure["diff"]["rows"]
+        replace_rows = [row for row in rows if row["kind"] == "replace"]
+        self.assertTrue(replace_rows)
+        self.assertTrue(any(
+            segment["changed"]
+            for row in replace_rows
+            for segment in row["target"]["segments"]
+        ))
 
     def test_role_member_definition_is_compared_when_present(self) -> None:
         source = snapshot([obj("Role", "HO", "HO", "role HO\n\tmodelPermission: read\n\tmember a")])
@@ -108,13 +115,32 @@ class CompareSnapshotTests(unittest.TestCase):
         self.assertEqual(len(result["warnings"]), 1)
         self.assertEqual(result["warnings"][0]["measure"], "Total")
 
+    def test_aligned_rows_include_spacers_and_stats(self) -> None:
+        source = snapshot([obj("Measure", "M|X", "X", "a\nb\nc", "M")])
+        target = snapshot([obj("Measure", "M|X", "X", "a\nc\nd", "M")])
+        diff = compare_snapshots(source, target)["items"][0]["diff"]
+
+        self.assertEqual(
+            [row["kind"] for row in diff["rows"]],
+            ["equal", "delete", "equal", "insert"],
+        )
+        self.assertIsNone(diff["rows"][1]["target"])
+        self.assertIsNone(diff["rows"][3]["source"])
+        self.assertEqual(diff["stats"]["removed"], 1)
+        self.assertEqual(diff["stats"]["added"], 1)
+        self.assertEqual(diff["stats"]["blocks"], 2)
+
     def test_line_diff_marks_changed_lines(self) -> None:
         source = snapshot([obj("Measure", "Sales|Total", "Total", "measure Total =\n\tSUM(Sales[Amount])", "Sales")])
         target = snapshot([obj("Measure", "Sales|Total", "Total", "measure Total =\n\tSUM(Sales[Amount]) + 1", "Sales")])
         measure = compare_snapshots(source, target)["items"][0]
 
-        self.assertTrue(any(line["changed"] for line in measure["diff"]["target"]))
-        self.assertTrue(measure["diff"]["source"])
+        self.assertTrue(measure["diff"]["rows"])
+        self.assertGreaterEqual(measure["diff"]["stats"]["changed"], 1)
+        self.assertTrue(any(
+            row["kind"] in {"replace", "insert"}
+            for row in measure["diff"]["rows"]
+        ))
 
 
 if __name__ == "__main__":
