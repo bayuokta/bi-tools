@@ -1439,8 +1439,15 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
 .diff-line.is-source{ background:#e2f6c5; }
 .diff-line.is-target{ background:#ffd6d5; }
 .diff-line.is-spacer{
+  min-width:100%;
+  width:100%;
   background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(127,127,127,.18) 5px 6px);
+  box-shadow:inset 1px 0 0 #e57373,inset -1px 0 0 #e57373;
 }
+.diff-line.is-spacer .lt{ flex:1 1 auto; }
+.diff-line.is-spacer.is-block-start{ box-shadow:inset 1px 0 0 #e57373,inset -1px 0 0 #e57373,inset 0 1px 0 #e57373; }
+.diff-line.is-spacer.is-block-end{ box-shadow:inset 1px 0 0 #e57373,inset -1px 0 0 #e57373,inset 0 -1px 0 #e57373; }
+.diff-line.is-spacer.is-block-start.is-block-end{ box-shadow:inset 0 0 0 1px #e57373; }
 .diff-line.is-source .ln,.diff-line.is-target .ln{ color:#5a6570; }
 .diff-line.is-source .lt,.diff-line.is-target .lt{ color:#172018; }
 .diff-line.is-source .token.keyword,.diff-line.is-target .token.keyword{ color:#8a5a00; }

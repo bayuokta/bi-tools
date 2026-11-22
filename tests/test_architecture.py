@@ -556,6 +556,8 @@ class WebLayerTests(unittest.TestCase):
             "function bindDiffScroll(",
             "diff-token is-changed",
             "is-spacer",
+            "is-block-start",
+            "is-block-end",
             "/api/compare/run",
             "/api/compare/export",
             "/api/compare/script",
@@ -565,6 +567,9 @@ class WebLayerTests(unittest.TestCase):
         compare_presenter = (
             ROOT / "server" / "presenters" / "compare.py"
         ).read_text(encoding="utf-8")
+        css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn("min-width:100%", css)
+        self.assertIn("is-block-start", css)
         self.assertIn("def run_job(", compare_presenter)
         self.assertIn("read_only", compare_presenter)
         self.assertIn("Tidak ada jalur tulis", compare_presenter)

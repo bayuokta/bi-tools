@@ -487,9 +487,12 @@ function renderCompareDetail() {
       escapeHtml(t(item.action || "Skip")) + "</p>";
 }
 
-function renderDiffLine(line, row, side, language) {
+function renderDiffLine(line, row, side, language, blockStart, blockEnd) {
   if (!line) {
-    return '<div class="diff-line is-spacer"><span class="ln"></span><span class="lt"></span></div>';
+    return '<div class="diff-line is-spacer' +
+      (blockStart ? " is-block-start" : "") +
+      (blockEnd ? " is-block-end" : "") +
+      '"><span class="ln"></span><span class="lt"></span></div>';
   }
   var classes = ["diff-line"];
   if (row.kind === "replace") classes.push("is-replace");
@@ -499,6 +502,8 @@ function renderDiffLine(line, row, side, language) {
   if (side === "target" && (row.kind === "insert" || row.kind === "replace")) {
     classes.push("is-target");
   }
+  if (blockStart) classes.push("is-block-start");
+  if (blockEnd) classes.push("is-block-end");
   var content;
   if (line.segments && line.segments.length) {
     content = line.segments.map(function (segment) {
@@ -525,8 +530,12 @@ function renderDiffPane(element, meta, rows, side, language) {
       fmtInt(changed) + " " + t("changed")
     : t("No definition");
   $(element).innerHTML = rows.length
-    ? rows.map(function (row) {
-        return renderDiffLine(row[side], row, side, language);
+    ? rows.map(function (row, index) {
+        var blockStart = Boolean(row.block) &&
+          (index === 0 || rows[index - 1].block !== row.block);
+        var blockEnd = Boolean(row.block) &&
+          (index === rows.length - 1 || rows[index + 1].block !== row.block);
+        return renderDiffLine(row[side], row, side, language, blockStart, blockEnd);
       }).join("")
     : '<div class="diff-line"><span class="lt">' + escapeHtml(t("No definition")) + "</span></div>";
 }

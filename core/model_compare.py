@@ -107,6 +107,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
                 rows.append(
                     {
                         "kind": "equal",
+                        "block": None,
                         "source": {"number": i1 + offset + 1, "text": source[i1 + offset]},
                         "target": {"number": j1 + offset + 1, "text": target[j1 + offset]},
                     }
@@ -119,6 +120,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
                 rows.append(
                     {
                         "kind": "delete",
+                        "block": blocks,
                         "source": {"number": index + 1, "text": source[index]},
                         "target": None,
                     }
@@ -130,6 +132,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
                 rows.append(
                     {
                         "kind": "insert",
+                        "block": blocks,
                         "source": None,
                         "target": {"number": index + 1, "text": target[index]},
                     }
@@ -149,6 +152,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
             rows.append(
                 {
                     "kind": "replace",
+                    "block": blocks,
                     "source": {
                         "number": i1 + offset + 1,
                         "text": source_line,
@@ -166,6 +170,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
             rows.append(
                 {
                     "kind": "delete",
+                    "block": blocks,
                     "source": {"number": i1 + offset + 1, "text": source[i1 + offset]},
                     "target": None,
                 }
@@ -175,6 +180,7 @@ def _line_diff(source_text: str, target_text: str) -> dict[str, Any]:
             rows.append(
                 {
                     "kind": "insert",
+                    "block": blocks,
                     "source": None,
                     "target": {"number": j1 + offset + 1, "text": target[j1 + offset]},
                 }

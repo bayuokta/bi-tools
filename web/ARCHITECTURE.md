@@ -123,7 +123,7 @@ Helper node bersama: `clipLabel`, `lineageTypeName`, `nodeHue`,
 - Aksi: `selectCompareRow`, `validateCompare`, `exportCompare`, `generateCompareScript`, `initCompareEvents`.
 - Halaman read-only; `#cmpApply` selalu disabled.
 - Definisi yang ditampilkan adalah output TOM/TMDL atau TMSL persis; JS tidak menyusun/menebak definisi.
-- Diff pane memakai `.diff-code` tinggi `clamp(320px,45vh,620px)` dan highlight per baris (TMDL atau JSON/TMSL). Baris sejajar: `is-source` hijau, `is-target` merah, `is-spacer` hatch, `diff-token` untuk perubahan intra-baris; scroll kedua pane disinkronkan.
+- Diff pane memakai `.diff-code` tinggi `clamp(320px,45vh,620px)` dan highlight per baris (TMDL atau JSON/TMSL). Baris sejajar: `is-source` hijau, `is-target` merah, `is-spacer` hatch selebar panel dengan border blok (`is-block-start`/`is-block-end`), `diff-token` untuk perubahan intra-baris; scroll kedua pane disinkronkan.
 
 ## Peta `js\views\analysis.js`
 
