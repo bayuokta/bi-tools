@@ -16,6 +16,8 @@ from core.requests import (
     SCOPE_REPORT,
     AnalysisRequest,
     CaptureRequest,
+    CompareRequest,
+    CompareSide,
     LocalMetadataRequest,
     ServiceMetadataRequest,
     TsdRequest,
@@ -324,6 +326,43 @@ class AnalysisRequestTests(unittest.TestCase):
 
         self.assertTrue(set(payload).issubset(params))
         self.assertIn("principal", params)
+
+
+class CompareRequestTests(unittest.TestCase):
+    def test_dataset_side_requires_valid_guids(self) -> None:
+        with self.assertRaises(ExtractionError):
+            CompareSide.from_payload({"type": "dataset", "workspace_id": "x"})
+
+    def test_desktop_side_requires_port_and_catalog(self) -> None:
+        with self.assertRaises(ExtractionError):
+            CompareSide.from_payload({"type": "desktop", "port": 0, "catalog": "M"})
+        with self.assertRaises(ExtractionError):
+            CompareSide.from_payload({"type": "desktop", "port": 1234, "catalog": ""})
+
+    def test_source_and_target_must_differ(self) -> None:
+        side = {
+            "type": "dataset",
+            "workspace_id": WORKSPACE,
+            "dataset_id": DATASET,
+        }
+        with self.assertRaises(ExtractionError):
+            CompareRequest.from_payload({"source": side, "target": dict(side)})
+
+    def test_payload_round_trip(self) -> None:
+        payload = {
+            "source": {
+                "type": "dataset",
+                "workspace_id": WORKSPACE,
+                "dataset_id": DATASET,
+            },
+            "target": {"type": "desktop", "port": 1234, "catalog": "Model"},
+            "options": {"measures": True, "roles": True},
+        }
+        request = CompareRequest.from_payload(payload)
+        body = request.to_run_kwargs()
+        self.assertEqual(body["source"]["workspace_id"], WORKSPACE)
+        self.assertEqual(body["target"]["port"], 1234)
+        self.assertEqual(body["options"]["roles"], True)
 
 
 if __name__ == "__main__":

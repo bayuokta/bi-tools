@@ -880,6 +880,7 @@ class AnalysisResult:
     messages: list[str] = field(default_factory=list)
     relationships: list[dict[str, Any]] = field(default_factory=list)
     m_queries: list[dict[str, Any]] = field(default_factory=list)
+    roles: list[dict[str, Any]] = field(default_factory=list)
     report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     reports_included: bool = True
     subscriptions: list[dict[str, Any]] = field(default_factory=list)
@@ -1129,6 +1130,7 @@ def build_analysis(
     analyzed_at: str | None = None,
     relationships: list[dict[str, Any]] | None = None,
     m_queries: list[dict[str, Any]] | None = None,
+    roles: list[dict[str, Any]] | None = None,
     report_pages: dict[str, list[dict[str, Any]]] | None = None,
     reports_included: bool = True,
 ) -> AnalysisResult:
@@ -1207,6 +1209,7 @@ def build_analysis(
         messages=list(messages or []),
         relationships=list(relationships or []),
         m_queries=list(m_queries or []),
+        roles=list(roles or []),
         report_pages=dict(report_pages or {}),
         reports_included=reports_included,
     )
@@ -2143,6 +2146,7 @@ def analyze_dataset(
             messages=list(notes),
             relationships=relationships,
             m_queries=m_rows,
+            roles=list(metadata.get("roles") or []),
             report_pages=page_rows,
             reports_included=include_reports,
         )

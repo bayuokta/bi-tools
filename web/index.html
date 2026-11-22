@@ -29,6 +29,10 @@
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
           <span class="label" data-i18n="Model analysis">Model analysis</span>
         </button>
+        <button class="nav-item" type="button" data-view="compare" title="Compare semantic model" data-i18n-title="Compare semantic model">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5"></rect><rect x="13" y="4" width="8" height="16" rx="1.5"></rect><path d="M7 9h0M7 13h0M17 9h0M17 13h0"></path><path d="M9.5 11h5"></path></svg>
+          <span class="label" data-i18n="Compare Semantic Model">Compare Semantic Model</span>
+        </button>
         <button class="nav-item" type="button" data-view="lineage" title="Lineage">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
           <span class="label">Lineage</span>
@@ -628,6 +632,7 @@
               <button role="tab" id="tab-all" data-analysis-tab="all" aria-controls="analyzePanel" aria-selected="true" tabindex="0"><span data-i18n="All results">All results</span><span class="tab-count" id="tabCountAll"></span></button>
               <button role="tab" id="tab-tables" data-analysis-tab="tables" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Tables<span class="tab-count" id="tabCountTables"></span></button>
               <button role="tab" id="tab-relationships" data-analysis-tab="relationships" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Relationships<span class="tab-count" id="tabCountRelationships"></span></button>
+              <button role="tab" id="tab-roles" data-analysis-tab="roles" aria-controls="analyzePanel" aria-selected="false" tabindex="-1"><span data-i18n="Roles">Roles</span><span class="tab-count" id="tabCountRoles"></span></button>
               <button role="tab" id="tab-report" data-analysis-tab="report" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">Report results<span class="tab-count" id="tabCountReport"></span></button>
               <button role="tab" id="tab-dax" data-analysis-tab="dax" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">DAX expressions<span class="tab-count" id="tabCountDax"></span></button>
               <button role="tab" id="tab-m" data-analysis-tab="m" aria-controls="analyzePanel" aria-selected="false" tabindex="-1">M queries<span class="tab-count" id="tabCountM"></span></button>
@@ -723,6 +728,165 @@
                 <span class="helper" id="analyzeSummary">Not analyzed yet</span>
                 <span class="helper" data-i18n="Read-only mode · no changes to the model">Read-only mode · no changes to the model</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-compare" aria-labelledby="titleCompare" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow" data-i18n="Tool · comparison">Tool · comparison</div>
+              <h1 class="view-title" id="titleCompare" tabindex="-1">Compare semantic model</h1>
+              <p class="view-sub" data-i18n="Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.">Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="runCompare" type="button">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
+                <span data-i18n="Run comparison">Run comparison</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel compare-setup">
+            <div class="panel-head">
+              <span class="panel-title" data-i18n="Source &amp; target">Source &amp; target</span>
+              <div class="spacer"></div>
+              <button class="btn btn-sm" id="cmpSwap" type="button" title="Swap source and target" data-i18n-title="Swap source and target">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h13M20 7l-3-3M17 17H4M4 17l3 3"></path></svg>
+                <span data-i18n="Swap">Swap</span>
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="compare-grid">
+                <div class="compare-side" id="cmpSourceSide">
+                  <div class="compare-side-head">
+                    <span class="compare-side-badge">S</span>
+                    <span class="compare-side-title" data-i18n="Source">Source</span>
+                    <span class="chip chip-idle" id="cmpSourceChip"><span class="dot"></span><span data-i18n="Dataset">Dataset</span></span>
+                  </div>
+                  <div class="segmented compare-type" role="group" aria-label="Source type" data-i18n-aria-label="Source type" data-cmp-side="source">
+                    <button type="button" data-cmp-type="dataset" aria-pressed="true" data-i18n="Dataset">Dataset</button>
+                    <button type="button" data-cmp-type="desktop" aria-pressed="false" data-i18n="Desktop">Desktop</button>
+                  </div>
+                  <div class="compare-fields" data-cmp-fields="source">
+                    <div class="field" data-cmp-kind="dataset">
+                      <label for="cmpSourceWorkspace" data-i18n="Workspace">Workspace</label>
+                      <div class="select"><select id="cmpSourceWorkspace"></select></div>
+                    </div>
+                    <div class="field" data-cmp-kind="dataset">
+                      <label for="cmpSourceModel" data-i18n="Semantic model">Semantic model</label>
+                      <div class="select"><select id="cmpSourceModel"></select></div>
+                    </div>
+                    <div class="field" data-cmp-kind="desktop" hidden>
+                      <label for="cmpSourceDesktop" data-i18n="Power BI Desktop instance">Power BI Desktop instance</label>
+                      <div class="select"><select id="cmpSourceDesktop"></select></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="compare-switch" aria-hidden="true">
+                  <span class="compare-switch-line"></span>
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M16 8l4 4-4 4"></path></svg>
+                  <span class="compare-switch-line"></span>
+                </div>
+
+                <div class="compare-side" id="cmpTargetSide">
+                  <div class="compare-side-head">
+                    <span class="compare-side-badge is-target">T</span>
+                    <span class="compare-side-title" data-i18n="Target">Target</span>
+                    <span class="chip chip-idle" id="cmpTargetChip"><span class="dot"></span><span data-i18n="Dataset">Dataset</span></span>
+                  </div>
+                  <div class="segmented compare-type" role="group" aria-label="Target type" data-i18n-aria-label="Target type" data-cmp-side="target">
+                    <button type="button" data-cmp-type="dataset" aria-pressed="true" data-i18n="Dataset">Dataset</button>
+                    <button type="button" data-cmp-type="desktop" aria-pressed="false" data-i18n="Desktop">Desktop</button>
+                  </div>
+                  <div class="compare-fields" data-cmp-fields="target">
+                    <div class="field" data-cmp-kind="dataset">
+                      <label for="cmpTargetWorkspace" data-i18n="Workspace">Workspace</label>
+                      <div class="select"><select id="cmpTargetWorkspace"></select></div>
+                    </div>
+                    <div class="field" data-cmp-kind="dataset">
+                      <label for="cmpTargetModel" data-i18n="Semantic model">Semantic model</label>
+                      <div class="select"><select id="cmpTargetModel"></select></div>
+                    </div>
+                    <div class="field" data-cmp-kind="desktop" hidden>
+                      <label for="cmpTargetDesktop" data-i18n="Power BI Desktop instance">Power BI Desktop instance</label>
+                      <div class="select"><select id="cmpTargetDesktop"></select></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="compare-options">
+                <label class="check"><input type="checkbox" id="cmpOptMeasures" checked> <span data-i18n="Measures &amp; columns">Measures &amp; columns</span></label>
+                <label class="check"><input type="checkbox" id="cmpOptRelations" checked> <span data-i18n="Relationships">Relationships</span></label>
+                <label class="check"><input type="checkbox" id="cmpOptQueries" checked> <span data-i18n="M queries &amp; expressions">M queries &amp; expressions</span></label>
+                <label class="check"><input type="checkbox" id="cmpOptFormat"> <span data-i18n="Format string">Format string</span></label>
+                <label class="check"><input type="checkbox" id="cmpOptRls" checked> <span data-i18n="Roles &amp; RLS">Roles &amp; RLS</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="run-card compare-run" id="compareRun" hidden>
+            <div class="run-label"><span id="compareRunLabel" data-i18n="Preparing comparison…">Preparing comparison…</span><span id="compareRunPct">0%</span></div>
+            <div class="progress"><i id="compareBar"></i></div>
+          </div>
+
+          <div class="metric-strip metric-strip--compare" aria-label="Comparison summary" data-i18n-aria-label="Comparison summary">
+            <div class="metric-card"><span class="metric-label" data-i18n="Items compared">Items compared</span><span class="metric-value" id="cmpMetricTotal">—</span><span class="metric-note" data-i18n="Source and target">Source and target</span></div>
+            <div class="metric-card"><span class="metric-label" data-i18n="Same definition">Same definition</span><span class="metric-value" id="cmpMetricSame">—</span><span class="metric-note" data-i18n="No action needed">No action needed</span></div>
+            <div class="metric-card is-warn"><span class="metric-label" data-i18n="Different definition">Different definition</span><span class="metric-value" id="cmpMetricDiff">—</span><span class="metric-note" data-i18n="Review required">Review required</span></div>
+            <div class="metric-card is-warn"><span class="metric-label" data-i18n="Source only">Source only</span><span class="metric-value" id="cmpMetricSourceOnly">—</span><span class="metric-note" data-i18n="Candidate addition in target">Candidate addition in target</span></div>
+            <div class="metric-card is-warn"><span class="metric-label" data-i18n="Target only">Target only</span><span class="metric-value" id="cmpMetricTargetOnly">—</span><span class="metric-note" data-i18n="Not present in source">Not present in source</span></div>
+            <div class="metric-card"><span class="metric-label" data-i18n="Update actions">Update actions</span><span class="metric-value" id="cmpMetricSelected">0</span><span class="metric-note" data-i18n="Awaiting validation">Awaiting validation</span></div>
+          </div>
+
+          <div class="layout-split layout-split--compare">
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel panel--compare-results">
+                <div class="panel-head">
+                  <span class="panel-title" data-i18n="Comparison result">Comparison result</span>
+                  <div class="spacer"></div>
+                  <div class="tool-actions">
+                    <button class="btn btn-sm" id="cmpValidate" type="button" disabled data-i18n="Validate">Validate</button>
+                    <button class="btn btn-sm" id="cmpApply" type="button" disabled title="Comparison is read-only. Generate the script and apply it manually." data-i18n-title="Comparison is read-only. Generate the script and apply it manually." data-i18n="Apply">Apply</button>
+                    <button class="btn btn-sm btn-primary" id="cmpScript" type="button" disabled data-i18n="Generate script">Generate script</button>
+                  </div>
+                </div>
+                <div class="table-tools">
+                  <label class="tool-field search"><span data-i18n="Search item">Search item</span><input class="input" id="cmpSearch" type="search" placeholder="Source or target item name" data-i18n-placeholder="Source or target item name"></label>
+                  <label class="tool-field"><span data-i18n="Status">Status</span><div class="select"><select id="cmpStatusFilter"><option value="all" data-i18n="All statuses">All statuses</option><option value="same" data-i18n="Same definition">Same definition</option><option value="diff" data-i18n="Different definition">Different definition</option><option value="source" data-i18n="Source only">Source only</option><option value="target" data-i18n="Target only">Target only</option></select></div></label>
+                  <label class="tool-field"><span data-i18n="Type">Type</span><div class="select"><select id="cmpTypeFilter"><option value="all" data-i18n="All types">All types</option><option value="Table">Table</option><option value="Column">Column</option><option value="Measure">Measure</option><option value="Relationship">Relationship</option><option value="Expression">Expression</option><option value="M query">M query</option><option value="Role">Role</option></select></div></label>
+                  <label class="check" style="margin-bottom:6px"><input type="checkbox" id="cmpOnlyDiff"> <span data-i18n="Only differences">Only differences</span></label>
+                  <div class="tool-actions"><button class="btn btn-sm" id="cmpExport" type="button" disabled data-i18n="Export CSV">Export CSV</button></div>
+                </div>
+                <div class="table-scroll compare-table-scroll" id="compareTableWrap" hidden>
+                  <table class="data data--compare">
+                    <thead><tr><th data-i18n="Type">Type</th><th data-i18n="Source name">Source name</th><th data-i18n="Status">Status</th><th data-i18n="Target name">Target name</th><th style="width:110px" data-i18n="Action">Action</th></tr></thead>
+                    <tbody id="compareBody"></tbody>
+                  </table>
+                </div>
+                <div class="empty" id="cmpEmpty">
+                  <span class="empty-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="16" rx="1.5"></rect><rect x="13" y="4" width="8" height="16" rx="1.5"></rect><path d="M9.5 11h5"></path></svg></span>
+                  <div class="empty-title" id="cmpEmptyTitle" data-i18n="No comparison yet">No comparison yet</div>
+                  <p class="empty-text" id="cmpEmptyText" data-i18n="Choose source and target, then run the comparison. Results show definition differences in both models.">Choose source and target, then run the comparison. Results show definition differences in both models.</p>
+                  <button class="btn btn-sm" id="cmpFromEmpty" type="button" data-i18n="Compare now">Compare now</button>
+                </div>
+                <div class="panel-foot" style="justify-content:space-between"><span class="helper" id="cmpSummary" data-i18n="Not compared yet">Not compared yet</span><span class="helper" data-i18n="Read-only · no target changes">Read-only · no target changes</span></div>
+              </div>
+
+              <div class="panel panel--compare-diff" id="cmpDiffPanel" hidden>
+                <div class="panel-head"><span class="panel-title" data-i18n="Expression comparison">Expression comparison</span><span class="chip chip-idle" id="cmpDiffName" data-i18n="Select a row to see expressions">Select a row to see expressions</span><div class="spacer"></div><span class="helper" data-i18n="Changed lines are highlighted">Changed lines are highlighted</span></div>
+                <div class="compare-diff">
+                  <div class="diff-pane"><div class="diff-pane-head"><span class="diff-side" data-i18n="Source">Source</span><span class="diff-meta" id="cmpDiffSourceMeta">—</span></div><div class="diff-code" id="cmpDiffSource"></div></div>
+                  <div class="diff-pane"><div class="diff-pane-head"><span class="diff-side" data-i18n="Target">Target</span><span class="diff-meta" id="cmpDiffTargetMeta">—</span></div><div class="diff-code" id="cmpDiffTarget"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel"><div class="panel-head"><span class="panel-title" data-i18n="Summary">Summary</span></div><div class="panel-body"><div class="stat-list" id="cmpSummaryBody" hidden><div class="stat-row"><span class="stat-key" data-i18n="Source">Source</span><span class="stat-val" id="cmpStatSource">—</span></div><div class="stat-row"><span class="stat-key" data-i18n="Target">Target</span><span class="stat-val" id="cmpStatTarget">—</span></div><div class="stat-row"><span class="stat-key" data-i18n="Items checked">Items checked</span><span class="stat-val" id="cmpStatCompared">—</span></div><div class="stat-row"><span class="stat-key" data-i18n="Update actions">Update actions</span><span class="stat-val" id="cmpStatActions">0</span></div><div class="stat-row"><span class="stat-key" data-i18n="Last compared">Last compared</span><span class="stat-val" id="cmpStatTime">—</span></div></div><div class="empty" id="cmpSummaryEmpty" style="padding:10px 4px"><div class="empty-title" data-i18n="No data yet">No data yet</div><p class="empty-text" data-i18n="Run a comparison to fill the summary.">Run a comparison to fill the summary.</p></div></div></div>
+              <div class="panel"><div class="panel-head"><span class="panel-title" data-i18n="Item details">Item details</span></div><div class="panel-body" id="cmpDetail"><p class="helper" data-i18n="Click a table row to see status, action, and expressions.">Click a table row to see status, action, and expressions.</p></div></div>
+              <div class="panel"><div class="panel-head"><span class="panel-title" data-i18n="About comparison">About comparison</span></div><div class="panel-body" style="gap:9px"><div class="note"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg><span data-i18n="Comparison only reads metadata. Update actions are suggestions; nothing is written to the target.">Comparison only reads metadata. Update actions are suggestions; nothing is written to the target.</span></div><p class="helper" data-i18n="Service models are read through XMLA; Desktop models are read from the open instance.">Service models are read through XMLA; Desktop models are read from the open instance.</p></div></div>
             </div>
           </div>
         </section>
@@ -1164,7 +1328,7 @@
       <div class="console console--dock" id="consoleDock" role="region" aria-label="Session console log" data-i18n-aria-label="Session console log">
         <div class="console-head">
           <button class="console-toggle" id="consoleToggle" type="button" aria-expanded="false" aria-controls="consoleBody">
-            <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+            <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
             <span class="console-title" data-i18n="Console log">Console log</span>
             <span class="chip chip-idle" id="consoleCount" hidden="">0</span>
             <span class="console-preview" id="consolePreview">No activity in this session yet.</span>

@@ -39,6 +39,8 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   report_usage.py               pemakaian field dari definisi report PBIR + PBIR-Legacy
   usage_store.py                tabel SQLite analisa kolom (cache report, pemakaian, snapshot ukuran)
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
+  model_compare.py              snapshot dua semantic model + diff read-only (status/aksi/line diff)
+  compare_export.py             CSV + manifest script TMSL pratinjau hasil compare
   tom_client.py                 koneksi TOM/XMLA + TMSL refresh partisi (jalur tulis)
   partition_service.py          inventaris partisi + row count DMV (proses CLI terpisah)
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
@@ -54,9 +56,9 @@ server\                         server web lokal (FastAPI + uvicorn, hanya 127.0
   jobs.py                       antrean satu job + log live (SSE) + pembatalan
   settings_store.py             preferensi JSON + migrasi sekali dari registry QSettings 0.3.x
   settings.py                   kunci preferensi web
-  presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, lineage, partitions
-  api\                          system, settings, catalog, metadata, tsd, analysis, lineage, partitions, files, jobs
-web\                            aset statis: index.html, styles.css, app.js, api.js (tanpa build step)
+  presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, compare, lineage, partitions
+  api\                          system, settings, catalog, metadata, tsd, analysis, compare, lineage, partitions, files, jobs
+web\                            aset statis: index.html, styles.css, app.js, api.js, js\core, js\views (tanpa build step)
 templates\tsd.template.html     template TSD gaya Confluence (salinan repo template-tsd)
 tests\                          uji angka acuan, TSD, lineage, dan penanganan error
 libs\Microsoft.AnalysisServices.AdomdClient.dll   dependency ADOMD (v19.84.1.0)
@@ -215,6 +217,8 @@ Semua HTTP keluar lewat `core\api\transport.py` (token Bearer, retry `429`/`5xx`
 | `/api/analysis` | POST | `lineage/export`, `lineage/image`, `dependencies/export`, `preview`, `raw-metadata`, `run`, `preferences`, `export` |
 | `/api/catalog` | GET | `status` |
 | `/api/catalog` | POST | `sync`, `scan` |
+| `/api/compare` | GET | `state` |
+| `/api/compare` | POST | `run`, `export`, `script` |
 | `/api/files` | GET | `browse`, `outputs` |
 | `/api/files` | POST | `open` |
 | `/api/jobs` | GET | ``, `{id}`, `{id}/stream` |
@@ -401,6 +405,18 @@ python verify_reference.py --pbix "path\ke\Report.pbix" --no-model   # report sa
 
 Skrip mengekstrak ulang ke folder sementara (workbook di folder tooling tidak ditimpa), lalu membandingkan jumlah halaman, visual, field, slicer, filter, interaksi, measure, kolom, dan jumlah sheet dengan angka acuan. Angka model hanya diperiksa bila ada instance Desktop (atau `--port`/`--catalog`). Exit code: `0` cocok, `1` ada beda/belum diverifikasi, `2` tidak bisa dijalankan. Bila ada lebih dari satu instance, skrip berhenti dan menampilkan pilihan; jalankan ulang dengan `--port`/`--catalog`.
 
+## Compare Semantic Model
+
+Halaman ini membandingkan dua semantic model dari Power BI Service atau instance Power BI Desktop. Perbandingan **read-only**: tidak ada perubahan ke model target.
+
+- Sumber/target: Service (workspace + semantic model) atau Desktop (instance yang terbuka).
+- Status: **Same definition**, **Different definition**, **Source only**, **Target only**.
+- Aksi disarankan: `Skip`, `Create`, `Update`, `Delete`; aksi target-only default `Skip`.
+- Opsi: measure & kolom, relasi, M query & ekspresi, format string, role & RLS.
+- Panel ekspresi menampilkan diff baris sumber/target.
+- **Validate** hanya validasi lokal; **Generate script** menulis manifest TMSL pratinjau ke `outputs\`; **Export CSV** menulis seluruh hasil.
+- Tidak ada tombol Apply/endpoint tulis. Terapkan script secara manual.
+
 ## Analisa Semantic Model
 
 Tab ini **read-only**: tidak ada perubahan ke model maupun report. Tujuannya menjawab dua pertanyaan sekaligus: berapa ukuran tiap kolom, dan apakah kolom/measure itu masih dipakai. Halaman **Partisi** adalah pengecualian yang disengaja untuk me-refresh partisi lewat XMLA Read Write dengan konfirmasi `PROCESS`; halaman lain tidak mengirim request tulis.
@@ -456,6 +472,16 @@ Untuk measure, `Dipakai` mencakup pemakaian langsung oleh visual dan pemakaian *
 Cakupan selalu ditampilkan, misalnya `38 report · 25 dipindai · 12 personal dilewati · 1 App dilewati · 0 field tak terpetakan`. Batas `--max-reports`, tombol **Hentikan**, report **tidak dapat diakses** (403/404), dan field tak terpetakan **tidak** boleh menghasilkan klaim "Tidak dipakai" — kolom otomatis menjadi **Perlu dicek**.
 
 Report di **My Workspace** (`PersonalGroup`) dilewati secara default dan tidak dihitung sebagai penghalang cakupan; centang **Sertakan report My Workspace (personal)** (atau `--include-personal`) bila salinan itu memang ingin dianalisa. Report dari **Power BI App** (`[App] …`) selalu dilewati dan juga tidak menghalangi cakupan. Report di workspace biasa yang ditolak 403/404 dicatat `inaccessible`, dicoba ulang paling cepat 24 jam kemudian (atau saat `--refresh`), dan tetap menurunkan cakupan.
+
+### Tab Roles (RLS/OLS)
+
+Tab **Roles** menampilkan role model beserta member dan table permission:
+
+- Role: nama, model permission, jumlah member, sumber RLS.
+- Member: nama, provider (`AzureAD`/`Windows`), tipe user/group, member ID, modified.
+- Table permission: tabel, ekspresi filter RLS, status OLS.
+
+Data berasal dari `TMSCHEMA_ROLES`, `TMSCHEMA_ROLE_MEMBERSHIPS`, `TMSCHEMA_TABLE_PERMISSIONS`, dan `TMSCHEMA_COLUMN_PERMISSIONS`. Tabel tetap memakai 11 kolom Analisa yang sudah ada; role dan member dirender sebagai baris hierarkis.
 
 ### Kesehatan model & report
 

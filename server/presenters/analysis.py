@@ -970,6 +970,7 @@ def serialize_result(
         "best_practice": build_best_practice(result),
         "tables": table_rows,
         "relationships": relationship_rows,
+        "roles": list(getattr(result, "roles", []) or []),
         "m_queries": [
             {
                 "name": str(item.get("name") or ""),

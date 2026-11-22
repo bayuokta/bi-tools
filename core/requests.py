@@ -505,3 +505,121 @@ class PartitionRefreshRequest(PartitionRequest):
         )
         return payload
 
+# ---------------------------------------------------------------------------
+# Perbandingan semantic model (read-only)
+# ---------------------------------------------------------------------------
+COMPARE_SIDE_DATASET = "dataset"
+COMPARE_SIDE_DESKTOP = "desktop"
+
+
+@dataclass(frozen=True)
+class CompareSide:
+    """Satu sisi perbandingan: dataset Service atau instance Desktop."""
+
+    kind: str = COMPARE_SIDE_DATASET
+    workspace_id: str = ""
+    dataset_id: str = ""
+    workspace_name: str = ""
+    dataset_name: str = ""
+    port: int = 0
+    catalog: str = ""
+
+    def __post_init__(self) -> None:
+        kind = str(self.kind or "").strip().lower()
+        if kind not in {COMPARE_SIDE_DATASET, COMPARE_SIDE_DESKTOP}:
+            raise ExtractionError("Tipe sumber harus 'dataset' atau 'desktop'.")
+        object.__setattr__(self, "kind", kind)
+        if kind == COMPARE_SIDE_DATASET:
+            object.__setattr__(
+                self, "workspace_id", _guid(self.workspace_id, "Workspace ID")
+            )
+            object.__setattr__(
+                self, "dataset_id", _guid(self.dataset_id, "Semantic model ID")
+            )
+            object.__setattr__(
+                self, "workspace_name", str(self.workspace_name or "").strip()
+            )
+            object.__setattr__(
+                self, "dataset_name", str(self.dataset_name or "").strip()
+            )
+        else:
+            try:
+                port = int(self.port)
+            except (TypeError, ValueError) as exc:
+                raise ExtractionError("Port instance Desktop tidak valid.") from exc
+            if port <= 0:
+                raise ExtractionError("Pilih instance Power BI Desktop dulu.")
+            catalog = str(self.catalog or "").strip()
+            if not catalog:
+                raise ExtractionError("Catalog instance Desktop masih kosong.")
+            object.__setattr__(self, "port", port)
+            object.__setattr__(self, "catalog", catalog)
+
+    @classmethod
+    def from_payload(cls, value: Mapping[str, Any] | None) -> "CompareSide":
+        payload = dict(value or {})
+        return cls(
+            kind=str(payload.get("type") or payload.get("kind") or ""),
+            workspace_id=str(payload.get("workspace_id") or ""),
+            dataset_id=str(payload.get("dataset_id") or ""),
+            workspace_name=str(payload.get("workspace_name") or ""),
+            dataset_name=str(payload.get("dataset_name") or ""),
+            port=payload.get("port") or 0,
+            catalog=str(payload.get("catalog") or ""),
+        )
+
+    @property
+    def identity(self) -> tuple[str, str, str]:
+        if self.kind == COMPARE_SIDE_DESKTOP:
+            return (self.kind, str(self.port), self.catalog.casefold())
+        return (self.kind, self.workspace_id, self.dataset_id)
+
+    def to_payload(self) -> dict[str, Any]:
+        if self.kind == COMPARE_SIDE_DESKTOP:
+            return {
+                "type": self.kind,
+                "port": self.port,
+                "catalog": self.catalog,
+            }
+        return {
+            "type": self.kind,
+            "workspace_id": self.workspace_id,
+            "dataset_id": self.dataset_id,
+            "workspace_name": self.workspace_name,
+            "dataset_name": self.dataset_name,
+        }
+
+
+@dataclass(frozen=True)
+class CompareRequest:
+    """Input perbandingan dua semantic model; tidak pernah menulis target."""
+
+    source: CompareSide
+    target: CompareSide
+    options: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.source, CompareSide) or not isinstance(
+            self.target, CompareSide
+        ):
+            raise ExtractionError("Sumber dan target perbandingan tidak valid.")
+        if self.source.identity == self.target.identity:
+            raise ExtractionError("Sumber dan target tidak boleh model yang sama.")
+
+    @classmethod
+    def from_payload(cls, value: Mapping[str, Any] | None) -> "CompareRequest":
+        payload = dict(value or {})
+        source = CompareSide.from_payload(payload.get("source"))
+        target = CompareSide.from_payload(payload.get("target"))
+        options = payload.get("options")
+        if options is not None and not isinstance(options, Mapping):
+            raise ExtractionError("Opsi perbandingan tidak valid.")
+        return cls(source=source, target=target, options=options)
+
+    def to_run_kwargs(self) -> dict[str, Any]:
+        return {
+            "source": self.source.to_payload(),
+            "target": self.target.to_payload(),
+            "options": dict(self.options or {}),
+        }
+

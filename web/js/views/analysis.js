@@ -197,6 +197,12 @@ import { state } from "../core/state.js";
       unused: false,
       expandable: false
     },
+    roles: {
+      placeholder: t("Role or member name"),
+      filters: [["all", t("All types")], ["Role", t("Role")], ["Member", t("Member")]],
+      unused: false,
+      expandable: true
+    },
     report: {
       placeholder: t("Report, page, or workspace name"),
       filters: [["all", t("All statuses")], ["used", t("Used")], ["unused", t("Unused")]],
@@ -495,7 +501,7 @@ import { state } from "../core/state.js";
   function analysisCounts() {
     var result = state.analysis;
     var counts = {
-      all: 0, tables: 0, relationships: 0, report: 0, dax: 0, m: 0, health: 0,
+      all: 0, tables: 0, relationships: 0, roles: 0, report: 0, dax: 0, m: 0, health: 0,
       bestpractice: 0
     };
     if (!result) return counts;
@@ -503,6 +509,7 @@ import { state } from "../core/state.js";
     counts.all = (totals.columns || 0) + (totals.measures || 0);
     counts.tables = (result.tables || []).length;
     counts.relationships = (result.relationships || []).length;
+    counts.roles = (result.roles || []).length;
     counts.report = (result.reports || []).length;
     counts.dax = (result.measures || []).length + analysisCalculatedColumns().length;
     counts.m = (result.m_queries || []).length;
@@ -522,6 +529,7 @@ import { state } from "../core/state.js";
     $("#tabCountAll").textContent = state.analysis ? fmtInt(counts.all) : "";
     $("#tabCountTables").textContent = state.analysis ? fmtInt(counts.tables) : "";
     $("#tabCountRelationships").textContent = state.analysis ? fmtInt(counts.relationships) : "";
+    $("#tabCountRoles").textContent = state.analysis ? fmtInt(counts.roles) : "";
     $("#tabCountReport").textContent = state.analysis ? fmtInt(counts.report) : "";
     $("#tabCountDax").textContent = state.analysis ? fmtInt(counts.dax) : "";
     $("#tabCountM").textContent = state.analysis ? fmtInt(counts.m) : "";
@@ -3285,6 +3293,113 @@ import { state } from "../core/state.js";
     };
   }
 
+  function analysisRoleRows() {
+    var result = state.analysis || {};
+    var roles = result.roles || [];
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var typeFilter = getSelectValue("typeAnalyze") || "all";
+    var rows = [];
+    var memberCount = 0;
+    var permissionCount = 0;
+
+    function roleMatches(role) {
+      if (typeFilter === "Member") return false;
+      return !query || (role.name + " " + (role.model_permission || "")).toLowerCase().indexOf(query) !== -1;
+    }
+
+    function memberMatches(role, member) {
+      if (typeFilter === "Role") return false;
+      return !query || (
+        member.name + " " + (member.member_id || "") + " " + (member.provider || "")
+      ).toLowerCase().indexOf(query) !== -1 ||
+        (role.name + " " + (role.id || "")).toLowerCase().indexOf(query) !== -1;
+    }
+
+    roles.forEach(function (role) {
+      var members = (role.members || []).filter(function (member) {
+        return memberMatches(role, member);
+      });
+      if (!roleMatches(role) && !members.length) return;
+      var groupId = "role:" + (role.id || role.name);
+      var open = analysisIsOpen(groupId, false);
+      var status = (role.members || []).length || (role.permissions || []).length
+        ? t("Active") : t("No members");
+      rows.push({
+        id: groupId,
+        level: 0,
+        group: true,
+        numCols: [7],
+        cells: [
+          analysisNameCell(role.name, "group", {
+            toggleId: groupId,
+            open: open,
+            level: 0
+          }),
+          "Role",
+          "Model",
+          "RLS",
+          "—",
+          "—",
+          status,
+          fmtInt((role.members || []).length),
+          "—",
+          "—",
+          escapeHtml(role.model_permission || "—")
+        ]
+      });
+      if (!open) return;
+      members.forEach(function (member) {
+        memberCount += 1;
+        rows.push({
+          id: groupId + ":member:" + (member.member_id || member.name),
+          level: 1,
+          cells: [
+            analysisNameCell(member.name, "group", { level: 1 }),
+            "Member",
+            "Role " + role.name,
+            escapeHtml(member.provider || "—"),
+            escapeHtml(member.member_type || "—"),
+            "—",
+            "—",
+            "—",
+            escapeHtml(member.member_id || "—"),
+            "—",
+            escapeHtml(member.modified || "—")
+          ]
+        });
+      });
+      (role.permissions || []).forEach(function (permission) {
+        permissionCount += 1;
+        rows.push({
+          id: groupId + ":permission:" + (permission.table || ""),
+          level: 1,
+          cells: [
+            analysisNameCell(permission.table || "—", "table", { level: 1 }),
+            "Table permission",
+            "Role " + role.name,
+            "RLS",
+            "—",
+            "—",
+            permission.has_ols ? "OLS" : "—",
+            "—",
+            escapeHtml(analysisTruncate(permission.expression || "—", 90)),
+            "—",
+            "—"
+          ]
+        });
+      });
+    });
+
+    return {
+      headers: analysisTreeHeaders(false),
+      widths: ["24%", "7%", "9%", "6%", "7%", "7%", "13%", "7%", "8%", "5%", "7%"],
+      rows: rows,
+      summary: fmtInt(roles.length) + " " + t("roles") + " · " +
+        fmtInt(memberCount) + " " + t("members shown") + " · " +
+        fmtInt(permissionCount) + " " + t("table permissions")
+    };
+  }
+
   function analysisTreeHeaders(tablesMode) {
     if (tablesMode) {
       return [
@@ -4731,6 +4846,7 @@ import { state } from "../core/state.js";
     if (tab === "all") view = analysisFlatRows();
     else if (tab === "tables") view = analysisTreeView();
     else if (tab === "relationships") view = analysisRelationshipRows();
+    else if (tab === "roles") view = analysisRoleRows();
     else if (tab === "report") view = analysisReportRows();
     else if (tab === "dax") view = analysisDaxRows();
     else if (tab === "m") view = analysisMRows();

@@ -28,7 +28,8 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 | `web\js\core\format.js` | `decimalText`, `fmtInt`, `sizeText`, `fileMeta`. |
 | `web\js\core\combo.js` | Komponen combo: enhance select, popup, pencarian, set/get options. |
 | `web\js\core\app_api.js` | Jembatan sementara: `app.toast`, `app.startJob`, `app.api`, dll. Diisi `app.js` sebelum `init()`. |
-| `web\js\views\analysis.js` | Seluruh logika halaman Analisa (payload, tabel, menu, detail, lineage, health, best practice, relationships). |
+| `web\js\views\analysis.js` | Seluruh logika halaman Analisa (payload, tabel, menu, detail, lineage, health, best practice, relationships, roles). |
+| `web\js\views\compare.js` | Halaman Compare semantic model: picker sumber/target, job compare read-only, tabel diff, filter, detail, expression diff, validate/export/script. |
 | `web\js\views\metadata-tsd.js` | Ekstraksi metadata + TSD: instance, workspace, picker, batch, payload, render TSD, capture/cache, sidecar, preview. |
 | `web\js\views\partitions-lineage.js` | Halaman Partisi dan Lineage SQLite: inventory/refresh, tabel partisi, pencarian, grafik lineage, ekspor. |
 | `web\ARCHITECTURE.md` | Dokumen ini. |
@@ -111,6 +112,14 @@ Helper node bersama: `clipLabel`, `lineageTypeName`, `nodeHue`,
 `renderSettings`, `showSettingsTab`, `savePreference`, `syncCatalog`,
 `runScan`, `testToken` (cari juga `grep "api/settings"` untuk endpoint).
 
+## Peta `js\views\compare.js`
+
+- Picker: `compareLoadState`, `fillCompareSide`, `loadCompareDatasets`, `setCompareType`, `comparePayload`, `validateCompareForm`.
+- Job: `runCompare` (`startJob` `/api/compare/run`), `applyCompareResult`.
+- Render: `renderCompare`, `renderCompareMetrics`, `renderCompareTable`, `renderCompareDetail`, `renderCompareDiff`, `renderDiffPane`.
+- Aksi: `selectCompareRow`, `validateCompare`, `exportCompare`, `generateCompareScript`, `initCompareEvents`.
+- Halaman read-only; `#cmpApply` selalu disabled.
+
 ## Peta `js\views\analysis.js`
 
 File ini masih besar (~5.000 baris); **jangan dibaca penuh**. Cari anchor
@@ -147,7 +156,7 @@ dengan `grep`, lalu baca jendela kecil.
   `analysisFilteredRelationships`, `analysisRelationshipRows`,
   `analysisReportRows`, `analysisDaxRows`, `analysisMRows`,
   `analysisHealthRows`, `analysisBestPracticeRows`, `analysisSortItems`,
-  `analysisHead`, `analysisBody`, `analysisRender`.
+  `analysisRoleRows`, `analysisHead`, `analysisBody`, `analysisRender`.
 - Health/best practice: `analysisHealthRuleLabel`, `analysisHealthRulesMarkup`,
   `analysisPracticeTitle`, `analysisHealthDetail`, `analysisHealthOpen`,
   `analysisBestPracticeIcon`, `analysisBestPracticeSeverity`,

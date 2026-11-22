@@ -530,11 +530,40 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("GROUP_ORDER", core)
         self.assertNotIn("sqlite3", core)
 
-    def test_web_analysis_has_eight_tabs_and_no_mock_model_data(self) -> None:
+    def test_web_compare_is_read_only_and_roles_tab_exists(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        for tab in ("all", "tables", "relationships", "report", "dax", "m", "health", "bestpractice"):
+        js = web_script_text()
+        for marker in (
+            'data-view="compare"',
+            'id="view-compare"',
+            'id="runCompare"',
+            'id="cmpApply"',
+            'id="tab-roles"',
+            "M6 15l6-6 6 6",
+        ):
+            self.assertIn(marker, html)
+        for marker in (
+            "function initCompareEvents(",
+            "function runCompare(",
+            "/api/compare/run",
+            "/api/compare/export",
+            "/api/compare/script",
+            "Comparison is read-only",
+        ):
+            self.assertIn(marker, js)
+        compare_presenter = (
+            ROOT / "server" / "presenters" / "compare.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def run_job(", compare_presenter)
+        self.assertIn("read_only", compare_presenter)
+        self.assertIn("Tidak ada jalur tulis", compare_presenter)
+
+    def test_web_analysis_has_nine_tabs_and_no_mock_model_data(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        for tab in ("all", "tables", "relationships", "roles", "report", "dax", "m", "health", "bestpractice"):
             self.assertIn(f'data-analysis-tab="{tab}"', html)
         js = web_script_text()
+        self.assertIn("function analysisRoleRows(", js)
         presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
             encoding="utf-8"
         )

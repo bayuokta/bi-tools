@@ -7,6 +7,37 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-22 - Rilis 0.6.0
+
+### Compare Semantic Model
+
+- **Halaman Compare baru** (read-only) untuk membandingkan dua semantic model
+  dari Power BI Service atau instance Power BI Desktop.
+- Sumber/target: Dataset (workspace + model) atau Desktop (instance terbuka),
+  dengan tombol tukar.
+- Status `Same definition`, `Different definition`, `Source only`,
+  `Target only`; aksi `Skip`, `Create`, `Update`, `Delete` (target-only default
+  `Skip`).
+- Opsi: measure & kolom, relasi, M query & ekspresi, format string, role & RLS.
+- Tabel hasil dengan filter status/tipe/pencarian, panel detail item, dan diff
+  baris ekspresi sumber/target.
+- **Validate** lokal, **Generate script** (manifest TMSL pratinjau), dan
+  **Export CSV**. Tombol Apply selalu disabled: tidak ada jalur tulis ke target.
+- API baru: `GET /api/compare/state`, `POST /api/compare/run|export|script`.
+
+### Analisa Semantic Model
+
+- **Tab Roles** baru: role, member (provider/tipe/ID/modified), table permission
+  RLS, dan status OLS. Data dari `TMSCHEMA_ROLES`,
+  `TMSCHEMA_ROLE_MEMBERSHIPS`, `TMSCHEMA_TABLE_PERMISSIONS`, dan
+  `TMSCHEMA_COLUMN_PERMISSIONS`; tabel 11 kolom Analisa dipertahankan.
+
+### UI
+
+- Chevron console log mengikuti mockup (`M6 15l6-6 6 6`).
+- Modul `web\js\views\compare.js`; label Indonesia untuk halaman Compare,
+  Roles, dan dialog terkait.
+
 ## 2026-11-22 - Rilis 0.5.3
 
 ### UI Web

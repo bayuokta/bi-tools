@@ -12,6 +12,12 @@ import {
   setSelectValue
 } from "./js/core/combo.js";
 
+import {
+  compareLoadState,
+  initCompareEvents,
+  renderCompare
+} from "./js/views/compare.js";
+
 import { app } from "./js/core/app_api.js";
 import {
   analysisCloseMenu,
@@ -230,6 +236,7 @@ var NEWLINE = String.fromCharCode(10);
     if (state.settings) renderSettings(state.settings);
     if (state.tsd) renderTsdState(state.tsd);
     if (state.analysis !== undefined) analysisRender();
+    if (state.compare) renderCompare();
     if (state.partitions !== null) partitionRender();
     applyMetaSteps();
     if (state.lineageGraph) {
@@ -298,6 +305,9 @@ var NEWLINE = String.fromCharCode(10);
     }
     if (name === "partisi" && !state.partitionStateLoaded) {
       partitionLoadState();
+    }
+    if (name === "compare" && !state.compareLoaded) {
+      compareLoadState();
     }
   }
 
@@ -796,6 +806,7 @@ var NEWLINE = String.fromCharCode(10);
   function init() {
     initComboEvents();
     enhanceAllSelects();
+    initCompareEvents();
     applyLanguage(state.language, { rerender: false });
     applyTheme(state.theme, false);
     applyMotion(state.motion, false);

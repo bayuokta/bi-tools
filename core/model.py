@@ -82,6 +82,7 @@ SECURITY_FILTERING = {1: "oneDirection", 2: "bothDirections", 3: "none"}
 CARDINALITY = {0: "none", 1: "one", 2: "many"}
 JOIN_ON_DATE = {1: "dateAndTime", 2: "datePartOnly"}
 MODEL_PERMISSION = {1: "none", 2: "read", 3: "readRefresh", 4: "refresh", 5: "administrator"}
+ROLE_MEMBER_TYPE = {0: "User", 1: "Group", 2: "Unknown"}
 METADATA_PERMISSION = {0: "default", 1: "none", 2: "read"}
 PARTITION_SOURCE_TYPE = {
     1: "query",
@@ -163,6 +164,7 @@ DMVS = [
     "TMSCHEMA_EXPRESSIONS",
     "TMSCHEMA_RELATIONSHIPS",
     "TMSCHEMA_ROLES",
+    "TMSCHEMA_ROLE_MEMBERSHIPS",
     "TMSCHEMA_TABLE_PERMISSIONS",
     "TMSCHEMA_COLUMN_PERMISSIONS",
     "TMSCHEMA_REFRESH_POLICIES",
@@ -773,6 +775,7 @@ def read_model_metadata(model: LiveModel) -> dict[str, list[dict[str, Any]]]:
         "relationships": build_relationships(model),
         "partitions": build_partitions(model),
         "expressions": build_expressions(model),
+        "roles": build_role_details(model),
     }
 
 
@@ -811,6 +814,70 @@ def build_roles(model: LiveModel) -> tuple[list[dict[str, Any]], int]:
                 }
             )
     return rows, len(column_permissions)
+
+
+def build_role_details(model: LiveModel) -> list[dict[str, Any]]:
+    """Role lengkap dengan member dan table permission (RLS/OLS).
+
+    Dipakai tab Roles di halaman Analisa dan halaman Compare (read-only).
+    ``TMSCHEMA_ROLE_MEMBERSHIPS`` tidak tersedia di semua engine lama; bagian
+    member dibiarkan kosong tanpa mengarang data.
+    """
+    members_by_role: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for row in model.raw.get("TMSCHEMA_ROLE_MEMBERSHIPS", []):
+        role_id = int(row.get("RoleID") or 0)
+        members_by_role[role_id].append(
+            {
+                "name": str(
+                    row.get("MemberName") or row.get("Name") or ""
+                ),
+                "member_id": str(row.get("MemberID") or ""),
+                "member_type": label(
+                    row.get("MemberType"), ROLE_MEMBER_TYPE, "memberType"
+                ),
+                "member_type_id": row.get("MemberType"),
+                "provider": str(
+                    row.get("IdentityProvider") or row.get("Provider") or ""
+                ),
+                "modified": fmt_dt(row.get("ModifiedTime")),
+            }
+        )
+
+    permissions_by_role: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for row in model.raw.get("TMSCHEMA_TABLE_PERMISSIONS", []):
+        permissions_by_role[int(row["RoleID"])].append(row)
+    column_permissions = model.raw.get("TMSCHEMA_COLUMN_PERMISSIONS", [])
+    ols_permissions = {int(row["TablePermissionID"]) for row in column_permissions}
+
+    rows: list[dict[str, Any]] = []
+    for role_id, role in model.role_by_id.items():
+        permissions = [
+            {
+                "table": model.table_name.get(int(permission["TableID"]), ""),
+                "expression": str(permission.get("FilterExpression") or ""),
+                "has_ols": int(permission["ID"]) in ols_permissions,
+            }
+            for permission in permissions_by_role.get(role_id, [])
+        ]
+        members = sorted(
+            members_by_role.get(role_id, []),
+            key=lambda item: (item["name"].casefold(), item["member_id"]),
+        )
+        rows.append(
+            {
+                "id": role_id,
+                "name": str(role["Name"]),
+                "model_permission": label(
+                    role.get("ModelPermission"), MODEL_PERMISSION, "permission"
+                ),
+                "description": str(role.get("Description") or ""),
+                "modified": fmt_dt(role.get("ModifiedTime")),
+                "members": members,
+                "permissions": permissions,
+            }
+        )
+    rows.sort(key=lambda item: item["name"].casefold())
+    return rows
 
 
 def query_order(model: LiveModel) -> list[str]:
