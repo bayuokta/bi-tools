@@ -37,8 +37,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dan compare mengirim payload `interactive` tanpa token.
 - Paket berisi tiga executable: `BI Tools.exe`, `bi-tools-cli.exe`, dan
   `bi-tools-sync.exe`.
-- Batasan diketahui: pada mode user, setiap proses anak TOM/DMV dapat
-  memunculkan dialog MSOLAP karena identitas MSOLAP tidak dibagi antar-proses.
+- Jendela login worker ADOMD/TOM hanya tampil saat login. Setelah koneksi
+  berhasil jendela disembunyikan, worker menutup diri setelah idle 10 menit, dan
+  seluruh worker dihentikan saat server berhenti.
+- Batasan diketahui: pada mode user, setiap proses anak TOM/DMV tetap membuka
+  sesi MSOLAP sendiri, sehingga login pertama per proses masih memerlukan
+  identitas MSOLAP (umumnya silent setelah login pertama).
+- Program sync terpaket menerima `--env-file` agar kredensial service principal
+  bisa dibaca dari berkas di luar folder aplikasi.
 
 ## 2026-11-22 - Rilis 0.6.4
 

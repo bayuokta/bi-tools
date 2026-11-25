@@ -219,6 +219,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_principal(ServicePrincipal("t", "c", "s"))
         self.store.set_lineage_db(self.root / "katalog.db")
 
@@ -663,6 +664,7 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_lineage_db(self.root / "katalog.db")
         self.app = create_app(settings_store=self.store, web_root=web)
         self.client = TestClient(self.app)

@@ -70,6 +70,7 @@ class LineagePresenterTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_lineage_db(self.root / "lineage.db")
 
     def test_state_without_database(self) -> None:
@@ -197,6 +198,7 @@ class LineageEndpointTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_lineage_db(self.root / "lineage.db")
         self.app = create_app(settings_store=self.store, web_root=web)
         self.client = TestClient(self.app)

@@ -41,6 +41,7 @@ class ApiTestCase(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.app = create_app(
             settings_store=self.store,
             web_root=self.web,

@@ -92,7 +92,8 @@ Invoke-Step "ZIP portable" {
 # --- Installer Inno Setup ------------------------------------------------
 $isccCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-    "C:\Program Files\Inno Setup 6\ISCC.exe"
+    "C:\Program Files\Inno Setup 6\ISCC.exe",
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
 )
 $iscc = $env:BI_TOOLS_ISCC
 if (-not ($iscc -and (Test-Path $iscc))) {

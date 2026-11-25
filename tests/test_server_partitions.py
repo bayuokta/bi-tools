@@ -42,6 +42,7 @@ class PartitionPresenterTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_lineage_db(self.root / "katalog.db")
 
     def test_state_has_refresh_types_and_confirmation(self) -> None:
@@ -129,6 +130,7 @@ class PartitionEndpointTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
+        self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_lineage_db(self.root / "katalog.db")
         self.app = create_app(settings_store=self.store, web_root=web)
         self.client = TestClient(self.app)
