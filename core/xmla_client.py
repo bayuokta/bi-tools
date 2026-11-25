@@ -416,7 +416,7 @@ def _interactive_connection_string(
         else:
             url = normalized
         url = url.replace("?readonly", "").replace("&readonly", "")
-        connection = f"Data Source={url}"
+        connection = f"Provider=MSOLAP;Data Source={url}"
     if not connection.endswith(";"):
         connection += ";"
     if catalog and "initial catalog=" not in connection.lower():
@@ -426,8 +426,6 @@ def _interactive_connection_string(
         connection += f"Initial Catalog={name};"
     if "connect timeout=" not in connection.lower():
         connection += "Connect Timeout=60;"
-    if "authentication=" not in connection.lower():
-        connection += "Authentication=ActiveDirectoryInteractive;"
     return connection
 
 
