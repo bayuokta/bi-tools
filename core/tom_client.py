@@ -42,6 +42,7 @@ from .paths import APP_DIR
 from .xmla_client import (
     INTERACTIVE_LOGIN_PROPS,
     _blocked_assembly_message,
+    register_assembly_resolver,
     pythonnet_assembly,
     readwrite_endpoint,
     unblock_dotnet_assemblies,
@@ -79,6 +80,9 @@ def load_tom(dll_dir: str | Path | None = None) -> tuple[Any, Any, Any]:
             sys.path.insert(0, str(folder))
         import clr  # pythonnet
 
+        if str(folder.parent) not in sys.path:
+            sys.path.insert(0, str(folder.parent))
+        register_assembly_resolver([folder, folder.parent])
         clr.AddReference("Microsoft.AnalysisServices.Tabular")
         clr.AddReference("Microsoft.AnalysisServices.Tabular.Json")
 

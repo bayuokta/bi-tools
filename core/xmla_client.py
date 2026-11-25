@@ -109,6 +109,41 @@ def _blocked_assembly_message(paths: list[Path], detail: str = "") -> str:
     return message
 
 
+
+_ASSEMBLY_RESOLVER_READY = False
+
+
+def register_assembly_resolver(directories: list[Path]) -> None:
+    """Daftarkan resolver DLL .NET (ADOMD + MSAL native) satu kali per proses."""
+    global _ASSEMBLY_RESOLVER_READY
+    if _ASSEMBLY_RESOLVER_READY:
+        return
+    try:
+        from System import AppDomain
+        from System.Reflection import Assembly
+    except Exception:  # noqa: BLE001 - pythonnet belum siap
+        return
+
+    folders = [Path(item) for item in directories if Path(item).is_dir()]
+
+    def _resolve(_sender: Any, args: Any) -> Any:
+        try:
+            simple = str(args.Name).split(",")[0].strip()
+        except Exception:  # noqa: BLE001
+            return None
+        for folder in folders:
+            candidate = folder / f"{simple}.dll"
+            if candidate.is_file():
+                try:
+                    return Assembly.LoadFrom(str(candidate))
+                except Exception:  # noqa: BLE001 - coba folder berikutnya
+                    continue
+        return None
+
+    AppDomain.CurrentDomain.AssemblyResolve += _resolve
+    _ASSEMBLY_RESOLVER_READY = True
+
+
 def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
     """Muat assembly ADOMD. Return (AdomdConnection, AdomdCommand, DBNull)."""
     global _ADOMD
@@ -119,10 +154,21 @@ def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
     if not path.exists():
         raise XmlaError(f"DLL ADOMD tidak ditemukan: {path}")
 
-    blocked = unblock_dotnet_assemblies(pythonnet_assembly(), path)
+    folders = [path.parent]
+    tom_dir = path.parent / "tom"
+    if tom_dir.is_dir():
+        folders.append(tom_dir)
+    blocked = unblock_dotnet_assemblies(
+        pythonnet_assembly(),
+        *[dll for folder in folders for dll in folder.glob("*.dll")],
+    )
 
     try:
         import clr  # pythonnet
+        for folder in folders:
+            if str(folder) not in sys.path:
+                sys.path.insert(0, str(folder))
+        register_assembly_resolver(folders)
         clr.AddReference(str(path))
         from Microsoft.AnalysisServices.AdomdClient import AdomdCommand, AdomdConnection
         from System import DBNull
