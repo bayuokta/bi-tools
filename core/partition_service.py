@@ -159,6 +159,10 @@ def _tom_partitions_subprocess(
     interactive: bool = False,
 ) -> list[PartitionInfo]:
     """Baca metadata partisi lewat proses anak yang hanya memuat TOM."""
+    if interactive:
+        from .tom_worker_client import get_tom_worker
+
+        return partitions_from_payload(get_tom_worker(endpoint, dataset_name).inventory())
     text = _run_json_process(
         _cli_command("--inventory-json", endpoint, dataset_name),
         json.dumps(_token_payload(tokens, interactive)),
@@ -177,6 +181,17 @@ def _tom_refresh_subprocess(
     interactive: bool = False,
 ) -> list[PartitionInfo]:
     """Kirim satu TMSL lewat proses anak TOM; log progres ikut diteruskan."""
+    if interactive:
+        from .tom_worker_client import get_tom_worker
+
+        rows = get_tom_worker(endpoint, dataset_name).refresh(
+            [
+                {"table": table, "partition": partition}
+                for table, partition in targets
+            ],
+            refresh_type,
+        )
+        return partitions_from_payload(rows)
     payload = _token_payload(tokens, interactive)
     payload.update(
         {

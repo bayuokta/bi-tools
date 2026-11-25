@@ -103,6 +103,7 @@ hiddenimports = [
     "cli.partition",
     "cli.sync",
     "cli.xmla_worker",
+    "cli.tom_worker",
     # Server memuat app FastAPI secara malas di runtime.run().
     *collect_submodules("server"),
     # uvicorn memilih implementasi loop/protokol saat runtime.

@@ -32,10 +32,10 @@ class _Session:
         if not data_source or not str(catalog or "").strip():
             raise ValueError("Endpoint dan catalog wajib diisi.")
         connection_string = (
+            "Provider=MSOLAP;"
             f"Data Source={data_source};"
-            f"Initial Catalog={catalog};"
+            f"Catalog={catalog};"
             "Connect Timeout=60;"
-            "Interactive Login=Always; Identity Mode=Connection;"
         )
         connection = connection_cls(connection_string)
         connection.Open()
@@ -127,7 +127,15 @@ def main(argv: list[str] | None = None) -> int:
 
     threading.Thread(target=read_stdin, daemon=True).start()
     root = tk.Tk()
-    root.withdraw()
+    root.title("BI Tools - XMLA login")
+    root.geometry("360x100+80+80")
+    tk.Label(
+        root,
+        text="Selesaikan login XMLA di jendela yang muncul.\n"
+        "Jendela ini boleh diminimalkan setelah selesai.",
+        justify="center",
+    ).pack(padx=12, pady=12)
+    root.update()
 
     def poll() -> None:
         while True:

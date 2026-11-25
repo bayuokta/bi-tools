@@ -29,6 +29,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "partition": ("cli.partition", "inventaris dan refresh partisi semantic model"),
     "sync": ("cli.sync", "sinkronisasi katalog/lineage + snapshot database bersama"),
     "xmla-worker": ("cli.xmla_worker", "worker ADOMD interaktif internal"),
+    "tom-worker": ("cli.tom_worker", "worker TOM interaktif internal"),
     "install-browser": ("", "unduh Chromium untuk screenshot TSD"),
 }
 

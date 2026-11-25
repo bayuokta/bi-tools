@@ -64,6 +64,10 @@ def read_snapshot(
         raise ExtractionError("Catalog semantic model kosong.")
     if not port and not str(endpoint or "").strip():
         raise ExtractionError("Endpoint XMLA kosong.")
+    if interactive:
+        from .tom_worker_client import get_tom_worker
+
+        return get_tom_worker(endpoint, name).snapshot(dict(options or {}))
     payload: dict[str, Any] = {
         "options": dict(options or {}),
         **_token_payload(tokens, interactive),

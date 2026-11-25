@@ -35,7 +35,7 @@ from uuid import uuid4
 import pandas as pd
 
 from .api import ApiError
-from .auth import EntraTokens, ServicePrincipal, fabric_provider
+from .auth import EntraTokens, ServicePrincipal, UserSession, fabric_provider
 from .column_stats import (
     ColumnStat,
     MeasureStat,
@@ -1969,21 +1969,31 @@ def analyze_dataset(
     principal.validate()
 
     tokens = EntraTokens(principal)
+    interactive = isinstance(principal, UserSession)
     started_at = utc_now()
     endpoint = workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
     log(f"Workspace: {workspace_name}")
     log(f"Semantic model: {dataset_name}")
+    log(
+        f"Auth: {type(principal).__name__}; "
+        f"interactive_xmla={interactive}"
+    )
 
     if client_factory is not None:
         client = client_factory()
     else:
         try:
-            client = open_client(
-                endpoint=endpoint,
-                catalog=dataset_name,
-                tokens=tokens,
-                interactive=getattr(principal, "interactive_xmla", False),
-            )
+            if interactive:
+                from .xmla_worker_client import get_worker_client
+
+                client = get_worker_client(endpoint, dataset_name)
+            else:
+                client = open_client(
+                    endpoint=endpoint,
+                    catalog=dataset_name,
+                    tokens=tokens,
+                    interactive=False,
+                )
         except XmlaError as exc:
             hint = (
                 "Akun 365 perlu akses workspace dan XMLA Read."
