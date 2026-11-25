@@ -426,6 +426,8 @@ def _interactive_connection_string(
         connection += f"Initial Catalog={name};"
     if "connect timeout=" not in connection.lower():
         connection += "Connect Timeout=60;"
+    if "authentication=" not in connection.lower():
+        connection += "Authentication=ActiveDirectoryInteractive;"
     return connection
 
 

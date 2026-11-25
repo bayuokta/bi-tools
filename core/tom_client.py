@@ -137,6 +137,8 @@ def build_connection_string(
             )
         if "interactive login=" not in connection.lower():
             connection = f"{connection}{INTERACTIVE_LOGIN_PROPS}"
+        if "authentication=" not in connection.lower():
+            connection = f"{connection}Authentication=ActiveDirectoryInteractive;"
         return connection
 
     if "=" in data_source:
