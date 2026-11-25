@@ -136,7 +136,7 @@ Project Power BI (PBIP, TMDL, PBIR) ada di repo terpisah: `..\..\Power BI\<proje
 | `.env.example` | contoh | Contoh kredensial CLI lineage dan screenshot (RLS) |
 | `*.xlsx` | hasil generate | Jangan diedit manual; regenerasi dari script |
 | `*.pbix` | salinan data | Di-ignore git; jangan di-commit |
-| `libs\*.dll` | dependency | Jangan dibaca atau diubah; `libs\tom\` berisi DLL TOM/MSAL net472 untuk refresh partisi |
+| `libs\*.dll` | dependency | Jangan dibaca atau diubah; ADOMD `19.120.1.0` dan `libs\tom\` TOM/MSAL `19.120.1.0` (net472). Versi ini wajib untuk properti `Interactive Login`/`Identity Mode`; jangan turunkan ke 19.84/19.117 atau login XMLA user akan gagal |
 | `README.md` | dokumentasi | Cara pakai lengkap |
 
 ## Urutan baca yang disarankan

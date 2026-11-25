@@ -69,7 +69,7 @@ server\                         server web lokal (FastAPI + uvicorn, hanya 127.0
 web\                            aset statis: index.html, styles.css, app.js, api.js, js\core, js\views (tanpa build step)
 templates\tsd.template.html     template TSD gaya Confluence (salinan repo template-tsd)
 tests\                          uji angka acuan, TSD, lineage, dan penanganan error
-libs\Microsoft.AnalysisServices.AdomdClient.dll   dependency ADOMD (v19.84.1.0)
+libs\Microsoft.AnalysisServices.AdomdClient.dll   dependency ADOMD (v19.120.1.0; mendukung Interactive Login)
 libs\tom\*.dll                  dependency TOM/MSAL untuk refresh partisi (net472, terpisah dari ADOMD)
 extract_report_metadata.py      wrapper CLI report (perintah lama tetap berfungsi)
 extract_model_metadata.py       wrapper CLI model
