@@ -1,4 +1,4 @@
-// Halaman Compare Semantic Model (read-only, definisi TOM/TMDL persis).
+// Halaman Compare model (read-only, definisi TOM/TMDL persis).
 
 import { app } from "../core/app_api.js";
 import {
@@ -304,7 +304,7 @@ export function runCompare() {
   app.startJob({
     path: "/api/compare/run",
     body: payload,
-    label: t("Compare semantic model"),
+    label: t("Compare model"),
     button: $("#runCompare"),
     onDone: function (snapshot) {
       state.compareRunning = false;

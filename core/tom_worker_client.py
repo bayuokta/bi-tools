@@ -117,6 +117,15 @@ class TomWorkerClient:
         rows = response.get("partitions")
         return rows if isinstance(rows, list) else []
 
+    def export(self, target: str) -> dict[str, Any]:
+        """Ekspor definisi model (TMDL + TMSL) ke folder ``target``."""
+        response = self._request({"op": "export", "target": str(target)}, timeout=1800)
+        return {
+            "files": int(response.get("files") or 0),
+            "bytes": int(response.get("bytes") or 0),
+            "catalog": str(response.get("catalog") or self.catalog),
+        }
+
     def snapshot(self, options: dict[str, Any]) -> dict[str, Any]:
         response = self._request(
             {"op": "snapshot", "options": options}, timeout=600

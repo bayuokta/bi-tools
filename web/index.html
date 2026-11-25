@@ -21,25 +21,29 @@
       </div>
       <nav class="side-nav" aria-label="Application sections" data-i18n-aria-label="Application sections">
         <div class="nav-label" data-i18n="Tools">Tools</div>
-        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction &amp; TSD" data-i18n-title="Extraction &amp; TSD">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
-          <span class="label" data-i18n="Extraction &amp; TSD">Extraction &amp; TSD</span>
-        </button>
         <button class="nav-item" type="button" data-view="analisa" title="Model analysis" data-i18n-title="Model analysis">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
           <span class="label" data-i18n="Model analysis">Model analysis</span>
         </button>
-        <button class="nav-item" type="button" data-view="compare" title="Compare semantic model" data-i18n-title="Compare semantic model">
+        <button class="nav-item" type="button" data-view="compare" title="Compare model" data-i18n-title="Compare model">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5"></rect><rect x="13" y="4" width="8" height="16" rx="1.5"></rect><path d="M7 9h0M7 13h0M17 9h0M17 13h0"></path><path d="M9.5 11h5"></path></svg>
-          <span class="label" data-i18n="Compare Semantic Model">Compare Semantic Model</span>
+          <span class="label" data-i18n="Compare model">Compare model</span>
+        </button>
+        <button class="nav-item" type="button" data-view="partisi" title="Partitions" data-i18n-title="Partitions">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4Z"></path><path d="M4 11l8 4 8-4"></path><path d="M4 15l8 4 8-4"></path></svg>
+          <span class="label" data-i18n="Partitions">Partitions</span>
+        </button>
+        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction &amp; TSD" data-i18n-title="Extraction &amp; TSD">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
+          <span class="label" data-i18n="Extraction &amp; TSD">Extraction &amp; TSD</span>
         </button>
         <button class="nav-item" type="button" data-view="lineage" title="Lineage">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
           <span class="label">Lineage</span>
         </button>
-        <button class="nav-item" type="button" data-view="partisi" title="Partitions" data-i18n-title="Partitions">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4Z"></path><path d="M4 11l8 4 8-4"></path><path d="M4 15l8 4 8-4"></path></svg>
-          <span class="label" data-i18n="Partitions">Partitions</span>
+        <button class="nav-item" type="button" data-view="backup" title="Backup" data-i18n-title="Backup">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4M5 20h14"></path></svg>
+          <span class="label" data-i18n="Backup">Backup</span>
         </button>
         <div class="nav-label" data-i18n="System">System</div>
         <button class="nav-item" type="button" data-view="pengaturan" title="Settings" data-i18n-title="Settings">
@@ -736,7 +740,7 @@
           <div class="view-head">
             <div>
               <div class="view-eyebrow" data-i18n="Tool · comparison">Tool · comparison</div>
-              <h1 class="view-title" id="titleCompare" tabindex="-1">Compare semantic model</h1>
+              <h1 class="view-title" id="titleCompare" tabindex="-1" data-i18n="Compare model">Compare model</h1>
               <p class="view-sub" data-i18n="Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.">Compare two semantic models from Power BI Service or Desktop: tables, measures, relationships, and expressions. Comparison is read-only; no changes are made to the target.</p>
             </div>
             <div class="view-actions">
@@ -1126,6 +1130,128 @@
               <div class="panel-foot" style="justify-content:space-between">
                 <span class="helper" id="partitionSelectionSummary" data-i18n="No partitions selected">No partitions selected</span>
                 <span class="helper" data-i18n="Processing writes to the semantic model and cannot be undone from this app.">Processing writes to the semantic model and cannot be undone from this app.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-backup" aria-labelledby="titleBackup" hidden="">
+          <div class="view-head">
+            <div>
+              <div class="view-eyebrow" data-i18n="Tool · recovery">Tool · recovery</div>
+              <h1 class="view-title" id="titleBackup" tabindex="-1" data-i18n="Backup">Backup</h1>
+              <p class="view-sub" data-i18n="Save semantic model and report definitions from one workspace to a local folder. Read-only.">Save semantic model and report definitions from one workspace to a local folder. Read-only.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-primary" id="runBackup" type="button">
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4M5 20h14"></path></svg>
+                <span data-i18n="Run backup">Run backup</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="layout-split">
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title" data-i18n="Source">Source</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-info"><span class="dot"></span>Power BI Service</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="bakWorkspace" data-i18n="Workspace">Workspace</label>
+                    <select id="bakWorkspace"></select>
+                    <button class="btn btn-sm" id="bakReload" type="button" data-i18n="Reload">Reload</button>
+                  </div>
+                  <p class="helper" id="bakSourceHint" data-i18n="Workspace list comes from the shared catalog.">Workspace list comes from the shared catalog.</p>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title" data-i18n="Coverage">Coverage</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-idle" id="bakScopeChip"><span class="dot"></span><span id="bakScopeText">0 selected</span></span>
+                </div>
+                <div class="panel-body">
+                  <div class="check-row">
+                    <label class="check"><input type="checkbox" id="bakModelOpt" checked> <span data-i18n="Semantic models (TMDL + TMSL)">Semantic models (TMDL + TMSL)</span></label>
+                    <label class="check"><input type="checkbox" id="bakReportOpt" checked> <span data-i18n="Reports (definition)">Reports (definition)</span></label>
+                  </div>
+                  <div class="file-list" id="bakItems"></div>
+                  <p class="helper" id="bakItemsHint" data-i18n="Select a workspace to load items.">Select a workspace to load items.</p>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title" data-i18n="Output">Output</span>
+                  <div class="spacer"></div>
+                  <span class="chip chip-idle" id="bakOutputState"><span class="dot"></span><span data-i18n="Not run yet">Not run yet</span></span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <label for="bakFolder" data-i18n="Destination folder">Destination folder</label>
+                    <input class="input mono" id="bakFolder" type="text" readonly>
+                    <button class="btn btn-sm" id="bakPickFolder" type="button" data-i18n="Choose.">Choose.</button>
+                  </div>
+                  <div class="form-row">
+                    <label for="bakName" data-i18n="Name prefix">Name prefix</label>
+                    <input class="input mono" id="bakName" type="text" value="Backup">
+                  </div>
+                  <p class="helper" data-i18n="File names follow the prefix, workspace, and item type.">File names follow the prefix, workspace, and item type.</p>
+                </div>
+              </div>
+
+              <div class="run-card" id="bakRun" hidden="">
+                <div class="run-label"><span id="bakRunLabel" data-i18n="Preparing backup.">Preparing backup.</span><span id="bakRunPct">0%</span></div>
+                <div class="progress"><i id="bakBar"></i></div>
+              </div>
+
+              <div class="panel" id="bakResults" hidden="">
+                <div class="panel-head">
+                  <span class="panel-title" data-i18n="Backup result">Backup result</span>
+                  <div class="spacer"></div>
+                  <button class="btn btn-sm" id="bakOpenFolder" type="button" disabled data-i18n="Open folder">Open folder</button>
+                </div>
+                <div class="file-list" id="bakFileList"></div>
+                <div class="panel-foot" style="justify-content:space-between">
+                  <span class="helper" id="bakFileSummary" data-i18n="No files">No files</span>
+                  <span class="helper" data-i18n="Read-only mode">Read-only mode</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="od-stack" style="--od-gap:16px">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title" data-i18n="Summary">Summary</span></div>
+                <div class="panel-body">
+                  <div class="stat-list" id="bakSummaryBody" hidden="">
+                    <div class="stat-row"><span class="stat-key" data-i18n="Source">Source</span><span class="stat-val" id="bakStatSource">-</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Items backed up">Items backed up</span><span class="stat-val" id="bakStatItems">-</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Total size">Total size</span><span class="stat-val" id="bakStatSize">-</span></div>
+                    <div class="stat-row"><span class="stat-key" data-i18n="Finished at">Finished at</span><span class="stat-val" id="bakStatTime">-</span></div>
+                  </div>
+                  <div class="empty" id="bakSummaryEmpty" style="padding:10px 4px">
+                    <div class="empty-title" data-i18n="No backup yet">No backup yet</div>
+                    <p class="empty-text" data-i18n="Run a backup to fill the summary.">Run a backup to fill the summary.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title" data-i18n="History">History</span></div>
+                <div class="panel-body" id="bakHistory"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title" data-i18n="Notes">Notes</span></div>
+                <div class="panel-body" style="gap:9px">
+                  <div class="note">
+                    <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                    <span data-i18n="Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.">Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.</span>
+                  </div>
+                  <p class="helper" data-i18n="Semantic model backup needs XMLA read access. Paginated reports are skipped.">Semantic model backup needs XMLA read access. Paginated reports are skipped.</p>
+                </div>
               </div>
             </div>
           </div>

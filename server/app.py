@@ -14,6 +14,7 @@ from core.version import APP_NAME, __version__
 
 from .api import (
     analysis,
+    backup,
     catalog,
     compare,
     files,
@@ -34,6 +35,7 @@ ROUTERS = (
     system.router,
     settings.router,
     catalog.router,
+    backup.router,
     metadata.router,
     tsd.router,
     analysis.router,

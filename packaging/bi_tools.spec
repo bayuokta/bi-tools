@@ -106,6 +106,7 @@ hiddenimports = [
     # Program sync (executable terpisah) memakai paket sync dan Admin API.
     "sync",
     *collect_submodules("sync"),
+    "core.tom_export",
     # Server memuat app FastAPI secara malas di runtime.run().
     *collect_submodules("server"),
     # uvicorn memilih implementasi loop/protokol saat runtime.

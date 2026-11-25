@@ -212,6 +212,70 @@ class ServiceMetadataRequest:
 
 
 @dataclass(frozen=True)
+class BackupRequest:
+    """Input backup definisi model/report dari satu workspace (read-only)."""
+
+    workspace_id: str
+    items: tuple[Any, ...]
+    folder: Path
+    prefix: str = "Backup"
+    workspace_name: str = ""
+
+    def __post_init__(self) -> None:
+        from .backup import BackupItem
+
+        object.__setattr__(
+            self, "workspace_id", _guid(self.workspace_id, "Workspace ID")
+        )
+        items = tuple(self.items or ())
+        if not items:
+            raise ExtractionError("Pilih minimal satu item untuk dibackup.")
+        checked: list[BackupItem] = []
+        for item in items:
+            if not isinstance(item, BackupItem):
+                raise ExtractionError("Item backup tidak valid.")
+            object.__setattr__(
+                item, "item_id", _guid(item.item_id, f"ID {item.label}")
+            )
+            checked.append(item)
+        object.__setattr__(self, "items", tuple(checked))
+        folder = _path(self.folder)
+        if not folder.is_absolute():
+            raise ExtractionError("Folder backup harus absolut.")
+        object.__setattr__(self, "folder", folder)
+        object.__setattr__(
+            self, "workspace_name", str(self.workspace_name or "").strip()
+        )
+
+    @classmethod
+    def from_payload(cls, value: Mapping[str, Any] | None) -> "BackupRequest":
+        from .backup import BackupItem
+
+        payload = dict(value or {})
+        raw = payload.get("items")
+        if not isinstance(raw, list) or not raw:
+            raise ExtractionError("Pilih minimal satu item untuk dibackup.")
+        return cls(
+            workspace_id=str(payload.get("workspace_id") or ""),
+            items=tuple(BackupItem.from_payload(row) for row in raw),
+            folder=_path(str(payload.get("folder") or "")),
+            prefix=str(payload.get("prefix") or "Backup"),
+            workspace_name=str(payload.get("workspace_name") or ""),
+        )
+
+    def to_options(self) -> Any:
+        from .backup import BackupOptions
+
+        return BackupOptions(
+            workspace_id=self.workspace_id,
+            workspace_name=self.workspace_name,
+            items=self.items,
+            folder=self.folder,
+            prefix=self.prefix,
+        )
+
+
+@dataclass(frozen=True)
 class TsdRequest:
     """Input generate dokumen TSD dari workbook metadata."""
 

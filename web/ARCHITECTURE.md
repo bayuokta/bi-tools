@@ -31,9 +31,10 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 | `web\vendor\prism\` | Prism 1.29 core + DAX + JSON + LICENSE, vendored lokal (tanpa CDN). |
 | `web\js\core\app_api.js` | Jembatan sementara: `app.toast`, `app.startJob`, `app.api`, dll. Diisi `app.js` sebelum `init()`. |
 | `web\js\views\analysis.js` | Seluruh logika halaman Analisa (payload, tabel, menu, detail, lineage, health, best practice, relationships, roles). |
-| `web\js\views\compare.js` | Halaman Compare semantic model: picker sumber/target, job compare read-only, tree hasil, detail TMDL/TMSL persis, options dialog, validate/export/script. |
+| `web\js\views\compare.js` | Halaman Compare model: picker sumber/target, job compare read-only, tree hasil, detail TMDL/TMSL persis, options dialog, validate/export/script. |
 | `web\js\views\metadata-tsd.js` | Ekstraksi metadata + TSD: instance, workspace, picker, batch, payload, render TSD, capture/cache, sidecar, preview. |
 | `web\js\views\partitions-lineage.js` | Halaman Partisi dan Lineage SQLite: inventory/refresh, tabel partisi, pencarian, grafik lineage, ekspor. |
+| `web\js\views\backup.js` | Halaman Backup: pilih workspace/item, jalankan job, hasil ZIP, riwayat. |
 | `web\ARCHITECTURE.md` | Dokumen ini. |
 
 Server melayani seluruh folder `web\` lewat `StaticFiles`; PyInstaller menyalin
@@ -50,7 +51,7 @@ perubahan `server\app.py` atau `packaging\bi_tools.spec`.
 - `bootstrap()`: memuat system/settings/catalog/outputs/instances/workspaces,
   state TSD, analisa, partisi, dan lineage.
 - `showView(name)`: menampilkan `#view-<name>`, mengatur `aria-current`,
-  `applyMetaSteps()`, lalu memuat state lineage/partisi bila perlu.
+  `applyMetaSteps()`, lalu memuat state lineage/partisi/compare/backup bila perlu.
 - `rerenderLanguage()`: render ulang view aktif setelah bahasa berganti.
 
 ## Peta `app.js` (core, preferensi, event wiring)
@@ -116,6 +117,17 @@ Helper node bersama: `clipLabel`, `lineageTypeName`, `nodeHue`,
 sign-in/sign-out (`/api/settings/sign-in`, `/api/settings/sign-out`),
 snapshot sumber/unduh (`/api/settings/shared-db`, `/api/settings/snapshot/download`).
 Job admin `syncCatalog`/`runScan` tetap ada untuk mode service/uji.
+
+## Peta `js\views\backup.js`
+
+`backupLoadState`, `backupLoadItems`, `backupPayload`, `runBackup`,
+`backupOpenFolder`, `initBackupEvents`; render internal `backupRenderItems`,
+`backupRenderResult`, `backupRenderHistory`, `backupApplyState`.
+
+- Item dipilih per baris (semantic model / report), bukan hanya checkbox grup.
+- Job memakai `app.startJob` ke `/api/backup/run`; hasil per item dari
+  `snapshot.result`.
+- Riwayat dibaca dari `manifest.json` di folder tujuan.
 
 ## Peta `js\views\compare.js`
 

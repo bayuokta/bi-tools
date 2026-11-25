@@ -71,6 +71,7 @@ export const state = {
   compareSourceType: "dataset",
   compareTargetType: "dataset",
   compareOptions: null,
+  backup: null,
   compareOpen: {},
   analysisTab: "all",
   analysisSort: "default",

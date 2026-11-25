@@ -96,6 +96,16 @@ class _Session:
             raise TomError("Koneksi TOM belum dibuka.")
         return serialize_snapshot(self.server, self.catalog, options)
 
+    def export(self, target: str) -> dict[str, Any]:
+        if self.server is None:
+            raise TomError("Koneksi TOM belum dibuka.")
+        folder = str(target or "").strip()
+        if not folder:
+            raise TomError("Folder tujuan ekspor model wajib diisi.")
+        from core.tom_export import export_model
+
+        return export_model(self.server, self.catalog, folder)
+
 
 def _respond(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=True, default=str), flush=True)
@@ -121,6 +131,8 @@ def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
                 str(request.get("refresh_type") or "full"),
             )
             _respond({"ok": True, "partitions": rows})
+        elif op == "export":
+            _respond({"ok": True, **session.export(str(request.get("target") or ""))})
         elif op == "snapshot":
             _respond(
                 {

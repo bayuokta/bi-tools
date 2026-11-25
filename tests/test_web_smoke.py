@@ -32,8 +32,9 @@ RUN_SMOKE = os.environ.get("RUN_WEB_SMOKE") == "1"
 VIEWS = {
     "ekstraksi": "Extraction & TSD",
     "analisa": "Semantic model analysis",
-    "compare": "Compare semantic model",
+    "compare": "Compare model",
     "lineage": "Lineage",
+    "backup": "Backup",
     "partisi": "Semantic model partitions",
     "pengaturan": "Settings",
 }

@@ -386,6 +386,24 @@ python -m cli partition --workspace-id <ws> --dataset-id <ds> `
 
 Refresh memerlukan XMLA **Read Write**, akun dengan akses tulis ke workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
 
+## Backup definisi model dan report
+
+Halaman **Backup** menyimpan definisi semantic model dan report satu workspace
+ke folder lokal:
+
+- **Model**: TMDL (`definition/`) + `model.bim` (TMSL), lewat `tom-worker`
+  (butuh XMLA read). Mencakup tabel, measure, relasi, partisi + M +
+  refresh policy, role/RLS, perspective, culture, dan expression.
+- **Report**: part `getDefinition` apa adanya (PBIR maupun PBIR-Legacy).
+- Satu ZIP per item di folder `Backup_<workspace>_<waktu>/`, plus
+  `manifest.json` (status per item).
+- `.pbix` tidak dipakai karena diblokir untuk model dengan incremental refresh
+  atau yang diubah lewat TOM/XMLA.
+- Yang **tidak** termasuk: data, riwayat/jadwal refresh, permission,
+  kredensial gateway, dan sensitivity label.
+- Report paginated (RDL) dilewati. Kegagalan satu item tidak menghentikan item
+  lain.
+
 ## Generate TSD (langkah 2)
 
 Dokumen TSD (Technical Specification Design) dibuat dari workbook metadata memakai template Confluence di `..\template-tsd`. Di web, langkah ini ada di halaman **Extraction & TSD** dan terbuka setelah ekstraksi atau bila workbook report sudah tersedia. Template disalin apa adanya ke `templates\tsd.template.html`; perubahan template dilakukan di repo `template-tsd` lebih dulu.
@@ -485,7 +503,7 @@ python verify_reference.py --pbix "path\ke\Report.pbix" --no-model   # report sa
 
 Skrip mengekstrak ulang ke folder sementara (workbook di folder tooling tidak ditimpa), lalu membandingkan jumlah halaman, visual, field, slicer, filter, interaksi, measure, kolom, dan jumlah sheet dengan angka acuan. Angka model hanya diperiksa bila ada instance Desktop (atau `--port`/`--catalog`). Exit code: `0` cocok, `1` ada beda/belum diverifikasi, `2` tidak bisa dijalankan. Bila ada lebih dari satu instance, skrip berhenti dan menampilkan pilihan; jalankan ulang dengan `--port`/`--catalog`.
 
-## Compare Semantic Model
+## Compare model
 
 Halaman ini membandingkan dua semantic model dari Power BI Service atau instance Power BI Desktop. Perbandingan **read-only**: tidak ada perubahan ke model target.
 

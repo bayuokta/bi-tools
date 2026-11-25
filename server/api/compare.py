@@ -29,7 +29,7 @@ def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, An
         return submit_job(
             request,
             "compare",
-            "Compare semantic model",
+            "Compare model",
             lambda log, cancel: presenter.run_job(store, payload or {}, log, cancel),
         )
     except ExtractionError as exc:

@@ -5,6 +5,8 @@ sebagai ICO berisi PNG, jadi tidak butuh Pillow. Jalankan ulang hanya bila
 desainnya berubah; hasilnya ikut di-commit:
 
     python packaging/make_icon.py
+
+Desain: kotak grafit gelap dengan garis grafik kuning (mark BI Tools).
 """
 
 from __future__ import annotations
@@ -21,23 +23,25 @@ from PySide6.QtGui import (  # noqa: E402
     QColor,
     QGuiApplication,
     QImage,
-    QLinearGradient,
     QPainter,
     QPainterPath,
+    QPen,
 )
 
 SIZES = (16, 24, 32, 48, 64, 128, 256)
 SUPERSAMPLE = 8
 OUT_PATH = Path(__file__).resolve().with_name("bi-tools.ico")
 
-BACKGROUND_TOP = QColor("#12395E")
-BACKGROUND_BOTTOM = QColor("#0B2440")
-BAR_COLORS = (QColor("#8FD6EC"), QColor("#57B8DC"), QColor("#F4FAFF"))
-BAR_HEIGHTS = (0.26, 0.44, 0.62)
-BAR_WIDTH = 0.15
-BAR_GAP = 0.075
-BAR_BOTTOM = 0.78
-BASELINE = QColor("#57B8DC")
+BACKGROUND = QColor("#0E1116")
+ACCENT = QColor("#F2C811")
+# Mark mengikuti SVG 512x512: konten 24 unit digambar di (56,56) skala 16.667.
+MARGIN = 56.0
+UNIT = 16.6667
+STROKE = 1.9 * UNIT
+
+
+def _point(x: float, y: float) -> QPointF:
+    return QPointF(MARGIN + x * UNIT, MARGIN + y * UNIT)
 
 
 def render(size: int) -> QImage:
@@ -48,41 +52,28 @@ def render(size: int) -> QImage:
 
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
-    radius = canvas * 0.22
-    body = QRectF(0, 0, canvas, canvas)
-    gradient = QLinearGradient(QPointF(0, 0), QPointF(canvas, canvas))
-    gradient.setColorAt(0.0, BACKGROUND_TOP)
-    gradient.setColorAt(1.0, BACKGROUND_BOTTOM)
-
+    radius = canvas * (112.0 / 512.0)
     path = QPainterPath()
-    path.addRoundedRect(body, radius, radius)
-    painter.fillPath(path, gradient)
+    path.addRoundedRect(QRectF(0, 0, canvas, canvas), radius, radius)
+    painter.fillPath(path, BACKGROUND)
 
-    # Garis dasar tipis sebagai "sumbu" grafik.
-    base_y = canvas * BAR_BOTTOM
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(BASELINE)
-    base_height = max(2.0, canvas * 0.022)
-    painter.drawRoundedRect(
-        QRectF(canvas * 0.20, base_y, canvas * 0.60, base_height),
-        base_height / 2,
-        base_height / 2,
-    )
+    painter.scale(canvas / 512.0, canvas / 512.0)
+    pen = QPen(ACCENT)
+    pen.setWidthF(STROKE)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
 
-    bar_width = canvas * BAR_WIDTH
-    gap = canvas * BAR_GAP
-    total = len(BAR_HEIGHTS) * bar_width + (len(BAR_HEIGHTS) - 1) * gap
-    start_x = (canvas - total) / 2
+    painter.drawLine(_point(4, 19), _point(4, 5))
+    painter.drawLine(_point(4, 19), _point(20, 19))
 
-    for index, (ratio, color) in enumerate(zip(BAR_HEIGHTS, BAR_COLORS)):
-        height = canvas * ratio
-        x = start_x + index * (bar_width + gap)
-        bar = QRectF(x, base_y - height, bar_width, height)
-        painter.setBrush(color)
-        painter.drawRoundedRect(bar, bar_width * 0.30, bar_width * 0.30)
-
+    line = QPainterPath(_point(8, 15))
+    line.lineTo(_point(12, 10))
+    line.lineTo(_point(15, 13))
+    line.lineTo(_point(20, 6))
+    painter.drawPath(line)
     painter.end()
 
     return image.scaled(

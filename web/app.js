@@ -18,6 +18,12 @@ import {
   renderCompare
 } from "./js/views/compare.js";
 
+import {
+  backupLoadState,
+  backupRerender,
+  initBackupEvents
+} from "./js/views/backup.js";
+
 import { app } from "./js/core/app_api.js";
 import {
   analysisCloseMenu,
@@ -236,6 +242,7 @@ var NEWLINE = String.fromCharCode(10);
     if (state.tsd) renderTsdState(state.tsd);
     if (state.analysis !== undefined) analysisRender();
     if (state.compare) renderCompare();
+    if (state.backup && state.backup.loaded) backupRerender();
     if (state.partitions !== null) partitionRender();
     applyMetaSteps();
     if (state.lineageGraph) {
@@ -307,6 +314,9 @@ var NEWLINE = String.fromCharCode(10);
     }
     if (name === "compare" && !state.compareLoaded) {
       compareLoadState();
+    }
+    if (name === "backup" && !(state.backup && state.backup.loaded)) {
+      backupLoadState();
     }
   }
 
@@ -848,6 +858,7 @@ var NEWLINE = String.fromCharCode(10);
     initComboEvents();
     enhanceAllSelects();
     initCompareEvents();
+    initBackupEvents();
     applyLanguage(state.language, { rerender: false });
     applyTheme(state.theme, false);
     applyMotion(state.motion, false);
@@ -2215,7 +2226,8 @@ Object.assign(app, {
   applyMetaSteps: applyMetaSteps,
   loadOutputs: loadOutputs,
   parentDir: parentDir,
-  setMetaStep: setMetaStep
+  setMetaStep: setMetaStep,
+  openFolderPicker: openFolderPicker
 });
 
 init();

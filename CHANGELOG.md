@@ -7,6 +7,27 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Halaman Backup
+
+- Halaman baru **Backup** untuk menyimpan definisi semantic model dan report
+  satu workspace ke folder lokal.
+- Model diekspor sebagai folder TMDL + `model.bim` (TMSL) lewat `tom-worker`;
+  report disimpan sebagai part `getDefinition` apa adanya (PBIR dan legacy).
+- Satu ZIP per item di folder `Backup_<workspace>_<waktu>/` + `manifest.json`;
+  kegagalan satu item tidak menghentikan item lain.
+- `.pbix` tidak dipakai karena diblokir untuk incremental refresh/perubahan
+  TOM. Data, jadwal refresh, permission, kredensial, dan sensitivity label
+  tidak termasuk.
+
+### Perubahan UI
+
+- Urutan sidebar mengikuti mockup: Analisa, Compare model, Partisi,
+  Ekstraksi & TSD, Lineage, Backup, Pengaturan.
+- "Compare semantic model" menjadi **Compare model**.
+- Ikon aplikasi/installer baru: mark grafik kuning di latar grafit.
+
 ## 2026-11-25 - Rilis 0.8.0
 
 ### Pemisahan program sync

@@ -1518,3 +1518,29 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
 .token.changedProperty{ color:var(--danger); font-weight:600; }
 .token.changed{ color:var(--danger); font-weight:600; }
 .diff-line .lt .token{ background:transparent; }
+
+
+/* --- Backup ------------------------------------------------------------- */
+.bak-item{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px; border-radius:var(--r-md);
+}
+.bak-item:hover{ background:var(--surface-2); }
+.bak-item-name{
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.bak-file{
+  display:flex; flex-direction:column; gap:2px;
+  padding:7px 8px; border-bottom:1px solid var(--border);
+}
+.bak-file-main{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.bak-file-name{ font-weight:600; overflow-wrap:anywhere; }
+.bak-history-row{
+  display:flex; justify-content:space-between; gap:10px; width:100%;
+  background:none; border:0; border-bottom:1px solid var(--border);
+  color:inherit; padding:7px 4px; cursor:pointer; text-align:left;
+}
+.bak-history-row:hover{ background:var(--surface-2); }
+.bak-history-time{ font-variant-numeric:tabular-nums; }

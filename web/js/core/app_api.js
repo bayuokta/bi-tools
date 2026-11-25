@@ -14,6 +14,7 @@ export const app = {
   apiReady: missing("apiReady"),
   applyMetaSteps: missing("applyMetaSteps"),
   loadOutputs: missing("loadOutputs"),
+  openFolderPicker: missing("openFolderPicker"),
   parentDir: missing("parentDir"),
   reportError: missing("reportError"),
   setChip: missing("setChip"),
