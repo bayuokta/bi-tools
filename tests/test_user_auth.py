@@ -90,7 +90,7 @@ class InteractiveConnectionTests(unittest.TestCase):
         text = interactive_connection_string(
             "Data Source=powerbi://api.powerbi.com/v1.0/myorg/WS"
         )
-        self.assertIn("Interactive Login=Enabled", text)
+        self.assertIn("Interactive Login=Always", text)
         self.assertIn("Identity Mode=Connection", text)
         self.assertNotIn("Password=", text)
         self.assertNotIn("AccessToken", text)
@@ -105,7 +105,7 @@ class InteractiveConnectionTests(unittest.TestCase):
             "Model",
             interactive=True,
         )
-        self.assertIn("Interactive Login=Enabled", text)
+        self.assertIn("Interactive Login=Always", text)
         self.assertIn("Identity Mode=Connection", text)
         self.assertNotIn("Password=", text)
         self.assertIn('Initial Catalog="Model"', text)

@@ -30,7 +30,7 @@ ROOT = APP_DIR
 DEFAULT_DLL = ROOT / "libs" / "Microsoft.AnalysisServices.AdomdClient.dll"
 DMV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CLOUD_XMLA = ("powerbi://", "asazure://")
-INTERACTIVE_LOGIN_PROPS = "Interactive Login=Enabled; Identity Mode=Connection;"
+INTERACTIVE_LOGIN_PROPS = "Interactive Login=Always; Identity Mode=Connection;"
 INTERACTIVE_REUSE_PROPS = "Interactive Login=Enabled; Identity Mode=Connection;"
 
 
@@ -802,6 +802,32 @@ def open_client(
         token_kwargs["wrap_expired"] = wrap_expired
     if interactive:
         token_kwargs["interactive"] = True
+
+    # Jalur umum Service: catalog sudah diketahui, jadi cukup satu koneksi.
+    # Ini penting untuk login MSOLAP interaktif agar dialog tidak muncul dua kali.
+    if endpoint and catalog:
+        normalized = normalize_powerbi_endpoint(endpoint, readonly=readonly)
+        connection_string = (
+            normalized if "=" in normalized else f"Data Source={normalized}"
+        )
+        client = _connect(
+            _with_catalog(connection_string, catalog),
+            dll_path,
+            **token_kwargs,
+        )
+        client.endpoint = endpoint
+        client.catalog = catalog
+        try:
+            catalogs = list_catalogs(client)
+            info = next(
+                (item for item in catalogs if item["name"] == catalog), None
+            )
+            if info:
+                client.catalog_info = dict(info)
+        except Exception:  # noqa: BLE001 - info katalog opsional
+            pass
+        return client
+
     for connection_string, endpoint_label in candidates:
         base: XmlaClient | None = None
         try:
@@ -848,7 +874,7 @@ def open_client(
             client = _connect(
                 _with_catalog(connection_string, chosen),
                 dll_path,
-                **token_kwargs,
+                **{**token_kwargs, "reuse_identity": True},
             )
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{endpoint_label}/{chosen}: {exc}")

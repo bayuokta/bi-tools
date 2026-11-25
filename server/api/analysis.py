@@ -157,7 +157,7 @@ def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, An
             status_code=400, detail="Pilih workspace dan semantic model dulu."
         )
     try:
-        store.principal().validate()
+        store.auth().validate()
     except ExtractionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return submit_job(

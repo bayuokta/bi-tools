@@ -40,7 +40,7 @@ from .partition_plan import (  # noqa: F401 - re-export untuk pemanggil lama
 )
 from .paths import APP_DIR
 from .xmla_client import (
-    INTERACTIVE_REUSE_PROPS,
+    INTERACTIVE_LOGIN_PROPS,
     _blocked_assembly_message,
     pythonnet_assembly,
     readwrite_endpoint,
@@ -130,7 +130,7 @@ def build_connection_string(
     if "application name=" not in connection.lower():
         connection = f"{connection}Application Name={APPLICATION_NAME};"
     if interactive and "interactive login=" not in connection.lower():
-        connection = f"{connection}{INTERACTIVE_REUSE_PROPS}"
+        connection = f"{connection}{INTERACTIVE_LOGIN_PROPS}"
     return connection
 
 

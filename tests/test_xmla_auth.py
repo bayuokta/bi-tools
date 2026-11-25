@@ -130,9 +130,10 @@ class OpenClientTokenTests(unittest.TestCase):
     def test_cloud_endpoint_receives_token_and_catalog(self) -> None:
         tokens = FakeTokens()
         client, calls = run_open(tokens, endpoint=ENDPOINT, catalog="Model")
-        self.assertEqual(calls[0][0], NORMALIZED)
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0][0].startswith(NORMALIZED))
         self.assertIs(calls[0][1].get("tokens"), tokens)
-        self.assertTrue(calls[1][0].endswith(';Initial Catalog="Model"'))
+        self.assertTrue(calls[0][0].endswith(';Initial Catalog="Model"'))
         self.assertEqual(client.catalog, "Model")
 
     def test_local_endpoint_is_not_treated_as_cloud(self) -> None:
@@ -170,7 +171,7 @@ class CatalogQuotingTests(unittest.TestCase):
     def test_catalog_with_quotes_is_escaped(self) -> None:
         name = 'Model "A"'
         _, calls = run_open(FakeTokens(), endpoint=ENDPOINT, catalog=name, names=[name])
-        self.assertIn('Initial Catalog="Model ""A"""', calls[1][0])
+        self.assertIn('Initial Catalog="Model ""A"""', calls[0][0])
 
 
 @unittest.skipUnless(os.name == "nt", "Mark of the Web hanya berlaku di Windows")
