@@ -4091,11 +4091,6 @@ import { state } from "../core/state.js";
         level: 0, toggleId: rootId, open: rootOpen,
         href: analysisReportUrl(report.workspace_id, report.report_id)
       });
-      if (report.subscriptions) {
-        reportCell += ' <span class="chip chip-idle" title="' +
-          escapeHtml(t("Subscriptions in this report")) + '">' +
-          fmtInt(report.subscriptions) + " " + t("subs") + "</span>";
-      }
       rows.push({
         level: 0,
         group: true,

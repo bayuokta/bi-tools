@@ -187,10 +187,17 @@ class Transport:
         *,
         params: dict[str, Any] | None = None,
         json: Any | None = None,
+        data: bytes | None = None,
         allow: tuple[int, ...] = (200,),
         headers: dict[str, str] | None = None,
     ) -> Any:
-        """Kirim request; kembalikan respons untuk status di ``allow``."""
+        """Kirim request; kembalikan respons untuk status di ``allow``.
+
+        ``data`` dipakai untuk body biner (mis. upload Graph); jangan digabung
+        dengan ``json`` pada request yang sama.
+        """
+        if data is not None and json is not None:
+            raise ExtractionError("Body request tidak boleh berisi data dan json sekaligus.")
         if str(method or "").strip().upper() == "DELETE":
             # Kebijakan tool: tidak pernah memakai metode HTTP DELETE. Operasi
             # hapus/bersihkan memakai POST (mis. cache/clear, jobs/{id}/cancel).
@@ -205,6 +212,8 @@ class Transport:
             optional["params"] = params
         if json is not None:
             optional["json"] = json
+        if data is not None:
+            optional["data"] = data
         last_error: Exception | None = None
 
         for attempt in range(self.max_retries):

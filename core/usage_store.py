@@ -118,20 +118,6 @@ CREATE TABLE IF NOT EXISTS usage_m_query (
   PRIMARY KEY (dataset_id, kind, name)
 );
 CREATE INDEX IF NOT EXISTS ix_usage_m_query_dataset ON usage_m_query(dataset_id);
-CREATE TABLE IF NOT EXISTS usage_subscription (
-  dataset_id TEXT, report_id TEXT, subscription_id TEXT,
-  title TEXT, artifact_type TEXT, page_name TEXT, frequency TEXT,
-  is_enabled INTEGER DEFAULT 0, attachment_format TEXT,
-  start_date TEXT, end_date TEXT, receiver_count INTEGER DEFAULT 0,
-  receivers_json TEXT, scanned_at TEXT,
-  PRIMARY KEY (dataset_id, subscription_id)
-);
-CREATE INDEX IF NOT EXISTS ix_usage_subscription_report
-  ON usage_subscription(dataset_id, report_id);
-CREATE TABLE IF NOT EXISTS usage_subscription_scan (
-  dataset_id TEXT, report_id TEXT, status TEXT, message TEXT, scanned_at TEXT,
-  PRIMARY KEY (dataset_id, report_id)
-);
 """
 
 
@@ -152,8 +138,6 @@ MIGRATIONS = {
         "fetch_ms": "INTEGER DEFAULT 0",
         "scan_ms": "INTEGER DEFAULT 0",
         "scan_workers": "INTEGER DEFAULT 1",
-        "subscription_unmapped": "INTEGER DEFAULT 0",
-        "subscription_status": "TEXT",
     },
     "usage_column": {
         "error_message": "TEXT",
@@ -904,95 +888,6 @@ def m_queries(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]
 
 
 # ---------------------------------------------------------------------------
-# Subscription report (Admin REST, cache)
-# ---------------------------------------------------------------------------
-def save_subscriptions(
-    conn: sqlite3.Connection,
-    dataset_id: str,
-    report_id: str,
-    items: Iterable[Any],
-    *,
-    status: str = "ok",
-    message: str = "",
-    scanned_at: str | None = None,
-) -> None:
-    """Simpan subscription satu report + status pemindaiannya (cache)."""
-    stamp = scanned_at or utc_now()
-    payload = []
-    for item in items:
-        data = item.payload() if hasattr(item, "payload") else dict(item)
-        payload.append(
-            (
-                dataset_id,
-                report_id,
-                str(data.get("subscription_id") or ""),
-                str(data.get("title") or ""),
-                str(data.get("artifact_type") or ""),
-                str(data.get("page_name") or ""),
-                str(data.get("frequency") or ""),
-                1 if data.get("is_enabled") else 0,
-                str(data.get("attachment_format") or ""),
-                str(data.get("start_date") or ""),
-                str(data.get("end_date") or ""),
-                int(data.get("receiver_count") or 0),
-                json.dumps(data.get("receivers") or [], ensure_ascii=False),
-                stamp,
-            )
-        )
-    conn.execute(
-        "DELETE FROM usage_subscription WHERE dataset_id = ? AND report_id = ?",
-        (dataset_id, report_id),
-    )
-    if payload:
-        conn.executemany(
-            """
-            INSERT OR REPLACE INTO usage_subscription (
-              dataset_id, report_id, subscription_id, title, artifact_type,
-              page_name, frequency, is_enabled, attachment_format, start_date,
-              end_date, receiver_count, receivers_json, scanned_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            payload,
-        )
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO usage_subscription_scan (
-          dataset_id, report_id, status, message, scanned_at
-        ) VALUES (?, ?, ?, ?, ?)
-        """,
-        (dataset_id, report_id, status, message[:400], stamp),
-    )
-    conn.commit()
-
-
-def subscriptions(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]:
-    rows = conn.execute(
-        "SELECT * FROM usage_subscription WHERE dataset_id = ? "
-        "ORDER BY report_id, page_name, subscription_id",
-        (dataset_id,),
-    ).fetchall()
-    output: list[dict[str, Any]] = []
-    for row in rows:
-        item = dict(row)
-        try:
-            item["receivers"] = json.loads(item.pop("receivers_json") or "[]")
-        except json.JSONDecodeError:
-            item["receivers"] = []
-        output.append(item)
-    return output
-
-
-def subscription_scans(
-    conn: sqlite3.Connection, dataset_id: str
-) -> dict[str, dict[str, Any]]:
-    rows = conn.execute(
-        "SELECT * FROM usage_subscription_scan WHERE dataset_id = ?",
-        (dataset_id,),
-    ).fetchall()
-    return {str(row["report_id"]): dict(row) for row in rows}
-
-
-# ---------------------------------------------------------------------------
 # Riwayat analisa
 # ---------------------------------------------------------------------------
 def save_run(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
@@ -1025,8 +920,6 @@ def save_run(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
         "fetch_ms",
         "scan_ms",
         "scan_workers",
-        "subscription_unmapped",
-        "subscription_status",
     )
     values = tuple(row.get(field) for field in fields)
     marks = ", ".join("?" for _ in fields)

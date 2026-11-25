@@ -40,7 +40,6 @@ from core.usage_service import (
     ScanCounters,
     analyze_dataset,
     build_analysis,
-    collect_subscriptions,
     coverage_text,
     discover_reports,
     format_bytes,
@@ -830,106 +829,6 @@ class DefinitionLoaderTests(unittest.TestCase):
         client.close.assert_called_once()
 
 
-class CollectSubscriptionsTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.conn = connect(Path(self._tmp.name) / "data" / "bi_tools.db")
-        self.addCleanup(lambda: close_quietly(self.conn))
-        initialize(self.conn)
-        self.principal = ServicePrincipal.from_values("t", "c", "s")
-
-    def entry(self, report_id: str) -> ReportEntry:
-        return ReportEntry(
-            report_id=report_id,
-            name=f"Report {report_id}",
-            workspace_id="ws",
-            report_format="PBIR",
-            modified_at="2026-01-01T00:00:00Z",
-        )
-
-    def save_status(self, entry: ReportEntry, status: str) -> None:
-        save_report(
-            self.conn,
-            report_id=entry.report_id,
-            workspace_id=entry.workspace_id,
-            dataset_id="ds",
-            name=entry.name,
-            report_format=entry.report_format,
-            modified_at=entry.modified_at,
-            status=status,
-        )
-
-    def test_only_unscannable_reports_and_cache_is_reused(self) -> None:
-        entries = [self.entry("r1"), self.entry("r2")]
-        self.save_status(entries[0], "unsupported")
-        self.save_status(entries[1], "ok")
-        payload = [
-            {
-                "id": "sub-1",
-                "title": "Daily",
-                "artifactType": "Report",
-                "isEnabled": True,
-                "frequency": "Daily",
-                "subArtifactDisplayName": "Overview",
-                "users": [{"emailAddress": "a@example.com"}],
-            }
-        ]
-        with patch("core.usage_service.PowerBILineageClient") as client_cls:
-            client = client_cls.return_value
-            client.report_subscriptions.return_value = payload
-            first = collect_subscriptions(
-                self.conn, self.principal, dataset_id="ds", entries=entries
-            )
-            second = collect_subscriptions(
-                self.conn, self.principal, dataset_id="ds", entries=entries
-            )
-
-        self.assertEqual(first.checked, 1)
-        self.assertEqual(first.unmapped, 1)
-        self.assertEqual(first.status, "ok")
-        self.assertEqual(len(first.items), 1)
-        client.report_subscriptions.assert_called_once_with("r1")
-        self.assertEqual(second.unmapped, 1)
-        self.assertEqual(len(second.items), 1)
-        self.assertEqual(client.report_subscriptions.call_count, 1)
-
-    def test_disabled_subscription_is_evidence_only(self) -> None:
-        entry = self.entry("r1")
-        self.save_status(entry, "unsupported")
-        with patch("core.usage_service.PowerBILineageClient") as client_cls:
-            client_cls.return_value.report_subscriptions.return_value = [
-                {"id": "sub-1", "isEnabled": False}
-            ]
-            collection = collect_subscriptions(
-                self.conn, self.principal, dataset_id="ds", entries=[entry]
-            )
-        self.assertEqual(collection.unmapped, 0)
-        self.assertEqual(len(collection.items), 1)
-        self.assertEqual(collection.checked, 1)
-
-    def test_forbidden_and_throttled_are_reported_without_blocking(self) -> None:
-        entry = self.entry("r1")
-        self.save_status(entry, "unsupported")
-        for status_code, expected in ((403, "unavailable"), (429, "throttled")):
-            with patch("core.usage_service.PowerBILineageClient") as client_cls:
-                client_cls.return_value.report_subscriptions.side_effect = ApiError(
-                    "gagal", status_code=status_code
-                )
-                collection = collect_subscriptions(
-                    self.conn, self.principal, dataset_id="ds", entries=[entry]
-                )
-            self.assertEqual(collection.status, expected)
-            self.assertEqual(collection.unmapped, 0)
-            self.assertTrue(collection.note)
-
-    def test_subscription_unmapped_blocks_complete(self) -> None:
-        counters = ScanCounters(total=1, scanned=1)
-        self.assertTrue(counters.complete)
-        counters.subscription_unmapped = 1
-        self.assertFalse(counters.complete)
-
-
 class BuildAnalysisTests(unittest.TestCase):
     def test_usage_rows_are_grouped_case_insensitively(self) -> None:
         usage_rows = [
@@ -1346,8 +1245,7 @@ class WriteWorkbookTests(unittest.TestCase):
                 "09_Health",
                 "10_BestPractice_Model",
                 "11_BestPractice_Model_Rules",
-                "12_Subscriptions",
-            ],
+                    ],
         )
         columns = pd.read_excel(book, "02_Columns")
         self.assertEqual(columns.loc[0, "Column"], "Customer")

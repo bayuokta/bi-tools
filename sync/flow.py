@@ -16,6 +16,7 @@ from core.errors import ExtractionError
 from core.snapshot import publish_snapshot
 
 from .catalog import WorkspaceSyncResult, run_workspace_sync, sync_report_catalog
+from .graph import GraphUploader, SharePointTarget
 from .lineage import LineageScanResult, run_lineage_scan
 
 Log = Callable[[str], None]
@@ -42,6 +43,8 @@ class SyncOptions:
     skip_catalog: bool = False
     skip_lineage: bool = False
     skip_reports: bool = False
+    upload: bool = False
+    sharepoint: SharePointTarget | None = None
 
     def validate(self) -> None:
         if self.mode not in MODES:
@@ -49,6 +52,10 @@ class SyncOptions:
         if self.skip_catalog and self.skip_lineage and self.skip_reports:
             raise ExtractionError(
                 "Semua langkah sync dilewati; tidak ada yang bisa diterbitkan."
+            )
+        if self.upload and self.sharepoint is None:
+            raise ExtractionError(
+                "Upload diminta tetapi target SharePoint belum diisi."
             )
 
 
@@ -69,6 +76,7 @@ class SyncResult:
     report_error: str = ""
     duration_seconds: float = 0.0
     steps: dict[str, Any] = field(default_factory=dict)
+    upload: dict[str, Any] = field(default_factory=dict)
 
 
 def run_sync(
@@ -131,6 +139,10 @@ def run_sync(
     )
     log(f"Snapshot: {summary['path']} ({summary['size']} byte)")
 
+    uploaded: dict[str, Any] = {}
+    if options.upload and options.sharepoint is not None:
+        uploaded = _upload_snapshot(options.sharepoint, summary, principal, log)
+
     return SyncResult(
         database=database,
         snapshot=Path(str(summary["path"])),
@@ -149,4 +161,26 @@ def run_sync(
             "lineage": lineage is not None,
             "reports": report_error == "",
         },
+        upload=uploaded,
     )
+
+
+def _upload_snapshot(
+    target: SharePointTarget,
+    summary: dict[str, Any],
+    principal: ServicePrincipal,
+    log: Log,
+) -> dict[str, Any]:
+    """Upload database snapshot lalu checksum-nya ke SharePoint."""
+    snapshot = Path(str(summary["path"]))
+    checksum = Path(str(summary["path"]) + ".sha256")
+    result: dict[str, Any] = {"target": target.label, "files": {}}
+    with GraphUploader(principal, target, log=log) as uploader:
+        log(f"SharePoint: {target.label}")
+        for path in (snapshot, checksum):
+            if not path.exists():
+                continue
+            info = uploader.upload(path)
+            result["files"][info["name"]] = info
+            log(f"Upload: {info['name']} ({info['size']} byte)")
+    return result

@@ -855,8 +855,7 @@ class SyncSeparationTests(unittest.TestCase):
     """Admin API dan upload snapshot hanya milik paket ``sync``."""
 
     def test_admin_endpoints_only_in_sync(self) -> None:
-        pattern = r"admin/(groups|workspaces|reports(?!/\{))"
-        self.assertEqual(matching(pattern), [])
+        self.assertEqual(matching(r"admin/"), [])
         sync_text = "\n".join(
             path.read_text(encoding="utf-8")
             for path in (ROOT / "sync").rglob("*.py")
@@ -892,6 +891,12 @@ class SyncSeparationTests(unittest.TestCase):
         text = (ROOT / "server" / "api" / "catalog.py").read_text(encoding="utf-8")
         self.assertNotIn('"/sync"', text)
         self.assertNotIn('"/scan"', text)
+
+    def test_graph_only_in_sync_package(self) -> None:
+        self.assertEqual(matching(r"graph\.microsoft\.com"), [])
+        graph_text = (ROOT / "sync" / "graph.py").read_text(encoding="utf-8")
+        self.assertIn("graph.microsoft.com", graph_text)
+        self.assertIn("createUploadSession", graph_text)
 
 
 if __name__ == "__main__":

@@ -120,6 +120,26 @@ Jangan membuka SQLite langsung dari folder SharePoint/OneDrive. Laporan report
 dibaca dari tabel `report_catalog`; definisi report tetap diunduh live dengan
 akun user.
 
+### Upload snapshot ke SharePoint
+
+Program sync bisa langsung mengunggah snapshot ke document library SharePoint
+(Graph app-only). Service principal butuh izin aplikasi Graph `Sites.Selected`
+(disarankan) atau `Sites.ReadWrite.All` yang sudah di-consent, plus grant untuk
+site tujuan.
+
+```powershell
+python -m sync check --sharepoint-host contoso.sharepoint.com `
+  --sharepoint-site /teams/Data --sharepoint-library Documents --sharepoint-folder "Apps/BI Tools"
+
+python -m sync run --full --upload --sharepoint-host contoso.sharepoint.com `
+  --sharepoint-site /teams/Data --sharepoint-library Documents --sharepoint-folder "Apps/BI Tools"
+```
+
+Nilai yang sama bisa disimpan di `.env` (`SP_HOSTNAME`, `SP_SITE_PATH`,
+`SP_DRIVE_NAME`, `SP_FOLDER`). File diunggah sebagai `bi_tools_snapshot.db`
+lalu `.sha256`; file >10 MiB memakai upload session. Folder tujuan dibuat
+otomatis.
+
 ## Prasyarat
 
 - Windows + Power BI Desktop (hanya untuk ekstraksi model via XMLA).
@@ -220,7 +240,6 @@ aplikasi interaktif tidak memanggil endpoint ini.
 | Method | Endpoint | Kegunaan |
 |---|---|---|
 | GET | `admin/reports?$filter=datasetId eq '<guid>'&$top=&$skip=` | Report pemakai dataset (lintas workspace) |
-| GET | `admin/reports/{reportId}/subscriptions` | Subscription report (maks. 200 request/jam) |
 | GET | `admin/groups?$top=&$skip=` | Sinkronisasi katalog workspace |
 | GET | `admin/workspaces/modified?modifiedSince=&excludePersonalWorkspaces=` | Workspace yang berubah |
 | POST | `admin/workspaces/getInfo` | Scanner API (batch 100 workspace) |
@@ -291,6 +310,10 @@ Program sync database bersama (service principal, Admin API):
 ```powershell
 python sync_main.py --database data\bi_tools_sync.db `
   --snapshot-out "D:\Share\bi_tools_snapshot.db" --mode admin --full
+
+# Upload langsung ke SharePoint (Graph app-only):
+python -m sync run --full --upload --sharepoint-host contoso.sharepoint.com `
+  --sharepoint-site /teams/Data --sharepoint-library Documents --sharepoint-folder "Apps/BI Tools"
 ```
 
 Report (tidak butuh Power BI Desktop terbuka):
@@ -597,7 +620,7 @@ Ekspor XLSX menambah sheet `10_BestPractice_Model` (temuan) dan `11_BestPractice
 
 ### Batasan
 
-- Subscription report dideteksi lewat Admin API **hanya untuk report yang tidak bisa dipindai** (RDL/personal/inaccessible), dengan cache 24 jam dan batas 25 report per run. Subscription aktif pada report seperti itu membuat kolom tanpa referensi menjadi `Perlu dicek`, bukan `Tidak dipakai`. Data alert, Excel/ad-hoc (Analyze in Excel), Q&A, personalisasi user, dan pemetaan field RDL/personal tetap tidak terdeteksi. Kuota endpoint subscription 200 request/jam.
+- Subscription report **tidak dideteksi** (fitur dihapus) demi memisahkan aplikasi dari Admin API. Data alert, Excel/ad-hoc (Analyze in Excel), Q&A, personalisasi user, dan pemetaan field RDL/personal juga tidak terdeteksi.
 - Report RDL/paginated tidak dianalisa field-nya dan dilaporkan sebagai `unsupported`.
 - Report di My Workspace tidak dapat diakses service principal pada program sync; default dilewati. Akun user yang punya akses bisa membukanya secara manual.
 - Report dari Power BI App (`[App] …`) selalu dilewati; pemakaian yang hanya ada di salinan app tidak dihitung.
