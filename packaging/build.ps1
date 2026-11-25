@@ -89,6 +89,14 @@ Invoke-Step "ZIP portable" {
     Compress-Archive -Path $items.FullName -DestinationPath $portable -CompressionLevel Optimal
 }
 
+# --- Wheel bitools-sync --------------------------------------------------
+Invoke-Step "Wheel bitools-sync" {
+    python -m pip wheel . --no-deps -w (Join-Path $RepoRoot "dist")
+}
+$wheel = Get-ChildItem (Join-Path $RepoRoot "dist") -Filter "bitools_sync-$Version-*.whl" |
+    Select-Object -First 1
+if (-not $wheel) { throw "Wheel bitools_sync tidak terbentuk" }
+
 # --- Installer Inno Setup ------------------------------------------------
 $isccCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
@@ -115,6 +123,7 @@ if ($SkipInstaller) {
 $artifacts = @()
 if (Test-Path $installer) { $artifacts += $installer }
 if (Test-Path $portable) { $artifacts += $portable }
+if ($wheel) { $artifacts += $wheel.FullName }
 
 if ($artifacts.Count -gt 0) {
     $lines = foreach ($file in $artifacts) {

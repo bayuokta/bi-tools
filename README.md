@@ -61,6 +61,8 @@ sync\                           program sync service principal (hanya paket ini 
   __main__.py                   CLI bi-tools-sync (run/workspaces/lineage)
 sync_main.py                    entry point ``bi-tools-sync`` (program sync service principal)
 pyproject.toml                  build wheel bitools-sync untuk notebook Fabric
+notebooks\bi_tools_sync.ipynb   notebook Fabric: sync + upload snapshot
+notebooks\README.md             setup notebook, jadwal pipeline, rotasi secret
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
   app.py                        pabrik aplikasi, rute API, aset web, penjaga token
@@ -119,6 +121,13 @@ Aplikasi interaktif mengunduh snapshot ke cache lokal dan membukanya read-only.
 Jangan membuka SQLite langsung dari folder SharePoint/OneDrive. Laporan report
 dibaca dari tabel `report_catalog`; definisi report tetap diunduh live dengan
 akun user.
+
+### Notebook Fabric (jadwal otomatis)
+
+Aset rilis menyertakan wheel `bitools_sync-<versi>-py3-none-any.whl`. Notebook
+`notebooks\bi_tools_sync.ipynb` memasang wheel itu, menjalankan sync, dan
+mengunggah snapshot ke SharePoint. Panduan lengkap (grant Graph, jadwal
+pipeline, rotasi secret) ada di `notebooks\README.md`.
 
 ### Upload snapshot ke SharePoint
 

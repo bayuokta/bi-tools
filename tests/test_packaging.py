@@ -204,6 +204,30 @@ class PackagingAssetsTests(unittest.TestCase):
         self.assertIn("actions/upload-artifact@v6", release)
         self.assertNotIn("actions/upload-artifact@v4", release)
 
+    def test_release_builds_sync_wheel(self) -> None:
+        text = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("pip wheel . --no-deps", text)
+        self.assertIn("bitools_sync-$version-*.whl", text)
+        self.assertIn("dist/bitools_sync-*.whl", text)
+        build = (ROOT / "packaging" / "build.ps1").read_text(encoding="utf-8")
+        self.assertIn("Wheel bitools-sync", build)
+
+    def test_fabric_notebook_uses_wheel(self) -> None:
+        import json
+
+        path = ROOT / "notebooks" / "bi_tools_sync.ipynb"
+        self.assertTrue(path.exists())
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        text = "\n".join(
+            "".join(cell.get("source") or []) for cell in notebook["cells"]
+        )
+        for marker in ("WHEEL_URL", "%pip install", "run_sync(", "SyncOptions("):
+            self.assertIn(marker, text)
+        readme = (ROOT / "notebooks" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("rotasi", readme.lower())
+
     def test_release_notes_are_built_from_changelog(self) -> None:
         text = (ROOT / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"

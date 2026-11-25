@@ -66,6 +66,16 @@ jobs:
       - name: Uji
         run: python -m unittest discover -s tests -t .
 
+      - name: Wheel bitools-sync
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          python -m pip wheel . --no-deps -w dist
+          $wheel = Get-ChildItem "dist" -Filter "bitools_sync-$version-*.whl" |
+            Select-Object -First 1
+          if (-not $wheel) { throw "Wheel bitools_sync tidak terbentuk" }
+          Write-Host "Wheel: $($wheel.FullName)"
+
       - name: PyInstaller (onedir)
         run: python -m PyInstaller --noconfirm --clean packaging\bi_tools.spec
 
@@ -111,9 +121,13 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
+          $wheel = Get-ChildItem "dist" -Filter "bitools_sync-$version-*.whl" |
+            Select-Object -First 1
+          if (-not $wheel) { throw "Wheel bitools_sync hilang" }
           $files = @(
             "packaging\Output\BITools-Setup-$version.exe",
-            "dist\BITools-$version-portable.zip"
+            "dist\BITools-$version-portable.zip",
+            $wheel.FullName
           )
           $lines = foreach ($file in $files) {
             if (-not (Test-Path $file)) { throw "Artefak hilang: $file" }
@@ -146,7 +160,8 @@ jobs:
             "### Aset",
             "- BITools-Setup-$version.exe - installer per pengguna (tanpa UAC)",
             "- BITools-$version-portable.zip - portable onedir (ekstrak lalu jalankan BI Tools.exe)",
-            "- SHA256SUMS.txt - checksum SHA-256 kedua artefak",
+            "- bitools_sync-$version-py3-none-any.whl - wheel program sync untuk notebook Fabric",
+            "- SHA256SUMS.txt - checksum SHA-256 seluruh artefak",
             "",
             "### Sebelum upgrade",
             "- Paket belum ditandatangani digital, jadi Windows SmartScreen bisa menampilkan peringatan.",
@@ -169,6 +184,7 @@ jobs:
           retention-days: 14
           path: |
             dist/BITools-*-portable.zip
+            dist/bitools_sync-*.whl
             dist/SHA256SUMS.txt
             packaging/Output/BITools-Setup-*.exe
 
@@ -182,9 +198,13 @@ jobs:
           $ErrorActionPreference = 'Continue'
           $version = "${{ steps.version.outputs.version }}"
           $tag = "${{ github.ref_name }}"
+          $wheel = Get-ChildItem "dist" -Filter "bitools_sync-$version-*.whl" |
+            Select-Object -First 1
+          if (-not $wheel) { throw "Wheel bitools_sync hilang" }
           $assets = @(
             "packaging\Output\BITools-Setup-$version.exe",
             "dist\BITools-$version-portable.zip",
+            $wheel.FullName,
             "dist\SHA256SUMS.txt"
           )
           $notes = Get-Content "dist\RELEASE_NOTES.md" -Raw

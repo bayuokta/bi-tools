@@ -7,6 +7,48 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-25 - Rilis 0.8.0
+
+### Pemisahan program sync
+
+- Paket baru `sync\` (`admin_api.py`, `catalog.py`, `lineage.py`, `flow.py`)
+  menjadi satu-satunya pemilik Admin API Power BI; aplikasi web dan
+  `bi-tools-cli` tidak lagi memuat endpoint `admin/*`.
+- `bi-tools-cli sync`, `lineage --scan`, dan `lineage --sync-workspaces`
+  dihapus; penggantinya `bitools-sync run`, `bitools-sync workspaces`,
+  `bitools-sync lineage`, dan `bitools-sync check`.
+- Pengaturan web tidak lagi punya kredensial service principal, tes token,
+  sinkronisasi katalog, atau scan lineage.
+- `report_catalog` tetap diisi program sync; definisi dan usage report tetap
+  diambil live oleh aplikasi user.
+
+### Upload snapshot ke SharePoint
+
+- Program sync bisa mengunggah snapshot langsung ke document library SharePoint
+  lewat Graph app-only: `--upload`, `--sharepoint-host/site/library/folder`,
+  atau `SP_*` dari `.env`.
+- File >10 MiB memakai upload session; folder tujuan dibuat otomatis;
+  `.sha256` diunggah setelah database.
+- Perintah `bitools-sync check` menampilkan site, library, folder, dan isi
+  folder untuk verifikasi.
+
+### Subscription report dihapus
+
+- Deteksi subscription (endpoint admin, tabel `usage_subscription*`, sheet
+  `12_Subscriptions`, dan badge UI) dihapus.
+- Konsekuensi: subscription report, data alert, Excel/ad-hoc, Q&A, dan
+  personalisasi user tidak terdeteksi; kolom tanpa referensi pada report tak
+  terpindai tetap `Perlu dicek` lewat cakupan.
+
+### Paket dan notebook
+
+- Wheel `bitools_sync` (dependensi `msal`, `requests`, `python-dotenv`)
+  diterbitkan sebagai aset rilis untuk dijalankan di notebook Fabric.
+- `notebooks\bi_tools_sync.ipynb` menjalankan sync lalu upload dengan
+  parameter notebook.
+- Guard arsitektur memastikan `admin/` dan `graph.microsoft.com` hanya ada di
+  paket `sync`.
+
 ## 2026-11-25 - Rilis 0.7.0
 
 ### Autentikasi akun 365
