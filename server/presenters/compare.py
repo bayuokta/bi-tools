@@ -74,7 +74,7 @@ def _read_side(
         log(f"Desktop dibaca: {label}")
         return snapshot, label
 
-    principal: ServicePrincipal = store.principal()
+    principal: ServicePrincipal = store.auth()
     principal.validate()
     body = side.to_payload()
     workspace_name = str(body.get("workspace_name") or "").strip()
@@ -92,6 +92,7 @@ def _read_side(
         catalog=dataset_name,
         tokens=tokens,
         options=options,
+        interactive=getattr(principal, "interactive_xmla", False),
     )
     label = _side_label(
         CompareSide(

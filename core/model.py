@@ -1299,6 +1299,7 @@ def run_model(
     report_label: str = "",
     out_file: Path | None = None,
     tokens: Any | None = None,
+    interactive: bool | None = None,
     log: Callable[[str], None] = _silent,
 ) -> dict[str, Any]:
     """Ekstrak metadata model via XMLA; usage opsional dari .pbix atau folder PBIR.
@@ -1324,6 +1325,11 @@ def run_model(
             catalog=catalog,
             port=port,
             tokens=tokens,
+            interactive=(
+                bool(getattr(getattr(tokens, "principal", None), "interactive_xmla", False))
+                if interactive is None
+                else interactive
+            ),
         )
     except XmlaError as exc:
         raise ExtractionError(str(exc)) from exc

@@ -27,6 +27,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "analyze": ("cli.analysis", "ukuran kolom + pemakaian di report"),
     "compare": ("cli.compare", "snapshot TOM untuk perbandingan semantic model"),
     "partition": ("cli.partition", "inventaris dan refresh partisi semantic model"),
+    "sync": ("cli.sync", "sinkronisasi katalog/lineage + snapshot database bersama"),
     "install-browser": ("", "unduh Chromium untuk screenshot TSD"),
 }
 
@@ -44,6 +45,7 @@ Perintah:
   analyze          ukuran kolom + pemakaian di report
   compare          snapshot TOM untuk perbandingan semantic model (internal)
   partition        inventaris dan refresh partisi semantic model
+  sync             sinkronisasi katalog/lineage + snapshot database bersama
   install-browser  unduh Chromium untuk screenshot TSD (default: install chromium)
 
 Opsi umum:

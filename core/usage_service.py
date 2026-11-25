@@ -53,6 +53,7 @@ from .fabric_api import (
 )
 from .lineage_api import PowerBILineageClient
 from .lineage_service import reports_using_dataset
+from .report_catalog import catalog_reports
 from .lineage_store import DEFAULT_DB, close_quietly, connect
 from .metadata_common import (
     find_dax_refs,
@@ -293,21 +294,28 @@ def _entry_from_rest(row: dict[str, Any], *, source: str) -> ReportEntry | None:
 
 
 def discover_reports(
-    principal: ServicePrincipal,
+    principal: Any,
     *,
     dataset_id: str,
     workspace_id: str,
     include_other_workspaces: bool = True,
     database: Path | str = DEFAULT_DB,
+    use_admin: bool = True,
     log: Log = _silent,
 ) -> tuple[list[ReportEntry], str, list[str]]:
-    """Daftar report pemakai dataset. Return ``(entries, metode, catatan)``."""
+    """Daftar report pemakai dataset. Return ``(entries, metode, catatan)``.
+
+    Aplikasi interaktif memakai snapshot katalog (``use_admin=False``); Admin API
+    hanya dipakai program sync atau CLI service principal.
+    """
     notes: list[str] = []
+    if getattr(principal, "is_user", False):
+        use_admin = False
     client = PowerBILineageClient(principal, log=log)
     entries: dict[str, ReportEntry] = {}
     method = "workspace"
     try:
-        if include_other_workspaces:
+        if use_admin and include_other_workspaces:
             try:
                 rows = client.reports_for_dataset(dataset_id)
                 method = "admin"
@@ -319,27 +327,51 @@ def discover_reports(
             except ApiError as exc:
                 notes.append(
                     "Admin API tidak bisa dipakai "
-                    f"({exc.status_code}): memakai daftar workspace + lineage."
+                    f"({exc.status_code}): memakai katalog snapshot + workspace."
                 )
                 log(notes[-1])
                 method = "member"
         if method != "admin":
-            for row in client.reports_in_group(workspace_id):
+            try:
+                workspace_reports = client.reports_in_group(workspace_id)
+            except ApiError as exc:
+                workspace_reports = []
+                notes.append(
+                    f"Daftar report workspace tidak bisa dibaca ({exc.status_code}); "
+                    "memakai katalog snapshot."
+                )
+                log(notes[-1])
+            for row in workspace_reports:
                 if str(row.get("datasetId") or "") != dataset_id:
                     continue
                 entry = _entry_from_rest(row, source="workspace")
                 if entry:
                     entries.setdefault(entry.report_id, entry)
             if include_other_workspaces:
+                for row in catalog_reports(database, dataset_id):
+                    entry = _entry_from_rest(
+                        {
+                            "id": row.get("report_id"),
+                            "workspaceId": row.get("workspace_id"),
+                            "name": row.get("name"),
+                            "reportType": row.get("report_type"),
+                            "format": row.get("report_format"),
+                            "modifiedDateTime": row.get("modified_at"),
+                        },
+                        source="catalog",
+                    )
+                    if entry and entry.report_id not in entries:
+                        entries[entry.report_id] = entry
+                        method = "catalog"
+                if entries:
+                    notes.append(
+                        "Daftar report memakai snapshot hasil sync dan lineage; "
+                        "report baru atau perubahan terakhir bisa belum terlihat."
+                    )
                 for row in reports_using_dataset(database, dataset_id):
                     entry = _entry_from_rest(row, source="lineage")
                     if entry and entry.report_id not in entries:
                         entries[entry.report_id] = entry
-                if entries:
-                    notes.append(
-                        "Daftar report dari lineage bisa lebih lama dari kondisi "
-                        "Power BI Service; jalankan scan lineage untuk menyegarkan."
-                    )
     finally:
         client.close()
     ordered = sorted(entries.values(), key=lambda item: (item.name, item.report_id))
@@ -1947,13 +1979,21 @@ def analyze_dataset(
     else:
         try:
             client = open_client(
-                endpoint=endpoint, catalog=dataset_name, tokens=tokens
+                endpoint=endpoint,
+                catalog=dataset_name,
+                tokens=tokens,
+                interactive=getattr(principal, "interactive_xmla", False),
             )
         except XmlaError as exc:
+            hint = (
+                "Akun 365 perlu akses workspace dan XMLA Read."
+                if getattr(principal, "is_user", False)
+                else "service principal perlu akses ke workspace."
+            )
             raise ExtractionError(
                 f"Tidak bisa terhubung ke XMLA workspace '{workspace_name}': {exc}\n"
                 "Dataset harus berada di kapasitas Premium/PPU/Fabric dengan "
-                "XMLA Read, dan service principal perlu akses ke workspace."
+                "XMLA Read, dan " + hint
             ) from exc
     dependencies: list[dict[str, Any]] = []
     try:
@@ -2004,6 +2044,7 @@ def analyze_dataset(
                 workspace_id=workspace_id,
                 include_other_workspaces=include_other_workspaces,
                 database=database,
+                use_admin=not getattr(principal, "is_user", False),
                 log=log,
             )
         else:
@@ -2092,13 +2133,22 @@ def analyze_dataset(
                     f"{counters.scan_ms / 1000:.1f} dtk · "
                     f"{counters.workers} worker."
                 )
-            subscription = collect_subscriptions(
-                conn,
-                principal,
-                dataset_id=dataset_id,
-                entries=entries,
-                log=log,
-            )
+            if getattr(principal, "is_user", False):
+                subscription = SubscriptionCollection(
+                    status="unavailable",
+                    note=(
+                        "Deteksi subscription membutuhkan Admin API; jalankan "
+                        "program sync dengan service principal."
+                    ),
+                )
+            else:
+                subscription = collect_subscriptions(
+                    conn,
+                    principal,
+                    dataset_id=dataset_id,
+                    entries=entries,
+                    log=log,
+                )
             counters.subscription_unmapped = subscription.unmapped
             if subscription.checked or subscription.status != "ok":
                 detail = f"{subscription.checked} report tak terpindai diperiksa"

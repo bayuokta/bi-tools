@@ -362,7 +362,9 @@ import { state } from "../core/state.js";
       app.setChip(
         $("#spStatus"),
         missing.length ? "warn" : "ok",
-        missing.length ? t("Credentials are incomplete") : t("Service principal ready")
+        missing.length
+          ? t(data.auth_mode === "user" ? "Not signed in" : "Credentials are incomplete")
+          : t(data.auth_mode === "user" ? "Signed in" : "Service principal ready")
       );
       $("#modelSelect") && setSelectOptions("modelSelect", [], "Choose a semantic model…");
       analysisApplyTabTools(state.analysisTab, false);

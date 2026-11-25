@@ -515,6 +515,32 @@ var NEWLINE = String.fromCharCode(10);
       data.auth.complete ? "ok" : (data.auth.has_secret ? "warn" : "idle"),
       data.auth.complete ? t("Complete") : (data.auth.has_secret ? t("Not complete") : t("Not filled in"))
     );
+    $("#authStatus").textContent = tr(data.auth.status) || "";
+    $("#authStatus").className = "helper";
+    $("#authAccount").textContent = data.auth.account
+      ? t("Signed in as ") + data.auth.account
+      : "";
+    $("#authTenant").value = data.auth.tenant_id || "";
+    setChip(
+      $("#authChip"),
+      data.auth.signed_in ? "ok" : (data.auth.tone === "warn" ? "warn" : "idle"),
+      data.auth.signed_in ? t("Signed in") : t("Not signed in")
+    );
+    $("#signIn").disabled = data.auth.mode !== "user" || data.auth.signed_in;
+    $("#signOut").disabled = !data.auth.signed_in;
+    if (data.snapshot) {
+      $("#snapshotSource").value = data.snapshot.source || "";
+      $("#snapshotLocal").value = data.snapshot.local || "";
+      $("#snapshotStatus").textContent = data.snapshot.exists
+        ? t("Snapshot: ") + (data.snapshot.generated_at || "-") +
+          " - " + (data.snapshot.local || "")
+        : t("No shared snapshot loaded.");
+      setChip(
+        $("#snapshotChip"),
+        data.snapshot.exists ? "ok" : "idle",
+        data.snapshot.exists ? t("Loaded") : t("Not loaded")
+      );
+    }
     $("#connResult").textContent = tr(data.auth.status);
     $("#syncMode").value = data.catalog.mode;
     refreshCombo($("#syncMode"));
@@ -2074,26 +2100,72 @@ var NEWLINE = String.fromCharCode(10);
       });
     });
 
+    $("#signIn").addEventListener("click", function () {
+      var button = $("#signIn");
+      button.disabled = true;
+      addLog(t("Opening sign-in..."), "info");
+      api().put("/api/settings/tenant", {
+        tenant_id: $("#authTenant").value.trim()
+      }).then(function () {
+        return api().post("/api/settings/sign-in", {});
+      }).then(function (data) {
+        renderSettings(data);
+        addLog(t("Sign-in completed."), "ok");
+        toast(t("Signed in"));
+      }).catch(function (error) {
+        button.disabled = false;
+        reportError(error);
+      });
+    });
+
+    $("#signOut").addEventListener("click", function () {
+      api().post("/api/settings/sign-out", {}).then(function (data) {
+        renderSettings(data);
+        toast(t("Signed out"));
+      }).catch(reportError);
+    });
+
     $("#saveCreds").addEventListener("click", function () {
-      var secret = $("#clientSecret").value;
-      var payload = {
-        tenant_id: $("#tenantId").value.trim(),
-        client_id: $("#clientId").value.trim()
-      };
-      if (secret) payload.client_secret = secret;
-      api().put("/api/settings/credentials", payload).then(function () {
-        return api().put("/api/settings/rls", {
-          username: $("#rlsUsername").value.trim(),
-          roles: $("#rlsRoles").value
-        });
+      api().put("/api/settings/rls", {
+        username: $("#rlsUsername").value.trim(),
+        roles: $("#rlsRoles").value
       }).then(function (data) {
         state.formDirty = false;
-        state.secretDirty = false;
         renderSettings(data);
-        $("#clientSecret").value = "";
-        addLog(t("Credentials and default RLS saved."), "ok");
+        addLog(t("Default RLS saved."), "ok");
         toast(t("Settings saved"));
       }).catch(reportError);
+    });
+
+    $("#saveSnapshot").addEventListener("click", function () {
+      savePreference("shared-db", {
+        source: $("#snapshotSource").value.trim(),
+        auto_download: true
+      }).then(function (data) {
+        if (!data) return;
+        renderSettings(data);
+        toast(t("Snapshot source saved"));
+      });
+    });
+    $("#downloadSnapshot").addEventListener("click", function () {
+      api().post("/api/settings/snapshot/download", {}).then(function (data) {
+        return api().get("/api/settings").then(function (settings) {
+          renderSettings(settings);
+          toast(t("Snapshot downloaded"));
+          return data;
+        });
+      }).catch(reportError);
+    });
+    $("#pickSnapshot").addEventListener("click", function () {
+      openFilePicker(parentDir($("#snapshotSource").value), ".db", function (path) {
+        $("#snapshotSource").value = path;
+        savePreference("shared-db", {
+          source: path,
+          auto_download: true
+        }).then(function (data) {
+          if (data) renderSettings(data);
+        });
+      });
     });
 
     $("#syncCatalog").addEventListener("click", function () {

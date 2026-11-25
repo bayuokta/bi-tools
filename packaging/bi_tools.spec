@@ -89,6 +89,9 @@ hiddenimports = [
     "clr",
     "clr_loader",
     "pythonnet",
+    "azure.identity",
+    "azure.core",
+    *collect_submodules("azure.identity"),
     # Perintah CLI diimpor dinamis oleh cli/__main__.py (lihat COMMANDS).
     "cli",
     "cli.report",
@@ -98,6 +101,7 @@ hiddenimports = [
     "cli.analysis",
     "cli.compare",
     "cli.partition",
+    "cli.sync",
     # Server memuat app FastAPI secara malas di runtime.run().
     *collect_submodules("server"),
     # uvicorn memilih implementasi loop/protokol saat runtime.
@@ -140,9 +144,14 @@ cli_analysis = Analysis(
     [str(ROOT / "cli" / "__main__.py")],
     **common,
 )
+sync_analysis = Analysis(
+    [str(ROOT / "sync_main.py")],
+    **common,
+)
 
 web_pyz = PYZ(web_analysis.pure)
 cli_pyz = PYZ(cli_analysis.pure)
+sync_pyz = PYZ(sync_analysis.pure)
 
 web_exe = EXE(
     web_pyz,
@@ -184,6 +193,26 @@ cli_exe = EXE(
     version=_version_file(),
 )
 
+sync_exe = EXE(
+    sync_pyz,
+    sync_analysis.scripts,
+    [],
+    exclude_binaries=True,
+    name="bi-tools-sync",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=str(ICON_PATH),
+    version=_version_file(),
+)
+
 collected = COLLECT(
     web_exe,
     web_analysis.binaries,
@@ -191,6 +220,9 @@ collected = COLLECT(
     cli_exe,
     cli_analysis.binaries,
     cli_analysis.datas,
+    sync_exe,
+    sync_analysis.binaries,
+    sync_analysis.datas,
     strip=False,
     upx=False,
     upx_exclude=[],

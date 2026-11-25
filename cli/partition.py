@@ -102,7 +102,7 @@ class _StaticTokens:
         return self._token
 
 
-def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticTokens, dict[str, Any]]:
+def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticTokens | None, dict[str, Any]]:
     endpoint = str(args.endpoint or "").strip()
     catalog = str(args.catalog or "").strip()
     if not endpoint or not catalog:
@@ -113,6 +113,8 @@ def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticT
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError as exc:
         raise ExtractionError(f"Payload token {mode} tidak valid: {exc}") from exc
+    if bool((payload or {}).get("interactive")):
+        return endpoint, catalog, None, payload
     token = str((payload or {}).get("token") or "").strip()
     if not token:
         raise ExtractionError(f"Token {mode} kosong.")
@@ -123,7 +125,12 @@ def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticT
 def _dmv_json(args: argparse.Namespace) -> int:
     """Ambil segmen VertiPaq dan cetak JSON; dipanggil dari proses server."""
     endpoint, catalog, tokens, _payload = _read_stdin(args, "--dmv-json")
-    with open_client(endpoint=endpoint, catalog=catalog, tokens=tokens) as client:
+    with open_client(
+        endpoint=endpoint,
+        catalog=catalog,
+        tokens=tokens,
+        interactive=tokens is None,
+    ) as client:
         rows = client.query(STORAGE_DMV)
     # ASCII agar aman di pipe Windows dengan encoding console yang berbeda.
     print(json.dumps(rows, ensure_ascii=True, default=str))
@@ -133,7 +140,9 @@ def _dmv_json(args: argparse.Namespace) -> int:
 def _inventory_json(args: argparse.Namespace) -> int:
     """Baca partisi lewat TOM dan cetak JSON; dipanggil dari proses server."""
     endpoint, catalog, tokens, _payload = _read_stdin(args, "--inventory-json")
-    with connect_server(endpoint, catalog, tokens) as server:
+    with connect_server(
+        endpoint, catalog, tokens, interactive=tokens is None
+    ) as server:
         rows = list_partitions(server, catalog)
     print(json.dumps(partition_payload(rows), ensure_ascii=True))
     return 0
@@ -153,7 +162,9 @@ def _refresh_json(args: argparse.Namespace) -> int:
         raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
     refresh_type = normalize_refresh_type(str(payload.get("refresh_type") or "full"))
 
-    with connect_server(endpoint, catalog, tokens) as server:
+    with connect_server(
+        endpoint, catalog, tokens, interactive=tokens is None
+    ) as server:
         partitions = list_partitions(server, catalog)
         by_key = {(item.table, item.name): item for item in partitions}
         missing = [key for key in targets if key not in by_key]

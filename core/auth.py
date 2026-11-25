@@ -14,9 +14,12 @@ token .NET dibangun di :mod:`core.xmla_client` dengan token dari sini.
 
 from __future__ import annotations
 
+import base64
+import json
 import os
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -126,17 +129,187 @@ def _read_token_result(result: Any, scope: str) -> Token:
     return Token(value=str(result["access_token"]), expires_on=expires_on)
 
 
+def _token_result(access: Any) -> Token:
+    """Ubah hasil azure-identity menjadi :class:`Token` (waktu refresh)."""
+    value = str(getattr(access, "token", "") or "")
+    if not value:
+        raise ExtractionError("Token Microsoft Entra kosong.")
+    expires_on = int(getattr(access, "expires_on", 0) or 0)
+    if not expires_on:
+        expires_on = int(time.time()) + 3600
+    return Token(value=value, expires_on=expires_on - TOKEN_MARGIN_SECONDS)
+
+
+def _claims(token: str) -> dict[str, Any]:
+    """Baca klaim JWT tanpa verifikasi; hanya untuk menampilkan akun."""
+    try:
+        payload = str(token).split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:  # noqa: BLE001 - token rusak/bukan JWT
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+@dataclass
+class UserSession:
+    """Sesi login akun 365 tanpa client id (azure-identity bawaan).
+
+    Token REST/Fabric dikelola ``InteractiveBrowserCredential``; XMLA tidak
+    memakai token ini (lihat :mod:`core.xmla_client` mode interactive).
+    """
+
+    tenant_id: str = ""
+    cache_name: str = "bi-tools"
+    signed_in: bool = False
+    account: str = ""
+    fabric_error: str = ""
+    is_user: bool = True
+    interactive_xmla: bool = True
+    _credential: Any = None
+    _tokens: dict[str, Token] = field(default_factory=dict)
+    _signing_in: bool = False
+    _lock: Any = field(default_factory=threading.RLock)
+
+    @property
+    def missing(self) -> list[str]:
+        return [] if self.signed_in else ["sign-in"]
+
+    @property
+    def is_complete(self) -> bool:
+        return self.signed_in
+
+    def validate(self) -> None:
+        if not self.signed_in:
+            raise ExtractionError(
+                "Belum login. Buka Pengaturan lalu klik Sign in dengan akun 365."
+            )
+
+    def configure(self, tenant_id: str = "", cache_name: str = "") -> None:
+        tenant = (tenant_id or "").strip()
+        cache = (cache_name or "").strip()
+        with self._lock:
+            changed = tenant != self.tenant_id or (
+                bool(cache) and cache != self.cache_name
+            )
+            self.tenant_id = tenant
+            if cache:
+                self.cache_name = cache
+            if changed:
+                self._credential = None
+                self._tokens.clear()
+                self.signed_in = False
+                self.account = ""
+                self.fabric_error = ""
+
+    def credential(self) -> Any:
+        with self._lock:
+            if self._credential is None:
+                try:
+                    from azure.identity import (
+                        InteractiveBrowserCredential,
+                        TokenCachePersistenceOptions,
+                    )
+                except ImportError as exc:  # pragma: no cover - dependensi paket
+                    raise ExtractionError(
+                        "azure-identity belum terpasang; jalankan pip install azure-identity."
+                    ) from exc
+                options: dict[str, Any] = {
+                    "cache_persistence_options": TokenCachePersistenceOptions(
+                        name=self.cache_name
+                    )
+                }
+                if self.tenant_id and self.tenant_id != "organizations":
+                    options["tenant_id"] = self.tenant_id
+                self._credential = InteractiveBrowserCredential(**options)
+            return self._credential
+
+    def get(self, scope: str = POWERBI_SCOPE, *, force: bool = False) -> Token:
+        if not self.signed_in and not self._signing_in:
+            raise ExtractionError(
+                "Belum login. Buka Pengaturan lalu klik Sign in dengan akun 365."
+            )
+        with self._lock:
+            if not force:
+                cached = self._tokens.get(scope)
+                if cached is not None and time.time() < cached.expires_on:
+                    return cached
+            access = self.credential().get_token(scope)
+            token = _token_result(access)
+            self._tokens[scope] = token
+            claims = _claims(token.value)
+            account = (
+                claims.get("preferred_username")
+                or claims.get("upn")
+                or claims.get("unique_name")
+                or claims.get("name")
+                or self.account
+            )
+            if account:
+                self.account = str(account)
+            return token
+
+    def sign_in(self) -> None:
+        """Login interaktif dan verifikasi token Power BI + Fabric."""
+        self._signing_in = True
+        try:
+            self.get(POWERBI_SCOPE, force=True)
+            self.signed_in = True
+            try:
+                self.get(FABRIC_SCOPE, force=True)
+                self.fabric_error = ""
+            except Exception as exc:  # noqa: BLE001 - Fabric opsional saat login
+                self.fabric_error = str(exc)
+        finally:
+            self._signing_in = False
+
+    def sign_out(self) -> None:
+        with self._lock:
+            self._credential = None
+            self._tokens.clear()
+            self.signed_in = False
+            self.account = ""
+            self.fabric_error = ""
+
+    def invalidate(self, scope: str | None = None) -> None:
+        with self._lock:
+            if scope is None:
+                self._tokens.clear()
+            else:
+                self._tokens.pop(scope, None)
+
+
+_USER_SESSION = UserSession()
+_USER_SESSION_LOCK = threading.RLock()
+
+
+def user_session() -> UserSession:
+    """Sesi login global milik proses server (satu instance per pengguna)."""
+    with _USER_SESSION_LOCK:
+        return _USER_SESSION
+
+
+def reset_user_session() -> None:
+    """Kosongkan sesi login (dipakai uji dan saat server berhenti)."""
+    with _USER_SESSION_LOCK:
+        _USER_SESSION.sign_out()
+
+
 class EntraTokens:
-    """Satu MSAL client untuk satu service principal, cache token per scope."""
+    """Token untuk satu identitas: service principal atau sesi user."""
 
     def __init__(
         self,
-        principal: ServicePrincipal,
+        principal: Any,
         *,
         msal_app: Any | None = None,
     ) -> None:
-        principal.validate()
         self.principal = principal
+        self._user: UserSession | None = (
+            principal if getattr(principal, "is_user", False) else None
+        )
+        if self._user is None:
+            principal.validate()
         self._app: Any | None = msal_app
         self._cache: dict[str, Token] = {}
 
@@ -161,6 +334,8 @@ class EntraTokens:
 
     def get(self, scope: str = POWERBI_SCOPE, *, force: bool = False) -> Token:
         """Token untuk ``scope``; ambil ulang bila kedaluwarsa atau ``force``."""
+        if self._user is not None:
+            return self._user.get(scope, force=force)
         if not force:
             cached = self._cache.get(scope)
             if cached is not None and time.time() < cached.expires_on:
@@ -172,6 +347,9 @@ class EntraTokens:
         return token
 
     def invalidate(self, scope: str | None = None) -> None:
+        if self._user is not None:
+            self._user.invalidate(scope)
+            return
         if scope is None:
             self._cache.clear()
         else:

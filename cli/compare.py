@@ -48,7 +48,7 @@ def _read_stdin(args: argparse.Namespace) -> tuple[dict[str, Any], _StaticTokens
         raise ExtractionError(f"Payload compare tidak valid: {exc}") from exc
     if not isinstance(payload, dict):
         raise ExtractionError("Payload compare harus berupa object JSON.")
-    if args.port:
+    if args.port or bool(payload.get("interactive")):
         return payload, None
     token = str(payload.get("token") or "").strip()
     if not token:
@@ -70,9 +70,12 @@ def _snapshot_json(args: argparse.Namespace) -> int:
         endpoint = str(args.endpoint or "").strip()
         if not endpoint:
             raise ExtractionError("Mode snapshot membutuhkan --endpoint.")
-        if tokens is None:
+        interactive = bool(payload.get("interactive"))
+        if tokens is None and not interactive:
             raise ExtractionError("Token compare kosong.")
-        with connect_server(endpoint, catalog, tokens) as server:
+        with connect_server(
+            endpoint, catalog, tokens, interactive=interactive
+        ) as server:
             text = serialize_snapshot(server, catalog, options)
     print(text)
     return 0

@@ -560,7 +560,7 @@
             <div class="panel-head">
               <span class="panel-title" data-i18n="Source &amp; options">Source &amp; options</span>
               <div class="spacer"></div>
-              <span class="chip chip-ok" id="spStatus"><span class="dot"></span><span data-i18n="Service principal ready">Service principal ready</span></span>
+              <span class="chip chip-ok" id="spStatus"><span class="dot"></span><span data-i18n="Signed in">Signed in</span></span>
             </div>
             <div class="panel-body">
               <div class="form-grid form-grid--source">
@@ -588,7 +588,7 @@
               </div>
               <div class="check-row">
                 <label class="check"><input type="checkbox" id="includeReports" checked=""> <span data-i18n="Include report usage (pages, visuals, filters)">Include report usage (pages, visuals, filters)</span></label>
-                <label class="check"><input type="checkbox" id="includeOther" checked=""> <span data-i18n="Include reports from other workspaces (admin API)">Include reports from other workspaces (admin API)</span></label>
+                <label class="check"><input type="checkbox" id="includeOther" checked=""> <span data-i18n="Include reports from other workspaces (snapshot)">Include reports from other workspaces (snapshot)</span></label>
                 <label class="check"><input type="checkbox" id="includePersonal"> <span data-i18n="Include My Workspace (personal)">Include My Workspace (personal)</span></label>
               </div>
             </div>
@@ -1149,23 +1149,34 @@
           <div id="set-kredensial" role="tabpanel" aria-labelledby="tab-kredensial" class="od-stack" style="--od-gap:16px">
             <div class="panel">
               <div class="panel-head">
-                <span class="panel-title">Service principal</span>
+                <span class="panel-title">Microsoft 365 account</span>
                 <div class="spacer"></div>
-                <span class="chip chip-idle" id="credChip"><span class="dot"></span><span data-i18n="Not filled in">Not filled in</span></span>
+                <span class="chip chip-idle" id="authChip"><span class="dot"></span><span id="authChipText" data-i18n="Not signed in">Not signed in</span></span>
               </div>
               <div class="panel-body">
+                <p class="helper" id="authStatus">Not signed in.</p>
                 <div class="form-row">
-                  <label for="tenantId">Tenant ID</label>
-                  <input class="input mono" id="tenantId" type="text" autocomplete="off" placeholder="Microsoft Entra tenant GUID" data-i18n-placeholder="Microsoft Entra tenant GUID">
+                  <label for="authTenant">Tenant (optional)</label>
+                  <input class="input mono" id="authTenant" type="text" autocomplete="off" placeholder="Tenant domain or GUID (optional)">
                 </div>
-                <div class="form-row">
-                  <label for="clientId">Client ID</label>
-                  <input class="input mono" id="clientId" type="text" autocomplete="off" placeholder="Application GUID (client ID)" data-i18n-placeholder="Application GUID (client ID)">
+                <p class="helper" id="authAccount"></p>
+                <div hidden>
+                  <input id="tenantId" type="text">
+                  <input id="clientId" type="text">
+                  <input id="clientSecret" type="password">
+                  <span id="credChip"></span>
                 </div>
-                <div class="form-row">
-                  <label for="clientSecret">Client secret</label>
-                  <input class="input mono" id="clientSecret" type="password" autocomplete="new-password" placeholder="Leave blank to keep unchanged">
-                </div>
+              </div>
+              <div class="panel-foot">
+                <button class="btn btn-primary" id="signIn" type="button" data-i18n="Sign in">Sign in</button>
+                <button class="btn" id="signOut" type="button" data-i18n="Sign out">Sign out</button>
+                <button class="btn" id="testConn" type="button" data-i18n="Test connection">Test connection</button>
+                <span class="helper" id="connResult">Not tested in this session.</span>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title" data-i18n="Default RLS">Default RLS</span></div>
+              <div class="panel-body">
                 <div class="form-row">
                   <label for="rlsUsername">RLS default</label>
                   <input class="input mono" id="rlsUsername" type="text" autocomplete="off" placeholder="RLS username (optional)" data-i18n-placeholder="RLS username (optional)">
@@ -1176,60 +1187,54 @@
                 </div>
               </div>
               <div class="panel-foot">
-                <button class="btn" id="testConn" type="button" data-i18n="Test connection">Test connection</button>
                 <button class="btn btn-primary" id="saveCreds" type="button" data-i18n="Save">Save</button>
-                <span class="helper" id="connResult">Not tested in this session.</span>
               </div>
             </div>
             <div class="note">
               <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-              <span data-i18n="Credentials are only used to call the admin API and XMLA. The client secret is stored as plain text in the local preferences file; tokens stay in process memory.">Credentials are only used to call the admin API and XMLA. The client secret is stored as plain text in the local preferences file; tokens stay in process memory.</span>
+              <span data-i18n="Sign in with your Microsoft 365 account. Tokens stay in process memory; XMLA uses the MSOLAP login dialog. Admin sync runs separately with a service principal.">Sign in with your Microsoft 365 account. Tokens stay in process memory; XMLA uses the MSOLAP login dialog. Admin sync runs separately with a service principal.</span>
             </div>
           </div>
 
           <div id="set-katalog" role="tabpanel" aria-labelledby="tab-katalog" class="od-stack" style="--od-gap:16px" hidden="">
             <div class="panel">
-              <div class="panel-head"><span class="panel-title" data-i18n="Path &amp; storage">Path &amp; storage</span></div>
-              <div class="panel-body">
-                <div class="form-row">
-                  <label for="dbPath">Database</label>
-                  <input class="input mono" id="dbPath" type="text" autocomplete="off" placeholder="SQLite database folder" data-i18n-placeholder="SQLite database folder">
-                  <div class="row-inline">
-                    <button class="btn btn-sm" type="button" id="pickDb" data-i18n="Choose…">Choose…</button>
-                    <button class="btn btn-sm btn-primary" type="button" id="saveDb" data-i18n="Save">Save</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="panel">
               <div class="panel-head">
-                <span class="panel-title" data-i18n="Data sync">Data sync</span>
+                <span class="panel-title" data-i18n="Shared database snapshot">Shared database snapshot</span>
                 <div class="spacer"></div>
-                <span class="chip chip-ok" id="syncChip"><span class="dot"></span><span data-i18n="In sync">In sync</span></span>
+                <span class="chip chip-idle" id="snapshotChip"><span class="dot"></span><span id="snapshotChipText" data-i18n="Not loaded">Not loaded</span></span>
               </div>
               <div class="panel-body">
                 <div class="form-row">
-                  <label for="syncMode" data-i18n="Mode">Mode</label>
-                  <div class="select">
-                    <select id="syncMode">
-                      <option value="auto" data-i18n="Automatic (admin, then member)">Automatic (admin, then member)</option>
-                      <option value="admin" data-i18n="Admin (entire tenant)">Admin (entire tenant)</option>
-                      <option value="member" data-i18n="Member only">Member only</option>
-                    </select>
+                  <label for="snapshotSource" data-i18n="Source file">Source file</label>
+                  <input class="input mono" id="snapshotSource" type="text" autocomplete="off" placeholder="SharePoint/OneDrive synced folder\bi_tools_snapshot.db">
+                  <div class="row-inline">
+                    <button class="btn btn-sm" type="button" id="pickSnapshot" data-i18n="Choose.">Choose.</button>
+                    <button class="btn btn-sm btn-primary" type="button" id="saveSnapshot" data-i18n="Save">Save</button>
                   </div>
                 </div>
-                <div class="check-row" style="padding-left:160px">
-                  <label class="check"><input type="checkbox" id="fullScan"> <span data-i18n="Full lineage scan (ignore incremental timestamps)">Full lineage scan (ignore incremental timestamps)</span></label>
-                  <label class="check"><input type="checkbox" id="includePersonal"> <span data-i18n="Include My Workspace (personal)">Include My Workspace (personal)</span></label>
+                <div class="form-row">
+                  <label for="snapshotLocal" data-i18n="Local copy">Local copy</label>
+                  <input class="input mono" id="snapshotLocal" type="text" readonly>
                 </div>
                 <div class="row-actions">
-                  <button class="btn btn-primary" id="syncCatalog" type="button" data-i18n="Sync workspace catalog">Sync workspace catalog</button>
-                  <button class="btn" id="scanLineage" type="button">Scan lineage</button>
+                  <button class="btn btn-primary" id="downloadSnapshot" type="button" data-i18n="Download snapshot">Download snapshot</button>
                 </div>
-                <p class="helper" id="syncStatus">Loading catalog status…</p>
+                <p class="helper" id="snapshotStatus">Loading snapshot status.</p>
+                <div hidden>
+                  <input id="dbPath" type="text">
+                  <button id="pickDb" type="button"></button>
+                  <button id="saveDb" type="button"></button>
+                  <select id="syncMode"><option value="auto"></option></select>
+                  <input id="fullScan" type="checkbox">
+                  <input id="includePersonal" type="checkbox">
+                  <button id="syncCatalog" type="button"></button>
+                  <button id="scanLineage" type="button"></button>
+                  <span id="syncStatus"></span>
+                  <span id="syncChip"></span>
+                </div>
                 <div class="note">
                   <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-                  <span data-i18n="Both actions use the database above and the credentials on the Credentials sub-tab. Admin mode is shared; Full scan only changes how the lineage scan selects workspaces.">Both actions use the database above and the credentials on the Credentials sub-tab. Admin mode is shared; Full scan only changes how the lineage scan selects workspaces.</span>
+                  <span data-i18n="Sync runs separately with a service principal. Download a read-only snapshot; SQLite is never opened directly from SharePoint.">Sync runs separately with a service principal. Download a read-only snapshot; SQLite is never opened directly from SharePoint.</span>
                 </div>
               </div>
             </div>
@@ -1577,7 +1582,7 @@
     </button>
   </div>
   <div class="dialog-body">
-    <p class="helper" data-i18n="Preview reads model values with the service principal. User RLS does not apply. Maximum 100 rows.">Preview reads model values with the service principal. User RLS does not apply. Maximum 100 rows.</p>
+    <p class="helper" data-i18n="Preview reads model values with the signed-in account. User RLS applies. Maximum 100 rows.">Preview reads model values with the signed-in account. User RLS applies. Maximum 100 rows.</p>
     <div class="raw-actions">
       <button class="btn btn-primary" id="analysisRawLoad" type="button" data-i18n="Load preview">Load preview</button>
       <span class="helper" id="analysisRawStatus"></span>

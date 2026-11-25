@@ -40,6 +40,7 @@ from .partition_plan import (  # noqa: F401 - re-export untuk pemanggil lama
 )
 from .paths import APP_DIR
 from .xmla_client import (
+    INTERACTIVE_REUSE_PROPS,
     _blocked_assembly_message,
     pythonnet_assembly,
     readwrite_endpoint,
@@ -100,13 +101,16 @@ def load_tom(dll_dir: str | Path | None = None) -> tuple[Any, Any, Any]:
 # ---------------------------------------------------------------------------
 # Koneksi
 # ---------------------------------------------------------------------------
-def build_connection_string(endpoint: str, dataset: str) -> str:
+def build_connection_string(
+    endpoint: str, dataset: str, *, interactive: bool = False
+) -> str:
     """Bangun connection string MSOLAP read-write tanpa token.
 
     Endpoint boleh berupa URL ``powerbi://``/``asazure://`` atau connection
     string lengkap. ``?readonly`` dibuang karena refresh membutuhkan akses
     tulis. Token dipasang lewat ``Server.AccessToken``, bukan kredensial di
-    connection string.
+    connection string. Pada ``interactive=True`` autentikasi diserahkan ke
+    MSOLAP (akun 365 tanpa client id).
     """
     data_source = readwrite_endpoint(endpoint)
     if not data_source:
@@ -125,6 +129,8 @@ def build_connection_string(endpoint: str, dataset: str) -> str:
         connection = f'{connection}Initial Catalog="{escaped}";'
     if "application name=" not in connection.lower():
         connection = f"{connection}Application Name={APPLICATION_NAME};"
+    if interactive and "interactive login=" not in connection.lower():
+        connection = f"{connection}{INTERACTIVE_REUSE_PROPS}"
     return connection
 
 
@@ -132,24 +138,26 @@ def build_connection_string(endpoint: str, dataset: str) -> str:
 def connect_server(
     endpoint: str,
     dataset: str,
-    tokens: Any,
+    tokens: Any | None,
     *,
     dll_dir: str | Path | None = None,
     server_cls: Any | None = None,
     access_token_cls: Any | None = None,
     offset_factory: Any | None = None,
     wrap_expired: Any | None = None,
+    interactive: bool = False,
 ) -> Iterator[Any]:
-    """Buka TOM ``Server`` dengan access token dan tutup di ``finally``.
+    """Buka TOM ``Server`` dengan access token atau login interaktif MSOLAP.
 
     ``server_cls``/``access_token_cls``/``offset_factory`` bisa di-inject oleh
-    uji tanpa .NET. ``tokens`` adalah :class:`core.auth.EntraTokens`.
+    uji tanpa .NET. ``tokens`` adalah :class:`core.auth.EntraTokens` pada mode
+    service principal; ``interactive=True`` tidak memakai token sama sekali.
     """
     if server_cls is None:
         server_cls, loaded_token, loaded_offset = load_tom(dll_dir)
         access_token_cls = access_token_cls or loaded_token
         offset_factory = offset_factory or loaded_offset.FromUnixTimeSeconds
-    if access_token_cls is None or offset_factory is None:
+    if not interactive and (access_token_cls is None or offset_factory is None):
         _server, loaded_token, loaded_offset = load_tom(dll_dir)
         access_token_cls = access_token_cls or loaded_token
         offset_factory = offset_factory or loaded_offset.FromUnixTimeSeconds
@@ -161,29 +169,37 @@ def connect_server(
 
     server = server_cls()
     try:
-        server.AccessToken = build(tokens.get(POWERBI_SCOPE))
+        if not interactive:
+            server.AccessToken = build(tokens.get(POWERBI_SCOPE))
 
-        def on_expired(_expired: Any) -> Any:
-            return build(tokens.get(POWERBI_SCOPE, force=True))
+            def on_expired(_expired: Any) -> Any:
+                return build(tokens.get(POWERBI_SCOPE, force=True))
 
-        wrapper = wrap_expired
-        if wrapper is None:
-            from System import Func
+            wrapper = wrap_expired
+            if wrapper is None:
+                from System import Func
 
-            wrapper = lambda function: Func[access_token_cls, access_token_cls](function)  # noqa: E731
+                wrapper = lambda function: Func[access_token_cls, access_token_cls](function)  # noqa: E731
+            try:
+                server.OnAccessTokenExpired = wrapper(on_expired)
+            except Exception:  # noqa: BLE001 - event opsional pada TOM lama
+                pass
+
         try:
-            server.OnAccessTokenExpired = wrapper(on_expired)
-        except Exception:  # noqa: BLE001 - event opsional pada TOM lama
-            pass
-
-        try:
-            server.Connect(build_connection_string(endpoint, dataset))
+            server.Connect(
+                build_connection_string(endpoint, dataset, interactive=interactive)
+            )
         except Exception as exc:  # noqa: BLE001 - pesan koneksi perlu konteks
+            hint = (
+                "Akun 365 perlu akses workspace dan XMLA endpoint Read Write."
+                if interactive
+                else "XMLA endpoint Read Write, dan service principal punya akses "
+                "Member/Admin ke workspace."
+            )
             raise TomError(
                 f"Koneksi XMLA ke '{dataset}' gagal: {exc}\n"
                 "Pastikan workspace berada di kapasitas Premium/PPU/Fabric, "
-                "XMLA endpoint Read Write, dan service principal punya akses "
-                "Member/Admin ke workspace."
+                + hint
             ) from exc
         yield server
     finally:

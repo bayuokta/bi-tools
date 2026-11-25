@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from core.auth import ServicePrincipal
+from core.auth import ServicePrincipal, user_session
 from core.paths import data_dir
 from core.pbi_capture.credentials import split_roles
 
@@ -36,6 +36,7 @@ BOOL_KEYS = frozenset(
         keys.SETTINGS_MIGRATED_KEY,
         MIGRATION_FLAG,
         keys.SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY,
+        keys.SHARED_DB_AUTO_KEY,
         keys.SETTINGS_TSD_DRAFT_KEY,
         keys.SETTINGS_TSD_EXPAND_KEY,
         keys.SETTINGS_TSD_SHOTS_KEY,
@@ -318,6 +319,44 @@ class SettingsStore:
                 keys.AUTH_SECRET_KEY: principal.client_secret,
             }
         )
+
+    # -- mode autentikasi --------------------------------------------------
+    def auth_mode(self) -> str:
+        """``user`` (akun 365) atau ``service`` (SP untuk sync/uji)."""
+        value = self.get_str(keys.AUTH_MODE_KEY, "service").strip().lower()
+        return value if value in {"user", "service"} else "service"
+
+    def set_auth_mode(self, mode: str) -> None:
+        value = str(mode or "").strip().lower()
+        if value not in {"user", "service"}:
+            raise ValueError(f"Mode autentikasi tidak dikenal: {mode!r}")
+        self.set(keys.AUTH_MODE_KEY, value)
+
+    def auth(self) -> Any:
+        """Identitas aktif: sesi user 365 atau service principal."""
+        if self.auth_mode() == "user":
+            session = user_session()
+            session.configure(self.get_str(keys.AUTH_TENANT_KEY))
+            return session
+        return self.principal()
+
+    def shared_db_source(self) -> str:
+        return self.get_str(keys.SHARED_DB_SOURCE_KEY)
+
+    def set_shared_db_source(self, value: str) -> None:
+        self.set(keys.SHARED_DB_SOURCE_KEY, (value or "").strip())
+
+    def shared_db_local(self) -> str:
+        return self.get_str(keys.SHARED_DB_LOCAL_KEY)
+
+    def set_shared_db_local(self, value: str) -> None:
+        self.set(keys.SHARED_DB_LOCAL_KEY, (value or "").strip())
+
+    def shared_db_auto(self) -> bool:
+        return self.get_bool(keys.SHARED_DB_AUTO_KEY, True)
+
+    def set_shared_db_auto(self, value: bool) -> None:
+        self.set(keys.SHARED_DB_AUTO_KEY, "true" if value else "false")
 
     def rls(self) -> tuple[str, tuple[str, ...]]:
         return (

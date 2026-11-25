@@ -3,6 +3,7 @@ openpyxl>=3.1
 jinja2>=3.1
 pythonnet>=3.0
 msal>=1.28,<2.0
+azure-identity>=1.17,<2.0
 requests>=2.31,<3.0
 python-dotenv>=1.0,<2.0
 playwright>=1.45

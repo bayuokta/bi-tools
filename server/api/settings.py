@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from .. import settings as keys
 from ..presenters import settings as presenter
 from . import settings_of, submit_job
 
@@ -45,6 +46,48 @@ class ExtractionIn(BaseModel):
     scope_service: str | None = None
     active_tab: str | None = None
     out_dir: str | None = None
+
+
+class SharedDbIn(BaseModel):
+    source: str = ""
+    auto_download: bool = True
+
+
+class TenantIn(BaseModel):
+    tenant_id: str = ""
+
+
+@router.post("/sign-in")
+def sign_in(request: Request) -> dict[str, Any]:
+    from ..auth_state import sign_in as _sign_in
+
+    return _sign_in(settings_of(request))
+
+
+@router.post("/sign-out")
+def sign_out(request: Request) -> dict[str, Any]:
+    from ..auth_state import sign_out as _sign_out
+
+    return _sign_out(settings_of(request))
+
+
+@router.put("/tenant")
+def save_tenant(payload: TenantIn, request: Request) -> dict[str, Any]:
+    store = settings_of(request)
+    store.set(keys.AUTH_TENANT_KEY, payload.tenant_id.strip())
+    return presenter.build_state(store)
+
+
+@router.put("/shared-db")
+def save_shared_db(payload: SharedDbIn, request: Request) -> dict[str, Any]:
+    return presenter.save_shared_db(
+        settings_of(request), payload.source, payload.auto_download
+    )
+
+
+@router.post("/snapshot/download")
+def download_snapshot(request: Request) -> dict[str, Any]:
+    return presenter.download_shared_db(settings_of(request))
 
 
 @router.get("")

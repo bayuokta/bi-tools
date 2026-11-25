@@ -21,7 +21,7 @@ core\                           logika ekstraksi, tanpa UI atau terminal
     assets.py                   ScreenshotSet, penamaan file, data URI, daftar objek dekoratif
     hints.py                    hint posisi absolut visual (dari workbook report) untuk pairing capture
     credentials.py              identitas RLS (username + roles) dari env/.env
-  auth.py                       kredensial service principal + token Fabric/Power BI (satu login)
+  auth.py                       sesi akun 365 (azure-identity, tanpa client id) + service principal untuk program sync
   api\
     transport.py                HTTP bersama: token, retry 429/5xx, long running operation, pagination
   xmla_client.py                koneksi ADOMD; token Power BI; parse/bangun endpoint workspace
@@ -39,6 +39,8 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   report_usage.py               pemakaian field dari definisi report PBIR + PBIR-Legacy
   usage_store.py                tabel SQLite analisa kolom (cache report, pemakaian, snapshot ukuran)
   usage_service.py              orkestrasi analisa: daftar report, referensi model, verdict, ekspor
+  report_catalog.py             katalog report per dataset untuk database bersama
+  snapshot.py                   publish/unduh snapshot SQLite + checksum + schema version
   model_compare.py              diff definisi TMDL/TMSL TOM (read-only)
   compare_service.py            subprocess snapshot TOM (token stdin)
   tom_compare.py                serializer objek TOM (TMDL/TMSL) di proses anak
@@ -49,8 +51,9 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
   paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
-cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, compare.py, partition.py
-  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/install-browser)
+cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, compare.py, partition.py, sync.py
+  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/sync/install-browser)
+sync_main.py                    entry point ``bi-tools-sync`` (program sync service principal)
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
   app.py                        pabrik aplikasi, rute API, aset web, penjaga token
@@ -59,6 +62,8 @@ server\                         server web lokal (FastAPI + uvicorn, hanya 127.0
   jobs.py                       antrean satu job + log live (SSE) + pembatalan
   settings_store.py             preferensi JSON + migrasi sekali dari registry QSettings 0.3.x
   settings.py                   kunci preferensi web
+  auth_state.py                 status/sign-in/sign-out akun 365
+  shared_db.py                  resolusi snapshot database bersama
   presenters\                   logika web tanpa Qt: settings, metadata, tsd, analysis, compare, lineage, partitions
   api\                          system, settings, catalog, metadata, tsd, analysis, compare, lineage, partitions, files, jobs
 web\                            aset statis: index.html, styles.css, app.js, api.js, js\core, js\views (tanpa build step)
@@ -84,12 +89,31 @@ packaging\                      bi_tools.spec (PyInstaller onedir), bi-tools.iss
 requirements.txt
 ```
 
+## Autentikasi akun 365 dan database bersama
+
+Aplikasi web memakai **akun 365** (tanpa client id): REST dan Fabric lewat
+`azure-identity` browser, sedangkan XMLA (ADOMD/TOM) memakai dialog login
+MSOLAP. Token tetap di memori proses. Klik **Sign in** di Pengaturan.
+
+Program terpisah **`bi-tools-sync.exe`** memakai service principal untuk
+endpoint Admin (katalog workspace, Scanner API, `admin/reports`). Hasilnya
+diterbitkan sebagai snapshot SQLite:
+
+```powershell
+python sync_main.py --database data\bi_tools_sync.db --snapshot-out "D:\Share\bi_tools_snapshot.db"
+```
+
+Aplikasi interaktif mengunduh snapshot ke cache lokal dan membukanya read-only.
+Jangan membuka SQLite langsung dari folder SharePoint/OneDrive. Laporan report
+dibaca dari tabel `report_catalog`; definisi report tetap diunduh live dengan
+akun user.
+
 ## Prasyarat
 
 - Windows + Power BI Desktop (hanya untuk ekstraksi model via XMLA).
 - Python 3.11 dengan `pip install -r requirements.txt`.
 - Path `.pbix` selalu disebut eksplisit (`--report` di CLI/web, `--pbix` di `verify_reference.py`); tidak ada file bawaan. Salin ulang dari project setiap kali report berubah.
-- Untuk scan lineage: akses jaringan ke `login.microsoftonline.com` dan `api.powerbi.com`, serta service principal yang terdaftar di Microsoft Entra.
+- Untuk aplikasi web: akun Microsoft 365 yang punya akses ke workspace. Untuk program sync: service principal yang terdaftar di Microsoft Entra dengan izin Admin API.
 - Untuk screenshot TSD dari Power BI Service: `pip install playwright` lalu `python -m playwright install chromium` (sekali per mesin), akses **Build** ke dataset report, dan role RLS bila dataset memakainya. Di aplikasi terpaket, Chromium diunduh otomatis pada capture pertama (dapat dimatikan), atau manual dengan `bi-tools-cli install-browser`.
 
 ## Antarmuka web lokal
@@ -137,7 +161,7 @@ python -m server --no-browser --port 8800
   - Untuk kolom dengan query M, graph menampilkan **sumber data → tabel M → langkah M** (rename/select/derive/split/transform, bercabang bila kolom turunan memakai beberapa kolom sumber) sebelum kolom model. Tabel tanpa `QueryDefinition` hanya menampilkan node tabel M. Measure ikut menampilkan rantai M kolom upstream yang dipakainya (maksimal 3 kolom, 8 langkah per rantai) dan kelebihan kolom dicatat di notice.
   - Chip **M lineage** menunjukkan keyakinan (`Complete`/`Partial`/`Unavailable`) beserta alasan; panel **M warnings** merinci langkah bermasalah (TransformColumns, rename/kolom dinamis, fungsi tak dikenal).
   - **Raw data** (kolom/measure) membuka dialog **metadata mentah TMSCHEMA**: seluruh baris `TMSCHEMA_COLUMNS`/`TMSCHEMA_MEASURES` sebagai JSON, lengkap dengan **Copy JSON**. Tidak ada nilai data/RLS.
-  - **Preview values** membaca contoh nilai model dengan service principal (RLS pengguna tidak berlaku): kolom memakai `TOPN` + `SELECTCOLUMNS`, measure memakai `ROW`, maksimal 100 baris dan timeout 60 detik. Data baru dimuat setelah tombol **Load preview**.
+  - **Preview values** membaca contoh nilai model dengan akun yang login (RLS pengguna berlaku): kolom memakai `TOPN` + `SELECTCOLUMNS`, measure memakai `ROW`, maksimal 100 baris dan timeout 60 detik. Data baru dimuat setelah tombol **Load preview**.
   - **Column details / Measure details** membuka tab **Properties**, **Usage**, **Dependencies**, dan **Raw JSON** (metadata TMSCHEMA dimuat saat tab dibuka). Field yang tidak dideteksi tool ini ditandai `null` dan dicantumkan di daftar `unsupported`.
   - **Table options ▸** berisi **Table details** (mode, partisi, baris, ukuran, jumlah kolom/measure, sumber + ekspresi M), **Show in analysis** (kembali ke tabel utama dengan filter tabel), dan **Copy table name**.
   - **Model options ▸** berisi **Model details** (workspace, waktu analisa, metode/cakupan, ukuran model, jumlah objek, status report usage), **Copy model name**, **Run analysis again**, dan **Open settings**.
@@ -177,6 +201,9 @@ Semua HTTP keluar lewat `core\api\transport.py` (token Bearer, retry `429`/`5xx`
 | GET | `operations/{operationId}/result` | Hasil operasi bila tidak ada di body status |
 
 ### Power BI Admin REST (`api.powerbi.com/v1.0/myorg`)
+
+Hanya dipakai **program sync** dengan service principal (Fabric administrator);
+aplikasi interaktif tidak memanggil endpoint ini.
 
 | Method | Endpoint | Kegunaan |
 |---|---|---|
@@ -234,8 +261,8 @@ Semua HTTP keluar lewat `core\api\transport.py` (token Bearer, retry `429`/`5xx`
 | `/api/partitions` | GET | `state`, `workspaces/{id}/datasets` |
 | `/api/partitions` | POST | `inventory`, `refresh` |
 | `/api/settings` | GET | `` |
-| `/api/settings` | PUT | `credentials`, `rls`, `paths`, `catalog`, `ui`, `extraction` |
-| `/api/settings` | POST | `test-token` |
+| `/api/settings` | PUT | `credentials`, `rls`, `paths`, `catalog`, `ui`, `extraction`, `tenant`, `shared-db` |
+| `/api/settings` | POST | `test-token`, `sign-in`, `sign-out`, `snapshot/download` |
 | `/api/system` | GET | `state` |
 | `/api/system` | POST | `shutdown` |
 | `/api/health` | GET | health check |
@@ -246,6 +273,13 @@ Semua HTTP keluar lewat `core\api\transport.py` (token Bearer, retry `429`/`5xx`
 Semua endpoint lokal memakai token sesi cookie (`HttpOnly`, `SameSite=Strict`) dan validasi `Host`/`Origin`; tidak ada `DELETE` dan tidak ada CORS.
 
 ## Perintah baris
+
+Program sync database bersama (service principal, Admin API):
+
+```powershell
+python sync_main.py --database data\bi_tools_sync.db `
+  --snapshot-out "D:\Share\bi_tools_snapshot.db" --mode admin --full
+```
 
 Report (tidak butuh Power BI Desktop terbuka):
 
@@ -306,7 +340,7 @@ python -m cli partition --workspace-id <ws> --dataset-id <ds> `
   --target "Fact Sales|Fact Sales 2025" --yes
 ```
 
-Refresh memerlukan XMLA **Read Write**, service principal sebagai Member/Admin workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
+Refresh memerlukan XMLA **Read Write**, akun dengan akses tulis ke workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
 
 ## Generate TSD (langkah 2)
 
@@ -386,7 +420,7 @@ python extract_lineage.py --impact <node-id> --export-csv Lineage.csv
 - Scan admin memakai `admin/workspaces/modified` + Scanner API `getInfo`/`scanStatus`/`scanResult` dengan batch 100 workspace; mode member memakai endpoint `groups` dengan batch 20 workspace.
 - Respons `429` diulang maksimal 8 kali mengikuti header `Retry-After`.
 - Scan incremental admin hanya memindai workspace yang berubah sejak scan sukses terakhir. Mode member selalu memindai seluruh workspace yang dapat diakses.
-- Default scan **tidak** menyertakan My Workspace (personal). Dengan `--include-personal` (atau checkbox di Pengaturan), daftar workspace memakai `excludePersonalWorkspaces=false`: report yang berada di My Workspace pengguna ikut muncul sebagai downstream dataset bersama. Opsi ini hanya berjalan di mode admin (service principal tidak menjadi anggota My Workspace siapa pun) dan aktivasi pertama memaksa full scan karena watermark lama tidak memuat personal. Full scan pertama jauh lebih lama (tenant contoh: 866 menjadi 9.337 workspace) dan menambah isi database; nama personal workspace memuat email pemilik.
+- Default scan **tidak** menyertakan My Workspace (personal). Dengan `--include-personal` (opsi program sync), daftar workspace memakai `excludePersonalWorkspaces=false`: report yang berada di My Workspace pengguna ikut muncul sebagai downstream dataset bersama. Opsi ini hanya berjalan di mode admin (service principal tidak menjadi anggota My Workspace siapa pun) dan aktivasi pertama memaksa full scan karena watermark lama tidak memuat personal. Full scan pertama jauh lebih lama (tenant contoh: 866 menjadi 9.337 workspace) dan menambah isi database; nama personal workspace memuat email pemilik.
 - Mode incremental memakai watermark dari scan sukses terakhir, tetapi dibatasi ke jendela API (29 hari s.d. 31 menit ke belakang); watermark terlalu baru/terlalu lama tidak dikirim mentah-mentah, dan timestamp rusak memicu full scan.
 - `--search`, `--impact`, `--upstream`, `--stats`, dan `--check` memakai database read-only. Tambahkan `--json` untuk hasil mesin, atau `--export-csv` pada `--impact`/`--upstream`.
 - Item yang hilang dari scan berikutnya ditandai nonaktif (`is_active=0`) dan tidak muncul lagi di pencarian; riwayat scan tetap tersimpan di tabel `scan_run`.
@@ -555,9 +589,9 @@ Ekspor XLSX menambah sheet `10_BestPractice_Model` (temuan) dan `11_BestPractice
 
 - Subscription report dideteksi lewat Admin API **hanya untuk report yang tidak bisa dipindai** (RDL/personal/inaccessible), dengan cache 24 jam dan batas 25 report per run. Subscription aktif pada report seperti itu membuat kolom tanpa referensi menjadi `Perlu dicek`, bukan `Tidak dipakai`. Data alert, Excel/ad-hoc (Analyze in Excel), Q&A, personalisasi user, dan pemetaan field RDL/personal tetap tidak terdeteksi. Kuota endpoint subscription 200 request/jam.
 - Report RDL/paginated tidak dianalisa field-nya dan dilaporkan sebagai `unsupported`.
-- Report di My Workspace tidak dapat diakses service principal; default dilewati (bisa diikutkan, tetapi akan 404).
+- Report di My Workspace tidak dapat diakses service principal pada program sync; default dilewati. Akun user yang punya akses bisa membukanya secara manual.
 - Report dari Power BI App (`[App] …`) selalu dilewati; pemakaian yang hanya ada di salinan app tidak dihitung.
-- Report di workspace biasa yang tidak dapat diakses service principal dicatat `inaccessible` dan membuat cakupan belum lengkap sampai akses diberikan atau report dihapus/dipindahkan.
+- Report di workspace biasa yang tidak dapat diakses akun user dicatat `inaccessible` dan membuat cakupan belum lengkap sampai akses diberikan atau report dihapus/dipindahkan.
 - Mode **Sertakan report dari workspace lain** dimatikan memakai daftar report workspace (`reports_in_group`) yang tidak memuat waktu modifikasi, jadi semua report diunduh ulang setiap analisa; mode admin memakai cache.
 - Tidak ada aksi hapus kolom/measure; verdict hanya saran, perubahan tetap dilakukan di Power BI Desktop/Tabular Editor.
 - Measure ditampilkan termasuk yang hidden (kolom Hidden = Yes); ukurannya tidak tersedia karena measure tidak menyimpan data.

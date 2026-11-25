@@ -19,9 +19,11 @@ from .paths import APP_DIR, cli_argv
 TOM_TIMEOUT = 300
 
 
-def _token_payload(tokens: EntraTokens | None) -> dict[str, Any]:
-    if tokens is None:
-        return {}
+def _token_payload(
+    tokens: EntraTokens | None, interactive: bool = False
+) -> dict[str, Any]:
+    if interactive or tokens is None:
+        return {"interactive": True}
     token = tokens.get(POWERBI_SCOPE)
     return {"token": token.value, "expires_on": token.expires_on}
 
@@ -54,6 +56,7 @@ def read_snapshot(
     port: int = 0,
     tokens: EntraTokens | None = None,
     options: Mapping[str, Any] | None = None,
+    interactive: bool = False,
 ) -> dict[str, Any]:
     """Baca snapshot TOM lewat proses anak (read-only)."""
     name = str(catalog or "").strip()
@@ -63,7 +66,7 @@ def read_snapshot(
         raise ExtractionError("Endpoint XMLA kosong.")
     payload: dict[str, Any] = {
         "options": dict(options or {}),
-        **_token_payload(tokens),
+        **_token_payload(tokens, interactive),
     }
     completed = subprocess.run(
         _cli_command(endpoint=endpoint, catalog=name, port=port),

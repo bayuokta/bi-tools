@@ -18,8 +18,11 @@ from core.lineage_store import DEFAULT_DB
 from core.requests import SCOPES
 
 from .. import settings as keys
+from ..auth_state import status as auth_status
+from ..shared_db import download_snapshot as _download_snapshot
+from ..shared_db import snapshot_status
 from ..settings_store import SettingsStore
-from .formatting import credential_status, duration_text, format_time
+from .formatting import duration_text, format_time
 
 CATALOG_MODES = ("auto", "admin", "member")
 THEMES = ("dark", "light")
@@ -27,8 +30,10 @@ LANGUAGES = ("en", "id")
 
 
 def effective_database(store: SettingsStore) -> str:
-    """Path database yang sudah disimpan, atau default aplikasi."""
-    return store.lineage_db() or str(DEFAULT_DB)
+    """Snapshot bersama bila ada, atau database lineage lama."""
+    from ..shared_db import active_database_path
+
+    return str(active_database_path(store))
 
 
 def saved_catalog_mode(store: SettingsStore) -> str:
@@ -45,8 +50,7 @@ def _saved_scope(store: SettingsStore, key: str) -> str:
 
 def build_state(store: SettingsStore) -> dict[str, Any]:
     """Nilai formulir Pengaturan, tanpa secret."""
-    principal = store.principal()
-    status_text, tone = credential_status(principal)
+    auth = auth_status(store)
     username, roles = store.rls()
     active_tab = store.get_str(keys.SETTINGS_ACTIVE_TAB_KEY, "local")
     if active_tab not in keys.ACTIVE_TABS:
@@ -54,15 +58,8 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
     theme = store.get_str(keys.SETTINGS_UI_THEME_KEY, "dark")
     language = store.get_str(keys.SETTINGS_UI_LANGUAGE_KEY, "en")
     return {
-        "auth": {
-            "tenant_id": principal.tenant_id,
-            "client_id": principal.client_id,
-            "has_secret": bool(principal.client_secret),
-            "complete": principal.is_complete,
-            "missing": principal.missing,
-            "status": status_text,
-            "tone": tone,
-        },
+        "auth": auth,
+        "snapshot": snapshot_status(store),
         "rls": {"username": username, "roles": ",".join(roles)},
         "paths": {
             "lineage_db": effective_database(store),
@@ -275,8 +272,8 @@ def save_extraction(
 
 # -- pekerjaan -----------------------------------------------------------
 def test_token_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, Any]:
-    """Ambil token Fabric dan Power BI untuk kredensial tersimpan."""
-    principal = store.principal()
+    """Ambil token Fabric dan Power BI untuk identitas aktif."""
+    principal = store.auth()
     principal.validate()
     result: dict[str, Any] = {}
     log("Mengambil token Fabric dan Power BI...")
@@ -300,8 +297,12 @@ def test_token_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, Any
 
 
 def sync_catalog_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, Any]:
-    """Sinkronisasi daftar workspace ke database yang sudah disimpan."""
-    principal = store.principal()
+    """Sinkronisasi daftar workspace (hanya mode service)."""
+    if store.auth_mode() == "user":
+        raise ExtractionError(
+            "Sinkronisasi katalog dijalankan oleh program sync dengan service principal."
+        )
+    principal = store.auth()
     principal.validate()
     database = effective_database(store)
     mode = saved_catalog_mode(store)
@@ -327,8 +328,12 @@ def sync_catalog_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, A
 def scan_lineage_job(
     store: SettingsStore, full: bool, log: Any, cancel: Any
 ) -> dict[str, Any]:
-    """Scan lineage Power BI memakai database dan mode tersimpan."""
-    principal = store.principal()
+    """Scan lineage Power BI (hanya mode service)."""
+    if store.auth_mode() == "user":
+        raise ExtractionError(
+            "Scan lineage dijalankan oleh program sync dengan service principal."
+        )
+    principal = store.auth()
     principal.validate()
     database = effective_database(store)
     mode = saved_catalog_mode(store)
@@ -362,3 +367,26 @@ def scan_lineage_job(
         "finished_at": result.finished_at,
         "duration_seconds": result.duration_seconds,
     }
+
+
+def save_shared_db(
+    store: SettingsStore, source: str, auto_download: bool = True
+) -> dict[str, Any]:
+    text = str(source or "").strip().strip('"')
+    if text:
+        path = Path(text).expanduser()
+        if not path.is_absolute():
+            raise ExtractionError("Lokasi snapshot harus absolut.")
+        text = str(path)
+    store.update(
+        {
+            keys.SHARED_DB_SOURCE_KEY: text,
+            keys.SHARED_DB_AUTO_KEY: bool(auto_download),
+        }
+    )
+    return build_state(store)
+
+
+def download_shared_db(store: SettingsStore) -> dict[str, Any]:
+    result = _download_snapshot(store)
+    return {"snapshot": snapshot_status(store), "download": result}

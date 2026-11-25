@@ -48,7 +48,9 @@ def _endpoint(principal: ServicePrincipal, workspace_name: str) -> str:
     return workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
 
 
-def _token_payload(tokens: EntraTokens) -> dict[str, Any]:
+def _token_payload(tokens: EntraTokens | None, interactive: bool = False) -> dict[str, Any]:
+    if interactive or tokens is None:
+        return {"interactive": True}
     token = tokens.get(POWERBI_SCOPE)
     return {"token": token.value, "expires_on": token.expires_on}
 
@@ -151,12 +153,15 @@ def _run_stream_process(
 
 
 def _tom_partitions_subprocess(
-    endpoint: str, dataset_name: str, tokens: EntraTokens
+    endpoint: str,
+    dataset_name: str,
+    tokens: EntraTokens | None,
+    interactive: bool = False,
 ) -> list[PartitionInfo]:
     """Baca metadata partisi lewat proses anak yang hanya memuat TOM."""
     text = _run_json_process(
         _cli_command("--inventory-json", endpoint, dataset_name),
-        json.dumps(_token_payload(tokens)),
+        json.dumps(_token_payload(tokens, interactive)),
         timeout=TOM_TIMEOUT,
     )
     return partitions_from_payload(json.loads(text or "[]"))
@@ -165,13 +170,14 @@ def _tom_partitions_subprocess(
 def _tom_refresh_subprocess(
     endpoint: str,
     dataset_name: str,
-    tokens: EntraTokens,
+    tokens: EntraTokens | None,
     targets: Sequence[tuple[str, str]],
     refresh_type: str,
     log: Log,
+    interactive: bool = False,
 ) -> list[PartitionInfo]:
     """Kirim satu TMSL lewat proses anak TOM; log progres ikut diteruskan."""
-    payload = _token_payload(tokens)
+    payload = _token_payload(tokens, interactive)
     payload.update(
         {
             "targets": [
@@ -190,12 +196,15 @@ def _tom_refresh_subprocess(
 
 
 def _dmv_rows_subprocess(
-    endpoint: str, dataset_name: str, tokens: EntraTokens
+    endpoint: str,
+    dataset_name: str,
+    tokens: EntraTokens | None,
+    interactive: bool = False,
 ) -> list[dict[str, Any]]:
     """Ambil DMV di proses CLI terpisah yang hanya memuat ADOMD."""
     text = _run_json_process(
         _cli_command("--dmv-json", endpoint, dataset_name),
-        json.dumps(_token_payload(tokens)),
+        json.dumps(_token_payload(tokens, interactive)),
         timeout=TOM_TIMEOUT,
     )
     return json.loads(text or "[]")
@@ -204,11 +213,14 @@ def _dmv_rows_subprocess(
 def _row_counts(
     endpoint: str,
     dataset_name: str,
-    tokens: EntraTokens,
+    tokens: EntraTokens | None,
     log: Log,
+    interactive: bool = False,
 ) -> tuple[dict[tuple[str, str], int], list[str]]:
     try:
-        segments = _dmv_rows_subprocess(endpoint, dataset_name, tokens)
+        segments = _dmv_rows_subprocess(
+            endpoint, dataset_name, tokens, interactive
+        )
     except Exception as exc:  # noqa: BLE001 - row count bersifat best-effort
         message = f"Jumlah baris partisi tidak tersedia: {exc}"
         log(message)
@@ -293,9 +305,14 @@ def read_partition_inventory(
 
     if _should_stop(should_stop):
         raise ExtractionError("Pembacaan partisi dibatalkan.")
-    partitions = _tom_partitions_subprocess(endpoint, dataset_name, tokens)
+    interactive = bool(getattr(principal, "interactive_xmla", False))
+    partitions = _tom_partitions_subprocess(
+        endpoint, dataset_name, tokens, interactive
+    )
 
-    row_counts, warnings = _row_counts(endpoint, dataset_name, tokens, log)
+    row_counts, warnings = _row_counts(
+        endpoint, dataset_name, tokens, log, interactive
+    )
     log(
         f"Partisi dibaca: {len(partitions)}; jumlah baris tersedia untuk "
         f"{len(row_counts)} partisi."
@@ -343,12 +360,15 @@ def process_partitions(
     log(
         "Mengirim refresh TMSL; perintah tidak bisa dibatalkan setelah dikirim."
     )
+    interactive = bool(getattr(principal, "interactive_xmla", False))
     refreshed = _tom_refresh_subprocess(
-        endpoint, dataset_name, tokens, pairs, normalized, log
+        endpoint, dataset_name, tokens, pairs, normalized, log, interactive
     )
     log("Perintah refresh selesai; membaca jumlah baris partisi.")
 
-    row_counts, warnings = _row_counts(endpoint, dataset_name, tokens, log)
+    row_counts, warnings = _row_counts(
+        endpoint, dataset_name, tokens, log, interactive
+    )
     payload = _payload(
         workspace_id=workspace_id,
         workspace_name=workspace_name,

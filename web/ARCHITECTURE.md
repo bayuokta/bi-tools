@@ -112,8 +112,10 @@ Helper node bersama: `clipLabel`, `lineageTypeName`, `nodeHue`,
 
 ## Peta `app.js` — pengaturan
 
-`renderSettings`, `showSettingsTab`, `savePreference`, `syncCatalog`,
-`runScan`, `testToken` (cari juga `grep "api/settings"` untuk endpoint).
+`renderSettings`, `showSettingsTab`, `savePreference`, `testToken`,
+sign-in/sign-out (`/api/settings/sign-in`, `/api/settings/sign-out`),
+snapshot sumber/unduh (`/api/settings/shared-db`, `/api/settings/snapshot/download`).
+Job admin `syncCatalog`/`runScan` tetap ada untuk mode service/uji.
 
 ## Peta `js\views\compare.js`
 
@@ -178,7 +180,7 @@ Satu objek `state` dimutasi in-place. Kelompok penting:
 
 - Preferensi/kerangka: `view`, `theme`, `language`, `motion`, `sidebarCollapsed`,
   `source`, `ready`, `applying`, `settings`, `system`, `outputs`, `logs`.
-- Job: `jobId`, `jobStream`, `jobLogCount`, `lastJob`.
+- Job: `jobId`, `jobStream`, `jobPending`, `jobLogCount`, `lastJob`.
 - Ekstraksi: `instances`, `workspaces`, `reports`, `datasets`, `pbix`,
   `endpoint`, `batchMode`, `batchSelected`, `extractReady`.
 - TSD: `tsd`, `tsdLoaded`, `tsdManual`, `tsdManualCustom`, `tsdLastResult`,

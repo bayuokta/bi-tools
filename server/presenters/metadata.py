@@ -15,7 +15,7 @@ from core.auth import EntraTokens, fabric_provider
 from core.errors import ExtractionError
 from core.jobs import run_metadata_job
 from core.lineage_service import workspace_detail
-from core.lineage_store import DEFAULT_DB
+from core.lineage_store import DEFAULT_DB  # noqa: F401 - kompatibilitas pemanggil lama
 from core.paths import outputs_dir
 from core.pbix import PbixSourceInfo, detect_pbix_source
 from core.requests import (
@@ -43,7 +43,9 @@ def effective_out_dir(store: SettingsStore) -> Path:
 
 
 def _database(store: SettingsStore) -> str:
-    return store.lineage_db() or str(DEFAULT_DB)
+    from ..shared_db import active_database_path
+
+    return str(active_database_path(store))
 
 
 # -- data untuk pemilih --------------------------------------------------
@@ -183,7 +185,7 @@ def contents_payload(
     workspace = str(workspace_id or "").strip()
     if not workspace:
         raise ExtractionError("Workspace belum dipilih.")
-    principal = store.principal()
+    principal = store.auth()
     principal.validate()
     database = _database(store)
     option = workspace_detail(database, workspace)
@@ -349,10 +351,10 @@ def _service_request(
         scope=scope,
         include_usage=scope == "both",
     )
-    principal = store.principal()
+    principal = store.auth()
     if not principal.is_complete:
         raise ExtractionError(
-            "Kredensial service principal belum lengkap: "
+            "Kredensial/identitas belum lengkap: "
             + ", ".join(principal.missing)
             + " (isi di Pengaturan)."
         )
@@ -377,7 +379,7 @@ def run_job(store: SettingsStore, payload: Mapping[str, Any], log: Any, cancel: 
     """Jalankan ekstraksi metadata di thread job."""
     request = build_request(store, payload)
     if isinstance(request, ServiceMetadataRequest):
-        tokens = EntraTokens(store.principal())
+        tokens = EntraTokens(store.auth())
         result = run_metadata_job(
             **request.to_job_kwargs(),
             tokens=tokens,

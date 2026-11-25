@@ -178,7 +178,9 @@ import { state } from "../core/state.js";
       app.setChip(
         $("#partitionSourceChip"),
         missing.length ? "warn" : "idle",
-        missing.length ? t("Credentials are incomplete") : t("Not loaded")
+        missing.length
+          ? t(data.auth_mode === "user" ? "Not signed in" : "Credentials are incomplete")
+          : t("Not loaded")
       );
       $("#partitionHint").textContent = tr(data.hint) || "";
       partitionRender();

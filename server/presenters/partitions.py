@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from core.errors import ExtractionError
-from core.lineage_store import DEFAULT_DB
 from core.partition_plan import REFRESH_TYPE_ORDER
 from core.partition_service import process_partitions, read_partition_inventory
 from core.requests import (
@@ -26,7 +25,9 @@ from .service_picker import workspace_picklist
 
 
 def database_path(store: SettingsStore) -> Path:
-    return Path(store.lineage_db() or DEFAULT_DB).expanduser()
+    from ..shared_db import active_database_path
+
+    return active_database_path(store)
 
 
 def build_state(store: SettingsStore) -> dict[str, Any]:
@@ -45,7 +46,8 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         ],
         "refresh_types": list(REFRESH_TYPE_ORDER),
         "confirmation": PARTITION_CONFIRMATION,
-        "credentials_missing": store.principal().missing,
+        "credentials_missing": store.auth().missing,
+        "auth_mode": store.auth_mode(),
     }
 
 
@@ -141,7 +143,7 @@ def run_inventory_job(
     request = build_inventory_request(store, payload)
     return read_partition_inventory(
         **request.to_inventory_kwargs(),
-        principal=store.principal(),
+        principal=store.auth(),
         log=log,
         should_stop=_cancel(cancel),
     )
@@ -151,10 +153,10 @@ def run_refresh_job(
     store: SettingsStore, payload: Mapping[str, Any], log: Any, cancel: Any
 ) -> dict[str, Any]:
     request = build_refresh_request(store, payload)
-    store.principal().validate()
+    store.auth().validate()
     return process_partitions(
         **request.to_refresh_kwargs(),
-        principal=store.principal(),
+        principal=store.auth(),
         log=log,
         should_stop=_cancel(cancel),
     )

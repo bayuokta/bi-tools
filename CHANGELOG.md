@@ -7,6 +7,39 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## 2026-11-25 - Rilis 0.7.0
+
+### Autentikasi akun 365
+
+- Aplikasi web kini memakai akun Microsoft 365 tanpa client id
+  (`azure-identity` browser). Tidak ada client secret di aplikasi interaktif.
+- Token Power BI/Fabric diambil dari sesi user; XMLA memakai login interaktif
+  MSOLAP karena token browser ditolak XMLA.
+- Pengaturan memiliki **Sign in/Sign out**, status akun, dan token Fabric.
+- Program terpisah **`bi-tools-sync`** memegang service principal dan menjalankan
+  Admin API (katalog workspace, Scanner API, `admin/reports`).
+
+### Database bersama
+
+- Tabel baru `report_catalog` di snapshot SQLite; Analisa membaca daftar report
+  dari DB lalu fallback ke endpoint member, tanpa Admin API.
+- `bi-tools-sync` menerbitkan snapshot konsisten (`VACUUM INTO`), checksum
+  SHA-256, dan `schema_version`.
+- Aplikasi mengunduh snapshot ke cache lokal dan membukanya read-only; SQLite
+  tidak dibuka langsung dari folder SharePoint/OneDrive.
+- Subscription report dan sinkronisasi katalog/lineage hanya tersedia di program
+  sync; aplikasi user menolak job admin.
+
+### Lain-lain
+
+- Koneksi XMLA/TOM mendukung `Interactive Login` + `Identity Mode=Connection`.
+- `open_client`/`connect_server` menerima mode `interactive`; proses anak partisi
+  dan compare mengirim payload `interactive` tanpa token.
+- Paket berisi tiga executable: `BI Tools.exe`, `bi-tools-cli.exe`, dan
+  `bi-tools-sync.exe`.
+- Batasan diketahui: pada mode user, setiap proses anak TOM/DMV dapat
+  memunculkan dialog MSOLAP karena identitas MSOLAP tidak dibagi antar-proses.
+
 ## 2026-11-22 - Rilis 0.6.4
 
 ### Perbaikan web

@@ -17,7 +17,7 @@ EMPTY_CATALOG_HINT = (
     "Sinkronisasi katalog workspace."
 )
 MISSING_CREDENTIALS = (
-    "Kredensial service principal belum lengkap; isi di Pengaturan."
+    "Belum login atau kredensial belum lengkap; buka Pengaturan."
 )
 
 

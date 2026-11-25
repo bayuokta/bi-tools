@@ -54,9 +54,13 @@ LINEAGE_SECRET_KEY = "lineage/client_secret"
 AUTH_TENANT_KEY = "auth/tenant_id"
 AUTH_CLIENT_KEY = "auth/client_id"
 AUTH_SECRET_KEY = "auth/client_secret"
+AUTH_MODE_KEY = "auth/mode"
 AUTH_RLS_USER_KEY = "auth/rls_username"
 AUTH_RLS_ROLES_KEY = "auth/rls_roles"
 PATHS_LINEAGE_DB_KEY = "paths/lineage_db"
+SHARED_DB_SOURCE_KEY = "shared_db/source"
+SHARED_DB_LOCAL_KEY = "shared_db/local"
+SHARED_DB_AUTO_KEY = "shared_db/auto_download"
 SETTINGS_MIGRATED_KEY = "settings/migrated_v1"
 
 # Analisa Semantic Model (read-only).

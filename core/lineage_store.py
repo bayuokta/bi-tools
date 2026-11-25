@@ -59,6 +59,26 @@ CREATE TABLE IF NOT EXISTS workspace_sync_run (
   mode TEXT, workspace_count INTEGER, active_count INTEGER,
   status TEXT, message TEXT
 );
+CREATE TABLE IF NOT EXISTS report_catalog (
+  report_id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  dataset_id TEXT,
+  name TEXT,
+  report_type TEXT,
+  report_format TEXT,
+  modified_at TEXT,
+  is_personal INTEGER DEFAULT 0,
+  is_app INTEGER DEFAULT 0,
+  is_supported INTEGER DEFAULT 1,
+  is_active INTEGER DEFAULT 1,
+  synced_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_report_catalog_dataset
+  ON report_catalog(dataset_id, is_active);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 CREATE INDEX IF NOT EXISTS ix_edges_source ON edges(source_id);
 CREATE INDEX IF NOT EXISTS ix_edges_target ON edges(target_id);
 CREATE INDEX IF NOT EXISTS ix_nodes_ws ON nodes(workspace_id);

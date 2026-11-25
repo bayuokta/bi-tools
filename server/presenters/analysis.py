@@ -30,7 +30,7 @@ from core.analysis_query import (
     preview_payload as build_preview_payload,
 )
 from core.errors import ExtractionError
-from core.lineage_store import DEFAULT_DB, close_quietly, connect, workspace_by_id
+from core.lineage_store import close_quietly, connect, workspace_by_id
 from core.usage_store import initialize as initialize_usage, report_detail
 from core.model_health import broken_visual_counts, build_health
 from core.paths import outputs_dir
@@ -141,7 +141,9 @@ USAGE_LABELS = {
 
 
 def database_path(store: SettingsStore) -> Path:
-    return Path(store.lineage_db() or DEFAULT_DB).expanduser()
+    from ..shared_db import active_database_path
+
+    return active_database_path(store)
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +264,8 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
             for option in options
         ],
         "settings": analysis_settings(store),
-        "credentials_missing": store.principal().missing,
+        "credentials_missing": store.auth().missing,
+        "auth_mode": store.auth_mode(),
     }
 
 
@@ -1115,7 +1118,7 @@ def preview_payload(
     node_name = str(
         getattr(node, "measure", "") or getattr(node, "column", "") or name
     )
-    principal: ServicePrincipal = store.principal()
+    principal: ServicePrincipal = store.auth()
     principal.validate()
     query = build_raw_query(
         "measure" if str(kind).lower() == "measure" else "column",
@@ -1132,11 +1135,12 @@ def preview_payload(
             endpoint=endpoint,
             catalog=result.dataset_name,
             tokens=tokens,
+            interactive=getattr(principal, "interactive_xmla", False),
         )
     except XmlaError as exc:
         raise ExtractionError(
             f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
-            f"{exc}\nPastikan XMLA Read aktif dan service principal punya akses."
+            f"{exc}\nPastikan XMLA Read aktif dan akun punya akses ke workspace."
         ) from exc
     try:
         rows = client.query_sql(query, timeout=QUERY_TIMEOUT)
@@ -1182,7 +1186,7 @@ def raw_metadata_payload(
         getattr(node, "measure", "") if is_measure else getattr(node, "column", "")
     ) or name
     column_id = None if is_measure else int(getattr(node, "column_id", 0) or 0)
-    principal: ServicePrincipal = store.principal()
+    principal: ServicePrincipal = store.auth()
     principal.validate()
     tokens = EntraTokens(principal)
     endpoint = workspace_endpoint(
@@ -1193,11 +1197,12 @@ def raw_metadata_payload(
             endpoint=endpoint,
             catalog=result.dataset_name,
             tokens=tokens,
+            interactive=getattr(principal, "interactive_xmla", False),
         )
     except XmlaError as exc:
         raise ExtractionError(
             f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
-            f"{exc}\nPastikan XMLA Read aktif dan service principal punya akses."
+            f"{exc}\nPastikan XMLA Read aktif dan akun punya akses ke workspace."
         ) from exc
     dmv = MEASURE_DMV if is_measure else COLUMN_DMV
     try:
@@ -1324,7 +1329,7 @@ def run_job(
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not workspace_id or not dataset_id:
         raise ExtractionError("Pilih workspace dan semantic model dulu.")
-    principal: ServicePrincipal = store.principal()
+    principal: ServicePrincipal = store.auth()
     principal.validate()
     database = database_path(store)
     workspace_name, dataset_name = resolve_names(database, workspace_id, dataset_id)

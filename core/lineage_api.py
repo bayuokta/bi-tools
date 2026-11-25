@@ -227,6 +227,10 @@ class PowerBILineageClient:
         """Semua workspace organisasi (Admin API), termasuk atribut katalog."""
         return self._paged("admin/groups", page_size=page_size)
 
+    def admin_reports(self, *, page_size: int = PAGE_SIZE) -> list[dict[str, Any]]:
+        """Semua report organisasi (Admin API) untuk katalog bersama."""
+        return self._paged("admin/reports", page_size=page_size)
+
     def scan(self, workspace_ids: list[str]) -> tuple[str, dict[str, Any]]:
         params = {
             "lineage": "True",

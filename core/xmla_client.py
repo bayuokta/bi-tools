@@ -30,6 +30,8 @@ ROOT = APP_DIR
 DEFAULT_DLL = ROOT / "libs" / "Microsoft.AnalysisServices.AdomdClient.dll"
 DMV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CLOUD_XMLA = ("powerbi://", "asazure://")
+INTERACTIVE_LOGIN_PROPS = "Interactive Login=Enabled; Identity Mode=Connection;"
+INTERACTIVE_REUSE_PROPS = "Interactive Login=Enabled; Identity Mode=Connection;"
 
 
 class XmlaError(RuntimeError):
@@ -348,6 +350,24 @@ class XmlaClient:
         self.close()
 
 
+def interactive_connection_string(
+    connection_string: str, *, reuse: bool = False
+) -> str:
+    """Tambahkan properti login interaktif MSOLAP untuk endpoint cloud.
+
+    Dipakai jalur akun 365 tanpa client id: token browser ditolak XMLA, jadi
+    autentikasi diserahkan ke MSOLAP. ``reuse=True`` memakai
+    ``Interactive Login=Enabled`` agar TOM memakai ulang identitas ADOMD.
+    """
+    if not _is_cloud(connection_string):
+        return connection_string
+    lowered = connection_string.lower()
+    if "interactive login=" in lowered or "identity mode=" in lowered:
+        return connection_string
+    props = INTERACTIVE_REUSE_PROPS if reuse else INTERACTIVE_LOGIN_PROPS
+    return connection_string.rstrip("; ") + ";" + props
+
+
 def _connect(
     connection_string: str,
     dll_path: str | Path | None = None,
@@ -356,7 +376,13 @@ def _connect(
     scope: str = POWERBI_SCOPE,
     access_token_cls: Any | None = None,
     wrap_expired: Any | None = None,
+    interactive: bool = False,
+    reuse_identity: bool = False,
 ) -> XmlaClient:
+    if interactive:
+        connection_string = interactive_connection_string(
+            connection_string, reuse=reuse_identity
+        )
     connection_cls, command_cls, _ = load_adomd(dll_path)
     # Cache controller ADOMD dipakai bersama semua proses. Entri dari versi
     # ADOMD lain tidak bisa dibaca (Specified cast is not valid), jadi cache
@@ -365,7 +391,7 @@ def _connect(
 
     for attempt in (1, 2):
         connection = connection_cls(connection_string)
-        if tokens is not None and _is_cloud(connection_string):
+        if tokens is not None and not interactive and _is_cloud(connection_string):
             attach_token(
                 connection,
                 tokens,
@@ -730,6 +756,7 @@ def open_client(
     readonly: bool = True,
     access_token_cls: Any | None = None,
     wrap_expired: Any | None = None,
+    interactive: bool = False,
 ) -> XmlaClient:
     """Buka koneksi ke Desktop lokal atau endpoint eksplisit.
 
@@ -773,6 +800,8 @@ def open_client(
         token_kwargs["access_token_cls"] = access_token_cls
     if wrap_expired is not None:
         token_kwargs["wrap_expired"] = wrap_expired
+    if interactive:
+        token_kwargs["interactive"] = True
     for connection_string, endpoint_label in candidates:
         base: XmlaClient | None = None
         try:

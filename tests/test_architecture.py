@@ -60,8 +60,11 @@ class LayerGuardTests(unittest.TestCase):
             set(matching(r"ConfidentialClientApplication")), {"core/auth.py"}
         )
 
-    def test_browser_login_is_gone(self) -> None:
-        self.assertEqual(matching(r"azure\.identity|InteractiveBrowserCredential"), [])
+    def test_user_login_uses_azure_identity_only_in_auth(self) -> None:
+        self.assertEqual(
+            set(matching(r"azure\.identity|InteractiveBrowserCredential")),
+            {"core/auth.py"},
+        )
 
     def test_no_token_in_connection_string(self) -> None:
         self.assertEqual(matching(r"password\s*="), [])

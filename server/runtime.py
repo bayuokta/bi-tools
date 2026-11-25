@@ -228,6 +228,14 @@ def run(
 
         store = SettingsStore(settings_path)
         store.reset_session()
+        store.set_auth_mode("user")
+        if store.shared_db_source() and store.shared_db_auto():
+            from .shared_db import download_snapshot
+
+            try:
+                download_snapshot(store)
+            except Exception as exc:  # noqa: BLE001 - snapshot opsional saat start
+                print(f"Snapshot database bersama tidak bisa dimuat: {exc}")
         chosen = choose_port(int(port) if port else DEFAULT_PORT)
         token = new_token()
         hosts, origins = allowed_for(chosen)

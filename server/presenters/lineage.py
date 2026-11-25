@@ -17,7 +17,6 @@ from core.lineage_service import (
     search_nodes,
     two_way_lineage,
 )
-from core.lineage_store import DEFAULT_DB
 from core.paths import outputs_dir
 
 from ..settings_store import SettingsStore
@@ -28,7 +27,9 @@ SEARCH_LIMIT = 100
 
 
 def database_path(store: SettingsStore) -> Path:
-    return Path(store.lineage_db() or DEFAULT_DB).expanduser()
+    from ..shared_db import active_database_path
+
+    return active_database_path(store)
 
 
 def _node_types(database: Path) -> list[str]:

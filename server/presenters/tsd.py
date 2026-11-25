@@ -179,7 +179,7 @@ def _rls(store: SettingsStore, data: Mapping[str, Any]) -> tuple[str, tuple[str,
 
 def _token_provider(store: SettingsStore) -> DeferredTokenProvider:
     return DeferredTokenProvider(
-        lambda: powerbi_provider(EntraTokens(store.principal()))
+        lambda: powerbi_provider(EntraTokens(store.auth()))
     )
 
 
@@ -357,7 +357,7 @@ def build_state(
             "template": bool(template["exists"]),
             "manual": bool(manual["exists"]),
         },
-        "credentials_missing": store.principal().missing,
+        "credentials_missing": store.auth().missing,
         "scopes": [
             {"value": key, "label": SCOPE_LABELS[key]} for key in ("both", "pages", "visuals")
         ],
