@@ -41,9 +41,9 @@
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
           <span class="label">Lineage</span>
         </button>
-        <button class="nav-item" type="button" data-view="backup" title="Backup" data-i18n-title="Backup">
+        <button class="nav-item" type="button" data-view="backup" title="Backup and Restore" data-i18n-title="Backup and Restore">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4M5 20h14"></path></svg>
-          <span class="label" data-i18n="Backup">Backup</span>
+          <span class="label" data-i18n="Backup and Restore">Backup and Restore</span>
         </button>
         <div class="nav-label" data-i18n="System">System</div>
         <button class="nav-item" type="button" data-view="pengaturan" title="Settings" data-i18n-title="Settings">
@@ -1139,8 +1139,8 @@
           <div class="view-head">
             <div>
               <div class="view-eyebrow" data-i18n="Tool · recovery">Tool · recovery</div>
-              <h1 class="view-title" id="titleBackup" tabindex="-1" data-i18n="Backup">Backup</h1>
-              <p class="view-sub" data-i18n="Save semantic model and report definitions from one workspace to a local folder. Read-only.">Save semantic model and report definitions from one workspace to a local folder. Read-only.</p>
+              <h1 class="view-title" id="titleBackup" tabindex="-1" data-i18n="Backup and Restore">Backup and Restore</h1>
+              <p class="view-sub" data-i18n="Save semantic model and report definitions per workspace, per model, or per report — then restore from a backup file when needed.">Save semantic model and report definitions per workspace, per model, or per report — then restore from a backup file when needed.</p>
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runBackup" type="button">
@@ -1150,107 +1150,188 @@
             </div>
           </div>
 
-          <div class="layout-split">
-            <div class="od-stack" style="--od-gap:16px">
-              <div class="panel">
-                <div class="panel-head">
-                  <span class="panel-title" data-i18n="Source">Source</span>
-                  <div class="spacer"></div>
-                  <span class="chip chip-info"><span class="dot"></span>Power BI Service</span>
-                </div>
-                <div class="panel-body">
-                  <div class="form-row">
-                    <label for="bakWorkspace" data-i18n="Workspace">Workspace</label>
-                    <select id="bakWorkspace"></select>
-                    <button class="btn btn-sm" id="bakReload" type="button" data-i18n="Reload">Reload</button>
+          <div class="tabs" role="tablist" aria-label="Backup and Restore sections" data-i18n-aria-label="Backup and Restore sections">
+            <button role="tab" id="tab-backup" data-bak-tab="backup" aria-controls="bakPanelBackup" aria-selected="true" data-i18n="Backup">Backup</button>
+            <button role="tab" id="tab-restore" data-bak-tab="restore" aria-controls="bakPanelRestore" aria-selected="false" tabindex="-1" data-i18n="Restore">Restore</button>
+          </div>
+
+          <div id="bakPanelBackup" role="tabpanel" aria-labelledby="tab-backup">
+            <div class="layout-split">
+              <div class="od-stack" style="--od-gap:16px">
+                <div class="panel">
+                  <div class="panel-head">
+                    <span class="panel-title" data-i18n="Source">Source</span>
+                    <div class="spacer"></div>
+                    <span class="chip chip-idle" id="bakScopeChip"><span class="dot"></span><span id="bakScopeText">0 selected</span></span>
+                    <span class="chip chip-info"><span class="dot"></span>Power BI Service</span>
                   </div>
-                  <p class="helper" id="bakSourceHint" data-i18n="Workspace list comes from the shared catalog.">Workspace list comes from the shared catalog.</p>
+                  <div class="panel-body">
+                    <div class="form-row">
+                      <label for="bakWorkspace" data-i18n="Workspace">Workspace</label>
+                      <select id="bakWorkspace"></select>
+                      <button class="btn btn-sm" id="bakReload" type="button" data-i18n="Reload">Reload</button>
+                    </div>
+                    <div class="form-grid">
+                      <div class="field">
+                        <span class="field-label" data-i18n="Semantic model">Semantic model</span>
+                        <button class="combo-button" id="bakModelTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="bakMultiPopup">
+                          <span class="combo-label" id="bakModelLabel" data-i18n="Select all">Select all</span>
+                        </button>
+                      </div>
+                      <div class="field">
+                        <span class="field-label" data-i18n="Report">Report</span>
+                        <button class="combo-button" id="bakReportTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="bakMultiPopup">
+                          <span class="combo-label" id="bakReportLabel" data-i18n="Select all">Select all</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p class="helper" id="bakSourceHint" data-i18n="Click a field to search and check one or more items. The list follows the workspace.">Click a field to search and check one or more items. The list follows the workspace.</p>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <div class="panel-head">
+                    <span class="panel-title" data-i18n="Output">Output</span>
+                    <div class="spacer"></div>
+                    <span class="chip chip-idle" id="bakOutputState"><span class="dot"></span><span data-i18n="Not run yet">Not run yet</span></span>
+                  </div>
+                  <div class="panel-body">
+                    <div class="form-row">
+                      <label for="bakFolder" data-i18n="Destination folder">Destination folder</label>
+                      <input class="input mono" id="bakFolder" type="text" readonly>
+                      <button class="btn btn-sm" id="bakPickFolder" type="button" data-i18n="Choose.">Choose.</button>
+                    </div>
+                    <div class="form-row">
+                      <label for="bakName" data-i18n="Name prefix">Name prefix</label>
+                      <input class="input mono" id="bakName" type="text" value="Backup">
+                    </div>
+                    <p class="helper" data-i18n="File names follow the prefix, workspace, and item type.">File names follow the prefix, workspace, and item type.</p>
+                  </div>
+                </div>
+
+                <div class="run-card" id="bakRun" hidden="">
+                  <div class="run-label"><span id="bakRunLabel" data-i18n="Preparing backup.">Preparing backup.</span><span id="bakRunPct">0%</span></div>
+                  <div class="progress"><i id="bakBar"></i></div>
+                </div>
+
+                <div class="panel" id="bakResults" hidden="">
+                  <div class="panel-head">
+                    <span class="panel-title" data-i18n="Backup result">Backup result</span>
+                    <div class="spacer"></div>
+                    <button class="btn btn-sm" id="bakOpenFolder" type="button" disabled data-i18n="Open folder">Open folder</button>
+                  </div>
+                  <div class="file-list file-list--padded" id="bakFileList"></div>
+                  <div class="panel-foot" style="justify-content:space-between">
+                    <span class="helper" id="bakFileSummary" data-i18n="No files">No files</span>
+                    <span class="helper" data-i18n="Read-only mode">Read-only mode</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="panel">
-                <div class="panel-head">
-                  <span class="panel-title" data-i18n="Coverage">Coverage</span>
-                  <div class="spacer"></div>
-                  <span class="chip chip-idle" id="bakScopeChip"><span class="dot"></span><span id="bakScopeText">0 selected</span></span>
-                </div>
-                <div class="panel-body">
-                  <div class="check-row">
-                    <label class="check"><input type="checkbox" id="bakModelOpt" checked> <span data-i18n="Semantic models (TMDL + TMSL)">Semantic models (TMDL + TMSL)</span></label>
-                    <label class="check"><input type="checkbox" id="bakReportOpt" checked> <span data-i18n="Reports (definition)">Reports (definition)</span></label>
+              <div class="od-stack" style="--od-gap:16px">
+                <div class="panel">
+                  <div class="panel-head"><span class="panel-title" data-i18n="Summary">Summary</span></div>
+                  <div class="panel-body">
+                    <div class="stat-list" id="bakSummaryBody" hidden="">
+                      <div class="stat-row"><span class="stat-key" data-i18n="Source">Source</span><span class="stat-val" id="bakStatSource">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Items backed up">Items backed up</span><span class="stat-val" id="bakStatItems">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Total size">Total size</span><span class="stat-val" id="bakStatSize">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Finished at">Finished at</span><span class="stat-val" id="bakStatTime">-</span></div>
+                    </div>
+                    <div class="empty" id="bakSummaryEmpty" style="padding:10px 4px">
+                      <div class="empty-title" data-i18n="No backup yet">No backup yet</div>
+                      <p class="empty-text" data-i18n="Run a backup to fill the summary.">Run a backup to fill the summary.</p>
+                    </div>
                   </div>
-                  <div class="file-list" id="bakItems"></div>
-                  <p class="helper" id="bakItemsHint" data-i18n="Select a workspace to load items.">Select a workspace to load items.</p>
                 </div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-head">
-                  <span class="panel-title" data-i18n="Output">Output</span>
-                  <div class="spacer"></div>
-                  <span class="chip chip-idle" id="bakOutputState"><span class="dot"></span><span data-i18n="Not run yet">Not run yet</span></span>
+                <div class="panel">
+                  <div class="panel-head"><span class="panel-title" data-i18n="History">History</span></div>
+                  <div class="panel-body" id="bakHistory"></div>
                 </div>
-                <div class="panel-body">
-                  <div class="form-row">
-                    <label for="bakFolder" data-i18n="Destination folder">Destination folder</label>
-                    <input class="input mono" id="bakFolder" type="text" readonly>
-                    <button class="btn btn-sm" id="bakPickFolder" type="button" data-i18n="Choose.">Choose.</button>
+                <div class="panel">
+                  <div class="panel-head"><span class="panel-title" data-i18n="Notes">Notes</span></div>
+                  <div class="panel-body" style="gap:9px">
+                    <div class="note">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <span data-i18n="Backup needs XMLA read access (TMDL) and Fabric API access (report definition). Restore needs workspace write access.">Backup needs XMLA read access (TMDL) and Fabric API access (report definition). Restore needs workspace write access.</span>
+                    </div>
+                    <p class="helper" data-i18n="Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.">Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.</p>
                   </div>
-                  <div class="form-row">
-                    <label for="bakName" data-i18n="Name prefix">Name prefix</label>
-                    <input class="input mono" id="bakName" type="text" value="Backup">
-                  </div>
-                  <p class="helper" data-i18n="File names follow the prefix, workspace, and item type.">File names follow the prefix, workspace, and item type.</p>
-                </div>
-              </div>
-
-              <div class="run-card" id="bakRun" hidden="">
-                <div class="run-label"><span id="bakRunLabel" data-i18n="Preparing backup.">Preparing backup.</span><span id="bakRunPct">0%</span></div>
-                <div class="progress"><i id="bakBar"></i></div>
-              </div>
-
-              <div class="panel" id="bakResults" hidden="">
-                <div class="panel-head">
-                  <span class="panel-title" data-i18n="Backup result">Backup result</span>
-                  <div class="spacer"></div>
-                  <button class="btn btn-sm" id="bakOpenFolder" type="button" disabled data-i18n="Open folder">Open folder</button>
-                </div>
-                <div class="file-list" id="bakFileList"></div>
-                <div class="panel-foot" style="justify-content:space-between">
-                  <span class="helper" id="bakFileSummary" data-i18n="No files">No files</span>
-                  <span class="helper" data-i18n="Read-only mode">Read-only mode</span>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="od-stack" style="--od-gap:16px">
-              <div class="panel">
-                <div class="panel-head"><span class="panel-title" data-i18n="Summary">Summary</span></div>
-                <div class="panel-body">
-                  <div class="stat-list" id="bakSummaryBody" hidden="">
-                    <div class="stat-row"><span class="stat-key" data-i18n="Source">Source</span><span class="stat-val" id="bakStatSource">-</span></div>
-                    <div class="stat-row"><span class="stat-key" data-i18n="Items backed up">Items backed up</span><span class="stat-val" id="bakStatItems">-</span></div>
-                    <div class="stat-row"><span class="stat-key" data-i18n="Total size">Total size</span><span class="stat-val" id="bakStatSize">-</span></div>
-                    <div class="stat-row"><span class="stat-key" data-i18n="Finished at">Finished at</span><span class="stat-val" id="bakStatTime">-</span></div>
+          <div id="bakPanelRestore" role="tabpanel" aria-labelledby="tab-restore" hidden="">
+            <div class="layout-split">
+              <div class="od-stack" style="--od-gap:16px">
+                <div class="panel">
+                  <div class="panel-head">
+                    <span class="panel-title" data-i18n="Restore source">Restore source</span>
+                    <div class="spacer"></div>
+                    <span class="chip chip-idle" id="rstStateChip"><span class="dot"></span><span data-i18n="Ready">Ready</span></span>
                   </div>
-                  <div class="empty" id="bakSummaryEmpty" style="padding:10px 4px">
-                    <div class="empty-title" data-i18n="No backup yet">No backup yet</div>
-                    <p class="empty-text" data-i18n="Run a backup to fill the summary.">Run a backup to fill the summary.</p>
+                  <div class="panel-body" style="gap:14px">
+                    <div class="form-row">
+                      <label for="rstFile" data-i18n="Backup file">Backup file</label>
+                      <select id="rstFile"></select>
+                      <button class="btn btn-sm" id="rstPick" type="button" data-i18n="Choose.">Choose.</button>
+                    </div>
+                    <div class="form-row">
+                      <label for="rstWorkspace" data-i18n="Target workspace">Target workspace</label>
+                      <select id="rstWorkspace"></select>
+                    </div>
+                    <div class="form-row" id="rstTargetRow" hidden="">
+                      <label for="rstTarget" data-i18n="Target item">Target item</label>
+                      <select id="rstTarget"></select>
+                    </div>
+                    <div class="check-row">
+                      <label class="check"><input type="checkbox" id="rstValidate" checked> <span data-i18n="Validate structure before restore">Validate structure before restore</span></label>
+                      <label class="check"><input type="checkbox" id="rstOverwrite"> <span data-i18n="Overwrite existing item">Overwrite existing item</span></label>
+                    </div>
+                    <div class="row-actions">
+                      <button class="btn btn-primary" id="runRestore" type="button" data-i18n="Run restore">Run restore</button>
+                      <span class="helper" data-i18n="Restore writes to the target workspace only after validation.">Restore writes to the target workspace only after validation.</span>
+                    </div>
                   </div>
                 </div>
+
+                <div class="run-card" id="rstRun" hidden="">
+                  <div class="run-label"><span id="rstRunLabel" data-i18n="Preparing restore.">Preparing restore.</span><span id="rstRunPct">0%</span></div>
+                  <div class="progress"><i id="rstBar"></i></div>
+                </div>
+
+                <div class="panel" id="rstResult" hidden="">
+                  <div class="panel-head"><span class="panel-title" data-i18n="Restore result">Restore result</span></div>
+                  <div class="panel-body" id="rstResultBody"></div>
+                </div>
               </div>
-              <div class="panel">
-                <div class="panel-head"><span class="panel-title" data-i18n="History">History</span></div>
-                <div class="panel-body" id="bakHistory"></div>
-              </div>
-              <div class="panel">
-                <div class="panel-head"><span class="panel-title" data-i18n="Notes">Notes</span></div>
-                <div class="panel-body" style="gap:9px">
-                  <div class="note">
-                    <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
-                    <span data-i18n="Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.">Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.</span>
+
+              <div class="od-stack" style="--od-gap:16px">
+                <div class="panel">
+                  <div class="panel-head"><span class="panel-title" data-i18n="Restore summary">Restore summary</span></div>
+                  <div class="panel-body">
+                    <div class="stat-list" id="rstSummaryBody" hidden="">
+                      <div class="stat-row"><span class="stat-key" data-i18n="File">File</span><span class="stat-val" id="rstStatFile">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Target workspace">Target workspace</span><span class="stat-val" id="rstStatTarget">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Restored objects">Restored objects</span><span class="stat-val" id="rstStatObjects">-</span></div>
+                      <div class="stat-row"><span class="stat-key" data-i18n="Finished at">Finished at</span><span class="stat-val" id="rstStatTime">-</span></div>
+                    </div>
+                    <div class="empty" id="rstSummaryEmpty" style="padding:10px 4px">
+                      <div class="empty-title" data-i18n="No restore yet">No restore yet</div>
+                      <p class="empty-text" data-i18n="Choose a backup file and run restore to fill the summary.">Choose a backup file and run restore to fill the summary.</p>
+                    </div>
                   </div>
-                  <p class="helper" data-i18n="Semantic model backup needs XMLA read access. Paginated reports are skipped.">Semantic model backup needs XMLA read access. Paginated reports are skipped.</p>
+                </div>
+                <div class="panel">
+                  <div class="panel-head"><span class="panel-title" data-i18n="Notes">Notes</span></div>
+                  <div class="panel-body" style="gap:9px">
+                    <div class="note">
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <span data-i18n="Restore uses Fabric updateDefinition/create with your account. Overwriting replaces the whole item definition; validate first.">Restore uses Fabric updateDefinition/create with your account. Overwriting replaces the whole item definition; validate first.</span>
+                    </div>
+                    <p class="helper" data-i18n="Model restored without processing. Refresh the semantic model after restore.">Model restored without processing. Refresh the semantic model after restore.</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1804,6 +1885,17 @@
   <input class="input combo-search" id="comboSearch" type="search" placeholder="Search options." autocomplete="off" aria-label="Search options" data-i18n-placeholder="Search options." data-i18n-aria-label="Search options">
   <div class="combo-list" id="comboList" role="listbox"></div>
   <div class="combo-empty" id="comboEmpty" hidden data-i18n="No options">No options</div>
+</div>
+
+<div class="combo-popup combo-popup--multi" id="bakMultiPopup" hidden="">
+  <input class="input combo-search" id="bakMultiSearch" type="search" placeholder="Search item." autocomplete="off" aria-label="Search backup item" data-i18n-placeholder="Search item." data-i18n-aria-label="Search backup item">
+  <div class="combo-list backup-multi-list" id="bakMultiList" role="listbox" aria-multiselectable="true"></div>
+  <div class="combo-empty" id="bakMultiEmpty" hidden="" data-i18n="No items">No items</div>
+  <div class="combo-popup-foot">
+    <button class="btn btn-sm" id="bakMultiAll" type="button" data-i18n="Select all">Select all</button>
+    <button class="btn btn-sm" id="bakMultiClear" type="button" data-i18n="Clear">Clear</button>
+    <span class="helper" id="bakMultiCount">0 selected</span>
+  </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite">

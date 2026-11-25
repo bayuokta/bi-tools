@@ -34,7 +34,7 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 | `web\js\views\compare.js` | Halaman Compare model: picker sumber/target, job compare read-only, tree hasil, detail TMDL/TMSL persis, options dialog, validate/export/script. |
 | `web\js\views\metadata-tsd.js` | Ekstraksi metadata + TSD: instance, workspace, picker, batch, payload, render TSD, capture/cache, sidecar, preview. |
 | `web\js\views\partitions-lineage.js` | Halaman Partisi dan Lineage SQLite: inventory/refresh, tabel partisi, pencarian, grafik lineage, ekspor. |
-| `web\js\views\backup.js` | Halaman Backup: pilih workspace/item, jalankan job, hasil ZIP, riwayat. |
+| `web\js\views\backup.js` | Halaman **Backup and Restore**: tab Backup (multi-select model/report) dan Restore (pilih ZIP, validasi, create/overwrite). |
 | `web\ARCHITECTURE.md` | Dokumen ini. |
 
 Server melayani seluruh folder `web\` lewat `StaticFiles`; PyInstaller menyalin
@@ -120,14 +120,25 @@ Job admin `syncCatalog`/`runScan` tetap ada untuk mode service/uji.
 
 ## Peta `js\views\backup.js`
 
-`backupLoadState`, `backupLoadItems`, `backupPayload`, `runBackup`,
-`backupOpenFolder`, `initBackupEvents`; render internal `backupRenderItems`,
-`backupRenderResult`, `backupRenderHistory`, `backupApplyState`.
+Tab: `backupShowTab`. Backup: `backupLoadState`, `backupLoadItems`,
+`backupPayload`, `runBackup`, `backupOpenFolder`, `initBackupEvents`; render
+internal `backupRenderScope`, `backupRenderFiles`, `backupRenderResult`,
+`backupRenderHistory`, `backupApplyState`.
 
-- Item dipilih per baris (semantic model / report), bukan hanya checkbox grup.
+- Item dipilih lewat dua **multi-select combo** (`#bakModelTrigger`,
+  `#bakReportTrigger`) dengan popup bersama `#bakMultiPopup` (search, centang,
+  pilih semua/kosongkan). Bukan daftar checkbox per baris.
 - Job memakai `app.startJob` ke `/api/backup/run`; hasil per item dari
   `snapshot.result`.
 - Riwayat dibaca dari `manifest.json` di folder tujuan.
+
+Restore: `runRestore`, `restoreLoadTargets`, `restoreRenderFiles`,
+`restoreRenderTargets`, `restoreRenderResult`.
+
+- File berasal dari daftar ZIP manifest; workspace tujuan dari katalog.
+- Saat **Overwrite** dicentang, combo item tujuan muncul (model atau report
+  sesuai jenis ZIP). Konfirmasi `window.confirm` wajib sebelum menulis.
+- Job memakai `app.startJob` ke `/api/backup/restore/run`.
 
 ## Peta `js\views\compare.js`
 

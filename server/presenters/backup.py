@@ -14,7 +14,8 @@ from core.backup import (
 )
 from core.errors import ExtractionError
 from core.lineage_service import workspace_detail
-from core.requests import BackupRequest
+from core.requests import BackupRequest, RestoreRequest
+from core.restore import list_restore_files, run_restore
 from core.version import __version__
 
 from .. import settings as keys
@@ -66,6 +67,7 @@ def build_state(store: SettingsStore, folder: str = "") -> dict[str, Any]:
         "folder": str(target),
         "prefix": prefix,
         "history": history(target, limit=MAX_HISTORY),
+        "files": list_restore_files(target),
     }
 
 
@@ -154,4 +156,48 @@ def run_job(
             keys.BACKUP_PREFIX_KEY: request.prefix,
         }
     )
+    return result.payload()
+
+
+def restore_state(
+    store: SettingsStore, folder: str = "", workspace_id: str = ""
+) -> dict[str, Any]:
+    """State tab Restore: file backup, workspace, dan item tujuan."""
+    data = build_state(store, folder)
+    targets: dict[str, Any] = {"models": [], "reports": []}
+    if workspace_id:
+        items = workspace_items(store, workspace_id)
+        targets = {"models": items["models"], "reports": items["reports"]}
+    data["targets"] = targets
+    data["target_workspace_id"] = workspace_id
+    return data
+
+
+def restore_job(
+    store: SettingsStore,
+    payload: dict[str, Any] | None,
+    log: Callable[[str], None],
+    cancel: Any,
+) -> dict[str, Any]:
+    """Job restore: validasi request, resolve workspace, lalu tulis via Fabric."""
+    request = RestoreRequest.from_payload(payload)
+    principal = store.auth()
+    principal.validate()
+    option = workspace_detail(_database(store), request.workspace_id)
+    workspace_name = option.name if option and option.name else request.workspace_name
+    if not workspace_name:
+        raise ExtractionError(
+            "Nama workspace tujuan tidak ditemukan di katalog; pilih workspace dari daftar."
+        )
+    options = request.to_options()
+    options = type(options)(
+        file=options.file,
+        workspace_id=options.workspace_id,
+        workspace_name=workspace_name,
+        overwrite=options.overwrite,
+        target_id=options.target_id,
+        target_name=options.target_name,
+        validate=options.validate,
+    )
+    result = run_restore(options, principal, log=log, cancel=cancel)
     return result.payload()

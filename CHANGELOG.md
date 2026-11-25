@@ -9,14 +9,17 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ## Belum dirilis
 
-### Halaman Backup
+### Halaman Backup and Restore
 
-- Halaman baru **Backup** untuk menyimpan definisi semantic model dan report
-  satu workspace ke folder lokal.
+- Halaman **Backup and Restore** dengan dua tab: menyimpan definisi semantic
+  model dan report per workspace, lalu memulihkannya dari file backup.
 - Model diekspor sebagai folder TMDL + `model.bim` (TMSL) lewat `tom-worker`;
   report disimpan sebagai part `getDefinition` apa adanya (PBIR dan legacy).
 - Satu ZIP per item di folder `Backup_<workspace>_<waktu>/` + `manifest.json`;
   kegagalan satu item tidak menghentikan item lain.
+- Restore memakai Fabric `updateDefinition`/create dengan akun user: item baru
+  (`<nama> restored <tanggal>`) atau menimpa item yang dipilih (dengan
+  konfirmasi). Model hasil restore perlu di-refresh manual.
 - `.pbix` tidak dipakai karena diblokir untuk incremental refresh/perubahan
   TOM. Data, jadwal refresh, permission, kredensial, dan sensitivity label
   tidak termasuk.

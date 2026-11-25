@@ -64,6 +64,7 @@ class _StoreCase(unittest.TestCase):
         self.store.set_lineage_db(self.db)
         self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        self.store.set("backup/folder", str(self.root / "backups"))
         self.web = self.root / "web"
         self.web.mkdir()
         (self.web / "index.html").write_text("ok", encoding="utf-8")
@@ -137,6 +138,68 @@ class EndpointTests(_StoreCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("minimal satu item", response.json()["detail"])
+
+    def test_restore_state_includes_files_and_targets(self) -> None:
+        payload = {
+            "workspace_id": WORKSPACE,
+            "datasets": [{"id": MODEL, "name": "Sales"}],
+            "reports": [{"id": REPORT, "name": "Overview"}],
+        }
+        with patch(
+            "server.presenters.service_picker.workspace_contents", return_value=payload
+        ):
+            response = self.client.get(
+                "/api/backup/restore/state",
+                params={"folder": str(self.root / "backups"), "workspace_id": WORKSPACE},
+            )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIn("files", body)
+        self.assertEqual(body["targets"]["models"][0]["name"], "Sales")
+        self.assertEqual(body["targets"]["reports"][0]["name"], "Overview")
+
+    def test_restore_rejects_missing_file(self) -> None:
+        response = self.client.post(
+            "/api/backup/restore/run",
+            json={
+                "file": str(self.root / "missing.zip"),
+                "workspace_id": WORKSPACE,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(".zip", response.json()["detail"])
+
+    def test_restore_starts_job(self) -> None:
+        import zipfile
+
+        archive = self.root / "backup.zip"
+        with zipfile.ZipFile(archive, "w") as handle:
+            handle.writestr("definition.pbir", "{}")
+            handle.writestr("report.json", "{}")
+
+        def fake_restore(store, payload, log, cancel):
+            log("restore uji")
+            return {"kind": "report", "action": "created", "name": "Overview"}
+
+        body = {
+            "file": str(archive),
+            "workspace_id": WORKSPACE,
+            "workspace_name": "Data Platform",
+        }
+        with patch.object(presenter, "restore_job", fake_restore):
+            response = self.client.post("/api/backup/restore/run", json=body)
+            self.assertEqual(response.status_code, 202)
+            job_id = response.json()["job_id"]
+            self.assertTrue(
+                wait_until(
+                    lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
+                    != "running"
+                )
+            )
+        job = self.client.get(f"/api/jobs/{job_id}").json()
+        self.assertEqual(job["status"], "done")
+        self.assertEqual(job["result"]["action"], "created")
+        self.assertIn("restore uji", job["log"])
 
     def test_run_starts_job(self) -> None:
         def fake_job(store, payload, log, cancel, progress=None):

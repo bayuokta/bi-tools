@@ -194,6 +194,87 @@ class RunBackupTests(unittest.TestCase):
             self.assertIn("definition/model.tmdl", z.namelist())
             self.assertIn("model.bim", z.namelist())
 
+    def test_model_uses_fabric_definition_and_keeps_model_bim(self) -> None:
+        class FakeClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                pass
+
+            def get_semantic_model_definition(self, workspace_id, model_id):
+                return ReportDefinition(
+                    report_format="TMDL",
+                    parts=(
+                        DefinitionPart("definition/model.tmdl", b"model Model"),
+                        DefinitionPart("definition.pbism", b"{}"),
+                        DefinitionPart(".platform", b"{}"),
+                    ),
+                )
+
+            def close(self) -> None:
+                pass
+
+        class FakeWorker:
+            def export(self, target: str) -> dict:
+                root = Path(target)
+                (root / "definition").mkdir(parents=True, exist_ok=True)
+                (root / "definition" / "model.tmdl").write_text("tom", encoding="utf-8")
+                (root / "model.bim").write_text("{}", encoding="utf-8")
+                return {"files": 2, "bytes": 2}
+
+        options = BackupOptions(
+            workspace_id=WORKSPACE,
+            workspace_name="Data",
+            items=(item("model", MODEL, "Sales"),),
+            folder=self.folder,
+        )
+        with patch("core.backup.get_tom_worker", return_value=FakeWorker()), patch(
+            "core.backup.FabricReportClient", FakeClient
+        ):
+            result = run_backup(options, PRINCIPAL)
+        entry = result.payload()["items"][0]
+        self.assertEqual(entry["source"], "fabric")
+        with zipfile.ZipFile(result.run_dir / entry["file"]) as archive:
+            names = archive.namelist()
+        self.assertIn("definition/model.tmdl", names)
+        self.assertIn("definition.pbism", names)
+        self.assertIn(".platform", names)
+        self.assertIn("model.bim", names)
+        self.assertNotIn("_tom/definition/model.tmdl", names)
+
+    def test_model_falls_back_to_tom(self) -> None:
+        class FakeClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                pass
+
+            def get_semantic_model_definition(self, workspace_id, model_id):
+                raise ExtractionError("Fabric semantic model definition tidak tersedia")
+
+            def close(self) -> None:
+                pass
+
+        class FakeWorker:
+            def export(self, target: str) -> dict:
+                root = Path(target)
+                (root / "definition").mkdir(parents=True, exist_ok=True)
+                (root / "definition" / "model.tmdl").write_text("tom", encoding="utf-8")
+                (root / "model.bim").write_text("{}", encoding="utf-8")
+                return {"files": 2, "bytes": 2}
+
+        options = BackupOptions(
+            workspace_id=WORKSPACE,
+            workspace_name="Data",
+            items=(item("model", MODEL, "Sales"),),
+            folder=self.folder,
+        )
+        with patch("core.backup.get_tom_worker", return_value=FakeWorker()), patch(
+            "core.backup.FabricReportClient", FakeClient
+        ):
+            result = run_backup(options, PRINCIPAL)
+        entry = result.payload()["items"][0]
+        self.assertEqual(entry["source"], "tom")
+        with zipfile.ZipFile(result.run_dir / entry["file"]) as archive:
+            self.assertTrue(any(name.startswith("definition/") for name in archive.namelist()))
+            self.assertIn("definition.pbism", archive.namelist())
+
     def test_failed_item_does_not_stop_others(self) -> None:
         class FakeWorker:
             def export(self, target: str) -> dict:

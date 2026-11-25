@@ -276,6 +276,72 @@ class BackupRequest:
 
 
 @dataclass(frozen=True)
+class RestoreRequest:
+    """Input restore satu ZIP backup ke workspace tujuan."""
+
+    file: Path
+    workspace_id: str
+    workspace_name: str = ""
+    overwrite: bool = False
+    target_id: str = ""
+    target_name: str = ""
+    validate: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "workspace_id", _guid(self.workspace_id, "Workspace ID")
+        )
+        target = _path(self.file)
+        if not target.is_absolute():
+            raise ExtractionError("Path file backup harus absolut.")
+        if target.suffix.lower() != ".zip":
+            raise ExtractionError("File backup harus berformat .zip.")
+        if not target.is_file():
+            raise ExtractionError(f"File backup tidak ditemukan: {target}")
+        object.__setattr__(self, "file", target)
+        object.__setattr__(
+            self, "workspace_name", str(self.workspace_name or "").strip()
+        )
+        target_id = str(self.target_id or "").strip()
+        if self.overwrite:
+            if not target_id:
+                raise ExtractionError("Pilih item tujuan yang akan ditimpa.")
+            target_id = _guid(target_id, "ID item tujuan")
+        elif target_id:
+            raise ExtractionError("Target item hanya dipakai saat menimpa.")
+        object.__setattr__(self, "target_id", target_id)
+        object.__setattr__(
+            self, "target_name", str(self.target_name or "").strip()
+        )
+
+    @classmethod
+    def from_payload(cls, value: Mapping[str, Any] | None) -> "RestoreRequest":
+        payload = dict(value or {})
+        return cls(
+            file=_path(str(payload.get("file") or "")),
+            workspace_id=str(payload.get("workspace_id") or ""),
+            workspace_name=str(payload.get("workspace_name") or ""),
+            overwrite=bool(payload.get("overwrite")),
+            target_id=str(payload.get("target_id") or ""),
+            target_name=str(payload.get("target_name") or ""),
+            validate=payload.get("validate", True) is not False,
+        )
+
+    def to_options(self) -> Any:
+        from .restore import RestoreOptions
+
+        return RestoreOptions(
+            file=self.file,
+            workspace_id=self.workspace_id,
+            workspace_name=self.workspace_name,
+            overwrite=self.overwrite,
+            target_id=self.target_id,
+            target_name=self.target_name,
+            validate=self.validate,
+        )
+
+
+@dataclass(frozen=True)
 class TsdRequest:
     """Input generate dokumen TSD dari workbook metadata."""
 

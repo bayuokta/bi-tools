@@ -386,23 +386,34 @@ python -m cli partition --workspace-id <ws> --dataset-id <ds> `
 
 Refresh memerlukan XMLA **Read Write**, akun dengan akses tulis ke workspace, dan `--yes` (setara konfirmasi `PROCESS`). Tanpa `--yes` perintah hanya menampilkan error. Gunakan `--list` untuk melihat state, jumlah baris, dan range sebelum memilih target.
 
-## Backup definisi model dan report
+## Backup & Restore
 
-Halaman **Backup** menyimpan definisi semantic model dan report satu workspace
-ke folder lokal:
+Halaman **Backup and Restore** punya dua tab.
 
-- **Model**: TMDL (`definition/`) + `model.bim` (TMSL), lewat `tom-worker`
-  (butuh XMLA read). Mencakup tabel, measure, relasi, partisi + M +
-  refresh policy, role/RLS, perspective, culture, dan expression.
+### Backup
+
+- **Model**: definisi dari Fabric `getDefinition` (TMDL + `definition.pbism`)
+  ditambah `model.bim` dari TOM sebagai cadangan. Butuh akses baca XMLA dan
+  Fabric API.
 - **Report**: part `getDefinition` apa adanya (PBIR maupun PBIR-Legacy).
-- Satu ZIP per item di folder `Backup_<workspace>_<waktu>/`, plus
-  `manifest.json` (status per item).
-- `.pbix` tidak dipakai karena diblokir untuk model dengan incremental refresh
-  atau yang diubah lewat TOM/XMLA.
-- Yang **tidak** termasuk: data, riwayat/jadwal refresh, permission,
-  kredensial gateway, dan sensitivity label.
-- Report paginated (RDL) dilewati. Kegagalan satu item tidak menghentikan item
-  lain.
+- Satu ZIP per item di folder `Backup_<workspace>_<waktu>/` + `manifest.json`.
+- Pilih item lewat dua combo multi-select (semantic model dan report).
+- `.pbix` tidak dipakai karena diblokir untuk incremental refresh/perubahan
+  TOM. Yang tidak termasuk: data, jadwal refresh, permission, kredensial, dan
+  sensitivity label.
+
+### Restore
+
+- Pilih file ZIP hasil backup, workspace tujuan, lalu validasi struktur.
+- Tanpa centang **Overwrite**, item dibuat baru dengan nama
+  `<nama> restored <YYYY-MM-DD HHMM>`.
+- Dengan **Overwrite**, pilih item tujuan; seluruh definisi item diganti
+  (konfirmasi diminta).
+- Memakai Fabric `updateDefinition`/create dengan akun 365 Anda; tidak perlu
+  XMLA tulis.
+- Model hasil restore belum diproses — refresh manual setelah restore.
+- Referensi dataset pada report mengikuti definisi aslinya (tidak otomatis
+  rebind).
 
 ## Generate TSD (langkah 2)
 

@@ -251,6 +251,24 @@ def materialize_definition(definition: ReportDefinition, target_root: Path) -> P
     return report_def
 
 
+def definition_payload(parts: Any) -> dict[str, Any]:
+    """Payload ``updateDefinition``/create dari part biner (base64)."""
+    import base64
+
+    return {
+        "definition": {
+            "parts": [
+                {
+                    "path": str(part.path),
+                    "payload": base64.b64encode(bytes(part.payload)).decode("ascii"),
+                    "payloadType": "InlineBase64",
+                }
+                for part in parts
+            ]
+        }
+    }
+
+
 class FabricReportClient:
     """Client Fabric API untuk report definition (LRO + retry 429)."""
 
@@ -337,6 +355,81 @@ class FabricReportClient:
         return result
 
     # -- API --------------------------------------------------------------
+    # -- semantic model & report definition (restore) ---------------------
+    def get_semantic_model_definition(
+        self, workspace_id: str, model_id: str
+    ) -> ReportDefinition:
+        """Ambil definisi semantic model (TMDL/TMSL) untuk backup."""
+        path = (
+            f"workspaces/{workspace_id}"
+            f"/semanticModels/{model_id}/getDefinition"
+        )
+        response = self._transport.request("POST", path, allow=(200, 202))
+        data = (
+            self._json(response, "getDefinition model")
+            if int(response.status_code) == 200
+            else self._poll_operation(response)
+        )
+        return parse_definition_response(data)
+
+    def update_semantic_model_definition(
+        self, workspace_id: str, model_id: str, parts: Any
+    ) -> dict[str, Any]:
+        path = (
+            f"workspaces/{workspace_id}"
+            f"/semanticModels/{model_id}/updateDefinition"
+        )
+        response = self._transport.request(
+            "POST", path, json=definition_payload(parts), allow=(200, 202)
+        )
+        if int(response.status_code) == 200:
+            return self._json(response, "updateDefinition model")
+        return self._poll_operation(response)
+
+    def create_semantic_model(
+        self, workspace_id: str, display_name: str, parts: Any
+    ) -> dict[str, Any]:
+        body = {"displayName": str(display_name)}
+        body.update(definition_payload(parts))
+        response = self._transport.request(
+            "POST",
+            f"workspaces/{workspace_id}/semanticModels",
+            json=body,
+            allow=(200, 201, 202),
+        )
+        if int(response.status_code) in (200, 201):
+            return self._json(response, "create model")
+        return self._poll_operation(response)
+
+    def update_report_definition(
+        self, workspace_id: str, report_id: str, parts: Any
+    ) -> dict[str, Any]:
+        path = (
+            f"workspaces/{workspace_id}"
+            f"/reports/{report_id}/updateDefinition"
+        )
+        response = self._transport.request(
+            "POST", path, json=definition_payload(parts), allow=(200, 202)
+        )
+        if int(response.status_code) == 200:
+            return self._json(response, "updateDefinition report")
+        return self._poll_operation(response)
+
+    def create_report(
+        self, workspace_id: str, display_name: str, parts: Any
+    ) -> dict[str, Any]:
+        body = {"displayName": str(display_name)}
+        body.update(definition_payload(parts))
+        response = self._transport.request(
+            "POST",
+            f"workspaces/{workspace_id}/reports",
+            json=body,
+            allow=(200, 201, 202),
+        )
+        if int(response.status_code) in (200, 201):
+            return self._json(response, "create report")
+        return self._poll_operation(response)
+
     def get_report_definition(self, service: ServiceReportRef) -> ReportDefinition:
         """Ambil report public definition dari Fabric API."""
         path = (

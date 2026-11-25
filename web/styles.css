@@ -1544,3 +1544,21 @@ table.data--compare tr.is-current td:first-child{ box-shadow:inset 2px 0 0 var(-
 }
 .bak-history-row:hover{ background:var(--surface-2); }
 .bak-history-time{ font-variant-numeric:tabular-nums; }
+
+
+/* --- Backup & Restore --------------------------------------------------- */
+.field-label{ font-size:12.5px; font-weight:600; color:var(--text-2); }
+.combo-popup--multi{
+  display:flex; flex-direction:column; gap:6px; padding:8px;
+  max-height:min(70vh,460px);
+}
+.backup-multi-list{ max-height:260px; overflow:auto; }
+.backup-multi-list .combo-option{
+  display:flex; align-items:center; gap:8px; white-space:normal;
+}
+.combo-popup-foot{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  border-top:1px solid var(--border); padding-top:8px;
+}
+.combo-popup-foot .helper{ margin-left:auto; }
+.file-list--padded{ padding:4px 8px; }

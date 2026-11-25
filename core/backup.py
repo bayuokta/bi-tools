@@ -172,6 +172,7 @@ class BackupEntry:
     message: str = ""
     file: str = ""
     size: int = 0
+    source: str = ""
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -182,6 +183,7 @@ class BackupEntry:
             "message": self.message,
             "file": self.file,
             "size": self.size,
+            "source": self.source,
         }
 
 
@@ -222,6 +224,64 @@ class BackupResult:
         }
 
 
+def ensure_pbism(root: Path | str) -> None:
+    """Lengkapi ``definition.pbism`` agar ZIP bisa dipakai restore Fabric."""
+    path = Path(root) / "definition.pbism"
+    if path.exists():
+        return
+    path.write_text(
+        json.dumps({"version": "4.0", "settings": {}}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _backup_model(
+    client: FabricReportClient,
+    workspace_id: str,
+    item: BackupItem,
+    endpoint: str,
+    target: Path,
+    *,
+    log: Log = _silent,
+) -> str:
+    """Tulis definisi model; Fabric dulu, TOM sebagai cadangan.
+
+    Fabric ``getDefinition`` memberi TMDL + ``definition.pbism`` sehingga ZIP
+    siap dipakai restore. TOM tetap dipakai untuk ``model.bim`` dan sebagai
+    cadangan bila endpoint semantic model tidak tersedia.
+    """
+    log(f"Mengunduh definisi Fabric model {item.name}...")
+    try:
+        definition = client.get_semantic_model_definition(
+            workspace_id, item.item_id
+        )
+        write_report_parts(definition, target)
+        ensure_pbism(target)
+        log(f"Definisi Fabric model {item.name}: {len(definition.parts)} part.")
+    except Exception as exc:  # noqa: BLE001 - fallback TOM
+        log(
+            f"Definisi Fabric model {item.name} tidak tersedia "
+            f"({str(exc).splitlines()[0][:160]}); memakai TOM."
+        )
+        worker = get_tom_worker(endpoint, item.name)
+        worker.export(str(target))
+        ensure_pbism(target)
+        return "tom"
+
+    try:
+        tom_dir = target / "_tom"
+        worker = get_tom_worker(endpoint, item.name)
+        worker.export(str(tom_dir))
+        model_bim = tom_dir / "model.bim"
+        if model_bim.is_file():
+            shutil.copyfile(model_bim, target / "model.bim")
+    except Exception as exc:  # noqa: BLE001 - model.bim opsional
+        log(f"model.bim {item.name} dilewati: {str(exc).splitlines()[0][:160]}")
+    finally:
+        shutil.rmtree(target / "_tom", ignore_errors=True)
+    return "fabric"
+
+
 def _is_paginated(item: BackupItem) -> bool:
     return str(item.report_type or "") == "PaginatedReport"
 
@@ -259,7 +319,7 @@ def run_backup(
     clock = time.perf_counter()
     tokens = EntraTokens(principal)
     endpoint = workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
-    report_client: FabricReportClient | None = None
+    client: FabricReportClient | None = None
     entries: list[BackupEntry] = []
     total = len(options.items)
     log(f"Backup: {workspace_name} ({total} item) -> {run_dir}")
@@ -285,17 +345,24 @@ def run_backup(
 
             temp = Path(tempfile.mkdtemp(prefix="bi-tools-backup-"))
             try:
+                if client is None:
+                    client = FabricReportClient(
+                        fabric_provider(tokens), poll_wait=1, log=log
+                    )
                 if item.kind == KIND_MODEL:
-                    worker = get_tom_worker(endpoint, item.name)
-                    worker.export(str(temp))
+                    entry.source = _backup_model(
+                        client,
+                        workspace_id,
+                        item,
+                        endpoint,
+                        temp,
+                        log=log,
+                    )
                 else:
-                    if report_client is None:
-                        report_client = FabricReportClient(
-                            fabric_provider(tokens), poll_wait=1, log=log
-                        )
                     service = ServiceReportRef.from_ids(workspace_id, item.item_id)
-                    definition = report_client.get_report_definition(service)
+                    definition = client.get_report_definition(service)
                     write_report_parts(definition, temp)
+                    entry.source = "fabric"
                 archive = run_dir / _item_file(item.kind, item.name, item.item_id)
                 size = write_zip(temp, archive)
             except Exception as exc:  # noqa: BLE001 - item gagal, lanjut item lain
@@ -313,8 +380,8 @@ def run_backup(
             if progress:
                 progress(index, total, item.label)
     finally:
-        if report_client is not None:
-            report_client.close()
+        if client is not None:
+            client.close()
 
     finished_at = _now()
     duration = time.perf_counter() - clock

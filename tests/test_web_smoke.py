@@ -34,7 +34,7 @@ VIEWS = {
     "analisa": "Semantic model analysis",
     "compare": "Compare model",
     "lineage": "Lineage",
-    "backup": "Backup",
+    "backup": "Backup and Restore",
     "partisi": "Semantic model partitions",
     "pengaturan": "Settings",
 }
