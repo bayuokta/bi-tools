@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .auth import POWERBI_SCOPE, EntraTokens, ServicePrincipal
-from .column_stats import partition_row_counts
+from .column_stats import STORAGE_DMV, partition_row_counts
 from .errors import ExtractionError
 from .partition_plan import (
     PartitionInfo,
@@ -218,9 +218,14 @@ def _row_counts(
     interactive: bool = False,
 ) -> tuple[dict[tuple[str, str], int], list[str]]:
     try:
-        segments = _dmv_rows_subprocess(
-            endpoint, dataset_name, tokens, interactive
-        )
+        if interactive:
+            from .xmla_worker_client import get_worker_client
+
+            segments = get_worker_client(endpoint, dataset_name).query(STORAGE_DMV)
+        else:
+            segments = _dmv_rows_subprocess(
+                endpoint, dataset_name, tokens, interactive
+            )
     except Exception as exc:  # noqa: BLE001 - row count bersifat best-effort
         message = f"Jumlah baris partisi tidak tersedia: {exc}"
         log(message)

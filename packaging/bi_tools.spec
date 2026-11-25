@@ -102,6 +102,7 @@ hiddenimports = [
     "cli.compare",
     "cli.partition",
     "cli.sync",
+    "cli.xmla_worker",
     # Server memuat app FastAPI secara malas di runtime.run().
     *collect_submodules("server"),
     # uvicorn memilih implementasi loop/protokol saat runtime.
@@ -113,7 +114,6 @@ datas = [*playwright_datas, *pythonnet_datas]
 binaries = [*playwright_binaries, *pythonnet_binaries]
 
 excludes = [
-    "tkinter",
     "PySide6",
     "shiboken6",
     "pytest",

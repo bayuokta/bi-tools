@@ -936,6 +936,10 @@ def open_client(
     # Ini penting untuk login MSOLAP interaktif agar dialog tidak muncul dua kali.
     if endpoint and catalog:
         if interactive:
+            if os.name == "nt" and endpoint and _is_cloud(endpoint):
+                from .xmla_worker_client import get_worker_client
+
+                return get_worker_client(endpoint, catalog)
             connection_string = _interactive_connection_string(endpoint, catalog)
         else:
             normalized = normalize_powerbi_endpoint(endpoint, readonly=readonly)

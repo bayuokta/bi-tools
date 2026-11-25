@@ -95,6 +95,8 @@ Aplikasi web memakai **akun 365** (tanpa client id): REST dan Fabric lewat
 `azure-identity` browser, sedangkan XMLA (ADOMD/TOM) memakai dialog login
 MSOLAP. Token tetap di memori proses. Klik **Sign in** di Pengaturan.
 
+Untuk XMLA interaktif, server menjalankan **worker ADOMD** (`cli\xmla_worker.py`) di proses terpisah dengan Tk message loop, karena dialog MSOLAP tidak bisa dipompa dari thread job uvicorn. Worker membuka koneksi sekali lalu melayani query lewat JSON.
+
 Program terpisah **`bi-tools-sync.exe`** memakai service principal untuk
 endpoint Admin (katalog workspace, Scanner API, `admin/reports`). Hasilnya
 diterbitkan sebagai snapshot SQLite:

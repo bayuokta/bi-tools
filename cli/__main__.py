@@ -28,6 +28,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "compare": ("cli.compare", "snapshot TOM untuk perbandingan semantic model"),
     "partition": ("cli.partition", "inventaris dan refresh partisi semantic model"),
     "sync": ("cli.sync", "sinkronisasi katalog/lineage + snapshot database bersama"),
+    "xmla-worker": ("cli.xmla_worker", "worker ADOMD interaktif internal"),
     "install-browser": ("", "unduh Chromium untuk screenshot TSD"),
 }
 
