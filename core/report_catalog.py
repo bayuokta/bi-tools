@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from .lineage_api import PowerBILineageClient
-
 REPORT_COLUMNS = (
     "report_id",
     "workspace_id",
@@ -184,34 +182,3 @@ def catalog_reports(
     finally:
         conn.close()
     return [dict(row) for row in rows]
-
-
-def sync_report_catalog(
-    principal: Any,
-    database: Path | str,
-    *,
-    full: bool = True,
-    log: Any = None,
-) -> int:
-    """Tarik ``admin/reports`` lalu simpan ke tabel katalog.
-
-    Dipanggil hanya oleh program sync (service principal dengan peran Fabric
-    administrator). Tidak dipakai oleh server interaktif.
-    """
-    log = log or (lambda _message: None)
-    from .lineage_store import connect, initialize
-
-    conn = connect(database)
-    try:
-        initialize(conn)
-        client = PowerBILineageClient(principal, log=log)
-        try:
-            rows = client.admin_reports()
-        finally:
-            client.close()
-        log(f"Report dari Admin API: {len(rows)}")
-        count = save_report_catalog(conn, rows, full=full)
-        log(f"Katalog report disimpan: {count}")
-        return count
-    finally:
-        conn.close()

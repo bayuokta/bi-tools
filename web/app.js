@@ -499,22 +499,11 @@ var NEWLINE = String.fromCharCode(10);
   function renderSettings(data) {
     state.settings = data;
     state.applying = true;
-    $("#clientSecret").placeholder = data.auth.has_secret
-      ? t("Saved - leave blank to keep unchanged")
-      : "Client secret";
     if (!state.formDirty) {
-      $("#tenantId").value = data.auth.tenant_id;
-      $("#clientId").value = data.auth.client_id;
-      $("#clientSecret").value = "";
       $("#rlsUsername").value = data.rls.username;
       $("#rlsRoles").value = data.rls.roles;
       $("#dbPath").value = data.paths.lineage_db;
     }
-    setChip(
-      $("#credChip"),
-      data.auth.complete ? "ok" : (data.auth.has_secret ? "warn" : "idle"),
-      data.auth.complete ? t("Complete") : (data.auth.has_secret ? t("Not complete") : t("Not filled in"))
-    );
     $("#authStatus").textContent = tr(data.auth.status) || "";
     $("#authStatus").className = "helper";
     $("#authAccount").textContent = data.auth.account
@@ -542,9 +531,6 @@ var NEWLINE = String.fromCharCode(10);
       );
     }
     $("#connResult").textContent = tr(data.auth.status);
-    $("#syncMode").value = data.catalog.mode;
-    refreshCombo($("#syncMode"));
-    $("#includePersonal").checked = data.catalog.include_personal;
     $("#showConsole").checked = data.ui.show_console;
     if (data.ui.language && data.ui.language !== state.language) {
       applyLanguage(data.ui.language, { rerender: false });
@@ -2079,52 +2065,6 @@ var NEWLINE = String.fromCharCode(10);
       });
     });
 
-    $("#testConn").addEventListener("click", function () {
-      $("#connResult").textContent = "Menguji koneksi...";
-      startJob({
-        path: "/api/settings/test-token",
-        body: {},
-        label: t("Power BI connection test"),
-        button: $("#testConn"),
-        onDone: function (snapshot) {
-          var tokens = (snapshot.result && snapshot.result.tokens) || {};
-          var parts = [];
-          Object.keys(tokens).forEach(function (name) {
-            parts.push((tokens[name].ok ? "OK " : t("FAILED ")) + name);
-          });
-          $("#connResult").textContent = parts.length
-            ? "Hasil tes: " + parts.join(" - ")
-            : t("Test finished without a token result.");
-          toast(parts.join(" - ") || t("Test finished"));
-        }
-      });
-    });
-
-    $("#signIn").addEventListener("click", function () {
-      var button = $("#signIn");
-      button.disabled = true;
-      addLog(t("Opening sign-in..."), "info");
-      api().put("/api/settings/tenant", {
-        tenant_id: $("#authTenant").value.trim()
-      }).then(function () {
-        return api().post("/api/settings/sign-in", {});
-      }).then(function (data) {
-        renderSettings(data);
-        addLog(t("Sign-in completed."), "ok");
-        toast(t("Signed in"));
-      }).catch(function (error) {
-        button.disabled = false;
-        reportError(error);
-      });
-    });
-
-    $("#signOut").addEventListener("click", function () {
-      api().post("/api/settings/sign-out", {}).then(function (data) {
-        renderSettings(data);
-        toast(t("Signed out"));
-      }).catch(reportError);
-    });
-
     $("#saveCreds").addEventListener("click", function () {
       api().put("/api/settings/rls", {
         username: $("#rlsUsername").value.trim(),
@@ -2168,45 +2108,6 @@ var NEWLINE = String.fromCharCode(10);
       });
     });
 
-    $("#syncCatalog").addEventListener("click", function () {
-      startJob({
-        path: "/api/catalog/sync",
-        body: {},
-        label: t("Sync workspace catalog"),
-        button: $("#syncCatalog"),
-        onDone: function (snapshot) {
-          var result = snapshot.result || {};
-          toast("Katalog: " + (result.workspace_count || 0) + t(" workspaces"));
-        }
-      });
-    });
-
-    $("#scanLineage").addEventListener("click", function () {
-      startJob({
-        path: "/api/catalog/scan",
-        body: { full: $("#fullScan").checked },
-        label: t("Power BI lineage scan"),
-        button: $("#scanLineage"),
-        onDone: function (snapshot) {
-          var result = snapshot.result || {};
-          toast("Lineage: " + (result.workspace_count || 0) + t(" workspaces, ") +
-            (result.node_count || 0) + t(" nodes"));
-        }
-      });
-    });
-
-    $("#syncMode").addEventListener("change", function (event) {
-      savePreference("catalog", {
-        mode: event.target.value,
-        include_personal: $("#includePersonal").checked
-      });
-    });
-    $("#includePersonal").addEventListener("change", function (event) {
-      savePreference("catalog", {
-        mode: $("#syncMode").value,
-        include_personal: event.target.checked
-      });
-    });
     $("#saveDb").addEventListener("click", function () {
       savePreference("paths", { lineage_db: $("#dbPath").value }).then(function (data) {
         if (!data) return;
@@ -2224,12 +2125,11 @@ var NEWLINE = String.fromCharCode(10);
         });
       });
     });
-    ["tenantId", "clientId", "clientSecret", "rlsUsername", "rlsRoles", "dbPath"].forEach(function (id) {
+    ["rlsUsername", "rlsRoles", "dbPath"].forEach(function (id) {
       var field = $("#" + id);
       if (!field) return;
       field.addEventListener("input", function () {
         state.formDirty = true;
-        if (id === "clientSecret") state.secretDirty = true;
       });
     });
     $("#showConsole").addEventListener("change", function (event) {

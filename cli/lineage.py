@@ -1,4 +1,8 @@
-"""CLI lineage Power BI Service: scan, pencarian, impact analysis, dan diagnostik."""
+"""CLI lineage Power BI Service: pencarian, impact analysis, dan diagnostik.
+
+Scan dan sinkronisasi katalog workspace tidak lagi ada di sini: keduanya
+memakai Admin API dan hanya dijalankan oleh ``bi-tools-sync``.
+"""
 
 from __future__ import annotations
 
@@ -9,11 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from core.auth import ServicePrincipal
-from core.catalog_sync import run_workspace_sync
 from core.errors import ExtractionError
 from core.lineage_export import write_lineage_csv
-from core.lineage_scan import run_lineage_scan
 from core.lineage_store import (
     DEFAULT_DB,
     close_quietly,
@@ -28,8 +29,8 @@ from core.lineage_store import (
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Lineage item Power BI Service: sinkronkan workspace, scan ke SQLite, "
-            "cari item, lalu telusuri upstream/downstream."
+            "Lineage item Power BI Service dari database SQLite: cari item, "
+            "lalu telusuri upstream/downstream."
         ),
         allow_abbrev=False,
     )
@@ -38,24 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_DB),
         help=f"Path database SQLite (default: {DEFAULT_DB.name}).",
     )
-    parser.add_argument(
-        "--env-file",
-        help="File .env berisi TENANT_ID, CLIENT_ID, CLIENT_SECRET (khusus scan).",
-    )
     actions = parser.add_mutually_exclusive_group()
-    actions.add_argument(
-        "--scan",
-        action="store_true",
-        help="Jalankan scan lineage dari Power BI REST API.",
-    )
-    actions.add_argument(
-        "--sync-workspaces",
-        action="store_true",
-        help=(
-            "Sinkronkan daftar workspace (nama, state, capacity) ke SQLite; "
-            "dipakai sebagai pilihan workspace di GUI."
-        ),
-    )
     actions.add_argument("--search", metavar="QUERY", help="Cari item berdasarkan nama.")
     actions.add_argument(
         "--impact",
@@ -75,25 +59,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--mode",
-        choices=["auto", "admin", "member"],
-        default="auto",
-        help="Mode scan/sync (default: auto; admin dulu lalu member).",
+        "--workspace", help="Filter nama workspace untuk --search."
     )
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="Paksa full scan pada mode admin.",
-    )
-    parser.add_argument(
-        "--include-personal",
-        action="store_true",
-        help=(
-            "Sertakan My Workspace (personal) pada scan lineage. Hanya berlaku "
-            "mode admin; aktivasi pertama memaksa full scan."
-        ),
-    )
-    parser.add_argument("--workspace", help="Filter nama workspace untuk --search.")
     parser.add_argument("--type", help="Filter tipe node untuk --search.")
     parser.add_argument(
         "--limit",
@@ -128,89 +95,6 @@ def _print_table(headers: list[str], rows: Iterable[Iterable[Any]]) -> None:
 
 def _open_database(path: str):
     return open_read_only(Path(path))
-
-
-def _scan(args: argparse.Namespace) -> int:
-    try:
-        settings = ServicePrincipal.from_env(args.env_file)
-        result = run_lineage_scan(
-            args.db,
-            settings,
-            mode=args.mode,
-            full=args.full,
-            include_personal=args.include_personal,
-            log=(lambda line: print(line, file=sys.stderr)) if args.json else print,
-        )
-    except ExtractionError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "database": str(result.database),
-                    "scan_id": result.scan_id,
-                    "mode": result.mode,
-                    "workspace_count": result.workspace_count,
-                    "node_count": result.node_count,
-                    "edge_count": result.edge_count,
-                    "unresolved_sources": result.unresolved_sources,
-                    "include_personal": result.include_personal,
-                    "started_at": result.started_at,
-                    "finished_at": result.finished_at,
-                    "duration_seconds": round(result.duration_seconds, 2),
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-    else:
-        print(
-            f"\nSelesai: {result.workspace_count} workspace, "
-            f"{result.node_count} node, {result.edge_count} edge "
-            f"dalam {result.duration_seconds:.1f} detik."
-        )
-    return 0
-
-
-def _sync_workspaces(args: argparse.Namespace) -> int:
-    try:
-        settings = ServicePrincipal.from_env(args.env_file)
-        result = run_workspace_sync(
-            args.db,
-            settings,
-            mode=args.mode,
-            log=(lambda line: print(line, file=sys.stderr)) if args.json else print,
-        )
-    except ExtractionError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "database": str(result.database),
-                    "sync_id": result.sync_id,
-                    "mode": result.mode,
-                    "workspace_count": result.workspace_count,
-                    "active_count": result.active_count,
-                    "added": result.added,
-                    "updated": result.updated,
-                    "started_at": result.started_at,
-                    "finished_at": result.finished_at,
-                    "duration_seconds": round(result.duration_seconds, 2),
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-    else:
-        print(
-            f"\nSelesai: {result.workspace_count} workspace "
-            f"({result.added} baru, {result.updated} diperbarui) "
-            f"dalam {result.duration_seconds:.1f} detik."
-        )
-    return 0
 
 
 def _search(args: argparse.Namespace) -> int:
@@ -401,10 +285,6 @@ def _check(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    if args.scan:
-        return _scan(args)
-    if args.sync_workspaces:
-        return _sync_workspaces(args)
     if args.search is not None:
         return _search(args)
     if args.impact or args.upstream:
@@ -414,8 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         return _check(args)
     print(
-        "Pilih salah satu aksi: --scan, --sync-workspaces, --search, --impact, "
-        "--upstream, --stats, --check."
+        "Pilih salah satu aksi: --search, --impact, --upstream, --stats, --check."
     )
     return 2
 

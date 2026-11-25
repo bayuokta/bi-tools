@@ -51,9 +51,16 @@ core\                           logika ekstraksi, tanpa UI atau terminal
   errors.py                     ExtractionError (pesan yang ditampilkan ke pengguna)
   paths.py                      folder aplikasi + outputs\ + data\ (fallback %LOCALAPPDATA% saat read-only)
   version.py                    APP_NAME + __version__ (satu sumber untuk exe, installer, dan tag rilis)
-cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, compare.py, partition.py, sync.py
-  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/sync/install-browser)
+cli\                            perintah baris (argparse): report.py, model.py, tsd.py, lineage.py, analysis.py, compare.py, partition.py
+  __main__.py                   dispatcher bi-tools-cli (report/model/tsd/lineage/analyze/partition/install-browser)
+sync\                           program sync service principal (hanya paket ini yang memanggil Admin API)
+  flow.py                       orkestrasi katalog -> lineage -> katalog report -> snapshot
+  admin_api.py                  AdminClient: admin/groups, Scanner API, admin/reports
+  catalog.py                    katalog workspace + katalog report
+  lineage.py                    scan lineage admin/member
+  __main__.py                   CLI bi-tools-sync (run/workspaces/lineage)
 sync_main.py                    entry point ``bi-tools-sync`` (program sync service principal)
+pyproject.toml                  build wheel bitools-sync untuk notebook Fabric
 server\                         server web lokal (FastAPI + uvicorn, hanya 127.0.0.1)
   __main__.py                   python -m server [--port] [--no-browser]
   app.py                        pabrik aplikasi, rute API, aset web, penjaga token
@@ -406,14 +413,12 @@ notepad .env
 Service principal perlu akses ke workspace yang akan dipindai. Untuk mode admin, aktifkan **Allow service principals to use read-only admin APIs** dan tambahkan service principal ke security group pada pengaturan Admin API tenant.
 
 ```powershell
-python extract_lineage.py --scan                    # mode otomatis: admin lalu member
-python extract_lineage.py --scan --mode admin       # Scanner API admin
-python extract_lineage.py --scan --mode member      # hanya workspace yang dapat diakses
-python extract_lineage.py --scan --full             # abaikan timestamp incremental
-python extract_lineage.py --scan --include-personal # sertakan My Workspace (personal)
-python extract_lineage.py --scan --env-file .env    # kredensial dari file lain
-python extract_lineage.py --sync-workspaces         # daftar workspace ke SQLite (1-2 request)
-python extract_lineage.py --sync-workspaces --mode member
+python -m sync run --full                        # katalog + lineage + report + snapshot
+python -m sync workspaces --mode admin           # daftar workspace ke SQLite (1-2 request)
+python -m sync lineage --mode admin --full       # Scanner API admin
+python -m sync lineage --mode member             # hanya workspace yang dapat diakses
+python -m sync lineage --include-personal        # sertakan My Workspace (personal)
+python -m sync --env-file .env                   # kredensial dari file lain
 python extract_lineage.py --stats
 python extract_lineage.py --search "Contoh" --workspace "Contoh" --type Report
 python extract_lineage.py --impact <node-id>        # item yang memakai node ini (downstream)

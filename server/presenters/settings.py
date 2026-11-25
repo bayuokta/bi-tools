@@ -9,10 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.auth import FABRIC_SCOPE, POWERBI_SCOPE, EntraTokens, ServicePrincipal
-from core.catalog_sync import run_workspace_sync
 from core.errors import ExtractionError
-from core.lineage_scan import run_lineage_scan
 from core.lineage_service import database_summary, workspace_status
 from core.lineage_store import DEFAULT_DB
 from core.requests import SCOPES
@@ -22,9 +19,8 @@ from ..auth_state import status as auth_status
 from ..shared_db import download_snapshot as _download_snapshot
 from ..shared_db import snapshot_status
 from ..settings_store import SettingsStore
-from .formatting import duration_text, format_time
+from .formatting import format_time
 
-CATALOG_MODES = ("auto", "admin", "member")
 THEMES = ("dark", "light")
 LANGUAGES = ("en", "id")
 
@@ -34,11 +30,6 @@ def effective_database(store: SettingsStore) -> str:
     from ..shared_db import active_database_path
 
     return str(active_database_path(store))
-
-
-def saved_catalog_mode(store: SettingsStore) -> str:
-    value = store.get_str(keys.SETTINGS_CATALOG_MODE_KEY, "auto")
-    return value if value in CATALOG_MODES else "auto"
 
 
 def _saved_scope(store: SettingsStore, key: str) -> str:
@@ -64,12 +55,6 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         "paths": {
             "lineage_db": effective_database(store),
             "default_db": str(DEFAULT_DB),
-        },
-        "catalog": {
-            "mode": saved_catalog_mode(store),
-            "include_personal": store.get_bool(
-                keys.SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY
-            ),
         },
         "extraction": {
             "scope_local": _saved_scope(store, keys.SETTINGS_SCOPE_LOCAL_KEY),
@@ -156,24 +141,6 @@ def catalog_status(store: SettingsStore) -> dict[str, Any]:
 
 
 # -- penyimpanan ---------------------------------------------------------
-def save_credentials(
-    store: SettingsStore,
-    tenant_id: str,
-    client_id: str,
-    client_secret: str | None,
-) -> dict[str, Any]:
-    """Simpan kredensial; secret kosong berarti pakai yang tersimpan."""
-    current = store.principal()
-    secret = current.client_secret if client_secret is None else client_secret.strip()
-    principal = ServicePrincipal.from_values(tenant_id, client_id, secret)
-    if not principal.is_complete:
-        raise ExtractionError(
-            "Lengkapi kolom berikut: " + ", ".join(principal.missing) + "."
-        )
-    store.set_principal(principal)
-    return build_state(store)
-
-
 def save_rls(store: SettingsStore, username: str, roles: Any) -> dict[str, Any]:
     store.set_rls(username, roles if roles is not None else "")
     return build_state(store)
@@ -188,21 +155,6 @@ def save_paths(store: SettingsStore, lineage_db: str) -> dict[str, Any]:
         store.set_lineage_db(path)
     else:
         store.set(keys.PATHS_LINEAGE_DB_KEY, "")
-    return build_state(store)
-
-
-def save_catalog(
-    store: SettingsStore, mode: str, include_personal: bool
-) -> dict[str, Any]:
-    value = str(mode or "").strip()
-    if value not in CATALOG_MODES:
-        raise ExtractionError(f"Mode sinkronisasi tidak dikenal: {mode}")
-    store.update(
-        {
-            keys.SETTINGS_CATALOG_MODE_KEY: value,
-            keys.SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY: bool(include_personal),
-        }
-    )
     return build_state(store)
 
 
@@ -268,105 +220,6 @@ def save_extraction(
     if changes:
         store.update(changes)
     return build_state(store)
-
-
-# -- pekerjaan -----------------------------------------------------------
-def test_token_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, Any]:
-    """Ambil token Fabric dan Power BI untuk identitas aktif."""
-    principal = store.auth()
-    principal.validate()
-    result: dict[str, Any] = {}
-    log("Mengambil token Fabric dan Power BI...")
-    tokens = EntraTokens(principal)
-    for name, scope, label in (
-        ("fabric", FABRIC_SCOPE, "Fabric"),
-        ("powerbi", POWERBI_SCOPE, "Power BI"),
-    ):
-        if cancel.is_set():
-            log("Tes koneksi dibatalkan.")
-            break
-        try:
-            token = tokens.get(scope)
-        except ExtractionError as exc:
-            result[name] = {"ok": False, "error": str(exc)}
-            log(f"Token {label} gagal: {exc}")
-        else:
-            result[name] = {"ok": True, "expires_on": token.expires_on}
-            log(f"Token {label} OK.")
-    return {"tokens": result}
-
-
-def sync_catalog_job(store: SettingsStore, log: Any, cancel: Any) -> dict[str, Any]:
-    """Sinkronisasi daftar workspace (hanya mode service)."""
-    if store.auth_mode() == "user":
-        raise ExtractionError(
-            "Sinkronisasi katalog dijalankan oleh program sync dengan service principal."
-        )
-    principal = store.auth()
-    principal.validate()
-    database = effective_database(store)
-    mode = saved_catalog_mode(store)
-    result = run_workspace_sync(database, principal, mode=mode, log=log)
-    log(
-        f"Katalog workspace: {result.workspace_count} workspace "
-        f"({result.mode}, {duration_text(result.duration_seconds)})."
-    )
-    return {
-        "database": str(result.database),
-        "sync_id": result.sync_id,
-        "mode": result.mode,
-        "workspace_count": result.workspace_count,
-        "active_count": result.active_count,
-        "added": result.added,
-        "updated": result.updated,
-        "started_at": result.started_at,
-        "finished_at": result.finished_at,
-        "duration_seconds": result.duration_seconds,
-    }
-
-
-def scan_lineage_job(
-    store: SettingsStore, full: bool, log: Any, cancel: Any
-) -> dict[str, Any]:
-    """Scan lineage Power BI (hanya mode service)."""
-    if store.auth_mode() == "user":
-        raise ExtractionError(
-            "Scan lineage dijalankan oleh program sync dengan service principal."
-        )
-    principal = store.auth()
-    principal.validate()
-    database = effective_database(store)
-    mode = saved_catalog_mode(store)
-    include_personal = store.get_bool(keys.SETTINGS_CATALOG_INCLUDE_PERSONAL_KEY)
-    result = run_lineage_scan(
-        database,
-        principal,
-        mode=mode,
-        full=bool(full),
-        include_personal=include_personal,
-        log=log,
-    )
-    scope = "termasuk personal" if result.include_personal else "tanpa personal"
-    log(
-        f"Lineage: {result.workspace_count} workspace ({scope}), "
-        f"{result.node_count} node, {result.edge_count} edge "
-        f"(mode {result.mode}, {duration_text(result.duration_seconds)})."
-    )
-    if result.unresolved_sources:
-        log(f"CATATAN: {result.unresolved_sources} sumber feed belum punya metadata.")
-    return {
-        "database": str(result.database),
-        "scan_id": result.scan_id,
-        "mode": result.mode,
-        "workspace_count": result.workspace_count,
-        "node_count": result.node_count,
-        "edge_count": result.edge_count,
-        "unresolved_sources": result.unresolved_sources,
-        "include_personal": result.include_personal,
-        "started_at": result.started_at,
-        "finished_at": result.finished_at,
-        "duration_seconds": result.duration_seconds,
-    }
 
 
 def save_shared_db(

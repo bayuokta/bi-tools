@@ -1160,17 +1160,10 @@
                   <input class="input mono" id="authTenant" type="text" autocomplete="off" placeholder="Tenant domain or GUID (optional)">
                 </div>
                 <p class="helper" id="authAccount"></p>
-                <div hidden>
-                  <input id="tenantId" type="text">
-                  <input id="clientId" type="text">
-                  <input id="clientSecret" type="password">
-                  <span id="credChip"></span>
-                </div>
               </div>
               <div class="panel-foot">
                 <button class="btn btn-primary" id="signIn" type="button" data-i18n="Sign in">Sign in</button>
                 <button class="btn" id="signOut" type="button" data-i18n="Sign out">Sign out</button>
-                <button class="btn" id="testConn" type="button" data-i18n="Test connection">Test connection</button>
                 <span class="helper" id="connResult">Not tested in this session.</span>
               </div>
             </div>
@@ -1224,11 +1217,6 @@
                   <input id="dbPath" type="text">
                   <button id="pickDb" type="button"></button>
                   <button id="saveDb" type="button"></button>
-                  <select id="syncMode"><option value="auto"></option></select>
-                  <input id="fullScan" type="checkbox">
-                  <input id="includePersonal" type="checkbox">
-                  <button id="syncCatalog" type="button"></button>
-                  <button id="scanLineage" type="button"></button>
                   <span id="syncStatus"></span>
                   <span id="syncChip"></span>
                 </div>

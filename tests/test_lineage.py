@@ -15,12 +15,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cli.lineage import main as cli_main
+from sync.__main__ import main as sync_main
 from core.errors import ExtractionError
-from core.lineage_api import LineageApiError, PowerBILineageClient, clamp_modified_since
+from core.lineage_api import LineageApiError
 from core.auth import ServicePrincipal
 from core.lineage_export import CSV_FIELDS, write_lineage_csv
 from core.lineage_layout import build_graph
-from core.lineage_scan import LineageScanResult, run_lineage_scan
+from sync.admin_api import AdminClient, clamp_modified_since
+from sync.lineage import LineageScanResult, run_lineage_scan
 from core.lineage_store import (
     DEFAULT_DB,
     active_counts,
@@ -532,9 +534,9 @@ class FakeMsal:
         return {"access_token": self.token, "expires_in": self.expires_in}
 
 
-def client_with(session: FakeSession, **kwargs: object) -> tuple[PowerBILineageClient, FakeMsal]:
+def client_with(session: FakeSession, **kwargs: object) -> tuple[AdminClient, FakeMsal]:
     msal = FakeMsal()
-    client = PowerBILineageClient(
+    client = AdminClient(
         SETTINGS,
         session=session,
         msal_app=msal,
@@ -569,7 +571,7 @@ class ApiTest(unittest.TestCase):
         )
         sleeps: list[float] = []
         msal = FakeMsal()
-        client = PowerBILineageClient(
+        client = AdminClient(
             SETTINGS,
             session=session,
             msal_app=msal,
@@ -653,7 +655,7 @@ class ApiTest(unittest.TestCase):
             ]
         )
         sleeps: list[float] = []
-        client = PowerBILineageClient(
+        client = AdminClient(
             SETTINGS,
             session=session,
             msal_app=FakeMsal(),
@@ -682,7 +684,7 @@ class ApiTest(unittest.TestCase):
             ]
         )
         sleeps: list[float] = []
-        client = PowerBILineageClient(
+        client = AdminClient(
             SETTINGS,
             session=session,
             msal_app=FakeMsal(),
@@ -743,7 +745,7 @@ class ApiTest(unittest.TestCase):
             ),
         }
         session = RoutingSession(routes)
-        client = PowerBILineageClient(
+        client = AdminClient(
             SETTINGS, session=session, msal_app=FakeMsal(), sleep=lambda _s: None
         )
         self.assertEqual(client.member_workspaces(), [("ws-1", "Sales WS")])
@@ -995,7 +997,7 @@ class ScanTest(unittest.TestCase):
         stamps = iter(
             f"2026-01-01T00:00:{index:02d}.0000000Z" for index in range(30)
         )
-        with patch("core.lineage_scan.now_iso", side_effect=lambda: next(stamps)):
+        with patch("sync.lineage.now_iso", side_effect=lambda: next(stamps)):
             result = self.run_scan(FakeLineageClient(), mode="admin")
 
         row = self.scan_rows()[0]
@@ -1089,6 +1091,12 @@ class CliTest(unittest.TestCase):
             code = cli_main(args)
         return code, stdout.getvalue(), stderr.getvalue()
 
+    def run_sync_cli(self, args: list[str]) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = sync_main(args)
+        return code, stdout.getvalue(), stderr.getvalue()
+
     def test_stats_search_and_check(self) -> None:
         code, out, _ = self.run_cli(["--db", str(self.db), "--stats", "--json"])
         self.assertEqual(code, 0)
@@ -1157,12 +1165,12 @@ class CliTest(unittest.TestCase):
             os.environ,
             {"TENANT_ID": "t", "CLIENT_ID": "c", "CLIENT_SECRET": "s"},
             clear=False,
-        ), patch("cli.lineage.run_lineage_scan", side_effect=fake_scan):
-            code, out, err = self.run_cli(
+        ), patch("sync.__main__.run_lineage_scan", side_effect=fake_scan):
+            code, out, err = self.run_sync_cli(
                 [
-                    "--db",
+                    "lineage",
+                    "--database",
                     str(self.db),
-                    "--scan",
                     "--include-personal",
                     "--json",
                 ]
@@ -1182,17 +1190,17 @@ class CliTest(unittest.TestCase):
             if key not in {"TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"}
         }
         with patch.dict(os.environ, clean, clear=True):
-            code, _, err = self.run_cli(
+            code, _, err = self.run_sync_cli(
                 [
-                    "--db",
+                    "lineage",
+                    "--database",
                     str(self.db),
-                    "--scan",
                     "--env-file",
                     str(Path(self._tmp.name) / "missing.env"),
                 ]
             )
-        self.assertEqual(code, 2)
-        self.assertIn("Kredensial", err)
+        self.assertEqual(code, 1)
+        self.assertIn("tidak ditemukan", err)
 
         code, _, err = self.run_cli(["--db", str(self.db), "--impact", "tidak-ada"])
         self.assertEqual(code, 2)

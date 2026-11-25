@@ -101,9 +101,11 @@ hiddenimports = [
     "cli.analysis",
     "cli.compare",
     "cli.partition",
-    "cli.sync",
     "cli.xmla_worker",
     "cli.tom_worker",
+    # Program sync (executable terpisah) memakai paket sync dan Admin API.
+    "sync",
+    *collect_submodules("sync"),
     # Server memuat app FastAPI secara malas di runtime.run().
     *collect_submodules("server"),
     # uvicorn memilih implementasi loop/protokol saat runtime.

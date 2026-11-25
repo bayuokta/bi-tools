@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bitools-sync"
+dynamic = ["version"]
+description = "Sinkronisasi katalog/lineage Power BI dan snapshot SQLite untuk BI Tools"
+requires-python = ">=3.10"
+dependencies = [
+    "msal>=1.28,<2.0",
+    "requests>=2.31,<3.0",
+    "python-dotenv>=1.0,<2.0",
+]
+
+[project.scripts]
+bitools-sync = "sync.__main__:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "core.version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["core*", "sync*"]
+exclude = ["tests*", "cli*", "server*", "web*"]
+
+[tool.setuptools]
+zip-safe = false

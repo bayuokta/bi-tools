@@ -222,11 +222,11 @@ def search_nodes(
 def reports_using_dataset(
     database: Path | str, dataset_id: str
 ) -> list[dict[str, Any]]:
-    """Report yang memakai dataset menurut scan lineage (cadangan admin API).
+    """Report yang memakai dataset menurut scan lineage.
 
-    Dipakai analisa kolom saat service principal tidak berperan administrator.
-    Hasil bisa lebih lama dari ``admin/reports?$filter=datasetId``; pemanggil
-    mencatat sumber daftar report agar cakupan transparan.
+    Dipakai analisa kolom sebagai pelengkap katalog snapshot ``report_catalog``.
+    Hasil bisa lebih lama dari katalog hasil sync; pemanggil mencatat sumber
+    daftar report agar cakupan transparan.
     """
     path = Path(database).expanduser()
     if not path.exists() or not dataset_id:

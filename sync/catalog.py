@@ -1,11 +1,7 @@
-"""Sinkronisasi katalog workspace Power BI ke SQLite.
+"""Sinkronisasi katalog workspace dan katalog report ke SQLite.
 
-Hanya workspace yang disimpan; dataset dan report diambil saat dipilih di GUI
-(lewat :class:`core.lineage_api.PowerBILineageClient`) supaya sinkronisasi tetap
-1-2 request. Mode ``admin`` memakai ``admin/groups`` (seluruh tenant, atribut
-lengkap) dan boleh menonaktifkan workspace yang tidak muncul lagi. Mode
-``member`` hanya melihat workspace milik service principal, jadi tidak pernah
-menonaktifkan apa pun.
+Hanya program sync yang memanggil modul ini; aplikasi interaktif membaca hasilnya
+dari snapshot lewat :mod:`core.report_catalog` dan :mod:`core.lineage_service`.
 """
 
 from __future__ import annotations
@@ -16,10 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .auth import ServicePrincipal
-from .errors import ExtractionError
-from .lineage_api import PowerBILineageClient, now_iso
-from .lineage_store import (
+from core.auth import ServicePrincipal
+from core.errors import ExtractionError
+from core.lineage_store import (
     close_quietly,
     connect,
     initialize,
@@ -27,6 +22,9 @@ from .lineage_store import (
     save_workspaces,
     workspace_sync_stats,
 )
+from core.report_catalog import save_report_catalog
+
+from .admin_api import AdminClient, now_iso
 
 Log = Callable[[str], None]
 MODES = ("auto", "admin", "member")
@@ -87,7 +85,7 @@ def run_workspace_sync(
         conn = connect(database_path)
         initialize(conn)
         factory = client_factory or (
-            lambda value, log=log: PowerBILineageClient(value, log=log)
+            lambda value, log=log: AdminClient(value, log=log)
         )
         client = factory(settings, log=log)
 
@@ -128,7 +126,10 @@ def run_workspace_sync(
         )
         log("")
         log(f"Mode            : {resolved_mode}")
-        log(f"Workspace       : {workspace_count} diterima, {added} baru, {updated} diperbarui")
+        log(
+            f"Workspace       : {workspace_count} diterima, "
+            f"{added} baru, {updated} diperbarui"
+        )
         log(f"Workspace aktif : {summary['active']} (total {summary['total']})")
         return WorkspaceSyncResult(
             database=database_path,
@@ -167,3 +168,27 @@ def run_workspace_sync(
             close()
         if conn is not None:
             close_quietly(conn)
+
+
+def sync_report_catalog(
+    principal: Any,
+    database: Path | str,
+    *,
+    full: bool = True,
+    log: Log = _silent,
+) -> int:
+    """Tarik ``admin/reports`` lalu simpan ke tabel katalog bersama."""
+    conn = connect(database)
+    try:
+        initialize(conn)
+        client = AdminClient(principal, log=log)
+        try:
+            rows = client.admin_reports()
+        finally:
+            client.close()
+        log(f"Report dari Admin API: {len(rows)}")
+        count = save_report_catalog(conn, rows, full=full)
+        log(f"Katalog report disimpan: {count}")
+        return count
+    finally:
+        conn.close()

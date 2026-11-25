@@ -62,29 +62,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertNotIn("sangat-rahasia", response.text)
         self.assertNotIn("client_secret", body["auth"])
 
-    def test_save_credentials_requires_complete_values(self) -> None:
-        response = self.client.put(
-            "/api/settings/credentials",
-            json={"tenant_id": "t", "client_id": "", "client_secret": "s"},
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("CLIENT_ID", response.json()["detail"])
-        self.assertEqual(self.store.principal().client_secret, "")
-
-    def test_save_credentials_keeps_secret_when_omitted(self) -> None:
-        self.client.put(
-            "/api/settings/credentials",
-            json={"tenant_id": "t", "client_id": "c", "client_secret": "s1"},
-        )
-        response = self.client.put(
-            "/api/settings/credentials",
-            json={"tenant_id": "t2", "client_id": "c2"},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.store.principal().tenant_id, "t2")
-        self.assertEqual(self.store.principal().client_secret, "s1")
-
     def test_save_rls_accepts_list(self) -> None:
         response = self.client.put(
             "/api/settings/rls", json={"username": "u", "roles": ["HO", "Region"]}
@@ -107,19 +84,6 @@ class ApiTestCase(unittest.TestCase):
 
         response = self.client.put("/api/settings/paths", json={"lineage_db": ""})
         self.assertTrue(response.json()["paths"]["lineage_db"].endswith("bi_tools.db"))
-
-    def test_catalog_mode_validation(self) -> None:
-        bad = self.client.put(
-            "/api/settings/catalog", json={"mode": "ngawur", "include_personal": False}
-        )
-        self.assertEqual(bad.status_code, 400)
-
-        good = self.client.put(
-            "/api/settings/catalog", json={"mode": "admin", "include_personal": True}
-        )
-        self.assertEqual(good.status_code, 200)
-        self.assertEqual(good.json()["catalog"]["mode"], "admin")
-        self.assertTrue(good.json()["catalog"]["include_personal"])
 
     def test_ui_validation_and_save(self) -> None:
         bad = self.client.put("/api/settings/ui", json={"theme": "neon"})
@@ -220,84 +184,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(body["shutdown_available"])
         self.assertEqual(Path(body["settings"]["path"]), self.store.path)
 
-    def test_catalog_sync_job_runs(self) -> None:
-        from unittest.mock import patch
-
-        from server.presenters import settings as presenter
-
-        def fake_sync(store, log, cancel):
-            log("mulai sinkronisasi uji")
-            return {"workspace_count": 3, "mode": "admin"}
-
-        with patch.object(presenter, "sync_catalog_job", fake_sync):
-            response = self.client.post("/api/catalog/sync")
-            self.assertEqual(response.status_code, 202)
-            job_id = response.json()["job_id"]
-            self.assertTrue(
-                wait_until(
-                    lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
-                    != "running"
-                )
-            )
-
-        body = self.client.get(f"/api/jobs/{job_id}").json()
-        self.assertEqual(body["status"], "done")
-        self.assertEqual(body["result"]["workspace_count"], 3)
-        self.assertIn("mulai sinkronisasi uji", body["log"])
-
-    def test_second_job_is_rejected_while_running(self) -> None:
-        import threading
-        from unittest.mock import patch
-
-        from server.presenters import settings as presenter
-
-        release = threading.Event()
-        started = threading.Event()
-
-        def fake_sync(store, log, cancel):
-            started.set()
-            release.wait(5)
-            return {"workspace_count": 1}
-
-        with patch.object(presenter, "sync_catalog_job", fake_sync):
-            first = self.client.post("/api/catalog/sync")
-            self.assertTrue(started.wait(5))
-            second = self.client.post("/api/catalog/scan", json={"full": False})
-            self.assertEqual(second.status_code, 409)
-            self.assertIn("masih berjalan", second.json()["detail"])
-
-        self.assertEqual(first.status_code, 202)
-        release.set()
-        job_id = first.json()["job_id"]
-        self.assertTrue(
-            wait_until(
-                lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
-                != "running"
-            )
-        )
-
-    def test_test_token_job_returns_tokens(self) -> None:
-        from unittest.mock import patch
-
-        from server.presenters import settings as presenter
-
-        def fake_tokens(store, log, cancel):
-            log("token uji")
-            return {"tokens": {"fabric": {"ok": True}, "powerbi": {"ok": True}}}
-
-        with patch.object(presenter, "test_token_job", fake_tokens):
-            response = self.client.post("/api/settings/test-token")
-            self.assertEqual(response.status_code, 202)
-            job_id = response.json()["job_id"]
-            self.assertTrue(
-                wait_until(
-                    lambda: self.client.get(f"/api/jobs/{job_id}").json()["status"]
-                    != "running"
-                )
-            )
-
-        body = self.client.get(f"/api/jobs/{job_id}").json()
-        self.assertTrue(body["result"]["tokens"]["fabric"]["ok"])
 
 
 if __name__ == "__main__":

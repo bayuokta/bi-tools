@@ -851,5 +851,48 @@ class WebLayerTests(unittest.TestCase):
         )
 
 
+class SyncSeparationTests(unittest.TestCase):
+    """Admin API dan upload snapshot hanya milik paket ``sync``."""
+
+    def test_admin_endpoints_only_in_sync(self) -> None:
+        pattern = r"admin/(groups|workspaces|reports(?!/\{))"
+        self.assertEqual(matching(pattern), [])
+        sync_text = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "sync").rglob("*.py")
+        )
+        self.assertIn("admin/workspaces/getInfo", sync_text)
+        self.assertIn("admin/groups", sync_text)
+        self.assertIn("admin/reports", sync_text)
+
+    def test_app_does_not_import_sync(self) -> None:
+        self.assertEqual(matching(r"^\s*(from|import)\s+sync\b"), [])
+
+    def test_sync_is_not_an_app_cli_command(self) -> None:
+        cli_text = (ROOT / "cli" / "__main__.py").read_text(encoding="utf-8")
+        self.assertNotIn('"sync"', cli_text)
+        self.assertFalse((ROOT / "cli" / "sync.py").exists())
+        for name in ("flow.py", "admin_api.py", "catalog.py", "lineage.py"):
+            self.assertTrue((ROOT / "sync" / name).exists(), name)
+
+    def test_web_has_no_service_principal_controls(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        for marker in ("clientSecret", "syncCatalog", "scanLineage", "test-token"):
+            self.assertNotIn(marker, html)
+        js = web_script_text()
+        for marker in (
+            "/api/settings/credentials",
+            "/api/settings/test-token",
+            "/api/catalog/sync",
+            "/api/catalog/scan",
+        ):
+            self.assertNotIn(marker, js)
+
+    def test_catalog_api_is_read_only(self) -> None:
+        text = (ROOT / "server" / "api" / "catalog.py").read_text(encoding="utf-8")
+        self.assertNotIn('"/sync"', text)
+        self.assertNotIn('"/scan"', text)
+
+
 if __name__ == "__main__":
     unittest.main()

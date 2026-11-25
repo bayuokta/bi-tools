@@ -1,4 +1,4 @@
-"""Orkestrasi scan lineage Power BI Service ke SQLite."""
+"""Orkestrasi scan lineage Power BI Service ke SQLite (Admin API/member)."""
 
 from __future__ import annotations
 
@@ -8,10 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .auth import ServicePrincipal
-from .errors import ExtractionError
-from .lineage_api import PowerBILineageClient, clamp_modified_since, now_iso
-from .lineage_store import (
+from core.auth import ServicePrincipal
+from core.errors import ExtractionError
+from core.lineage_store import (
     active_counts,
     close_quietly,
     connect,
@@ -20,7 +19,9 @@ from .lineage_store import (
     stats,
     unresolved_feed_sources,
 )
-from .lineage_transform import transform
+from core.lineage_transform import transform
+
+from .admin_api import AdminClient, clamp_modified_since, now_iso
 
 BATCH_SIZE = 100
 MEMBER_BATCH_SIZE = 20
@@ -73,7 +74,7 @@ def _record_failed_scan(
 
 def _run_admin_scan(
     conn: Any,
-    client: PowerBILineageClient,
+    client: AdminClient,
     full: bool,
     progress: Log,
     started_at: str,
@@ -131,7 +132,7 @@ def _run_admin_scan(
 
 def _run_member_scan(
     conn: Any,
-    client: PowerBILineageClient,
+    client: AdminClient,
     progress: Log,
     started_at: str,
 ) -> str:
@@ -205,7 +206,7 @@ def run_lineage_scan(
         conn = connect(database_path)
         initialize(conn)
         factory = client_factory or (
-            lambda value, log=log: PowerBILineageClient(value, log=log)
+            lambda value, log=log: AdminClient(value, log=log)
         )
         client = factory(settings, log=log)
 
@@ -253,7 +254,11 @@ def run_lineage_scan(
         log(f"Mode            : {resolved_mode}")
         log(
             "Cakupan         : "
-            + ("termasuk My Workspace (personal)" if personal_scanned else "workspace saja")
+            + (
+                "termasuk My Workspace (personal)"
+                if personal_scanned
+                else "workspace saja"
+            )
         )
         log(f"Node aktif      : {node_count}")
         log(f"Edge aktif      : {edge_count}")

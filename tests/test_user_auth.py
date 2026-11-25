@@ -298,7 +298,6 @@ class CatalogDiscoveryTests(unittest.TestCase):
                 dataset_id="ds",
                 workspace_id="ws",
                 database=self.db,
-                use_admin=False,
             )
         self.assertEqual([entry.report_id for entry in entries], ["catalog-1"])
         self.assertEqual(method, "catalog")

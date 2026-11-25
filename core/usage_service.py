@@ -300,78 +300,58 @@ def discover_reports(
     workspace_id: str,
     include_other_workspaces: bool = True,
     database: Path | str = DEFAULT_DB,
-    use_admin: bool = True,
     log: Log = _silent,
 ) -> tuple[list[ReportEntry], str, list[str]]:
-    """Daftar report pemakai dataset. Return ``(entries, metode, catatan)``.
+    """Daftar report pemakai dataset dari workspace, katalog, dan lineage.
 
-    Aplikasi interaktif memakai snapshot katalog (``use_admin=False``); Admin API
-    hanya dipakai program sync atau CLI service principal.
+    Admin API hanya dipakai program sync; fungsi ini tidak pernah memanggil
+    endpoint ``admin/*``.
     """
     notes: list[str] = []
-    if getattr(principal, "is_user", False):
-        use_admin = False
     client = PowerBILineageClient(principal, log=log)
     entries: dict[str, ReportEntry] = {}
     method = "workspace"
     try:
-        if use_admin and include_other_workspaces:
-            try:
-                rows = client.reports_for_dataset(dataset_id)
-                method = "admin"
-                log(f"Report pemakai dataset: {len(rows)} (admin API).")
-                for row in rows:
-                    entry = _entry_from_rest(row, source="admin")
-                    if entry:
-                        entries[entry.report_id] = entry
-            except ApiError as exc:
-                notes.append(
-                    "Admin API tidak bisa dipakai "
-                    f"({exc.status_code}): memakai katalog snapshot + workspace."
+        try:
+            workspace_reports = client.reports_in_group(workspace_id)
+        except ApiError as exc:
+            workspace_reports = []
+            notes.append(
+                f"Daftar report workspace tidak bisa dibaca ({exc.status_code}); "
+                "memakai katalog snapshot."
+            )
+            log(notes[-1])
+        for row in workspace_reports:
+            if str(row.get("datasetId") or "") != dataset_id:
+                continue
+            entry = _entry_from_rest(row, source="workspace")
+            if entry:
+                entries.setdefault(entry.report_id, entry)
+        if include_other_workspaces:
+            for row in catalog_reports(database, dataset_id):
+                entry = _entry_from_rest(
+                    {
+                        "id": row.get("report_id"),
+                        "workspaceId": row.get("workspace_id"),
+                        "name": row.get("name"),
+                        "reportType": row.get("report_type"),
+                        "format": row.get("report_format"),
+                        "modifiedDateTime": row.get("modified_at"),
+                    },
+                    source="catalog",
                 )
-                log(notes[-1])
-                method = "member"
-        if method != "admin":
-            try:
-                workspace_reports = client.reports_in_group(workspace_id)
-            except ApiError as exc:
-                workspace_reports = []
+                if entry and entry.report_id not in entries:
+                    entries[entry.report_id] = entry
+                    method = "catalog"
+            if entries:
                 notes.append(
-                    f"Daftar report workspace tidak bisa dibaca ({exc.status_code}); "
-                    "memakai katalog snapshot."
+                    "Daftar report memakai snapshot hasil sync dan lineage; "
+                    "report baru atau perubahan terakhir bisa belum terlihat."
                 )
-                log(notes[-1])
-            for row in workspace_reports:
-                if str(row.get("datasetId") or "") != dataset_id:
-                    continue
-                entry = _entry_from_rest(row, source="workspace")
-                if entry:
-                    entries.setdefault(entry.report_id, entry)
-            if include_other_workspaces:
-                for row in catalog_reports(database, dataset_id):
-                    entry = _entry_from_rest(
-                        {
-                            "id": row.get("report_id"),
-                            "workspaceId": row.get("workspace_id"),
-                            "name": row.get("name"),
-                            "reportType": row.get("report_type"),
-                            "format": row.get("report_format"),
-                            "modifiedDateTime": row.get("modified_at"),
-                        },
-                        source="catalog",
-                    )
-                    if entry and entry.report_id not in entries:
-                        entries[entry.report_id] = entry
-                        method = "catalog"
-                if entries:
-                    notes.append(
-                        "Daftar report memakai snapshot hasil sync dan lineage; "
-                        "report baru atau perubahan terakhir bisa belum terlihat."
-                    )
-                for row in reports_using_dataset(database, dataset_id):
-                    entry = _entry_from_rest(row, source="lineage")
-                    if entry and entry.report_id not in entries:
-                        entries[entry.report_id] = entry
+            for row in reports_using_dataset(database, dataset_id):
+                entry = _entry_from_rest(row, source="lineage")
+                if entry and entry.report_id not in entries:
+                    entries[entry.report_id] = entry
     finally:
         client.close()
     ordered = sorted(entries.values(), key=lambda item: (item.name, item.report_id))
@@ -2054,7 +2034,6 @@ def analyze_dataset(
                 workspace_id=workspace_id,
                 include_other_workspaces=include_other_workspaces,
                 database=database,
-                use_admin=not getattr(principal, "is_user", False),
                 log=log,
             )
         else:

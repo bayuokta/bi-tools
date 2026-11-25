@@ -11,11 +11,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from cli.lineage import main as cli_main
+from sync.__main__ import main as sync_main
 from core.auth import ServicePrincipal
-from core.catalog_sync import WorkspaceSyncResult, run_workspace_sync
+from sync.admin_api import AdminClient
+from sync.catalog import WorkspaceSyncResult, run_workspace_sync
 from core.errors import ExtractionError
-from core.lineage_api import LineageApiError, PowerBILineageClient
+from core.lineage_api import LineageApiError
 from core.lineage_service import (
     workspace_lookup,
     workspace_options,
@@ -319,8 +320,8 @@ class FakeMsal:
         return {"access_token": "token-1", "expires_in": 3600}
 
 
-def client_with(session: FakeSession) -> PowerBILineageClient:
-    return PowerBILineageClient(
+def client_with(session: FakeSession) -> AdminClient:
+    return AdminClient(
         SETTINGS, session=session, msal_app=FakeMsal(), sleep=lambda _seconds: None
     )
 
@@ -523,7 +524,7 @@ class WorkspaceCliTests(unittest.TestCase):
     def run_cli(self, args: list[str]) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = cli_main(args)
+            code = sync_main(args)
         return code, stdout.getvalue(), stderr.getvalue()
 
     def test_sync_json_keeps_stdout_parseable(self) -> None:
@@ -548,9 +549,9 @@ class WorkspaceCliTests(unittest.TestCase):
             os.environ,
             {"TENANT_ID": "t", "CLIENT_ID": "c", "CLIENT_SECRET": "s"},
             clear=False,
-        ), patch("cli.lineage.run_workspace_sync", side_effect=fake_sync):
+        ), patch("sync.__main__.run_workspace_sync", side_effect=fake_sync):
             code, out, err = self.run_cli(
-                ["--db", str(self.db), "--sync-workspaces", "--json"]
+                ["workspaces", "--database", str(self.db), "--json"]
             )
         self.assertEqual(code, 0)
         data = json.loads(out)
@@ -568,17 +569,17 @@ class WorkspaceCliTests(unittest.TestCase):
         with patch.dict(os.environ, clean, clear=True):
             code, _, err = self.run_cli(
                 [
-                    "--db",
+                    "workspaces",
+                    "--database",
                     str(self.db),
-                    "--sync-workspaces",
                     # Tanpa ini from_env membaca .env repo (bila ada) dan
                     # uji akan memanggil API sungguhan.
                     "--env-file",
                     str(Path(self._tmp.name) / "missing.env"),
                 ]
             )
-        self.assertEqual(code, 2)
-        self.assertIn("TENANT_ID", err)
+        self.assertEqual(code, 1)
+        self.assertIn("tidak ditemukan", err)
 
 
 if __name__ == "__main__":

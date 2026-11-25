@@ -22,6 +22,7 @@ from core.lineage_store import (
     save_workspaces,
 )
 from core.model import LiveModel
+from core.report_catalog import save_report_catalog
 from core.report_usage import ReportUsage, UsageRecord
 from core.usage_service import (
     STATUS_BLOCKER,
@@ -265,51 +266,58 @@ class VerdictTests(unittest.TestCase):
 
 
 class DiscoverReportsTests(unittest.TestCase):
-    def test_admin_list_is_used(self) -> None:
+    def test_catalog_snapshot_is_used(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        database = Path(temp.name) / "data" / "bi_tools.db"
+        conn = connect(database)
+        try:
+            initialize_lineage(conn)
+            save_report_catalog(
+                conn,
+                [
+                    {
+                        "id": "r1",
+                        "name": "Report A",
+                        "workspaceId": "ws-other",
+                        "datasetId": "ds",
+                        "format": "PBIR",
+                    },
+                    {
+                        "id": "r2",
+                        "name": "Paginated",
+                        "workspaceId": "ws",
+                        "datasetId": "ds",
+                        "reportType": "PaginatedReport",
+                    },
+                ],
+            )
+        finally:
+            close_quietly(conn)
         principal = ServicePrincipal.from_values("t", "c", "s")
         with patch("core.usage_service.PowerBILineageClient") as client_cls:
             client = client_cls.return_value
-            client.reports_for_dataset.return_value = [
-                {
-                    "id": "r1",
-                    "name": "Report A",
-                    "workspaceId": "ws-other",
-                    "format": "PBIR",
-                    "modifiedDateTime": "2026-01-01T00:00:00Z",
-                    "reportType": "PowerBIReport",
-                },
-                {
-                    "id": "r2",
-                    "name": "Paginated",
-                    "workspaceId": "ws",
-                    "format": "PBIR",
-                    "reportType": "PaginatedReport",
-                },
-            ]
+            client.reports_in_group.return_value = []
             entries, method, notes = discover_reports(
-                principal, dataset_id="ds", workspace_id="ws"
+                principal, dataset_id="ds", workspace_id="ws", database=database
             )
 
-        self.assertEqual(method, "admin")
-        self.assertEqual(notes, [])
-        self.assertEqual([entry.report_id for entry in entries], ["r2", "r1"])
-        paginated = entries[0]
+        self.assertEqual(method, "catalog")
+        self.assertEqual(sorted(entry.report_id for entry in entries), ["r1", "r2"])
+        paginated = next(entry for entry in entries if entry.report_id == "r2")
         self.assertEqual(paginated.report_format, "RDL")
         self.assertFalse(paginated.supported)
+        self.assertTrue(any("snapshot" in note for note in notes))
         client.close.assert_called_once()
 
-    def test_admin_failure_falls_back_to_member_and_lineage(self) -> None:
+    def test_workspace_failure_falls_back_to_lineage(self) -> None:
         principal = ServicePrincipal.from_values("t", "c", "s")
-        error = ApiError("GET admin/reports gagal (HTTP 403)", status_code=403)
+        error = ApiError("GET groups/ws/reports gagal (HTTP 403)", status_code=403)
         with patch("core.usage_service.PowerBILineageClient") as client_cls, patch(
             "core.usage_service.reports_using_dataset"
         ) as lineage:
             client = client_cls.return_value
-            client.reports_for_dataset.side_effect = error
-            client.reports_in_group.return_value = [
-                {"id": "r1", "name": "Report A", "datasetId": "ds", "format": "PBIR"},
-                {"id": "r9", "name": "Lain", "datasetId": "other", "format": "PBIR"},
-            ]
+            client.reports_in_group.side_effect = error
             lineage.return_value = [
                 {"report_id": "r2", "name": "Report B", "workspace_id": "ws-x"}
             ]
@@ -317,10 +325,10 @@ class DiscoverReportsTests(unittest.TestCase):
                 principal, dataset_id="ds", workspace_id="ws"
             )
 
-        self.assertEqual(method, "member")
-        self.assertEqual([entry.report_id for entry in entries], ["r1", "r2"])
-        self.assertEqual(entries[1].source, "lineage")
-        self.assertTrue(any("lineage" in note for note in notes))
+        self.assertEqual(method, "workspace")
+        self.assertEqual([entry.report_id for entry in entries], ["r2"])
+        self.assertEqual(entries[0].source, "lineage")
+        self.assertTrue(any("tidak bisa dibaca" in note for note in notes))
 
     def test_workspace_only_skips_admin_and_lineage(self) -> None:
         principal = ServicePrincipal.from_values("t", "c", "s")
@@ -340,7 +348,6 @@ class DiscoverReportsTests(unittest.TestCase):
 
         self.assertEqual(method, "workspace")
         self.assertEqual([entry.report_id for entry in entries], ["r1"])
-        client.reports_for_dataset.assert_not_called()
         lineage.assert_not_called()
 
     def test_personal_workspace_is_marked_from_catalog(self) -> None:
@@ -362,21 +369,24 @@ class DiscoverReportsTests(unittest.TestCase):
                     }
                 ],
             )
+            save_report_catalog(
+                conn,
+                [
+                    {
+                        "id": "r1",
+                        "name": "My Report",
+                        "workspaceId": "pws",
+                        "datasetId": "ds",
+                        "format": "PBIR",
+                    }
+                ],
+            )
         finally:
             close_quietly(conn)
         principal = ServicePrincipal.from_values("t", "c", "s")
         with patch("core.usage_service.PowerBILineageClient") as client_cls:
             client = client_cls.return_value
-            client.reports_for_dataset.return_value = [
-                {
-                    "id": "r1",
-                    "name": "My Report",
-                    "workspaceId": "pws",
-                    "format": "PBIR",
-                    "modifiedDateTime": "2026-01-01T00:00:00Z",
-                    "reportType": "PowerBIReport",
-                }
-            ]
+            client.reports_in_group.return_value = []
             entries, _method, _notes = discover_reports(
                 principal, dataset_id="ds", workspace_id="ws", database=database
             )
