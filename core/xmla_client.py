@@ -447,6 +447,31 @@ def interactive_connection_string(
     return connection_string.rstrip("; ") + ";" + props
 
 
+
+def _call_on_sta(func: Any) -> Any:
+    """Jalankan fungsi .NET di thread STA (dibutuhkan dialog MSOLAP)."""
+    result: dict[str, Any] = {}
+    error: dict[str, BaseException] = {}
+    try:
+        from System.Threading import ApartmentState, Thread, ThreadStart
+    except Exception:  # noqa: BLE001 - tanpa pythonnet, jalankan langsung
+        return func()
+
+    def target() -> None:
+        try:
+            result["value"] = func()
+        except BaseException as exc:  # noqa: BLE001 - diteruskan ke pemanggil
+            error["value"] = exc
+
+    thread = Thread(ThreadStart(target))
+    thread.SetApartmentState(ApartmentState.STA)
+    thread.Start()
+    thread.Join()
+    if "value" in error:
+        raise error["value"]
+    return result.get("value")
+
+
 def _connect(
     connection_string: str,
     dll_path: str | Path | None = None,
@@ -467,6 +492,36 @@ def _connect(
     # ADOMD lain tidak bisa dibaca (Specified cast is not valid), jadi cache
     # dibersihkan sekali per proses sebelum koneksi pertama.
     _clear_adomd_channel_cache()
+
+    def open_connection() -> Any:
+        connection = connection_cls(connection_string)
+        if tokens is not None and not interactive and _is_cloud(connection_string):
+            attach_token(
+                connection,
+                tokens,
+                scope=scope,
+                access_token_cls=access_token_cls,
+                wrap_expired=wrap_expired,
+            )
+        connection.Open()
+        return connection
+
+    def make_client(connection: Any) -> XmlaClient:
+        return XmlaClient(
+            connection=connection,
+            command_cls=command_cls,
+            connection_string=connection_string,
+            server_version=str(getattr(connection, "ServerVersion", "") or ""),
+        )
+
+    if interactive and _is_cloud(connection_string):
+        try:
+            return make_client(_call_on_sta(open_connection))
+        except Exception as exc:  # noqa: BLE001
+            if _is_channel_cache_error(exc):
+                _clear_adomd_channel_cache(force=True)
+                return make_client(_call_on_sta(open_connection))
+            raise
 
     for attempt in (1, 2):
         connection = connection_cls(connection_string)
@@ -491,12 +546,7 @@ def _connect(
                 _clear_adomd_channel_cache(force=True)
                 continue
             raise XmlaError(_channel_cache_message(exc)) from exc
-        return XmlaClient(
-            connection=connection,
-            command_cls=command_cls,
-            connection_string=connection_string,
-            server_version=str(getattr(connection, "ServerVersion", "") or ""),
-        )
+        return make_client(connection)
     raise XmlaError("Koneksi XMLA tidak bisa dibuka.")
 
 
