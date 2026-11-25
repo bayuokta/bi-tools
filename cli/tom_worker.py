@@ -6,6 +6,7 @@ import json
 import queue
 import sys
 import threading
+import time
 import tkinter as tk
 from typing import Any
 
@@ -17,6 +18,8 @@ from core.tom_client import (
     load_tom,
 )
 from core.tom_compare import serialize_snapshot
+
+IDLE_SECONDS = 600
 
 
 class _Session:
@@ -98,19 +101,18 @@ def _respond(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=True, default=str), flush=True)
 
 
-def _handle(session: _Session, request: dict[str, Any]) -> None:
+def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
     op = str(request.get("op") or "").strip()
     try:
         if op == "open":
-            _respond(
-                {
-                    "ok": True,
-                    **session.open(
-                        str(request.get("endpoint") or ""),
-                        str(request.get("catalog") or ""),
-                    ),
-                }
+            root.deiconify()
+            root.update()
+            result = session.open(
+                str(request.get("endpoint") or ""),
+                str(request.get("catalog") or ""),
             )
+            root.withdraw()
+            _respond({"ok": True, **result})
         elif op == "inventory":
             _respond({"ok": True, "partitions": session.inventory()})
         elif op == "refresh":
@@ -163,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     ).pack(padx=12, pady=12)
     root.update()
 
+    last_activity = {"time": time.monotonic()}
+
     def poll() -> None:
         while True:
             try:
@@ -173,10 +177,15 @@ def main(argv: list[str] | None = None) -> int:
                 session.close()
                 root.destroy()
                 return
-            _handle(session, request)
+            last_activity["time"] = time.monotonic()
+            _handle(session, request, root)
             if str(request.get("op") or "") == "close":
                 root.after(10, root.destroy)
                 return
+        if time.monotonic() - last_activity["time"] > IDLE_SECONDS:
+            session.close()
+            root.destroy()
+            return
         root.after(50, poll)
 
     root.protocol("WM_DELETE_WINDOW", lambda: (session.close(), root.destroy()))

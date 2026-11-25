@@ -286,6 +286,14 @@ def run(
         print("Server berhenti.", flush=True)
         return 0
     finally:
+        try:
+            from core.tom_worker_client import stop_workers as stop_tom_workers
+            from core.xmla_worker_client import stop_workers as stop_xmla_workers
+
+            stop_xmla_workers()
+            stop_tom_workers()
+        except Exception:  # noqa: BLE001 - shutdown tetap harus lanjut
+            pass
         if wrote_state:
             clear_state()
         lock.release()
