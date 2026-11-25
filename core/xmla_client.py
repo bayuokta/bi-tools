@@ -350,6 +350,39 @@ class XmlaClient:
         self.close()
 
 
+
+def _interactive_connection_string(
+    endpoint: str, catalog: str | None = None
+) -> str:
+    """Connection string gaya contoh MSOLAP: tanpa quote dan tanpa ?readonly.
+
+    ADOMD 19.120 hanya mau memakai login interaktif bila Data Source berupa
+    URL PaaS polos (seperti contoh ``pbi_one_login``); query ``?readonly`` dan
+    nilai ber-quote membuatnya meminta access token eksternal.
+    """
+    text = str(endpoint or "").strip()
+    if "=" in text:
+        connection = text
+    else:
+        normalized = normalize_powerbi_endpoint(text, readonly=False)
+        if normalized.startswith('Data Source="') and normalized.endswith('"'):
+            url = normalized[len('Data Source="') : -1].replace('""', '"')
+        else:
+            url = normalized
+        url = url.replace("?readonly", "").replace("&readonly", "")
+        connection = f"Data Source={url}"
+    if not connection.endswith(";"):
+        connection += ";"
+    if catalog and "initial catalog=" not in connection.lower():
+        name = str(catalog)
+        if ";" in name or '"' in name:
+            name = '"' + name.replace('"', '""') + '"'
+        connection += f"Initial Catalog={name};"
+    if "connect timeout=" not in connection.lower():
+        connection += "Connect Timeout=60;"
+    return connection
+
+
 def interactive_connection_string(
     connection_string: str, *, reuse: bool = False
 ) -> str:
@@ -806,12 +839,16 @@ def open_client(
     # Jalur umum Service: catalog sudah diketahui, jadi cukup satu koneksi.
     # Ini penting untuk login MSOLAP interaktif agar dialog tidak muncul dua kali.
     if endpoint and catalog:
-        normalized = normalize_powerbi_endpoint(endpoint, readonly=readonly)
-        connection_string = (
-            normalized if "=" in normalized else f"Data Source={normalized}"
-        )
+        if interactive:
+            connection_string = _interactive_connection_string(endpoint, catalog)
+        else:
+            normalized = normalize_powerbi_endpoint(endpoint, readonly=readonly)
+            connection_string = (
+                normalized if "=" in normalized else f"Data Source={normalized}"
+            )
+            connection_string = _with_catalog(connection_string, catalog)
         client = _connect(
-            _with_catalog(connection_string, catalog),
+            connection_string,
             dll_path,
             **token_kwargs,
         )

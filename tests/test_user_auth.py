@@ -108,7 +108,8 @@ class InteractiveConnectionTests(unittest.TestCase):
         self.assertIn("Interactive Login=Always", text)
         self.assertIn("Identity Mode=Connection", text)
         self.assertNotIn("Password=", text)
-        self.assertIn('Initial Catalog="Model"', text)
+        self.assertIn("Initial Catalog=Model", text)
+        self.assertNotIn("Provider=MSOLAP", text)
 
 
 class ReportCatalogTests(unittest.TestCase):

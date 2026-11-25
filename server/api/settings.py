@@ -61,14 +61,18 @@ class TenantIn(BaseModel):
 def sign_in(request: Request) -> dict[str, Any]:
     from ..auth_state import sign_in as _sign_in
 
-    return _sign_in(settings_of(request))
+    store = settings_of(request)
+    _sign_in(store)
+    return presenter.build_state(store)
 
 
 @router.post("/sign-out")
 def sign_out(request: Request) -> dict[str, Any]:
     from ..auth_state import sign_out as _sign_out
 
-    return _sign_out(settings_of(request))
+    store = settings_of(request)
+    _sign_out(store)
+    return presenter.build_state(store)
 
 
 @router.put("/tenant")

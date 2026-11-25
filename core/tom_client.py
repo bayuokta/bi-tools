@@ -119,6 +119,22 @@ def build_connection_string(
     if not catalog:
         raise TomError("Nama semantic model kosong; koneksi TOM tidak bisa dibuat.")
 
+    if interactive:
+        # Samakan dengan contoh pbi_one_login: URL PaaS polos, tanpa quote,
+        # tanpa Provider, dan dengan Connect Timeout.
+        if "=" in data_source:
+            connection = data_source
+            if "initial catalog=" not in connection.lower():
+                connection = f'{connection};Initial Catalog={catalog}'
+        else:
+            connection = (
+                f"Data Source={data_source};Initial Catalog={catalog};"
+                "Connect Timeout=60;"
+            )
+        if "interactive login=" not in connection.lower():
+            connection = f"{connection}{INTERACTIVE_LOGIN_PROPS}"
+        return connection
+
     if "=" in data_source:
         connection = data_source
     else:
@@ -129,8 +145,6 @@ def build_connection_string(
         connection = f'{connection}Initial Catalog="{escaped}";'
     if "application name=" not in connection.lower():
         connection = f"{connection}Application Name={APPLICATION_NAME};"
-    if interactive and "interactive login=" not in connection.lower():
-        connection = f"{connection}{INTERACTIVE_LOGIN_PROPS}"
     return connection
 
 
