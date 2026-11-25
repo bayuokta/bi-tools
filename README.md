@@ -372,7 +372,7 @@ python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh
 python analyze_semantic_model.py --workspace-id <ws> --dataset-id <ds> --refresh --scan-workers 4
 ```
 
-Nama workspace/dataset diambil dari katalog SQLite (`data\bi_tools.db`); `--workspace-name`/`--dataset-name` hanya perlu bila katalog belum pernah disinkronkan. Hasil ditulis ke `Analisa_Semantic_Model_<nama>_<id8>.xlsx` (`--out` untuk path lain).
+Nama workspace/dataset diambil dari katalog SQLite (`data\bi_tools.db`); `--workspace-name`/`--dataset-name` hanya perlu bila katalog belum pernah disinkronkan. Daftar report lintas workspace dibaca dari `report_catalog` di katalog tersebut (bukan Admin API), jadi arahkan `--database` ke snapshot hasil sync bila ingin cakupan penuh. Hasil ditulis ke `Analisa_Semantic_Model_<nama>_<id8>.xlsx` (`--out` untuk path lain).
 
 Partisi semantic model (inventaris read-only + refresh lewat XMLA):
 

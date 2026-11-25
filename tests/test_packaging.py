@@ -223,7 +223,7 @@ class PackagingAssetsTests(unittest.TestCase):
         text = "\n".join(
             "".join(cell.get("source") or []) for cell in notebook["cells"]
         )
-        for marker in ("WHEEL_URL", "%pip install", "run_sync(", "SyncOptions("):
+        for marker in ("releases/download", "%pip install", "run_sync(", "SyncOptions("):
             self.assertIn(marker, text)
         readme = (ROOT / "notebooks" / "README.md").read_text(encoding="utf-8")
         self.assertIn("rotasi", readme.lower())

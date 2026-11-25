@@ -19,11 +19,10 @@ Fabric.
 
 1. Buat notebook baru di workspace Fabric, impor `bi_tools_sync.ipynb`
    (atau salin cell-nya).
-2. Isi cell **Parameter**:
-   - `WHEEL_URL` — aset rilis, mis.
-     `https://github.com/bayuokta/bi-tools/releases/download/v0.8.0/bitools_sync-0.8.0-py3-none-any.whl`
-   - `SP_HOSTNAME`, `SP_SITE_PATH`, `SP_DRIVE_NAME`, `SP_FOLDER`
-   - `MODE`, `FULL`, `INCLUDE_PERSONAL`, `UPLOAD`
+2. Isi cell **Parameter**: `SP_HOSTNAME`, `SP_SITE_PATH`, `SP_DRIVE_NAME`,
+   `SP_FOLDER`, `MODE`, `FULL`, `INCLUDE_PERSONAL`, `UPLOAD`.
+   URL wheel ada langsung di cell **Install** (magic `%pip` tidak memakai
+   variabel); ganti versi di cell itu saat rilis baru.
 3. Isi cell **Kredensial** dengan `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`.
 4. Jalankan **Run all** sekali untuk memastikan tidak ada error.
 5. Periksa output: jumlah workspace/node/edge/report, ukuran snapshot, dan
@@ -69,6 +68,6 @@ dicocokkan dengan folder OneDrive yang dipakai aplikasi.
 |---|---|---|
 | `Akses Graph ditolak` (401/403) | `Sites.Selected` belum di-grant untuk site | Jalankan `grant_site_permission.ps1` untuk SP tersebut |
 | `Admin API` 401/403 | SP bukan Fabric administrator / Admin API tenant dimatikan | Aktifkan **Allow service principals to use read-only admin APIs** dan tambahkan SP ke security group admin |
-| `Wheel bitools_sync tidak ditemukan` | URL rilis salah atau versi tidak cocok | Cek aset rilis; cocokkan `WHEEL_URL` dengan tag |
+| `Wheel bitools_sync tidak ditemukan` | URL rilis salah atau versi tidak cocok | Cek aset rilis; cocokkan URL di cell Install dengan tag |
 | `%pip install` lalu import gagal | Session lama masih memakai versi sebelumnya | Restart session notebook lalu **Run all** |
 | Upload lambat/putus | Ukuran snapshot ±37 MB | Dijalankan ulang oleh pipeline (retry 1×) |
