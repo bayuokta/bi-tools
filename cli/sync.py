@@ -51,13 +51,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-catalog", action="store_true")
     parser.add_argument("--skip-lineage", action="store_true")
     parser.add_argument("--skip-reports", action="store_true")
+    parser.add_argument(
+        "--env-file",
+        default="",
+        help="berkas .env kredensial (default: .env di folder kerja)",
+    )
     args = parser.parse_args(argv)
 
     def log(message: str) -> None:
         print(message, flush=True)
 
     try:
-        principal = ServicePrincipal.from_env()
+        env_file = Path(args.env_file).expanduser() if args.env_file else Path.cwd() / ".env"
+        principal = ServicePrincipal.from_env(env_file if env_file.exists() else None)
         principal.validate()
         database = _database(args.database)
         snapshot = (

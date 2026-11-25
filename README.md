@@ -103,6 +103,9 @@ diterbitkan sebagai snapshot SQLite:
 
 ```powershell
 python sync_main.py --database data\bi_tools_sync.db --snapshot-out "D:\Share\bi_tools_snapshot.db"
+
+# Dari paket, kredensial bisa lewat environment atau .env di folder kerja:
+# bi-tools-sync.exe --env-file "D:\sync\.env" --snapshot-out "D:\Share\bi_tools_snapshot.db"
 ```
 
 Aplikasi interaktif mengunduh snapshot ke cache lokal dan membukanya read-only.
