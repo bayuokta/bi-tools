@@ -7,19 +7,23 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-25 - Rilis 0.9.0
 
 ### Halaman Backup and Restore
 
 - Halaman **Backup and Restore** dengan dua tab: menyimpan definisi semantic
   model dan report per workspace, lalu memulihkannya dari file backup.
-- Model diekspor sebagai folder TMDL + `model.bim` (TMSL) lewat `tom-worker`;
-  report disimpan sebagai part `getDefinition` apa adanya (PBIR dan legacy).
+- Model diekspor dari Fabric `getDefinition` (TMDL + `definition.pbism` +
+  `.platform`) dengan `model.bim` dari TOM sebagai cadangan; report disimpan
+  sebagai part `getDefinition` apa adanya (PBIR dan legacy).
+- Item dipilih lewat dua multi-select combo (semantic model dan report) dengan
+  pencarian, pilih semua, dan hitungan.
 - Satu ZIP per item di folder `Backup_<workspace>_<waktu>/` + `manifest.json`;
   kegagalan satu item tidak menghentikan item lain.
 - Restore memakai Fabric `updateDefinition`/create dengan akun user: item baru
   (`<nama> restored <tanggal>`) atau menimpa item yang dipilih (dengan
-  konfirmasi). Model hasil restore perlu di-refresh manual.
+  konfirmasi). ZIP divalidasi dulu (path aman, part wajib, `model.bim`). Model
+  hasil restore belum diproses dan perlu di-refresh manual.
 - `.pbix` tidak dipakai karena diblokir untuk incremental refresh/perubahan
   TOM. Data, jadwal refresh, permission, kredensial, dan sensitivity label
   tidak termasuk.
@@ -27,7 +31,7 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 ### Perubahan UI
 
 - Urutan sidebar mengikuti mockup: Analisa, Compare model, Partisi,
-  Ekstraksi & TSD, Lineage, Backup, Pengaturan.
+  Ekstraksi & TSD, Lineage, **Backup and Restore**, Pengaturan.
 - "Compare semantic model" menjadi **Compare model**.
 - Ikon aplikasi/installer baru: mark grafik kuning di latar grafit.
 
