@@ -321,7 +321,9 @@ class FabricReportClient:
             raise ExtractionError(f"Respons Fabric API untuk {action} tidak dikenali.")
         return data
 
-    def _poll_operation(self, response: Any) -> dict[str, Any]:
+    def _poll_operation(
+        self, response: Any, *, expect_result: bool = True
+    ) -> dict[str, Any]:
         location = response.headers.get("Location") or response.headers.get(
             "x-ms-operation-id"
         )
@@ -346,6 +348,10 @@ class FabricReportClient:
             ready=lambda body: "definition" in body,
         )
         if "definition" in data:
+            return data
+        if not expect_result:
+            # updateDefinition menyelesaikan operasi tanpa payload hasil;
+            # memanggil /result dijawab HTTP 400 "The operation has no result".
             return data
         result = self._transport.json(
             "GET", location.rstrip("/") + "/result"
@@ -384,7 +390,7 @@ class FabricReportClient:
         )
         if int(response.status_code) == 200:
             return self._json(response, "updateDefinition model")
-        return self._poll_operation(response)
+        return self._poll_operation(response, expect_result=False)
 
     def create_semantic_model(
         self, workspace_id: str, display_name: str, parts: Any
@@ -413,7 +419,7 @@ class FabricReportClient:
         )
         if int(response.status_code) == 200:
             return self._json(response, "updateDefinition report")
-        return self._poll_operation(response)
+        return self._poll_operation(response, expect_result=False)
 
     def create_report(
         self, workspace_id: str, display_name: str, parts: Any

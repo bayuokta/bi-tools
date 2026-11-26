@@ -14,6 +14,7 @@ import pandas as pd
 from core.auth import EntraTokens, FABRIC_SCOPE, MsalTokenProvider, ServicePrincipal
 from core.errors import ExtractionError
 from core.fabric_api import (
+    DefinitionPart,
     FabricReportClient,
     ServiceReportRef,
     materialize_definition,
@@ -53,7 +54,14 @@ class FakeSession:
         self._responses = list(responses)
         self.calls: list[tuple[str, str, dict]] = []
 
-    def request(self, method: str, url: str, headers: dict | None = None, timeout: int = 0):
+    def request(
+        self,
+        method: str,
+        url: str,
+        headers: dict | None = None,
+        timeout: int = 0,
+        **kwargs: object,
+    ):
         self.calls.append((method, url, dict(headers or {})))
         if not self._responses:
             raise AssertionError("tidak ada respons tiruan tersisa")
@@ -280,6 +288,25 @@ class FabricClientTests(unittest.TestCase):
         self.assertEqual(sleeps[1], 5)
         self.assertEqual(len(sleeps), 2)
         self.assertEqual(self.session.calls[-1][1], operation + "/result")
+
+    def test_update_definition_accepts_empty_operation_result(self) -> None:
+        sleeps: list[float] = []
+        operation = "https://api.fabric.microsoft.com/v1/operations/op-update"
+        client = self._client(
+            [
+                FakeResponse(202, None, {"Location": operation, "Retry-After": "1"}),
+                FakeResponse(200, {"status": "Running"}),
+                FakeResponse(200, {"status": "Succeeded"}),
+            ],
+            sleeps,
+        )
+        result = client.update_report_definition(
+            WORKSPACE, REPORT, [DefinitionPart("definition.pbir", b"{}")]
+        )
+        self.assertIsInstance(result, dict)
+        urls = [url for _method, url, _headers in self.session.calls]
+        self.assertNotIn(operation + "/result", urls)
+        self.assertEqual(urls[-1], operation)
 
     def test_poll_wait_caps_initial_wait(self) -> None:
         sleeps: list[float] = []

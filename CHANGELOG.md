@@ -7,6 +7,14 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Perbaikan
+
+- Restore dengan opsi **Overwrite** gagal saat memantau operasi Fabric karena
+  `updateDefinition` selesai tanpa payload hasil. Hasil kosong sekarang
+  diperlakukan sebagai sukses; create tetap mengambil ID item dari hasil.
+
 ## 2026-11-25 - Rilis 0.9.0
 
 ### Halaman Backup and Restore
