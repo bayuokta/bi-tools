@@ -228,14 +228,8 @@ class AuthSettingsTests(unittest.TestCase):
     def tearDown(self) -> None:
         reset_user_session()
 
-    def test_default_mode_is_service(self) -> None:
+    def test_auth_returns_user_session(self) -> None:
         store = SettingsStore(self.root / "settings.json", registry_reader=lambda: {})
-        self.assertEqual(store.auth_mode(), "service")
-        self.assertIsInstance(store.auth(), ServicePrincipal)
-
-    def test_user_mode_returns_session(self) -> None:
-        store = SettingsStore(self.root / "settings.json", registry_reader=lambda: {})
-        store.set_auth_mode("user")
         store.set("auth/tenant_id", "tenant")
         self.assertIs(store.auth(), user_session())
         self.assertEqual(user_session().tenant_id, "tenant")

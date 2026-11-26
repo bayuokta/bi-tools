@@ -9,7 +9,7 @@ from . import settings as keys
 from .settings_store import SettingsStore
 
 
-def _user_status(store: SettingsStore, session: UserSession) -> dict[str, Any]:
+def _user_status(session: UserSession) -> dict[str, Any]:
     if session.signed_in:
         text = f"Login sebagai {session.account or 'akun 365'}."
         tone = "ok"
@@ -37,27 +37,9 @@ def _user_status(store: SettingsStore, session: UserSession) -> dict[str, Any]:
 
 
 def status(store: SettingsStore) -> dict[str, Any]:
-    if store.auth_mode() == "user":
-        session = user_session()
-        session.configure(store.get_str(keys.AUTH_TENANT_KEY, ""))
-        return _user_status(store, session)
-    principal = store.principal()
-    from .presenters.formatting import credential_status
-
-    text, tone = credential_status(principal)
-    return {
-        "mode": "service",
-        "tenant_id": principal.tenant_id,
-        "client_id": principal.client_id,
-        "has_secret": bool(principal.client_secret),
-        "complete": principal.is_complete,
-        "missing": principal.missing,
-        "status": text,
-        "tone": tone,
-        "account": "",
-        "signed_in": principal.is_complete,
-        "fabric_error": "",
-    }
+    session = user_session()
+    session.configure(store.get_str(keys.AUTH_TENANT_KEY, ""))
+    return _user_status(session)
 
 
 def sign_in(store: SettingsStore) -> dict[str, Any]:

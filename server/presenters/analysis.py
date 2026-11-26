@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.auth import EntraTokens, ServicePrincipal
+from core.auth import EntraTokens
 from core.analysis_details import item_details
 from core.best_practice import build_best_practice
 from core.analysis_export import (
@@ -265,7 +265,6 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         ],
         "settings": analysis_settings(store),
         "credentials_missing": store.auth().missing,
-        "auth_mode": store.auth_mode(),
     }
 
 
@@ -1105,7 +1104,7 @@ def preview_payload(
     node_name = str(
         getattr(node, "measure", "") or getattr(node, "column", "") or name
     )
-    principal: ServicePrincipal = store.auth()
+    principal: Any = store.auth()
     principal.validate()
     query = build_raw_query(
         "measure" if str(kind).lower() == "measure" else "column",
@@ -1173,7 +1172,7 @@ def raw_metadata_payload(
         getattr(node, "measure", "") if is_measure else getattr(node, "column", "")
     ) or name
     column_id = None if is_measure else int(getattr(node, "column_id", 0) or 0)
-    principal: ServicePrincipal = store.auth()
+    principal: Any = store.auth()
     principal.validate()
     tokens = EntraTokens(principal)
     endpoint = workspace_endpoint(
@@ -1316,7 +1315,7 @@ def run_job(
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not workspace_id or not dataset_id:
         raise ExtractionError("Pilih workspace dan semantic model dulu.")
-    principal: ServicePrincipal = store.auth()
+    principal: Any = store.auth()
     principal.validate()
     database = database_path(store)
     workspace_name, dataset_name = resolve_names(database, workspace_id, dataset_id)

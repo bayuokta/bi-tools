@@ -14,7 +14,6 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal
 from core.report import MODEL_WORKBOOK_NAME, OUT_FILE
 from server import settings as keys
 from server.app import create_app
@@ -48,19 +47,6 @@ class ApiTestCase(unittest.TestCase):
             shutdown=lambda: None,
         )
         self.client = TestClient(self.app)
-
-    def test_settings_hide_secret(self) -> None:
-        self.store.set_principal(
-            ServicePrincipal("tenant", "client", "sangat-rahasia")
-        )
-        response = self.client.get("/api/settings")
-        body = response.json()
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(body["auth"]["tenant_id"], "tenant")
-        self.assertTrue(body["auth"]["has_secret"])
-        self.assertNotIn("sangat-rahasia", response.text)
-        self.assertNotIn("client_secret", body["auth"])
 
     def test_save_rls_accepts_list(self) -> None:
         response = self.client.put(

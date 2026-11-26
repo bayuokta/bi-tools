@@ -10,7 +10,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from core.auth import ServicePrincipal
 
 
 def file_status(path: Path) -> dict[str, object]:
@@ -45,18 +44,6 @@ def file_status(path: Path) -> dict[str, object]:
         "modified": stamp,
         "text": f"{path.name}  ({stamp})",
     }
-
-
-def credential_status(principal: ServicePrincipal) -> tuple[str, str]:
-    """Teks dan tone status service principal."""
-    if principal.is_complete:
-        return "Service principal lengkap dan siap dipakai.", "ok"
-    return (
-        "Service principal belum lengkap: "
-        + ", ".join(principal.missing)
-        + " (isi di Pengaturan).",
-        "warn",
-    )
 
 
 def duration_text(seconds: float) -> str:

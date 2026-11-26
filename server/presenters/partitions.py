@@ -47,7 +47,6 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         "refresh_types": list(REFRESH_TYPE_ORDER),
         "confirmation": PARTITION_CONFIRMATION,
         "credentials_missing": store.auth().missing,
-        "auth_mode": store.auth_mode(),
     }
 
 

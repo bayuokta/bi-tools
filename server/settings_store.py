@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from core.auth import ServicePrincipal, user_session
+from core.auth import user_session
 from core.paths import data_dir
 from core.pbi_capture.credentials import split_roles
 
@@ -243,8 +243,6 @@ class SettingsStore:
         }
         for legacy, current in (
             (keys.LINEAGE_TENANT_KEY, keys.AUTH_TENANT_KEY),
-            (keys.LINEAGE_CLIENT_KEY, keys.AUTH_CLIENT_KEY),
-            (keys.LINEAGE_SECRET_KEY, keys.AUTH_SECRET_KEY),
             (keys.LINEAGE_DB_KEY, keys.PATHS_LINEAGE_DB_KEY),
         ):
             old_value = migrated.get(legacy)
@@ -303,42 +301,12 @@ class SettingsStore:
             if changed:
                 self.save()
 
-    # -- kredensial --------------------------------------------------------
-    def principal(self) -> ServicePrincipal:
-        return ServicePrincipal.from_values(
-            self.get_str(keys.AUTH_TENANT_KEY),
-            self.get_str(keys.AUTH_CLIENT_KEY),
-            self.get_str(keys.AUTH_SECRET_KEY),
-        )
-
-    def set_principal(self, principal: ServicePrincipal) -> None:
-        self.update(
-            {
-                keys.AUTH_TENANT_KEY: principal.tenant_id,
-                keys.AUTH_CLIENT_KEY: principal.client_id,
-                keys.AUTH_SECRET_KEY: principal.client_secret,
-            }
-        )
-
-    # -- mode autentikasi --------------------------------------------------
-    def auth_mode(self) -> str:
-        """``user`` (akun 365) atau ``service`` (SP untuk sync/uji)."""
-        value = self.get_str(keys.AUTH_MODE_KEY, "service").strip().lower()
-        return value if value in {"user", "service"} else "service"
-
-    def set_auth_mode(self, mode: str) -> None:
-        value = str(mode or "").strip().lower()
-        if value not in {"user", "service"}:
-            raise ValueError(f"Mode autentikasi tidak dikenal: {mode!r}")
-        self.set(keys.AUTH_MODE_KEY, value)
-
+    # -- identitas ---------------------------------------------------------
     def auth(self) -> Any:
-        """Identitas aktif: sesi user 365 atau service principal."""
-        if self.auth_mode() == "user":
-            session = user_session()
-            session.configure(self.get_str(keys.AUTH_TENANT_KEY))
-            return session
-        return self.principal()
+        """Identitas aktif: sesi akun 365."""
+        session = user_session()
+        session.configure(self.get_str(keys.AUTH_TENANT_KEY))
+        return session
 
     def shared_db_source(self) -> str:
         return self.get_str(keys.SHARED_DB_SOURCE_KEY)

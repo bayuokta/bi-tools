@@ -16,11 +16,11 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal  # noqa: E402
 from core.errors import ExtractionError  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import tsd as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
+from tests.helpers import use_user  # noqa: E402
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 REPORT = "66666666-7777-8888-9999-000000000000"
@@ -45,7 +45,7 @@ class TsdPresenterTests(unittest.TestCase):
         self.store = SettingsStore(
             self.root / "settings.json", registry_reader=lambda: {}
         )
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         self.store.set("tsd/out_dir", str(self.out_dir))
         self.report = self.out_dir / "Report_Metadata.xlsx"
         self.report.write_bytes(b"xlsx")

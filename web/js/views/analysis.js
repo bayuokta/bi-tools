@@ -363,8 +363,8 @@ import { state } from "../core/state.js";
         $("#spStatus"),
         missing.length ? "warn" : "ok",
         missing.length
-          ? t(data.auth_mode === "user" ? "Not signed in" : "Credentials are incomplete")
-          : t(data.auth_mode === "user" ? "Signed in" : "Service principal ready")
+          ? t("Not signed in")
+          : t("Signed in")
       );
       $("#modelSelect") && setSelectOptions("modelSelect", [], "Choose a semantic model…");
       analysisApplyTabTools(state.analysisTab, false);

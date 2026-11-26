@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+import zipfile
 import time
 import unittest
 import warnings
@@ -15,11 +16,11 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal  # noqa: E402
 from core.lineage_store import connect, initialize, save_workspaces  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import backup as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
+from tests.helpers import use_user  # noqa: E402
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 MODEL = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -63,7 +64,7 @@ class _StoreCase(unittest.TestCase):
         )
         self.store.set_lineage_db(self.db)
         self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         self.store.set("backup/folder", str(self.root / "backups"))
         self.web = self.root / "web"
         self.web.mkdir()
@@ -169,9 +170,23 @@ class EndpointTests(_StoreCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(".zip", response.json()["detail"])
 
-    def test_restore_starts_job(self) -> None:
-        import zipfile
+    def test_restore_overwrite_requires_target(self) -> None:
+        archive = self.root / "backup.zip"
+        with zipfile.ZipFile(archive, "w") as handle:
+            handle.writestr("definition.pbir", "{}")
+            handle.writestr("report.json", "{}")
+        response = self.client.post(
+            "/api/backup/restore/run",
+            json={
+                "file": str(archive),
+                "workspace_id": WORKSPACE,
+                "overwrite": True,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("tujuan", response.json()["detail"])
 
+    def test_restore_starts_job(self) -> None:
         archive = self.root / "backup.zip"
         with zipfile.ZipFile(archive, "w") as handle:
             handle.writestr("definition.pbir", "{}")

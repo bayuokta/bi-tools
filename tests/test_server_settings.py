@@ -10,7 +10,6 @@ from pathlib import Path
 from server import settings as keys
 from server.settings_store import MIGRATION_FLAG, SettingsStore
 
-from core.auth import ServicePrincipal
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -56,8 +55,7 @@ class SettingsStoreTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(store.principal().tenant_id, "t-old")
-        self.assertEqual(store.principal().client_secret, "s-old")
+        self.assertEqual(store.get_str(keys.AUTH_TENANT_KEY), "t-old")
         self.assertEqual(store.lineage_db(), r"D:\data\bi_tools.db")
 
     def test_existing_json_wins_over_registry(self) -> None:
@@ -75,7 +73,6 @@ class SettingsStoreTests(unittest.TestCase):
 
     def test_reset_session_keeps_preferences(self) -> None:
         store = self.store()
-        store.set_principal(ServicePrincipal("t", "c", "s"))
         store.set(keys.SETTINGS_SERVICE_WORKSPACE_KEY, "ws")
         store.set(keys.SETTINGS_ANALYSIS_DATASET_KEY, "ds")
         store.set(keys.SETTINGS_SCOPE_LOCAL_KEY, "report")
@@ -85,7 +82,6 @@ class SettingsStoreTests(unittest.TestCase):
         self.assertEqual(store.get_str(keys.SETTINGS_SERVICE_WORKSPACE_KEY), "")
         self.assertEqual(store.get_str(keys.SETTINGS_ANALYSIS_DATASET_KEY), "")
         self.assertEqual(store.get_str(keys.SETTINGS_SCOPE_LOCAL_KEY), "report")
-        self.assertEqual(store.principal().client_id, "c")
 
     def test_unknown_key_keeps_string(self) -> None:
         store = self.store()

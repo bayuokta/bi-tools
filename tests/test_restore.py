@@ -208,6 +208,43 @@ class RunRestoreTests(TempCase):
         self.assertNotIn("model.bim", calls["parts"])
         self.assertIn("definition/model.tmdl", calls["parts"])
 
+    def test_tmsl_only_archive_selects_bim_and_pbism(self) -> None:
+        path = write_zip(
+            self.root / "semantic_model_Bim_aaaaaaaa.zip",
+            {
+                "model.bim": json.dumps({"name": "Bim", "model": {}}).encode(),
+                "definition.pbism": b"{}",
+                ".platform": json.dumps(
+                    {"metadata": {"type": "SemanticModel", "displayName": "Bim"}}
+                ).encode(),
+            },
+        )
+        info = inspect_archive(path)
+        self.assertEqual(info.kind, "model")
+        calls: dict[str, object] = {}
+
+        class FakeClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                pass
+
+            def create_semantic_model(self, workspace_id, name, parts):
+                calls["parts"] = [part.path for part in parts]
+                return {"id": "bim-id"}
+
+            def close(self) -> None:
+                pass
+
+        options = RestoreOptions(
+            file=path,
+            workspace_id=WORKSPACE,
+            workspace_name="Data",
+        )
+        with patch("core.restore.FabricReportClient", FakeClient):
+            run_restore(options, PRINCIPAL)
+        self.assertEqual(
+            sorted(calls["parts"]), ["definition.pbism", "model.bim"]
+        )
+
     def test_overwrite_uses_target_and_keeps_platform(self) -> None:
         path = write_zip(self.root / "report_Overview_bbbbbbbb.zip", report_files())
         calls: dict[str, object] = {}

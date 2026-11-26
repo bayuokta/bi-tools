@@ -16,13 +16,13 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal  # noqa: E402
 from core.errors import ExtractionError  # noqa: E402
 from core.lineage_service import WorkspaceOption  # noqa: E402
 from core.pbix import LOCAL_MODEL, PbixSourceInfo  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import metadata as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
+from tests.helpers import use_user  # noqa: E402
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 REPORT = "66666666-7777-8888-9999-000000000000"
@@ -58,7 +58,7 @@ class MetadataPresenterTests(unittest.TestCase):
         self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
         self.pbix = self.root / "contoh.pbix"
         self.pbix.write_bytes(b"bukan zip")
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         self.store.set_lineage_db(self.root / "katalog.db")
 
     def test_instances_empty(self) -> None:
@@ -143,7 +143,7 @@ class MetadataPresenterTests(unittest.TestCase):
         ) as loader:
             presenter.contents_payload(self.store, WORKSPACE, datasets=True, reports=False)
         loader.assert_called_once_with(
-            self.store.principal(), WORKSPACE, datasets=True, reports=False
+            self.store.auth(), WORKSPACE, datasets=True, reports=False
         )
 
     def test_build_request_local(self) -> None:

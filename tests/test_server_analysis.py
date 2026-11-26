@@ -16,11 +16,11 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal  # noqa: E402
 from core.errors import ExtractionError  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import analysis as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
+from tests.helpers import use_user  # noqa: E402
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 DATASET = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -220,7 +220,7 @@ class AnalysisPresenterTests(unittest.TestCase):
             self.root / "settings.json", registry_reader=lambda: {}
         )
         self.store.set_shared_db_local(str(self.root / "shared" / "bi_tools.db"))
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         self.store.set_lineage_db(self.root / "katalog.db")
 
     def test_serialize_result(self) -> None:
@@ -814,7 +814,7 @@ class AnalysisEndpointTests(unittest.TestCase):
             log("analisa")
             return {"ok": True}
 
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         with patch.object(presenter, "run_job", fake_job):
             response = self.client.post(
                 "/api/analysis/run",

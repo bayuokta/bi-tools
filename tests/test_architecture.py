@@ -899,5 +899,27 @@ class SyncSeparationTests(unittest.TestCase):
         self.assertIn("createUploadSession", graph_text)
 
 
+class ServiceModeGuardTests(unittest.TestCase):
+    """Web hanya memakai akun 365; tidak boleh ada sisa mode service."""
+
+    def test_server_has_no_service_principal_mode(self) -> None:
+        server_files = files_under("server")
+        self.assertEqual(
+            matching_in(server_files, r"auth_mode|set_principal|ServicePrincipal"), []
+        )
+        self.assertEqual(
+            matching_in(
+                server_files, r"AUTH_MODE_KEY|AUTH_CLIENT_KEY|AUTH_SECRET_KEY"
+            ),
+            [],
+        )
+
+    def test_web_has_no_auth_mode(self) -> None:
+        self.assertNotIn("auth_mode", web_script_text())
+
+    def test_restore_writes_only_through_fabric_client(self) -> None:
+        self.assertEqual(matching(r"/updateDefinition"), ["core/fabric_api.py"])
+
+
 if __name__ == "__main__":
     unittest.main()

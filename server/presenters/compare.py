@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.auth import EntraTokens, ServicePrincipal
+from core.auth import EntraTokens
 from core.compare_export import (
     default_compare_stem,
     write_compare_csv,
@@ -74,7 +74,7 @@ def _read_side(
         log(f"Desktop dibaca: {label}")
         return snapshot, label
 
-    principal: ServicePrincipal = store.auth()
+    principal: Any = store.auth()
     principal.validate()
     body = side.to_payload()
     workspace_name = str(body.get("workspace_name") or "").strip()

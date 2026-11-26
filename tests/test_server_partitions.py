@@ -15,11 +15,11 @@ warnings.filterwarnings(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from core.auth import ServicePrincipal  # noqa: E402
 from core.errors import ExtractionError  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import partitions as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
+from tests.helpers import use_user  # noqa: E402
 
 WORKSPACE = "11111111-2222-3333-4444-555555555555"
 DATASET = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -100,7 +100,7 @@ class PartitionPresenterTests(unittest.TestCase):
         self.assertEqual(read.call_args.kwargs["workspace_name"], "W")
 
     def test_run_refresh_job_delegates(self) -> None:
-        self.store.set_principal(ServicePrincipal("t", "c", "s"))
+        use_user(self.store)
         with patch.object(presenter, "resolve_names", return_value=("W", "M")), patch.object(
             presenter, "process_partitions", return_value={"refresh": {"type": "full"}}
         ) as process:

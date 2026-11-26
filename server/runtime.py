@@ -228,7 +228,6 @@ def run(
 
         store = SettingsStore(settings_path)
         store.reset_session()
-        store.set_auth_mode("user")
         if store.shared_db_source() and store.shared_db_auto():
             from .shared_db import download_snapshot
 
