@@ -525,7 +525,7 @@ var NEWLINE = String.fromCharCode(10);
       data.auth.signed_in ? "ok" : (data.auth.tone === "warn" ? "warn" : "idle"),
       data.auth.signed_in ? t("Signed in") : t("Not signed in")
     );
-    $("#signIn").disabled = data.auth.mode !== "user" || data.auth.signed_in;
+    $("#signIn").disabled = data.auth.signed_in;
     $("#signOut").disabled = !data.auth.signed_in;
     if (data.snapshot) {
       $("#snapshotSource").value = data.snapshot.source || "";

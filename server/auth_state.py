@@ -23,11 +23,9 @@ def _user_status(session: UserSession) -> dict[str, Any]:
         )
         tone = "idle"
     return {
-        "mode": "user",
         "tenant_id": session.tenant_id,
         "signed_in": session.signed_in,
         "account": session.account,
-        "has_secret": False,
         "complete": session.signed_in,
         "missing": session.missing,
         "status": text,
