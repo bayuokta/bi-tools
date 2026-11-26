@@ -1119,7 +1119,6 @@
   "failed": "gagal",
   "skipped": "dilewati",
   "No backup history.": "Belum ada riwayat backup.",
-  "Choose a workspace": "Pilih workspace",
   "Loading items...": "Memuat item...",
   "No semantic models or reports in this workspace.": "Tidak ada semantic model atau report di workspace ini.",
   "Choose a workspace first.": "Pilih workspace terlebih dahulu.",
@@ -1156,8 +1155,6 @@
   "Search item.": "Cari item.",
   "semantic models": "semantic model",
   "reports": "report",
-  "Choose a backup file": "Pilih file backup",
-  "Choose an item": "Pilih item",
   "Choose a backup file first.": "Pilih file backup terlebih dahulu.",
   "Choose a target workspace first.": "Pilih workspace tujuan terlebih dahulu.",
   "Choose the target item to overwrite.": "Pilih item tujuan yang akan ditimpa.",
@@ -1169,7 +1166,9 @@
   "Item": "Item",
   "ID": "ID",
   "Click a field to search and check one or more items.": "Klik field untuk mencari dan mencentang satu atau beberapa item.",
-  "Search backup item": "Cari item backup"
+  "Search backup item": "Cari item backup",
+  "Choose a backup file…": "Pilih file backup…",
+  "Choose items…": "Pilih item…"
 };
 
   // Pesan dari server tetap ditulis dalam Bahasa Indonesia supaya CLI dan

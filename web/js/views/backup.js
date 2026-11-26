@@ -75,7 +75,7 @@ function backupLabel(kind) {
   var selected = backupSelectedCount(kind);
   if (!items.length) return t("No items");
   if (selected === items.length) return t("Select all");
-  if (selected === 0) return t("Choose items");
+  if (selected === 0) return t("Choose items…");
   return fmtInt(selected) + " " + t("selected");
 }
 
@@ -266,14 +266,14 @@ function backupApplyState(data) {
     target.workspaces.map(function (row) {
       return { value: row.id, label: row.label };
     }),
-    "Choose a workspace"
+    "Choose a workspace…"
   );
   setSelectOptions(
     "rstWorkspace",
     target.workspaces.map(function (row) {
       return { value: row.id, label: row.label };
     }),
-    "Choose a workspace"
+    "Choose a workspace…"
   );
   if (target.workspaceId) {
     setSelectValue("bakWorkspace", target.workspaceId);
@@ -495,7 +495,7 @@ function restoreRenderFiles() {
         " · " + row.name + " · " + row.workspace + " · " + backupTime(row.finished_at);
       return { value: row.path, label: label };
     }),
-    "Choose a backup file"
+    "Choose a backup file…"
   );
   if (restore.selectedFile) setSelectValue("rstFile", restore.selectedFile);
   restoreRenderTargets();
@@ -518,7 +518,7 @@ function restoreRenderTargets() {
     (items || []).map(function (item) {
       return { value: item.id, label: item.name + " (" + item.id.slice(0, 8) + ")" };
     }),
-    "Choose an item"
+    file.kind === "model" ? "Choose a semantic model…" : "Choose a report…"
   );
 }
 
