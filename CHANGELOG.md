@@ -7,13 +7,27 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
-## Belum dirilis
+## 2026-11-26 - Rilis 0.9.1
 
 ### Perbaikan
 
+- Tombol **Sign in** dan **Sign out** kembali berfungsi. Handler-nya ikut
+  terhapus saat pemisahan paket sync di 0.9.0 sehingga tombol tidak melakukan
+  apa pun.
 - Restore dengan opsi **Overwrite** gagal saat memantau operasi Fabric karena
   `updateDefinition` selesai tanpa payload hasil. Hasil kosong sekarang
   diperlakukan sebagai sukses; create tetap mengambil ID item dari hasil.
+- Field Workspace/File/Target di halaman **Backup and Restore** memakai
+  komponen combo yang sama dengan halaman lain (sebelumnya dropdown native).
+
+### Pembersihan
+
+- Sisa mode service principal di web dihapus (`auth_mode`, `principal`,
+  `set_principal`, cabang service di status auth, field `auth_mode` di payload).
+  Web selalu memakai `UserSession`.
+- Guard arsitektur baru: `server/` tidak boleh memuat kode service principal,
+  `web/` tidak boleh memuat `auth_mode`, dan literal `/updateDefinition` hanya
+  boleh ada di `core/fabric_api.py`.
 
 ## 2026-11-25 - Rilis 0.9.0
 

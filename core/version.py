@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 
 APP_NAME = "BI Tools"
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 _VERSION_RE = re.compile(r"^(?P<num>\d+\.\d+\.\d+)(?:-(?P<tag>[0-9A-Za-z.-]+))?$")
 
