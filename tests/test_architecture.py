@@ -920,6 +920,11 @@ class ServiceModeGuardTests(unittest.TestCase):
     def test_restore_writes_only_through_fabric_client(self) -> None:
         self.assertEqual(matching(r"/updateDefinition"), ["core/fabric_api.py"])
 
+    def test_sign_in_and_sign_out_handlers_exist(self) -> None:
+        text = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('$("#signIn").addEventListener("click"', text)
+        self.assertIn('$("#signOut").addEventListener("click"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

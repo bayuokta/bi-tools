@@ -2076,6 +2076,31 @@ var NEWLINE = String.fromCharCode(10);
       });
     });
 
+    $("#signIn").addEventListener("click", function () {
+      var button = $("#signIn");
+      button.disabled = true;
+      addLog(t("Opening sign-in..."), "info");
+      api().put("/api/settings/tenant", {
+        tenant_id: $("#authTenant").value.trim()
+      }).then(function () {
+        return api().post("/api/settings/sign-in", {});
+      }).then(function (data) {
+        renderSettings(data);
+        addLog(t("Sign-in completed."), "ok");
+        toast(t("Signed in"));
+      }).catch(function (error) {
+        button.disabled = false;
+        reportError(error);
+      });
+    });
+
+    $("#signOut").addEventListener("click", function () {
+      api().post("/api/settings/sign-out", {}).then(function (data) {
+        renderSettings(data);
+        toast(t("Signed out"));
+      }).catch(reportError);
+    });
+
     $("#saveCreds").addEventListener("click", function () {
       api().put("/api/settings/rls", {
         username: $("#rlsUsername").value.trim(),
