@@ -220,6 +220,7 @@ class _Collector:
                 record.field.casefold(),
                 page_id,
                 visual_id,
+                record.detail,
             )
             if key in self._seen_format:
                 return
@@ -239,13 +240,25 @@ class _Collector:
         }
         if not visual_fields:
             return
+        measure_fields = {
+            record.field.casefold()
+            for record in self.records
+            if record.usage_kind == USAGE_FIELD
+            and record.field_kind == "Measure"
+        }
         self.records = [
             record
             for record in self.records
             if not (
                 record.usage_kind == USAGE_FORMAT
-                and (record.table.casefold(), record.field.casefold())
-                in visual_fields
+                and (
+                    (record.table.casefold(), record.field.casefold())
+                    in visual_fields
+                    or (
+                        record.field_kind == "Measure"
+                        and record.field.casefold() in measure_fields
+                    )
+                )
             )
         ]
 
@@ -293,6 +306,10 @@ class _Collector:
     ) -> None:
         """Cari referensi Column/Measure/Aggregation di struktur objects/formatting."""
         for info in _expression_fields(node):
+            property_name = str(info.get("property") or "")
+            detail_text = detail or "formatting"
+            if property_name:
+                detail_text = f"{detail_text} \u00b7 {property_name}"
             self.add_field(
                 info,
                 usage_kind=usage_kind,
@@ -301,7 +318,7 @@ class _Collector:
                 visual_id=visual_id,
                 visual_type=visual_type,
                 visual_title=visual_title,
-                detail=detail or "formatting",
+                detail=detail_text,
                 is_hidden=is_hidden,
             )
         for info in _visual_calculations(node):
@@ -348,7 +365,17 @@ class _Collector:
         )
 
 
-def _expression_fields(node: Any, depth: int = 0) -> list[dict[str, Any]]:
+def _format_property(path: tuple[str, ...]) -> str:
+    if "properties" in path:
+        index = path.index("properties")
+        if index + 1 < len(path):
+            return str(path[index + 1])
+    return str(path[-1]) if path else ""
+
+
+def _expression_fields(
+    node: Any, depth: int = 0, path: tuple[str, ...] = ()
+) -> list[dict[str, Any]]:
     """Semua field reference di dalam struktur formatting (bukan proyeksi visual)."""
     out: list[dict[str, Any]] = []
     if depth > 40:
@@ -357,14 +384,16 @@ def _expression_fields(node: Any, depth: int = 0) -> list[dict[str, Any]]:
         for kind in _EXPRESSION_KINDS:
             body = node.get(kind)
             if isinstance(body, dict) and body.get("Property"):
-                out.append(parse_field({kind: body}))
+                info = parse_field({kind: body})
+                info["property"] = _format_property(path)
+                out.append(info)
                 break
         else:
-            for value in node.values():
-                out.extend(_expression_fields(value, depth + 1))
+            for key, value in node.items():
+                out.extend(_expression_fields(value, depth + 1, path + (str(key),)))
     elif isinstance(node, list):
         for item in node:
-            out.extend(_expression_fields(item, depth + 1))
+            out.extend(_expression_fields(item, depth + 1, path))
     return out
 
 
@@ -546,6 +575,36 @@ def _scan_pbir(
                         visual_type=visual_type,
                         visual_title=title,
                         detail=str(role),
+                        is_hidden=is_hidden,
+                    )
+                for parameter in (role_content or {}).get("fieldParameters") or []:
+                    info = parse_field(parameter.get("parameterExpr") or {})
+                    if not info["field"]:
+                        continue
+                    collector.add_field(
+                        info,
+                        usage_kind=USAGE_FIELD,
+                        page_id=page_id,
+                        page_name=page_name,
+                        visual_id=visual_id,
+                        visual_type=visual_type,
+                        visual_title=title,
+                        detail="field parameter",
+                        is_hidden=is_hidden,
+                    )
+
+            for parameter in query.get("fieldParameters") or []:
+                info = parse_field(parameter.get("parameterExpr") or {})
+                if info["field"]:
+                    collector.add_field(
+                        info,
+                        usage_kind=USAGE_FIELD,
+                        page_id=page_id,
+                        page_name=page_name,
+                        visual_id=visual_id,
+                        visual_type=visual_type,
+                        visual_title=title,
+                        detail="field parameter",
                         is_hidden=is_hidden,
                     )
 

@@ -1254,8 +1254,63 @@ def build_analysis(
     reports_included: bool = True,
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
+    rows = list(usage_rows)
+    columns_by_table: dict[str, dict[str, str]] = defaultdict(dict)
+    for column in stats.columns:
+        columns_by_table[column.table.casefold()][
+            column.column.casefold()
+        ] = column.column
+    parameter_tables = {
+        table
+        for table, columns in columns_by_table.items()
+        if "parameter fields" in columns
+        and ("parameter" in columns or "parameter order" in columns)
+    }
+    seen_usage = {
+        (
+            row.get("report_id"),
+            row.get("page_id"),
+            row.get("visual_id"),
+            row.get("usage_kind"),
+            str(row.get("table_name") or "").casefold(),
+            str(row.get("field_name") or "").casefold(),
+        )
+        for row in rows
+    }
+    extra: list[dict[str, Any]] = []
+    for row in rows:
+        table = str(row.get("table_name") or "").casefold()
+        if table not in parameter_tables:
+            continue
+        if str(row.get("usage_kind") or "") != "field":
+            continue
+        if str(row.get("field_name") or "").casefold() != "parameter":
+            continue
+        if str(row.get("detail") or "") != "field parameter":
+            continue
+        field_name = columns_by_table[table]["parameter fields"]
+        key = (
+            row.get("report_id"),
+            row.get("page_id"),
+            row.get("visual_id"),
+            "field",
+            table,
+            field_name.casefold(),
+        )
+        if key in seen_usage:
+            continue
+        seen_usage.add(key)
+        extra.append(
+            {
+                **row,
+                "field_kind": "Column",
+                "field_name": field_name,
+                "detail": "column grouping",
+            }
+        )
+    rows.extend(extra)
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    for row in usage_rows:
+    for row in rows:
         if str(row.get("field_kind") or "") == "Measure":
             continue
         key = (
@@ -1266,7 +1321,7 @@ def build_analysis(
 
     measures = _build_measure_analyses(
         stats=stats,
-        usage_rows=usage_rows,
+        usage_rows=rows,
         measure_refs=measure_refs or {},
         coverage_complete=coverage_complete,
     )

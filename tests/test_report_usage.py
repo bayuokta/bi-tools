@@ -352,6 +352,56 @@ class PbirScanTests(unittest.TestCase):
         )
         self.assertEqual(formats, ["Highlight"])
 
+    def test_formatting_counts_each_property(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
+        visual["objects"] = {
+            "labels": [
+                {
+                    "properties": {
+                        "lineColor": {
+                            "solid": {
+                                "color": {"expr": measure("Sales", "Highlight")}
+                            }
+                        },
+                        "fillColor": {
+                            "solid": {
+                                "color": {"expr": measure("Sales", "Highlight")}
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        formats = [
+            row
+            for row in usage.records
+            if row.usage_kind == USAGE_FORMAT and row.field == "Highlight"
+        ]
+        self.assertEqual(len(formats), 2)
+
+    def test_field_parameters_are_counted_as_visual_usage(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
+        visual["query"]["queryState"]["Values"]["fieldParameters"] = [
+            {
+                "parameterExpr": column("Sales", "Customer"),
+                "index": 0,
+                "length": 1,
+            }
+        ]
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        records = [
+            row
+            for row in usage.records
+            if row.field == "Customer" and row.detail == "field parameter"
+        ]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].usage_kind, USAGE_FIELD)
+
     def test_hidden_group_inheritance(self) -> None:
         slicer = [
             row

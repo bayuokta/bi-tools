@@ -65,6 +65,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tetap disimpan di detail tetapi tidak menambah `Uses`.
 - Pemakaian **formatting** untuk field yang sudah dipakai sebagai field visual
   di report tidak lagi menambah `Uses` (memperbaiki `Month` dan `Quarter`).
+- Scanner report menghitung formatting per properti dan mencatat
+  `fieldParameters` sebagai pemakaian visual; kolom `Parameter Fields` pada
+  tabel field parameter dihitung sebagai column grouping. Perbandingan `Uses`
+  dengan Measure Killer pada model uji kini **0 selisih**.
 
 ## 2026-11-26 - Rilis 0.9.1
 
