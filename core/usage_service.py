@@ -78,6 +78,7 @@ from .report_usage import scan_definition
 from .usage_store import (
     columns as stored_columns,
     field_usage,
+    hierarchies as stored_hierarchies,
     initialize,
     last_run,
     m_queries as stored_m_queries,
@@ -88,6 +89,7 @@ from .usage_store import (
     report_pages as stored_report_pages,
     reports as stored_reports,
     save_columns,
+    save_hierarchies,
     save_m_queries,
     save_measures,
     save_model_refs,
@@ -1102,6 +1104,36 @@ class ColumnAnalysis:
 
 
 @dataclass
+class HierarchyAnalysis:
+    """Hierarchy eksplisit + pemakaian levelnya di report."""
+
+    hierarchy: dict[str, Any]
+    status: str
+    reason: str
+    report_records: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def counted_records(self) -> list[dict[str, Any]]:
+        return [row for row in self.report_records if is_counted_record(row)]
+
+    @property
+    def use_count(self) -> int:
+        return len(self.counted_records)
+
+    @property
+    def report_count(self) -> int:
+        return len({str(row.get("report_id") or "") for row in self.report_records})
+
+    @property
+    def table(self) -> str:
+        return str(self.hierarchy.get("table") or "")
+
+    @property
+    def name(self) -> str:
+        return str(self.hierarchy.get("hierarchy") or "")
+
+
+@dataclass
 class AnalysisResult:
     """Hasil satu kali analisa (dipakai GUI, CLI, dan ekspor)."""
 
@@ -1125,6 +1157,7 @@ class AnalysisResult:
     report_app: int = 0
     unresolved: list[dict[str, Any]] = field(default_factory=list)
     measures: list[MeasureAnalysis] = field(default_factory=list)
+    hierarchies: list[HierarchyAnalysis] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     relationships: list[dict[str, Any]] = field(default_factory=list)
     m_queries: list[dict[str, Any]] = field(default_factory=list)
@@ -1391,6 +1424,71 @@ def _build_measure_analyses(
     return analyses
 
 
+def build_hierarchy_analyses(
+    rows: Iterable[dict[str, Any]],
+    hierarchies: Iterable[Mapping[str, Any]],
+    *,
+    coverage_complete: bool,
+) -> list[HierarchyAnalysis]:
+    """Pemakaian level hierarchy eksplisit per objek hierarchy."""
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if str(row.get("field_kind") or "") != "HierarchyLevel":
+            continue
+        table = str(row.get("table_name") or "")
+        field = str(row.get("field_name") or "")
+        hierarchy_name, _, level = field.rpartition(".")
+        if not hierarchy_name:
+            continue
+        grouped[(table.casefold(), hierarchy_name.casefold())].append(
+            {**row, "hierarchy_name": hierarchy_name, "level": level}
+        )
+    out: list[HierarchyAnalysis] = []
+    for definition in hierarchies:
+        table = str(definition.get("table") or "")
+        name = str(definition.get("hierarchy") or "")
+        records = grouped.get((table.casefold(), name.casefold()), [])
+        seen: set[tuple[Any, Any, Any, Any]] = set()
+        unique: list[dict[str, Any]] = []
+        for row in records:
+            key = (
+                row.get("report_id"),
+                row.get("page_id"),
+                row.get("visual_id"),
+                row.get("usage_kind"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(
+                {
+                    **row,
+                    "report_url": report_url(
+                        str(row.get("report_workspace") or ""),
+                        str(row.get("report_id") or ""),
+                    ),
+                }
+            )
+        if any(is_counted_record(row) for row in unique):
+            status = STATUS_USED
+            reason = f"Dipakai di {len(unique)} titik pada report."
+        elif coverage_complete:
+            status = STATUS_UNUSED
+            reason = "Tidak ada pemakaian level hierarchy di report."
+        else:
+            status = STATUS_UNKNOWN
+            reason = "Cakupan report belum lengkap."
+        out.append(
+            HierarchyAnalysis(
+                hierarchy=dict(definition),
+                status=status,
+                reason=reason,
+                report_records=unique,
+            )
+        )
+    return out
+
+
 def build_analysis(
     *,
     stats: ModelStats,
@@ -1419,6 +1517,7 @@ def build_analysis(
     m_queries: list[dict[str, Any]] | None = None,
     roles: list[dict[str, Any]] | None = None,
     report_pages: dict[str, list[dict[str, Any]]] | None = None,
+    hierarchies: Iterable[Mapping[str, Any]] = (),
     reports_included: bool = True,
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
@@ -1527,6 +1626,11 @@ def build_analysis(
             item.column.column.casefold(),
         )
     )
+    hierarchy_analyses = build_hierarchy_analyses(
+        rows,
+        hierarchies,
+        coverage_complete=coverage_complete,
+    )
     return AnalysisResult(
         dataset_id=dataset_id,
         dataset_name=dataset_name,
@@ -1548,6 +1652,7 @@ def build_analysis(
         report_app=report_app,
         unresolved=list(unresolved or []),
         measures=measures,
+        hierarchies=hierarchy_analyses,
         messages=list(messages or []),
         relationships=list(relationships or []),
         m_queries=list(m_queries or []),
@@ -2364,8 +2469,10 @@ def analyze_dataset(
             m_queries=m_rows,
             roles=list(metadata.get("roles") or []),
             report_pages=page_rows,
+            hierarchies=list(metadata.get("hierarchies") or []),
             reports_included=include_reports,
         )
+        save_hierarchies(conn, dataset_id, result.hierarchies)
         save_run(
             conn,
             {
@@ -2423,6 +2530,7 @@ def model_snapshot(
         "tables": [
             {
                 "table": table.table,
+                "table_id": table.table_id,
                 "column_count": table.column_count,
                 "rows": table.rows,
                 "size_data_bytes": table.size_data_bytes,
@@ -2511,6 +2619,7 @@ def snapshot_from_connection(
     tables = [
         TableStat(
             table=str(item.get("table") or ""),
+            table_id=int(item.get("table_id") or 0),
             column_count=int(item.get("column_count") or 0),
             rows=int(item.get("rows") or 0),
             size_data_bytes=int(item.get("size_data_bytes") or 0),
@@ -2561,6 +2670,7 @@ def snapshot_from_connection(
         MeasureStat(
             table=str(row.get("table_name") or ""),
             measure=str(row.get("measure_name") or ""),
+            measure_id=int(row.get("measure_id") or 0),
             data_type=str(row.get("data_type") or ""),
             format_string=str(row.get("format_string") or ""),
             display_folder=str(row.get("display_folder") or ""),
@@ -2630,6 +2740,7 @@ def snapshot_from_connection(
         analyzed_at=str(run.get("finished_at") or ""),
         relationships=relationships,
         m_queries=stored_m_queries(conn, dataset_id),
+        hierarchies=stored_hierarchies(conn, dataset_id),
         reports_included=reports_included,
     )
     return result

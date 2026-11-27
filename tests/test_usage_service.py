@@ -40,6 +40,7 @@ from core.usage_service import (
     ScanCounters,
     analyze_dataset,
     build_analysis,
+    build_hierarchy_analyses,
     coverage_text,
     discover_reports,
     format_bytes,
@@ -1110,6 +1111,62 @@ class MeasureAnalysisTests(unittest.TestCase):
         )
 
         self.assertEqual(result.measures[0].report_count, 0)
+
+    def test_hierarchy_levels_are_grouped_per_visual(self) -> None:
+        rows = [
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v1",
+                "usage_kind": "field",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Year",
+            },
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v1",
+                "usage_kind": "field",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Month",
+            },
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v2",
+                "usage_kind": "field",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Day",
+            },
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v1",
+                "usage_kind": "sort",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Month",
+            },
+        ]
+        result = build_hierarchy_analyses(
+            rows,
+            [
+                {
+                    "table": "Dim",
+                    "hierarchy": "Calendar",
+                    "levels": "Year > Month",
+                    "level_count": 2,
+                }
+            ],
+            coverage_complete=True,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].use_count, 2)
+        self.assertEqual(result[0].status, STATUS_USED)
 
     def test_measure_rows_for_gui(self) -> None:
         result = self.analyse([measure_usage("Total")])

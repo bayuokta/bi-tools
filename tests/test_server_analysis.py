@@ -237,6 +237,43 @@ class AnalysisPresenterTests(unittest.TestCase):
         use_user(self.store)
         self.store.set_lineage_db(self.root / "katalog.db")
 
+    def test_hierarchy_row_payload(self) -> None:
+        analysis = SimpleNamespace(
+            name="Calendar",
+            table="Dim Customer",
+            status="Dipakai",
+            reason="",
+            use_count=1,
+            report_count=1,
+            hierarchy={
+                "display_folder": "",
+                "is_hidden": False,
+                "levels": "Year > Month",
+            },
+            report_records=[
+                {
+                    "usage_kind": "field",
+                    "report_id": "r1",
+                    "report_name": "Report Uji",
+                    "workspace_id": WORKSPACE,
+                    "page_name": "Halaman 1",
+                    "visual_id": "v1",
+                    "visual_type": "lineChart",
+                    "visual_title": "Trend",
+                    "detail": "Category",
+                    "is_hidden": False,
+                }
+            ],
+        )
+        row = presenter._hierarchy_row(analysis)
+
+        self.assertEqual(row["type"], "Hierarchy")
+        self.assertEqual(row["name"], "Calendar")
+        self.assertEqual(row["uses"], 1)
+        self.assertEqual(row["size"], "0 B")
+        self.assertEqual(row["children"][0]["label"], "Used in visuals")
+        self.assertEqual(row["children"][0]["rows"][0]["name"], "Trend")
+
     def test_serialize_result(self) -> None:
         data = presenter.serialize_result(fake_result())
         self.assertEqual(data["dataset"]["name"], "Model Uji")
@@ -415,18 +452,44 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertIn("Belum ada hasil analisa", str(ctx.exception))
         self.assertIn("tidak disimpan", str(ctx.exception))
 
-    def test_export_writes_workbook(self) -> None:
+    def test_export_writes_result_template(self) -> None:
         target = self.root / "hasil.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(presenter, "snapshot_from_connection", return_value=fake_result()), patch.object(
+            presenter, "write_result_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "all"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+        with self.assertRaises(ExtractionError):
+            presenter.export({"dataset_id": DATASET, "output": "relatif.xlsx"}, self.store)
+
+    def test_export_full_workbook_option(self) -> None:
+        target = self.root / "semua.xlsx"
         target.write_bytes(b"xlsx")
         presenter._session(DATASET)
         with patch.object(presenter, "snapshot_from_connection", return_value=fake_result()), patch.object(
             presenter, "write_workbook", return_value=target
         ) as write:
-            data = presenter.export({"dataset_id": DATASET, "output": str(target)}, self.store)
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "full"},
+                self.store,
+            )
         self.assertEqual(data["path"], str(target))
         write.assert_called_once()
-        with self.assertRaises(ExtractionError):
-            presenter.export({"dataset_id": DATASET, "output": "relatif.xlsx"}, self.store)
+
+    def test_export_other_tab_is_coming_soon(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ):
+            with self.assertRaises(ExtractionError) as ctx:
+                presenter.export({"dataset_id": DATASET, "tab": "tables"}, self.store)
+        self.assertIn("belum tersedia", str(ctx.exception))
 
     def test_snapshot_payload_reads_session(self) -> None:
         presenter._session(DATASET)

@@ -53,6 +53,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   filters**, **Used in Power Query**, **Used as default label**, **Used in
   calculated tables**, dan **Used in hierarchy** (sebelumnya hanya sebagian
   yang tampil).
+- Ekspor halaman Analisa kini **per tab**: tab All results menulis template Measure
+  Killer (25 kolom, satu baris per pemakaian), tab lain *coming soon*, dan workbook
+  lama tetap tersedia lewat `tab=full`.
+- Hierarchy eksplisit dibaca sebagai objek sendiri (Type `Hierarchy`, `Uses` dari
+  visual/filter levelnya) dan ikut diekspor; level auto date/time tetap dihitung
+  pada kolom basis.
 - Pemakaian filter dihitung per **filter object** (dua filter pada satu visual tetap
   terhitung), formatting hanya dibuang bila field yang sama dipakai di visual yang
   sama, dan calculated column `[Kolom]` tanpa nama tabel diresolusi ke tabelnya.

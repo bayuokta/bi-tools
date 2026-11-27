@@ -301,6 +301,7 @@ class TableStat:
     data_category: str = ""
     description: str = ""
     is_calculated_table: bool = False
+    table_id: int = 0
 
     @property
     def size_total_bytes(self) -> int:
@@ -324,6 +325,7 @@ class MeasureStat:
     expression: str = ""
     error_message: str = ""
     description: str = ""
+    measure_id: int = 0
 
     @property
     def key(self) -> tuple[str, str]:
@@ -441,6 +443,7 @@ def build_model_stats(
         table_stats.append(
             TableStat(
                 table=name,
+                table_id=int(row.get("table_id") or 0),
                 column_count=len(ids),
                 rows=table_rows(sizes, ids),
                 size_data_bytes=sum(sizes.data(column_id) for column_id in ids),
@@ -473,6 +476,7 @@ def build_model_stats(
             MeasureStat(
                 table=str(row.get("table") or ""),
                 measure=str(row.get("measure") or ""),
+                measure_id=int(row.get("measure_id") or 0),
                 data_type=str(row.get("data_type") or ""),
                 format_string=str(row.get("format_string") or ""),
                 display_folder=str(row.get("display_folder") or ""),

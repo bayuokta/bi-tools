@@ -107,10 +107,17 @@ CREATE INDEX IF NOT EXISTS ix_usage_unresolved_dataset
   ON usage_unresolved(dataset_id);
 CREATE TABLE IF NOT EXISTS usage_measure (
   dataset_id TEXT, table_name TEXT, measure_name TEXT,
+  measure_id INTEGER DEFAULT 0,
   data_type TEXT, format_string TEXT, display_folder TEXT,
   is_hidden INTEGER DEFAULT 0, expression TEXT, error_message TEXT,
   description TEXT, refs_json TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, measure_name)
+);
+CREATE TABLE IF NOT EXISTS usage_hierarchy (
+  dataset_id TEXT, table_name TEXT, hierarchy_name TEXT,
+  is_hidden INTEGER DEFAULT 0, display_folder TEXT,
+  levels TEXT, level_count INTEGER DEFAULT 0, analyzed_at TEXT,
+  PRIMARY KEY (dataset_id, table_name, hierarchy_name)
 );
 CREATE TABLE IF NOT EXISTS usage_m_query (
   dataset_id TEXT, name TEXT, kind TEXT, source TEXT,
@@ -152,6 +159,7 @@ MIGRATIONS = {
     },
     "usage_measure": {
         "description": "TEXT",
+        "measure_id": "INTEGER DEFAULT 0",
     },
     "usage_model_ref": {
         "depth": "INTEGER DEFAULT 1",
@@ -735,6 +743,7 @@ def save_measures(
                 dataset_id,
                 measure.table,
                 measure.measure,
+                int(getattr(measure, "measure_id", 0) or 0),
                 measure.data_type,
                 measure.format_string,
                 measure.display_folder,
@@ -751,14 +760,73 @@ def save_measures(
         conn.executemany(
             """
             INSERT OR REPLACE INTO usage_measure (
-              dataset_id, table_name, measure_name, data_type, format_string,
-              display_folder, is_hidden, expression, error_message, description,
-              refs_json, analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              dataset_id, table_name, measure_name, measure_id, data_type,
+              format_string, display_folder, is_hidden, expression,
+              error_message, description, refs_json, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )
     conn.commit()
+
+
+def save_hierarchies(
+    conn: sqlite3.Connection,
+    dataset_id: str,
+    hierarchies: Iterable[Any],
+    *,
+    analyzed_at: str | None = None,
+) -> None:
+    """Simpan definisi hierarchy (objek + level) untuk snapshot/ekspor."""
+    stamp = analyzed_at or utc_now()
+    payload = []
+    for item in hierarchies:
+        definition = getattr(item, "hierarchy", None)
+        if not isinstance(definition, Mapping):
+            definition = item if isinstance(item, Mapping) else {}
+        payload.append(
+            (
+                dataset_id,
+                str(definition.get("table") or ""),
+                str(definition.get("hierarchy") or ""),
+                1 if definition.get("is_hidden") else 0,
+                str(definition.get("display_folder") or ""),
+                str(definition.get("levels") or ""),
+                int(definition.get("level_count") or 0),
+                stamp,
+            )
+        )
+    conn.execute("DELETE FROM usage_hierarchy WHERE dataset_id = ?", (dataset_id,))
+    if payload:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO usage_hierarchy (
+              dataset_id, table_name, hierarchy_name, is_hidden,
+              display_folder, levels, level_count, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            payload,
+        )
+    conn.commit()
+
+
+def hierarchies(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM usage_hierarchy WHERE dataset_id = ? "
+        "ORDER BY table_name, hierarchy_name",
+        (dataset_id,),
+    ).fetchall()
+    return [
+        {
+            "table": str(row["table_name"] or ""),
+            "hierarchy": str(row["hierarchy_name"] or ""),
+            "is_hidden": bool(row["is_hidden"]),
+            "display_folder": str(row["display_folder"] or ""),
+            "levels": str(row["levels"] or ""),
+            "level_count": int(row["level_count"] or 0),
+        }
+        for row in rows
+    ]
 
 
 def measures(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]:

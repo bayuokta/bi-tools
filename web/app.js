@@ -1150,7 +1150,7 @@ var NEWLINE = String.fromCharCode(10);
     });
     $("#typeAnalyze").addEventListener("change", function () {
       var value = getSelectValue("typeAnalyze") || "all";
-      if (["all", "columns", "measures"].includes(value)) {
+      if (["all", "columns", "measures", "hierarchies"].includes(value)) {
         state.analysisObjectFilter = value;
         analysisSavePrefs();
       }
@@ -1457,6 +1457,7 @@ var NEWLINE = String.fromCharCode(10);
     $("#analyzeBody").addEventListener("contextmenu", function (event) {
       var row = event.target.closest("tr[data-item-kind]");
       if (!row) return;
+      if (row.getAttribute("data-item-kind") === "hierarchy") return;
       event.preventDefault();
       state.analysisMenuFocus = row;
       analysisOpenMenu(analysisRowTarget(row), {
@@ -1470,6 +1471,7 @@ var NEWLINE = String.fromCharCode(10);
       if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
         var menuRow = event.target.closest("tr[data-item-kind]");
         if (!menuRow) return;
+        if (menuRow.getAttribute("data-item-kind") === "hierarchy") return;
         event.preventDefault();
         var rowRect = menuRow.getBoundingClientRect();
         state.analysisMenuFocus = menuRow;

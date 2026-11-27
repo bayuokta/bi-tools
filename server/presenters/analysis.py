@@ -55,13 +55,14 @@ from core.raw_metadata import (
     find_row,
     metadata_payload,
 )
+from core.result_export import write_result_export
 
 from .. import settings as keys
 from ..settings_store import SettingsStore
 from .service_picker import workspace_picklist
 from . import metadata as metadata_presenter
 
-OBJECT_FILTERS = ("all", "columns", "measures")
+OBJECT_FILTERS = ("all", "columns", "measures", "hierarchies")
 SORT_KEYS = (
     "default",
     "name",
@@ -919,6 +920,112 @@ def _measure_row(
     }
 
 
+def _hierarchy_groups(analysis: Any) -> list[dict[str, Any]]:
+    """Grup pemakaian untuk objek hierarchy (visual + filter)."""
+    records = [_record_payload(record) for record in (analysis.report_records or [])]
+    groups: dict[str, list[dict[str, Any]]] = {key: [] for key in GROUP_ORDER}
+    for record in records:
+        kind = record["usage_kind"]
+        if kind in {"field", "format", "calculation"}:
+            groups[GROUP_VISUALS].append(
+                _child(
+                    record["visual_title"] or record["visual_type"] or "(visual)",
+                    "page",
+                    {
+                        1: record["visual_type"],
+                        2: record["page_name"],
+                        3: record["report_name"],
+                        10: record["detail"],
+                    },
+                    record["url"],
+                )
+            )
+        elif kind == "filter-visual":
+            groups[GROUP_VISUAL_FILTERS].append(
+                _child(
+                    record["visual_title"] or record["visual_type"] or "(visual)",
+                    "filter",
+                    {
+                        1: record["visual_type"],
+                        2: record["page_name"],
+                        3: record["report_name"],
+                        10: record["detail"],
+                    },
+                    record["url"],
+                )
+            )
+        elif kind == "filter-page":
+            groups[GROUP_PAGE_FILTERS].append(
+                _child(
+                    analysis.name,
+                    "filter",
+                    {
+                        1: _filter_type(record["detail"])
+                        or USAGE_LABELS["filter-page"],
+                        2: record["page_name"],
+                        3: record["report_name"],
+                    },
+                    record["url"],
+                )
+            )
+        elif kind == "filter-report":
+            groups[GROUP_REPORT_FILTERS].append(
+                _child(
+                    record["report_name"] or "(report)",
+                    "filter",
+                    {
+                        1: "Filter report",
+                        3: record["report_name"],
+                        10: record["detail"],
+                    },
+                    record["url"],
+                )
+            )
+    return [
+        {
+            "label": key,
+            "icon": GROUP_ICONS[key],
+            "count": len(groups[key]),
+            "columns": [
+                {"index": index, "label": label}
+                for index, label in GROUP_COLUMNS[key]
+            ],
+            "rows": groups[key],
+        }
+        for key in GROUP_ORDER
+        if groups[key]
+    ]
+
+
+def _hierarchy_row(analysis: Any) -> dict[str, Any]:
+    definition = getattr(analysis, "hierarchy", {}) or {}
+    return {
+        "name": str(getattr(analysis, "name", "")),
+        "type": "Hierarchy",
+        "table": str(getattr(analysis, "table", "")),
+        "source": "Model",
+        "data_type": "",
+        "size": "0 B",
+        "size_bytes": 0,
+        "status": str(analysis.status or ""),
+        "uses": int(getattr(analysis, "use_count", 0) or 0),
+        "direct_refs": 0,
+        "transitive_refs": 0,
+        "reports": int(getattr(analysis, "report_count", 0) or 0),
+        "format_string": "",
+        "has_error": False,
+        "display_folder": str(definition.get("display_folder") or ""),
+        "is_hidden": bool(definition.get("is_hidden")),
+        "is_calculated": False,
+        "reason": str(analysis.reason or ""),
+        "rows": 0,
+        "size_breakdown": {"data": 0, "hierarchy": 0, "dictionary": 0},
+        "expression": "",
+        "levels": str(definition.get("levels") or ""),
+        "children": _hierarchy_groups(analysis),
+    }
+
+
 def _table_rows(result: Any) -> list[dict[str, Any]]:
     """Ringkasan per tabel (dipakai tab Tables dan graph relasi)."""
     columns_by_table: dict[str, list[Any]] = {}
@@ -1081,6 +1188,10 @@ def serialize_result(
     measure_rows = [
         _measure_row(measure, with_children=False) for measure in result.measures
     ]
+    hierarchy_rows = [
+        _hierarchy_row(hierarchy)
+        for hierarchy in (getattr(result, "hierarchies", []) or [])
+    ]
     child_context["columns"] = {
         (row["table"].casefold(), row["name"].casefold()): row
         for row in column_rows
@@ -1112,6 +1223,7 @@ def serialize_result(
             "dictionary_bytes": int(stats.dictionary_bytes),
             "columns": len(result.columns),
             "measures": len(result.measures),
+            "hierarchies": len(hierarchy_rows),
             "unused_columns": len(result.unused),
             "unused_measures": len(result.unused_measures),
             "unused_bytes": unused_bytes,
@@ -1135,6 +1247,7 @@ def serialize_result(
         },
         "columns": column_rows,
         "measures": measure_rows,
+        "hierarchies": hierarchy_rows,
         "reports": reports,
         "health": health,
         "best_practice": build_best_practice(result),
@@ -1537,6 +1650,7 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not dataset_id:
         raise ExtractionError("Semantic model belum dipilih.")
+    tab = str(payload.get("tab") or "all").strip().lower() or "all"
     session = _session(dataset_id, create=False)
     if session is None:
         raise ExtractionError(
@@ -1556,10 +1670,34 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         if not target.is_absolute():
             raise ExtractionError("Path ekspor harus absolut.")
     else:
-        target = outputs_dir() / output_file_name(
-            result.dataset_name, result.dataset_id
+        suffix = dataset_id.replace("-", "")[:8]
+        safe = re.sub(r'[<>:"/\\|?*]+', " ", str(result.dataset_name or ""))
+        safe = re.sub(r"\s+", " ", safe).strip() or "Semantic Model"
+        if tab in {"all", "result"}:
+            target = outputs_dir() / f"Result_{safe}_{suffix}.xlsx"
+        else:
+            target = outputs_dir() / output_file_name(
+                result.dataset_name, result.dataset_id
+            )
+    if tab in {"all", "result"}:
+        write_result_export(result, target)
+    elif tab in {"full", "workbook"}:
+        write_workbook(result, target)
+    elif tab in {
+        "tables",
+        "relationships",
+        "roles",
+        "report",
+        "dax",
+        "m",
+        "health",
+        "bestpractice",
+    }:
+        raise ExtractionError(
+            "Export untuk tab ini belum tersedia (coming soon)."
         )
-    write_workbook(result, target)
+    else:
+        raise ExtractionError(f"Tab export tidak dikenal: {tab}")
     return {
         "path": str(target),
         "size": target.stat().st_size if target.exists() else 0,

@@ -378,7 +378,7 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("/api/partitions/inventory", js)
         self.assertIn("/api/partitions/refresh", js)
         self.assertIn('confirmation: "PROCESS"', js)
-        self.assertIn('item.kind !== "measure"', js)
+        self.assertIn('item.kind === "column"', js)
 
     def test_partition_core_has_no_terminal_calls(self) -> None:
         for name in ("tom_client.py", "partition_service.py"):

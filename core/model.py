@@ -534,6 +534,7 @@ def build_tables(model: LiveModel) -> list[dict[str, Any]]:
         rows.append(
             {
                 "table": table["Name"],
+                "table_id": table_id,
                 "is_hidden": bool(table.get("IsHidden")),
                 "storage_mode": ", ".join(sorted(mode for mode in modes if mode)),
                 "partition_count": len(partitions),
@@ -638,6 +639,7 @@ def build_measures(model: LiveModel) -> list[dict[str, Any]]:
             {
                 "table": model.table_name.get(int(measure["TableID"]), ""),
                 "measure": str(measure["Name"]),
+                "measure_id": measure_id,
                 "data_type": label(
                     measure.get("DataType"), DATA_TYPE, "dataType"
                 ),
@@ -756,6 +758,7 @@ def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
         rows.append(
             {
                 "name": name,
+                "id": int(row["ID"]),
                 "is_auto": relationship_is_auto(name),
                 "from_table": from_table,
                 "from_column": from_column,
@@ -788,6 +791,7 @@ def read_model_metadata(model: LiveModel) -> dict[str, list[dict[str, Any]]]:
         "partitions": build_partitions(model),
         "expressions": build_expressions(model),
         "roles": build_role_details(model),
+        "hierarchies": build_hierarchies(model),
     }
 
 

@@ -182,7 +182,7 @@ import { state } from "../core/state.js";
   var ANALYSIS_TABS = {
     all: {
       placeholder: t("Column, measure, or table name"),
-      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"]],
+      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"], ["hierarchies", t("Hierarchies")]],
       unused: true,
       expandable: true
     },
@@ -337,7 +337,7 @@ import { state } from "../core/state.js";
   export function analysisSavePrefs() {
     if (!app.apiReady()) return Promise.resolve(null);
     return app.api().post("/api/analysis/preferences", {
-      object_filter: ["all", "columns", "measures"].includes(state.analysisObjectFilter)
+      object_filter: ["all", "columns", "measures", "hierarchies"].includes(state.analysisObjectFilter)
         ? state.analysisObjectFilter : "all",
       unused_only: $("#unusedOnly").checked,
       include_reports: $("#includeReports").checked,
@@ -478,6 +478,19 @@ import { state } from "../core/state.js";
     analysisRender();
   }
 
+  function analysisExportState() {
+    var button = $("#exportXlsx");
+    if (!button) return;
+    var canExport = state.analysisTab === "all";
+    button.disabled = !state.analysis || !canExport;
+    button.textContent = t(canExport ? "Export Result" : "Export (coming soon)");
+    button.title = canExport ? t("Export Result") : t("Coming soon");
+    button.setAttribute(
+      "aria-disabled",
+      state.analysis && canExport ? "false" : "true"
+    );
+  }
+
   function analysisApplyTabTools(name, reset) {
     var config = analysisTabConfig(name);
     $("#searchAnalyze").placeholder = config.placeholder;
@@ -488,6 +501,7 @@ import { state } from "../core/state.js";
     $("#relViewSwitch").hidden = name !== "relationships";
     $("#healthRulesInfo").hidden = name !== "health";
     $("#bpRulesInfo").hidden = name !== "bestpractice";
+    analysisExportState();
     if (name === "relationships") analysisSyncRelView();
     var options = config.filters.map(function (pair) {
       return { value: pair[0], label: pair[1] };
@@ -515,7 +529,7 @@ import { state } from "../core/state.js";
     };
     if (!result) return counts;
     var totals = result.totals || {};
-    counts.all = (totals.columns || 0) + (totals.measures || 0);
+    counts.all = (totals.columns || 0) + (totals.measures || 0) + (totals.hierarchies || 0);
     counts.tables = (result.tables || []).length;
     counts.relationships = (result.relationships || []).length;
     counts.roles = (result.roles || []).length;
@@ -3164,10 +3178,11 @@ import { state } from "../core/state.js";
   function analysisItemMatches(item, kind, query, type, unusedOnly) {
     if (type === "columns" && kind !== "column") return false;
     if (type === "measures" && kind !== "measure") return false;
+    if (type === "hierarchies" && kind !== "hierarchy") return false;
     if (unusedOnly && item.status !== "Tidak dipakai") return false;
     if (!query) return true;
     return [item.name, item.table, item.data_type, item.status, item.reason,
-      item.expression, kind].join(" ").toLowerCase().indexOf(query) !== -1;
+      item.expression, item.levels, kind].join(" ").toLowerCase().indexOf(query) !== -1;
   }
 
   function analysisTreeGroups() {
@@ -3250,32 +3265,37 @@ import { state } from "../core/state.js";
     (result.measures || []).forEach(function (measure) {
       items.push({ kind: "measure", data: measure });
     });
+    (result.hierarchies || []).forEach(function (hierarchy) {
+      items.push({ kind: "hierarchy", data: hierarchy });
+    });
     items = items.filter(function (item) {
       return analysisItemMatches(item.data, item.kind, query, type, unusedOnly);
+    });
+    var kindByData = new Map();
+    items.forEach(function (item) {
+      kindByData.set(item.data, item.kind);
     });
     if (state.analysisSort && state.analysisSort !== "default") {
       return analysisSortItems(items.map(function (item) {
         return item.data;
       })).map(function (data) {
-        return {
-          kind: items.some(function (item) {
-            return item.kind === "measure" && item.data === data;
-          }) ? "measure" : "column",
-          data: data
-        };
+        return { kind: kindByData.get(data) || "column", data: data };
       });
     }
     var tableOrder = {};
     (result.tables || []).forEach(function (table, index) {
       tableOrder[table.name] = index;
     });
+    var kindOrder = { column: 0, hierarchy: 1, measure: 2 };
     return items.slice().sort(function (left, right) {
       var a = tableOrder[left.data.table];
       var b = tableOrder[right.data.table];
       if (a == null) a = 9999;
       if (b == null) b = 9999;
       if (a !== b) return a - b;
-      if (left.kind !== right.kind) return left.kind === "column" ? -1 : 1;
+      if (left.kind !== right.kind) {
+        return (kindOrder[left.kind] || 0) - (kindOrder[right.kind] || 0);
+      }
       return 0;
     });
   }
@@ -3287,12 +3307,14 @@ import { state } from "../core/state.js";
     var unused = 0;
     var columnCount = 0;
     var measureCount = 0;
+    var hierarchyCount = 0;
     items.forEach(function (item) {
       if (item.kind === "measure") measureCount += 1;
+      else if (item.kind === "hierarchy") hierarchyCount += 1;
       else columnCount += 1;
       var data = item.data;
       var id = "item:" + item.kind + ":" + data.table + ":" + data.name;
-      var showExpression = item.kind !== "measure" && Boolean(data.expression);
+      var showExpression = item.kind === "column" && Boolean(data.expression);
       var expandable = showExpression || (data.children || []).length > 0;
       var open = expandable && analysisIsOpen(id, false, true);
       if (data.status === "Tidak dipakai") unused += 1;
@@ -3302,14 +3324,18 @@ import { state } from "../core/state.js";
         itemRow: true,
         item: { kind: item.kind, table: data.table || "", name: data.name || "" },
         cells: [
-          analysisNameCell(data.name, item.kind === "measure" ? "measure" : "column", {
-            level: 0, toggleId: expandable ? id : "", open: open, menu: true
+          analysisNameCell(data.name, item.kind === "measure" ? "measure"
+            : (item.kind === "hierarchy" ? "group" : "column"), {
+            level: 0, toggleId: expandable ? id : "", open: open,
+            menu: item.kind !== "hierarchy"
           }),
           item.kind === "measure"
             ? t("Measure")
-            : (data.type === "Field parameter"
-              ? t("Field parameter")
-              : t("Column")),
+            : (item.kind === "hierarchy"
+              ? t("Hierarchy")
+              : (data.type === "Field parameter"
+                ? t("Field parameter")
+                : t("Column"))),
           escapeHtml(data.table || "—"),
           "Model",
           escapeHtml(data.data_type || "—"),
@@ -3332,7 +3358,8 @@ import { state } from "../core/state.js";
       widths: ["24%", "7%", "9%", "6%", "7%", "7%", "13%", "7%", "8%", "5%", "7%"],
       rows: rows,
       summary: (state.analysisNote ? state.analysisNote + " " : "") + items.length +
-        t(" items · ") + columnCount + t(" columns · ") + measureCount + t(" measures · ") +
+        t(" items · ") + columnCount + t(" columns · ") + hierarchyCount +
+        t(" hierarchies · ") + measureCount + t(" measures · ") +
         unused + t(" unused") + analysisCoverageSuffix(result)
     };
   }
@@ -4854,7 +4881,7 @@ import { state } from "../core/state.js";
       tab.setAttribute("aria-selected", active ? "true" : "false");
       tab.tabIndex = active ? 0 : -1;
     });
-    $("#exportXlsx").disabled = !result;
+    analysisExportState();
     var tableWrap = $("#analyzeTableWrap");
     var graph = $("#relGraph");
     var empty = $("#analyzeEmpty");
@@ -5447,8 +5474,14 @@ import { state } from "../core/state.js";
       app.toast(t("Choose a semantic model first"));
       return;
     }
+    var tab = state.analysisTab || "all";
+    if (tab !== "all") {
+      app.toast(t("Coming soon"));
+      return;
+    }
     app.api().post("/api/analysis/export", {
-      dataset_id: getSelectValue("modelSelect")
+      dataset_id: getSelectValue("modelSelect"),
+      tab: "all"
     }).then(function (data) {
       app.toast(t("Export: ") + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
