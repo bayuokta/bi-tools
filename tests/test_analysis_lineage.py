@@ -2010,5 +2010,126 @@ class MQueryPatternFixtureTests(unittest.TestCase):
                 )
 
 
+class LayoutOptimizationTests(unittest.TestCase):
+    """Tata letak: lebar adaptif, rantai M sejajar tabel, datasource sejajar target."""
+
+    def test_card_width_follows_label_length(self) -> None:
+        short = build_lineage(
+            make_result(columns=[column_analysis("Sales", "Qty")]),
+            kind="column",
+            table="Sales",
+            name="Qty",
+        )
+        long_label = "Quantity Standard Average Per Dealer Region"
+        long = build_lineage(
+            make_result(columns=[column_analysis("Sales", long_label)]),
+            kind="column",
+            table="Sales",
+            name=long_label,
+        )
+        short_node = next(
+            node
+            for node in short["nodes"]
+            if node["kind"] == "column" and node["label"] == "Qty"
+        )
+        long_node = next(
+            node
+            for node in long["nodes"]
+            if node["kind"] == "column" and node["label"] == long_label
+        )
+        self.assertGreater(long_node["w"], short_node["w"])
+        self.assertLessEqual(long_node["w"], 320)
+        self.assertGreaterEqual(short_node["w"], 170)
+
+    def test_mquery_group_centered_on_its_table_card(self) -> None:
+        from core.analysis_lineage import (
+            GROUP_HEAD,
+            NODE_H,
+            _layout_container,
+        )
+
+        model_group = {
+            "id": "model",
+            "kind": "model",
+            "label": "Model dependencies",
+            "label_key": "",
+            "sub": "",
+            "sub_key": "",
+            "nodes": [
+                {"id": "table:Sales", "kind": "table", "label": "Sales", "_y": 40}
+            ],
+            "head": None,
+            "w": 230,
+            "h": 200,
+        }
+        mquery_group = {
+            "id": "mquery:Sales",
+            "kind": "mquery",
+            "label": "Sales",
+            "label_key": "",
+            "sub": "",
+            "sub_key": "",
+            "nodes": [],
+            "head": None,
+            "w": 240,
+            "h": 90,
+        }
+        container = {
+            "id": "artifact:model",
+            "kind": "model",
+            "label": "Model",
+            "label_key": "",
+            "sub": "",
+            "sub_key": "",
+            "groups": {"model": model_group, "mquery:Sales": mquery_group},
+            "loose": [],
+            "head": None,
+        }
+        _layout_container(container)
+        table_center = (
+            model_group["_gy"] + GROUP_HEAD + 40 + NODE_H / 2
+        )
+        mquery_center = mquery_group["_gy"] + mquery_group["h"] / 2
+        self.assertLessEqual(abs(table_center - mquery_center), 2)
+
+    def test_datasource_centered_on_its_target(self) -> None:
+        expression = """
+let
+    Source = Sql.Database("server", "db"),
+    dbo_Sales = Source{[Schema="dbo", Item="Sales"]}[Data],
+    #"Removed Other Columns" = Table.SelectColumns(dbo_Sales, {"Amount"}),
+    #"Renamed Columns" = Table.RenameColumns(#"Removed Other Columns", {{"Amount", "Total Amount"}})
+in
+    #"Renamed Columns"
+"""
+        column = column_analysis("Sales", "Total Amount")
+        result = make_result(
+            columns=[column],
+            m_queries=[
+                {
+                    "name": "Sales",
+                    "kind": "Tabel",
+                    "source": "Import",
+                    "expression": expression,
+                }
+            ],
+        )
+        data = build_lineage(
+            result, kind="column", table="Sales", name="Total Amount"
+        )
+        datasource = next(
+            node for node in data["nodes"] if node["kind"] == "datasource"
+        )
+        first_step = next(node for node in data["nodes"] if node["kind"] == "mstep")
+        source_artifact = next(
+            artifact
+            for artifact in data["artifacts"]
+            if artifact["id"] == datasource["container_id"]
+        )
+        source_center = source_artifact["y"] + source_artifact["h"] / 2
+        step_center = first_step["y"] + first_step["h"] / 2
+        self.assertLessEqual(abs(source_center - step_center), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

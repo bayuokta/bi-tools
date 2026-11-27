@@ -1314,9 +1314,10 @@ import { state } from "../core/state.js";
       var step = Number(node.step) > 0
         ? String(Number(node.step)).padStart(2, "0")
         : "";
-      var title = analysisLineageSvgClip(text.title, 28);
-      var detail = analysisLineageSvgClip(text.sub, 40);
-      var note = analysisLineageSvgClip(text.note, 40);
+      var titleChars = Math.max(18, Math.floor((Number(node.w) || 230) / 7.6));
+      var title = analysisLineageSvgClip(text.title, titleChars);
+      var detail = analysisLineageSvgClip(text.sub, titleChars + 10);
+      var note = analysisLineageSvgClip(text.note, titleChars + 10);
       return '<g transform="translate(' + node.x + ',' + node.y + ')">' +
         '<rect width="' + node.w + '" height="' + node.h +
         '" rx="8" fill="' + palette.surface + '" stroke="' + stroke +
@@ -2212,6 +2213,22 @@ import { state } from "../core/state.js";
     analysisLineageRenderM(graph.m_lineage);
     analysisLineageFocusSeed();
     analysisLineageApplyView();
+    analysisLineageAutoFit();
+  }
+
+  function analysisLineageAutoFit() {
+    if (state.analysisLineageView !== "graph") return;
+    var graph = state.analysisLineage;
+    var wrap = $("#analysisLineageCanvasWrap");
+    if (!graph || !wrap) return;
+    var width = Number(graph.width) || 0;
+    var height = Number(graph.height) || 0;
+    if (
+      width > Math.max(240, wrap.clientWidth - 32) ||
+      height > Math.max(160, wrap.clientHeight - 32)
+    ) {
+      analysisLineageFit();
+    }
   }
 
   function analysisLineageRenderM(meta) {

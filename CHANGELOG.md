@@ -41,6 +41,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Blok **Expression** di Measure/Column details, DAX expression, dan Table
   details punya ikon copy di kanan atas, sama seperti baris kode di tab
   DAX Expressions dan M queries.
+- **View column lineage graph** dirapikan: lebar kartu mengikuti panjang label
+  (170–320 px), rantai M sejajar dengan kartu tabel yang dibangunnya, tinggi
+  artifact mengikuti isi nyata (tanpa ruang kosong besar), datasource sejajar
+  dengan kartu tujuannya, halaman report diurutkan mengikuti baris model yang
+  dirujuk, dan urutan layer memakai transpose untuk menekan persilangan edge.
+  Graph otomatis **Fit** saat canvas lebih besar dari viewport.
 
 ## 2026-11-26 - Rilis 0.9.1
 

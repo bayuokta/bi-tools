@@ -483,6 +483,15 @@ def _group_edges(
     return outgoing, incoming
 
 
+def _node_width(node: dict[str, Any]) -> int:
+    """Lebar kartu mengikuti panjang label (170..320 px)."""
+    kind = str(node.get("kind") or "")
+    text = str(node.get("detail") or "") if kind == "mstep" else ""
+    if not text:
+        text = str(node.get("label") or "")
+    return int(max(170, min(320, 8.2 * len(text) + 40)))
+
+
 def _layout_tree(group: dict[str, Any], graph: _Graph) -> None:
     """Tidy tree/layered DAG: parent di tengah anak-anaknya."""
     nodes = list(group["nodes"])
@@ -513,7 +522,7 @@ def _layout_tree(group: dict[str, Any], graph: _Graph) -> None:
         values = [order[item] for item in neighbours if item in order]
         return sum(values) / len(values) if values else float(order[node_id])
 
-    for _pass in range(4):
+    for _pass in range(6):
         for layer in layers[1:]:
             layer.sort(
                 key=lambda node: (
@@ -532,6 +541,54 @@ def _layout_tree(group: dict[str, Any], graph: _Graph) -> None:
             )
             for index, node in enumerate(layer):
                 order[str(node["id"])] = index
+
+    def inversions(values: list[int], size: int) -> int:
+        tree = [0] * (size + 1)
+        total = 0
+        for value in reversed(values):
+            index = value + 1
+            while index > 0:
+                total += tree[index]
+                index -= index & -index
+            index = value + 1
+            while index <= size:
+                tree[index] += 1
+                index += index & -index
+        return total
+
+    def crossings(upper: list[dict[str, Any]], lower: list[dict[str, Any]]) -> int:
+        position = {str(node["id"]): index for index, node in enumerate(lower)}
+        sequence = [
+            index
+            for node in upper
+            for index in sorted(
+                position[item] for item in outgoing[str(node["id"])] if item in position
+            )
+        ]
+        return inversions(sequence, len(lower)) if sequence else 0
+
+    # Transpose: tukar dua kartu bersebelahan bila jumlah persilangan turun.
+    for _pass in range(2):
+        changed = False
+        for index, layer in enumerate(layers):
+            for left in range(len(layer) - 1):
+                before = 0
+                if index > 0:
+                    before += crossings(layers[index - 1], layer)
+                if index + 1 < len(layers):
+                    before += crossings(layer, layers[index + 1])
+                layer[left], layer[left + 1] = layer[left + 1], layer[left]
+                after = 0
+                if index > 0:
+                    after += crossings(layers[index - 1], layer)
+                if index + 1 < len(layers):
+                    after += crossings(layer, layers[index + 1])
+                if after < before:
+                    changed = True
+                else:
+                    layer[left], layer[left + 1] = layer[left + 1], layer[left]
+        if not changed:
+            break
 
     row_h = NODE_H + ROW_GAP
     y: dict[str, float] = {}
@@ -584,15 +641,25 @@ def _layout_tree(group: dict[str, Any], graph: _Graph) -> None:
         pack(layer)
 
     minimum = min(y.values(), default=0.0)
+    widths = [
+        max((_node_width(node) for node in layer), default=NODE_W)
+        for layer in layers
+    ]
+    offsets: list[int] = []
+    cursor = GROUP_PAD
+    for width in widths:
+        offsets.append(cursor)
+        cursor += width + COL_GAP
     for node in nodes:
-        node["_col"] = layer_index[int(node.get("column") or 0)]
+        index = layer_index[int(node.get("column") or 0)]
+        node["_col"] = index
+        node["_x"] = offsets[index]
+        node["_w"] = widths[index]
         node["_y"] = y[str(node["id"])] - minimum
     max_y = max(float(node["_y"]) for node in nodes)
     group["columns"] = len(layers)
     group["rows"] = int(round(max_y / row_h)) + 1
-    group["w"] = (
-        len(layers) * NODE_W + (len(layers) - 1) * COL_GAP + 2 * GROUP_PAD
-    )
+    group["w"] = cursor - COL_GAP + GROUP_PAD
     group["h"] = GROUP_HEAD + max_y + NODE_H + GROUP_PAD
     if group["kind"] == "mquery":
         # Nomor langkah mengikuti kolom rantai (kiri -> kanan).
@@ -613,11 +680,15 @@ def _layout_group_cards(group: dict[str, Any], graph: _Graph) -> None:
     if group["kind"] == "page":
         # Halaman memakai satu kolom kartu agar edge tidak melompati kolom.
         ordered = sorted(nodes, key=_node_sort_key)
+        width = max((_node_width(node) for node in ordered), default=NODE_W)
         for index, node in enumerate(ordered):
-            node["_col"], node["_y"] = 0, index * (NODE_H + ROW_GAP)
+            node["_col"], node["_x"], node["_w"] = (
+                0, 0, width
+            )
+            node["_y"] = index * (NODE_H + ROW_GAP)
         group["columns"] = 1
         group["rows"] = len(ordered)
-        group["w"] = NODE_W + 2 * GROUP_PAD
+        group["w"] = width + 2 * GROUP_PAD
         group["h"] = (
             GROUP_HEAD
             + len(ordered) * NODE_H
@@ -633,10 +704,13 @@ def _layout_container(container: dict[str, Any]) -> None:
     """Hitung ukuran artifact dan posisi grup relatif terhadap artifact."""
     kind = container["kind"]
     if kind == "datasource":
+        width = NODE_W
         for node in container["loose"]:
             node["_gx"] = ART_PAD
             node["_gy"] = ART_HEAD
-        container["w"] = NODE_W + 2 * ART_PAD
+            node["_w"] = _node_width(node)
+            width = max(width, int(node["_w"]))
+        container["w"] = width + 2 * ART_PAD
         container["h"] = ART_HEAD + NODE_H + ART_PAD
         return
 
@@ -682,35 +756,73 @@ def _layout_container(container: dict[str, Any]) -> None:
         key=lambda group: group["id"],
     )
     m_width = max((group["w"] for group in mquery_groups), default=0)
-    m_total = (
-        sum(group["h"] for group in mquery_groups)
-        + GROUP_GAP * max(0, len(mquery_groups) - 1)
-    )
     model_width = max((group["w"] for group in model_groups), default=0)
-    model_total = (
-        sum(group["h"] for group in model_groups)
-        + GROUP_GAP * max(0, len(model_groups) - 1)
-    )
-    content_height = max(m_total, model_total)
-    m_start = ART_HEAD + max(0, (content_height - m_total) // 2)
-    model_start = ART_HEAD + max(0, (content_height - model_total) // 2)
     model_x = ART_PAD + (m_width + BAND_GAP if mquery_groups else 0)
-    y = m_start
-    for group in mquery_groups:
-        group["_gx"] = ART_PAD
-        group["_gy"] = y
-        y += group["h"] + GROUP_GAP
-    y = model_start
-    for group in model_groups:
-        group["_gx"] = model_x
-        group["_gy"] = y
-        y += group["h"] + GROUP_GAP
     if not mquery_groups and not model_groups:
         container["w"] = NODE_W + 2 * ART_PAD
         container["h"] = ART_HEAD + ART_PAD
         return
+
+    y = ART_HEAD
+    for group in model_groups:
+        group["_gx"] = model_x
+        group["_gy"] = y
+        y += group["h"] + GROUP_GAP
+    model_end = y - GROUP_GAP if model_groups else ART_HEAD
+    model_total = model_end - ART_HEAD
+
+    # Posisi kartu tabel di grup model, untuk mensejajarkan rantai M tabel itu.
+    table_y: dict[str, float] = {}
+    for group in model_groups:
+        for node in group["nodes"]:
+            if str(node.get("kind") or "") != "table":
+                continue
+            key = str(node.get("label") or "").strip().casefold()
+            if key:
+                table_y[key] = float(group["_gy"]) + GROUP_HEAD + float(
+                    node.get("_y") or 0
+                )
+    single_table = next(iter(table_y.values()), None) if len(table_y) == 1 else None
+
+    placements: list[tuple[float, dict[str, Any]]] = []
+    for group in mquery_groups:
+        key = str(group.get("label") or "").strip().casefold()
+        target = table_y.get(key)
+        if target is None and single_table is not None and len(mquery_groups) == 1:
+            target = single_table
+        if target is None:
+            desired = ART_HEAD + max(0.0, (model_total - group["h"]) / 2)
+        else:
+            desired = target + NODE_H / 2 - group["h"] / 2
+        placements.append((float(desired), group))
+    placements.sort(
+        key=lambda item: (item[0], str(item[1]["label"]).casefold(), item[1]["id"])
+    )
+    cursor: float | None = None
+    for desired, group in placements:
+        top = desired if cursor is None else max(desired, cursor)
+        group["_gx"] = ART_PAD
+        group["_gy"] = int(round(top))
+        cursor = top + group["h"] + GROUP_GAP
+
+    minimum = min(
+        [float(group["_gy"]) for group in model_groups + mquery_groups],
+        default=float(ART_HEAD),
+    )
+    if minimum < ART_HEAD:
+        delta = ART_HEAD - minimum
+        for group in model_groups + mquery_groups:
+            group["_gy"] = int(group["_gy"] + delta)
+
+    content_end = max(
+        [
+            float(group["_gy"]) + group["h"]
+            for group in model_groups + mquery_groups
+        ],
+        default=float(ART_HEAD),
+    )
     container["w"] = model_x + model_width + ART_PAD
-    container["h"] = ART_HEAD + content_height + ART_PAD
+    container["h"] = int(round(content_end)) + ART_PAD
 
 
 def _canvas_edges(
@@ -1019,7 +1131,7 @@ def _layout_graph(
             container["label"] = f"{label} ({short})"
     reports.sort(key=lambda c: (c["label"].casefold(), c["id"]))
 
-    source_width = NODE_W + 2 * ART_PAD if sources else 0
+    source_width = max((c["w"] for c in sources), default=0)
     model_x = PAD + (source_width + ART_GAP if sources else 0)
     y = PAD
     for container in model_containers:
@@ -1028,29 +1140,108 @@ def _layout_graph(
         y += container["h"] + ART_GAP
     model_width = max((c["w"] for c in model_containers), default=0)
 
-    # Datasource disejajarkan dengan kartu pertama grup M (atau baris seed).
-    anchor_y = PAD + ART_HEAD + GROUP_HEAD
-    if model_containers:
-        model = model_containers[0]
-        mquery_groups = [
-            group for group in model["groups"].values()
-            if group["kind"] == "mquery"
+    # Datasource disejajarkan dengan rata-rata kartu M/kartu model yang dituju.
+    edges_by_source: dict[str, list[str]] = {}
+    for edge in graph.edges.values():
+        edges_by_source.setdefault(str(edge["from"]), []).append(str(edge["to"]))
+
+    def placed_y(node_id: str) -> float | None:
+        node = graph.nodes.get(node_id) or {}
+        container = containers.get(str(node.get("container_id") or ""))
+        if container is None or "y" not in container:
+            return None
+        if container["kind"] == "datasource":
+            return float(container["y"]) + float(node.get("_gy") or 0)
+        group = groups.get(str(node.get("group_id") or ""))
+        if group is None:
+            return None
+        return (
+            float(container["y"]) + float(group["_gy"])
+            + GROUP_HEAD + float(node.get("_y") or 0)
+        )
+
+    def datasource_target(container: dict[str, Any]) -> float | None:
+        sources_ids = [str(node["id"]) for node in container["loose"]]
+        if container["head"] is not None:
+            sources_ids.append(str(container["head"]["id"]))
+        values = [
+            value
+            for node_id in sources_ids
+            for target in edges_by_source.get(node_id, [])
+            if (value := placed_y(target)) is not None
         ]
-        if mquery_groups:
-            first = min(mquery_groups, key=lambda group: group["_gy"])
-            anchor_y = model["y"] + int(first["_gy"]) + GROUP_HEAD
-        else:
-            anchor_y = model["y"] + ART_HEAD + GROUP_HEAD
-    y = max(PAD, anchor_y - ART_HEAD)
+        if not values:
+            return None
+        return sum(values) / len(values)
+
+    cursor = float(PAD)
     for container in sources:
+        target = datasource_target(container)
+        desired = (
+            cursor if target is None
+            else target + NODE_H / 2 - container["h"] / 2
+        )
         container["x"] = PAD
-        container["y"] = y
-        y += container["h"] + ART_GAP
+        container["y"] = int(round(max(cursor, desired)))
+        cursor = float(container["y"]) + container["h"] + ART_GAP
+
+    def page_order(group: dict[str, Any]) -> tuple[Any, ...]:
+        head = group.get("head") or {}
+        try:
+            order = int(head.get("order") or 0)
+        except (TypeError, ValueError):
+            order = 0
+        return (
+            order if order > 0 else 10**9,
+            str(group.get("label") or "").casefold(),
+            str(group.get("id") or ""),
+        )
+
+    def group_target(group: dict[str, Any]) -> float | None:
+        values = [
+            value
+            for node in group["nodes"]
+            for target in edges_by_source.get(str(node["id"]), [])
+            if (value := placed_y(target)) is not None
+        ]
+        if not values:
+            return None
+        return sum(values) / len(values)
+
+    # Halaman report diurutkan mengikuti baris model yang dirujuknya.
+    for container in reports:
+        pages = [
+            group
+            for group in container["groups"].values()
+            if group["kind"] == "page"
+        ]
+        if not pages:
+            continue
+        ranked = sorted(
+            ((group_target(group), group) for group in pages),
+            key=lambda item: (
+                item[0] is None,
+                item[0] or 0.0,
+                page_order(item[1]),
+            ),
+        )
+        y = ART_HEAD
+        for _target, group in ranked:
+            group["_gx"] = ART_PAD
+            group["_gy"] = y
+            y += group["h"] + GROUP_GAP
+        container["h"] = y - GROUP_GAP + ART_PAD
+        container["_target"] = ranked[0][0] if ranked else None
 
     cursor = model_x + model_width + ART_GAP
     for container in reports:
+        target = container.pop("_target", None)
+        desired = (
+            float(PAD) if target is None
+            else target - ART_HEAD - GROUP_HEAD - NODE_H / 2
+        )
         container["x"] = cursor
-        container["y"] = PAD
+        container["y"] = int(round(max(float(PAD), desired)))
         cursor += container["w"] + ART_GAP
 
     max_right = max(
@@ -1071,7 +1262,7 @@ def _layout_graph(
             for node in container["loose"]:
                 node["x"] = container["x"] + int(node.pop("_gx"))
                 node["y"] = container["y"] + int(node.pop("_gy"))
-                node["w"] = NODE_W
+                node["w"] = int(node.pop("_w", NODE_W))
                 node["h"] = NODE_H
             continue
         for group in container["groups"].values():
@@ -1088,17 +1279,15 @@ def _layout_graph(
                 head["w"] = group["head_w"]
                 head["h"] = group["head_h"]
             for node in group["nodes"]:
-                node["x"] = (
-                    group["x"]
-                    + GROUP_PAD
-                    + int(node.pop("_col")) * (NODE_W + COL_GAP)
+                node["x"] = group["x"] + int(
+                    node.pop("_x", GROUP_PAD + int(node.get("_col") or 0) * (NODE_W + COL_GAP))
                 )
                 node["y"] = (
                     group["y"]
                     + GROUP_HEAD
                     + int(node.pop("_y"))
                 )
-                node["w"] = NODE_W
+                node["w"] = int(node.pop("_w", NODE_W))
                 node["h"] = NODE_H
         head = container["head"]
         if head is not None:
