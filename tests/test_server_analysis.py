@@ -17,6 +17,8 @@ warnings.filterwarnings(
 from fastapi.testclient import TestClient  # noqa: E402
 
 from core.errors import ExtractionError  # noqa: E402
+from core.column_stats import FunctionStat  # noqa: E402
+from core.usage_service import FunctionAnalysis, ModelReference  # noqa: E402
 from server.app import create_app  # noqa: E402
 from server.presenters import analysis as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
@@ -221,6 +223,18 @@ def fake_result() -> SimpleNamespace:
         dataset_bytes=1024,
         status_counts={"Unused": 1},
         measure_status_counts={"Used": 1},
+        functions=[
+            FunctionAnalysis(
+                function=FunctionStat(
+                    name="PercentageGrowth",
+                    function_id=56708,
+                    expression="(x: SCALAR) => x",
+                ),
+                status="Unused",
+                reason="No references in the model.",
+            )
+        ],
+        function_status_counts={"Unused": 1},
     )
 
 
@@ -346,6 +360,12 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(parameters["rows"][0]["cells"]["1"], "Field parameter")
         self.assertEqual(data["measures"][0]["children"], [])
         self.assertEqual(data["measures"][0]["expression"], "SUM(Fact[Amount])")
+        self.assertEqual(data["totals"]["functions"], 1)
+        self.assertEqual(data["functions"][0]["name"], "PercentageGrowth")
+        self.assertEqual(data["functions"][0]["type"], "User-defined function")
+        self.assertEqual(data["functions"][0]["status"], "Unused")
+        self.assertEqual(data["functions"][0]["uses"], 0)
+        self.assertEqual(data["counts"]["functions"]["Unused"], 1)
         self.assertEqual(data["reports"][0]["report_name"], "Report Uji")
         self.assertEqual(data["reports"][0]["page_count"], 3)
         self.assertEqual(data["reports"][0]["pages"][0]["page_name"], "Halaman 1")
@@ -430,6 +450,38 @@ class AnalysisPresenterTests(unittest.TestCase):
         key_column = groups["Used as key column"]
         self.assertEqual(key_column["rows"][0]["cells"]["1"], "Key column")
         self.assertEqual(key_column["rows"][0]["cells"]["2"], "Stock Level")
+
+    def test_function_row_lists_callers(self) -> None:
+        analysis = FunctionAnalysis(
+            function=FunctionStat(name="PercentageGrowth", function_id=56708),
+            status="Used",
+            reason="Used by model objects: measure.",
+            model_refs=[
+                ModelReference(
+                    "measure", "'Sales'[Growth]", "measure 'Sales'[Growth]"
+                )
+            ],
+        )
+        context = {
+            "measures": {
+                ("sales", "growth"): {
+                    "name": "Growth",
+                    "table": "Sales",
+                    "data_type": "Double",
+                    "status": "Used",
+                    "uses": 3,
+                    "size": "0 B",
+                    "format_string": "#,0",
+                    "display_folder": "",
+                }
+            }
+        }
+        row = presenter._function_row(analysis, context)
+        self.assertEqual(row["type"], "User-defined function")
+        self.assertEqual(row["uses"], 1)
+        self.assertEqual(row["children"][0]["label"], "Used in artifacts")
+        self.assertEqual(row["children"][0]["rows"][0]["cells"]["1"], "Measure")
+        self.assertEqual(row["children"][0]["rows"][0]["cells"]["7"], "3")
 
     def test_preferences_validation_and_roundtrip(self) -> None:
         saved = presenter.save_preferences(

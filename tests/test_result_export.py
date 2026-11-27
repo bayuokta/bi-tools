@@ -8,11 +8,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
+from core.column_stats import ColumnStat, FunctionStat, MeasureStat, ModelStats, TableStat
 from core.result_export import RESULT_COLUMNS, write_result_export
 from core.usage_service import (
     AnalysisResult,
     ColumnAnalysis,
+    FunctionAnalysis,
     HierarchyAnalysis,
     MeasureAnalysis,
     ModelReference,
@@ -141,6 +142,26 @@ class ResultExportTests(unittest.TestCase):
                     ],
                 )
             ],
+            functions=[
+                FunctionAnalysis(
+                    function=FunctionStat(
+                        name="PercentageGrowth",
+                        function_id=56708,
+                    ),
+                    status="Unused",
+                    reason="No references in the model.",
+                ),
+                FunctionAnalysis(
+                    function=FunctionStat(name="UsedFunc", function_id=56709),
+                    status="Used",
+                    reason="Used by model objects: measure.",
+                    model_refs=[
+                        ModelReference(
+                            "measure", "'Sales'[Total]", "", blocking=False
+                        )
+                    ],
+                ),
+            ],
         )
 
     def test_writes_template_rows(self) -> None:
@@ -176,6 +197,21 @@ class ResultExportTests(unittest.TestCase):
         self.assertEqual(int(calendar["Number_of_Uses"]), 1)
         self.assertEqual(calendar["Used_in_name"], "Trend")
         self.assertEqual(calendar["Used_in_object_type"], "lineChart")
+
+        function = frame[frame["Name"] == "PercentageGrowth"].iloc[0]
+        self.assertEqual(function["Type"], "User-defined function")
+        self.assertTrue(pd.isna(function["Table"]))
+        self.assertEqual(function["Status"], "Unused")
+        self.assertEqual(int(function["Number_of_Uses"]), 0)
+        self.assertEqual(int(function["ID"]), 56708)
+        self.assertTrue(pd.isna(function["Used_in_type"]))
+
+        used_func = frame[
+            (frame["Name"] == "UsedFunc")
+            & (frame["Used_in_type"] == "Used in artifacts")
+        ].iloc[0]
+        self.assertEqual(used_func["Used_in_name"], "Total")
+        self.assertEqual(used_func["Used_in_object_type"], "Measure")
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ from datetime import datetime
 from typing import Any, Callable, Iterable, Mapping
 
 from .errors import ExtractionError
-from .model import LiveModel, build_columns, build_measures, build_tables
+from .model import LiveModel, build_columns, build_functions, build_measures, build_tables
 from .xmla_client import XmlaError
 
 Log = Callable[[str], None]
@@ -336,6 +336,27 @@ class MeasureStat:
         return bool(self.error_message)
 
 
+@dataclass(frozen=True)
+class FunctionStat:
+    """Satu user-defined function DAX pada model."""
+
+    name: str
+    function_id: int = 0
+    expression: str = ""
+    is_hidden: bool = False
+    description: str = ""
+    error_message: str = ""
+    lineage_tag: str = ""
+
+    @property
+    def key(self) -> str:
+        return self.name.casefold()
+
+    @property
+    def has_error(self) -> bool:
+        return bool(self.error_message)
+
+
 @dataclass
 class ModelStats:
     """Ukuran semantic model: kolom, tabel, dan total."""
@@ -349,6 +370,7 @@ class ModelStats:
     artifact_bytes: int
     note: str = ""
     measures: list[MeasureStat] = field(default_factory=list)
+    functions: list[FunctionStat] = field(default_factory=list)
 
     @property
     def data_bytes(self) -> int:
@@ -399,6 +421,7 @@ def build_model_stats(
     columns, _excluded, _warnings = build_columns(model)
     tables = build_tables(model)
     measures = build_measures(model)
+    functions = build_functions(model)
 
     column_stats: list[ColumnStat] = []
     columns_by_table: dict[str, list[int]] = {}
@@ -486,6 +509,18 @@ def build_model_stats(
                 description=str(row.get("description") or ""),
             )
             for row in measures
+        ],
+        functions=[
+            FunctionStat(
+                name=str(row.get("name") or ""),
+                function_id=int(row.get("function_id") or 0),
+                expression=str(row.get("expression") or ""),
+                is_hidden=bool(row.get("is_hidden")),
+                description=str(row.get("description") or ""),
+                error_message=str(row.get("error_message") or ""),
+                lineage_tag=str(row.get("lineage_tag") or ""),
+            )
+            for row in functions
         ],
     )
 

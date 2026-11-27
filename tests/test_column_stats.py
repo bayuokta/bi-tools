@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from core.column_stats import (
     aggregate_segments,
@@ -12,6 +13,7 @@ from core.column_stats import (
     storage_key,
     table_rows,
 )
+from core.model import build_functions
 
 
 class StorageKeyTests(unittest.TestCase):
@@ -38,6 +40,35 @@ class StorageKeyTests(unittest.TestCase):
         self.assertEqual(attribute_id("Master Dealer (22)"), 22)
         self.assertIsNone(attribute_id(""))
         self.assertIsNone(attribute_id("tanpa-id"))
+
+
+class FunctionRowsTests(unittest.TestCase):
+    def test_build_functions_maps_dmv_rows(self) -> None:
+        model = SimpleNamespace(
+            raw={
+                "TMSCHEMA_FUNCTIONS": [
+                    {
+                        "ID": 56708,
+                        "Name": "PercentageGrowth",
+                        "Expression": " (x: SCALAR) => x ",
+                        "IsHidden": False,
+                        "Description": "Growth",
+                        "ErrorMessage": None,
+                        "LineageTag": "tag-1",
+                    }
+                ]
+            }
+        )
+        rows = build_functions(model)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["function_id"], 56708)
+        self.assertEqual(rows[0]["name"], "PercentageGrowth")
+        self.assertEqual(rows[0]["expression"], " (x: SCALAR) => x ")
+        self.assertEqual(rows[0]["description"], "Growth")
+        self.assertEqual(rows[0]["lineage_tag"], "tag-1")
+
+    def test_build_functions_without_dmv(self) -> None:
+        self.assertEqual(build_functions(SimpleNamespace(raw={})), [])
 
 
 class AggregateSegmentsTests(unittest.TestCase):

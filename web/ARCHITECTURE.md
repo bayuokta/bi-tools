@@ -208,6 +208,9 @@ dengan `grep`, lalu baca jendela kecil.
   `analysisReportRows`, `analysisDaxRows`, `analysisMRows`,
   `analysisHealthRows`, `analysisBestPracticeRows`, `analysisSortItems`,
   `analysisRoleRows`, `analysisHead`, `analysisBody`, `analysisRender`.
+  `analysisFlatRows` menyertakan `state.analysis.functions` (user-defined
+  function) dengan Type `User-defined function`, tanpa menu konteks; pemanggil
+  ditampilkan sebagai grup `Used in artifacts`.
 - Health/best practice: `analysisHealthRuleLabel`, `analysisHealthRulesMarkup`,
   `analysisPracticeTitle`, `analysisHealthDetail`, `analysisHealthOpen`,
   `analysisBestPracticeIcon`, `analysisBestPracticeSeverity`,

@@ -180,6 +180,7 @@ DMVS = [
     "TMSCHEMA_CALCULATION_ITEMS",
     "TMSCHEMA_PERSPECTIVES",
     "TMSCHEMA_KPIS",
+    "TMSCHEMA_FUNCTIONS",
 ]
 
 META_RE = re.compile(r"\s+meta\s*\[(?P<meta>.*)\]\s*$", re.S)
@@ -652,6 +653,25 @@ def build_measures(model: LiveModel) -> list[dict[str, Any]]:
                 "error_message": str(measure.get("ErrorMessage") or ""),
                 "lineage_tag": str(measure.get("LineageTag") or ""),
                 "annotations": model.ann(8, measure_id),
+            }
+        )
+    return rows
+
+
+def build_functions(model: LiveModel) -> list[dict[str, Any]]:
+    """Fungsi DAX yang didefinisikan model (user-defined function)."""
+    rows: list[dict[str, Any]] = []
+    for row in model.raw.get("TMSCHEMA_FUNCTIONS", []):
+        expression = clean_expr(row.get("Expression"))
+        rows.append(
+            {
+                "function_id": int(row.get("ID") or 0),
+                "name": str(row.get("Name") or ""),
+                "expression": expression,
+                "is_hidden": bool(row.get("IsHidden")),
+                "description": str(row.get("Description") or ""),
+                "error_message": str(row.get("ErrorMessage") or ""),
+                "lineage_tag": str(row.get("LineageTag") or ""),
             }
         )
     return rows
@@ -1211,12 +1231,17 @@ def build_unsupported(model: LiveModel, columns: list[dict[str, Any]]) -> list[d
         for row in model.raw["TMSCHEMA_MEASURES"]
         if row.get("DetailRowsDefinitionID") is not None
     )
+    functions_available = not any(
+        "TMSCHEMA_FUNCTIONS" in note for note in getattr(model, "notes", [])
+    )
     items = [
         ("Calculation group", len(model.raw["TMSCHEMA_CALCULATION_GROUPS"]), "Tabel calculation group."),
         (
             "User-defined function (DAX UDF)",
-            None,
-            "DMV TMSCHEMA_FUNCTIONS tidak tersedia di engine ini; tidak bisa dihitung via XMLA.",
+            len(model.raw.get("TMSCHEMA_FUNCTIONS", [])) if functions_available else None,
+            "Fungsi DAX yang didefinisikan model."
+            if functions_available
+            else "DMV TMSCHEMA_FUNCTIONS tidak tersedia di engine ini.",
         ),
         ("Hierarchy", len(model.raw["TMSCHEMA_HIERARCHIES"]), "Hierarchy eksplisit di tabel."),
         ("Perspective", len(model.raw["TMSCHEMA_PERSPECTIVES"]), "Perspective untuk expose subset objek."),

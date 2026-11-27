@@ -62,7 +62,7 @@ from ..settings_store import SettingsStore
 from .service_picker import workspace_picklist
 from . import metadata as metadata_presenter
 
-OBJECT_FILTERS = ("all", "columns", "measures", "hierarchies")
+OBJECT_FILTERS = ("all", "columns", "measures", "hierarchies", "functions")
 SORT_KEYS = (
     "default",
     "name",
@@ -787,9 +787,57 @@ def _usage_groups(
             )
         )
 
+    return _groups_payload(groups)
+
+
+def _function_groups(
+    analysis: Any, context: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Grup pemakaian untuk user-defined function (pemanggil di model)."""
+    ctx = context or {}
+    measures = ctx.get("measures") or {}
+    columns = ctx.get("columns") or {}
+    groups: dict[str, list[dict[str, Any]]] = {key: [] for key in GROUP_ORDER}
+    for ref in getattr(analysis, "model_refs", []) or []:
+        kind = str(getattr(ref, "kind", "") or "")
+        if kind not in {"measure", "calculated column", "user-defined function"}:
+            continue
+        label = {
+            "measure": "Measure",
+            "calculated column": "Calculated column",
+            "user-defined function": "User-defined function",
+        }[kind]
+        ref_table, ref_column = _parse_object(str(getattr(ref, "object", "")))
+        key = (ref_table.casefold(), ref_column.casefold())
+        item = measures.get(key) if kind == "measure" else columns.get(key)
+        cells: dict[int, Any] = {1: label, 2: ref_table, 3: "Model"}
+        if item:
+            cells.update(
+                {
+                    4: item.get("data_type", ""),
+                    5: "0 B" if kind == "measure" else item.get("size", ""),
+                    6: item.get("status", ""),
+                    7: item.get("uses", 0),
+                    8: item.get("format_string", ""),
+                    10: item.get("display_folder", ""),
+                }
+            )
+        groups[GROUP_MODEL].append(
+            _child(
+                str(getattr(ref, "object", "") or getattr(ref, "detail", "")),
+                "measure" if kind == "measure" else "code",
+                cells,
+            )
+        )
+    return _groups_payload(groups)
+
+
+def _groups_payload(
+    groups: Mapping[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
     payload: list[dict[str, Any]] = []
     for key in GROUP_ORDER:
-        if not groups[key]:
+        if not groups.get(key):
             continue
         payload.append(
             {
@@ -895,6 +943,40 @@ def _measure_row(
         "size_breakdown": {"data": 0, "hierarchy": 0, "dictionary": 0},
         "expression": str(getattr(measure, "expression", "")),
         "children": _usage_groups(analysis, context) if with_children else [],
+    }
+
+
+def _function_row(
+    analysis: Any,
+    context: Mapping[str, Any] | None = None,
+    *,
+    with_children: bool = True,
+) -> dict[str, Any]:
+    function = analysis.function
+    refs = list(getattr(analysis, "model_refs", []) or [])
+    return {
+        "name": str(getattr(function, "name", "")),
+        "type": "User-defined function",
+        "table": "",
+        "source": "Model",
+        "data_type": "",
+        "size": "-",
+        "size_bytes": 0,
+        "status": str(analysis.status or ""),
+        "uses": len(refs),
+        "direct_refs": len(refs),
+        "transitive_refs": 0,
+        "reports": 0,
+        "format_string": "",
+        "has_error": bool(getattr(function, "has_error", False)),
+        "display_folder": "",
+        "is_hidden": bool(getattr(function, "is_hidden", False)),
+        "is_calculated": False,
+        "reason": str(analysis.reason or ""),
+        "rows": 0,
+        "size_breakdown": {"data": 0, "hierarchy": 0, "dictionary": 0},
+        "expression": str(getattr(function, "expression", "")),
+        "children": _function_groups(analysis, context) if with_children else [],
     }
 
 
@@ -1170,6 +1252,10 @@ def serialize_result(
         _hierarchy_row(hierarchy)
         for hierarchy in (getattr(result, "hierarchies", []) or [])
     ]
+    function_rows = [
+        _function_row(function, with_children=False)
+        for function in (getattr(result, "functions", []) or [])
+    ]
     child_context["columns"] = {
         (row["table"].casefold(), row["name"].casefold()): row
         for row in column_rows
@@ -1182,6 +1268,10 @@ def serialize_result(
         row["children"] = _usage_groups(analysis, child_context)
     for analysis, row in zip(result.measures, measure_rows):
         row["children"] = _usage_groups(analysis, child_context)
+    for analysis, row in zip(
+        getattr(result, "functions", []) or [], function_rows
+    ):
+        row["children"] = _function_groups(analysis, child_context)
     return {
         "dataset": {
             "id": result.dataset_id,
@@ -1202,6 +1292,7 @@ def serialize_result(
             "columns": len(result.columns),
             "measures": len(result.measures),
             "hierarchies": len(hierarchy_rows),
+            "functions": len(function_rows),
             "unused_columns": len(result.unused),
             "unused_measures": len(result.unused_measures),
             "unused_bytes": unused_bytes,
@@ -1222,10 +1313,12 @@ def serialize_result(
         "counts": {
             "columns": dict(result.status_counts),
             "measures": dict(result.measure_status_counts),
+            "functions": dict(getattr(result, "function_status_counts", {}) or {}),
         },
         "columns": column_rows,
         "measures": measure_rows,
         "hierarchies": hierarchy_rows,
+        "functions": function_rows,
         "reports": reports,
         "health": health,
         "best_practice": build_best_practice(result),

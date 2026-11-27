@@ -206,7 +206,7 @@ def _base_row(
         "Status": _status_text(status),
         "Number_of_Uses": int(uses),
         "Format_string": format_string,
-        "Has_error": bool(has_error),
+        "Has_error": BLANK if has_error is None else bool(has_error),
         "Display_folder": display_folder,
         "Used_in_type": BLANK,
         "Used_in_name": BLANK,
@@ -744,6 +744,44 @@ def _object_rows(
     return rows or [base]
 
 
+def _function_rows(analysis: Any, *, dataset: str) -> list[dict[str, Any]]:
+    """Baris Result untuk satu user-defined function DAX."""
+    item = analysis.function
+    base = _base_row(
+        name=str(item.name),
+        object_id=int(getattr(item, "function_id", 0) or 0),
+        type_label="User-defined function",
+        table=BLANK,
+        dataset=dataset,
+        status=str(analysis.status or ""),
+        uses=_use_count(analysis),
+        has_error=None,
+    )
+    rows = [base]
+    for ref in getattr(analysis, "model_refs", []) or []:
+        kind = str(getattr(ref, "kind", "") or "")
+        if kind == "measure":
+            object_type = "Measure"
+        elif kind == "calculated column":
+            object_type = "Calculated column"
+        elif kind == "user-defined function":
+            object_type = "User-defined function"
+        else:
+            continue
+        _table, ref_name = _split_object(str(getattr(ref, "object", "") or ""))
+        rows.append(
+            _with_usage(
+                base,
+                usage_type="Used in artifacts",
+                name=ref_name or str(getattr(ref, "object", "") or ""),
+                object_type=object_type,
+                source=dataset,
+                status="Used",
+            )
+        )
+    return rows
+
+
 def write_result_export(result: Any, path: Path | str) -> Path:
     """Tulis satu sheet ``Result`` dengan kolom template Measure Killer."""
     target = Path(path)
@@ -814,9 +852,14 @@ def write_result_export(result: Any, path: Path | str) -> Path:
                 urls=urls,
             )
         )
+    for analysis in getattr(result, "functions", []) or []:
+        rows.extend(
+            _function_rows(analysis, dataset=str(result.dataset_name or ""))
+        )
 
     rows.sort(
         key=lambda row: (
+            str(row["Table"]) == "",
             str(row["Table"]).casefold(),
             str(row["Type"]).casefold(),
             str(row["Name"]).casefold(),

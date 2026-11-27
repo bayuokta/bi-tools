@@ -182,7 +182,7 @@ import { state } from "../core/state.js";
   var ANALYSIS_TABS = {
     all: {
       placeholder: "Column, measure, or table name",
-      filters: [["all", "All types"], ["columns", "Columns"], ["measures", "Measure"], ["hierarchies", "Hierarchies"]],
+      filters: [["all", "All types"], ["columns", "Columns"], ["measures", "Measure"], ["hierarchies", "Hierarchies"], ["functions", "Functions"]],
       unused: true,
       expandable: true
     },
@@ -337,7 +337,7 @@ import { state } from "../core/state.js";
   export function analysisSavePrefs() {
     if (!app.apiReady()) return Promise.resolve(null);
     return app.api().post("/api/analysis/preferences", {
-      object_filter: ["all", "columns", "measures", "hierarchies"].includes(state.analysisObjectFilter)
+      object_filter: ["all", "columns", "measures", "hierarchies", "functions"].includes(state.analysisObjectFilter)
         ? state.analysisObjectFilter : "all",
       unused_only: $("#unusedOnly").checked,
       include_reports: $("#includeReports").checked,
@@ -529,7 +529,7 @@ import { state } from "../core/state.js";
     };
     if (!result) return counts;
     var totals = result.totals || {};
-    counts.all = (totals.columns || 0) + (totals.measures || 0) + (totals.hierarchies || 0);
+    counts.all = (totals.columns || 0) + (totals.measures || 0) + (totals.hierarchies || 0) + (totals.functions || 0);
     counts.tables = (result.tables || []).length;
     counts.relationships = (result.relationships || []).length;
     counts.roles = (result.roles || []).length;
@@ -3179,6 +3179,7 @@ import { state } from "../core/state.js";
     if (type === "columns" && kind !== "column") return false;
     if (type === "measures" && kind !== "measure") return false;
     if (type === "hierarchies" && kind !== "hierarchy") return false;
+    if (type === "functions" && kind !== "function") return false;
     if (unusedOnly && item.status !== "Unused") return false;
     if (!query) return true;
     return [item.name, item.table, item.data_type, item.status, item.reason,
@@ -3268,6 +3269,9 @@ import { state } from "../core/state.js";
     (result.hierarchies || []).forEach(function (hierarchy) {
       items.push({ kind: "hierarchy", data: hierarchy });
     });
+    (result.functions || []).forEach(function (fn) {
+      items.push({ kind: "function", data: fn });
+    });
     items = items.filter(function (item) {
       return analysisItemMatches(item.data, item.kind, query, type, unusedOnly);
     });
@@ -3286,7 +3290,7 @@ import { state } from "../core/state.js";
     (result.tables || []).forEach(function (table, index) {
       tableOrder[table.name] = index;
     });
-    var kindOrder = { column: 0, hierarchy: 1, measure: 2 };
+    var kindOrder = { column: 0, hierarchy: 1, measure: 2, function: 3 };
     return items.slice().sort(function (left, right) {
       var a = tableOrder[left.data.table];
       var b = tableOrder[right.data.table];
@@ -3308,13 +3312,16 @@ import { state } from "../core/state.js";
     var columnCount = 0;
     var measureCount = 0;
     var hierarchyCount = 0;
+    var functionCount = 0;
     items.forEach(function (item) {
       if (item.kind === "measure") measureCount += 1;
       else if (item.kind === "hierarchy") hierarchyCount += 1;
+      else if (item.kind === "function") functionCount += 1;
       else columnCount += 1;
       var data = item.data;
       var id = "item:" + item.kind + ":" + data.table + ":" + data.name;
-      var showExpression = item.kind === "column" && Boolean(data.expression);
+      var showExpression = (item.kind === "column" || item.kind === "function") &&
+        Boolean(data.expression);
       var expandable = showExpression || (data.children || []).length > 0;
       var open = expandable && analysisIsOpen(id, false, true);
       if (data.status === "Unused") unused += 1;
@@ -3325,17 +3332,20 @@ import { state } from "../core/state.js";
         item: { kind: item.kind, table: data.table || "", name: data.name || "" },
         cells: [
           analysisNameCell(data.name, item.kind === "measure" ? "measure"
-            : (item.kind === "hierarchy" ? "group" : "column"), {
+            : (item.kind === "hierarchy" ? "group"
+              : (item.kind === "function" ? "code" : "column")), {
             level: 0, toggleId: expandable ? id : "", open: open,
-            menu: item.kind !== "hierarchy"
+            menu: item.kind !== "hierarchy" && item.kind !== "function"
           }),
           item.kind === "measure"
             ? "Measure"
             : (item.kind === "hierarchy"
               ? "Hierarchy"
-              : (data.type === "Field parameter"
-                ? "Field parameter"
-                : "Column")),
+              : (item.kind === "function"
+                ? "User-defined function"
+                : (data.type === "Field parameter"
+                  ? "Field parameter"
+                  : "Column"))),
           escapeHtml(data.table || "—"),
           "Model",
           escapeHtml(data.data_type || "—"),
@@ -3359,8 +3369,8 @@ import { state } from "../core/state.js";
       rows: rows,
       summary: (state.analysisNote ? state.analysisNote + " " : "") + items.length +
         " items · " + columnCount + " columns · " + hierarchyCount +
-        " hierarchies · " + measureCount + " measures · " +
-        unused + " unused" + analysisCoverageSuffix(result)
+        " hierarchies · " + measureCount + " measures · " + functionCount +
+        " functions · " + unused + " unused" + analysisCoverageSuffix(result)
     };
   }
 

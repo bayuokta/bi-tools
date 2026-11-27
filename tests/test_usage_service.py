@@ -8,11 +8,12 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from core.api import ApiError
 from core.auth import ServicePrincipal
-from core.column_stats import ColumnStat, MeasureStat, ModelStats, TableStat
+from core.column_stats import ColumnStat, FunctionStat, MeasureStat, ModelStats, TableStat
 from core.errors import ExtractionError
 from core.fabric_api import PBIR, DefinitionPart, ReportDefinition
 from core.lineage_store import (
@@ -34,12 +35,14 @@ from core.usage_service import (
     DefinitionLoader,
     DEFINITION_POLL_WAIT,
     ColumnAnalysis,
+    FunctionAnalysis,
     MeasureAnalysis,
     ModelReference,
     ReportEntry,
     ScanCounters,
     analyze_dataset,
     build_analysis,
+    build_function_analyses,
     build_hierarchy_analyses,
     coverage_text,
     discover_reports,
@@ -106,6 +109,13 @@ def stats() -> ModelStats:
             MeasureStat(table="Sales", measure="Total", expression="SUM(Sales[Qty])"),
             MeasureStat(table="Sales", measure="Helper", expression="[Total] * 2"),
             MeasureStat(table="Sales", measure="Orphan", expression="1"),
+        ],
+        functions=[
+            FunctionStat(
+                name="OrphanFunction",
+                function_id=99,
+                expression="(x: SCALAR) => x",
+            )
         ],
     )
 
@@ -1318,6 +1328,29 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertEqual(payload["tables"][0]["partition_count"], 3)
         self.assertEqual(payload["relationships"][0]["name"], "Rel")
 
+    def test_model_snapshot_keeps_functions(self) -> None:
+        value = ModelStats(
+            model_name="Model",
+            compatibility_level=1600,
+            last_update="2026-01-01",
+            columns=[],
+            tables=[],
+            segment_bytes=0,
+            artifact_bytes=0,
+            functions=[
+                FunctionStat(
+                    name="PercentageGrowth",
+                    function_id=56708,
+                    expression="(x: SCALAR) => x",
+                )
+            ],
+        )
+
+        payload = json.loads(model_snapshot(value))
+
+        self.assertEqual(payload["functions"][0]["name"], "PercentageGrowth")
+        self.assertEqual(payload["functions"][0]["function_id"], 56708)
+
 
 class WriteWorkbookTests(unittest.TestCase):
     def test_workbook_contains_expected_sheets(self) -> None:
@@ -1384,6 +1417,17 @@ class WriteWorkbookTests(unittest.TestCase):
                     reason="Used di 1 titik pada 1 report.",
                 )
             ],
+            functions=[
+                FunctionAnalysis(
+                    function=FunctionStat(
+                        name="OrphanFunction",
+                        function_id=99,
+                        expression="(x: SCALAR) => x",
+                    ),
+                    status=STATUS_UNUSED,
+                    reason="No references in the model.",
+                )
+            ],
         )
         target = Path(tempfile.mkdtemp()) / "hasil.xlsx"
 
@@ -1407,6 +1451,7 @@ class WriteWorkbookTests(unittest.TestCase):
                 "09_Health",
                 "10_BestPractice_Model",
                 "11_BestPractice_Model_Rules",
+                "12_Functions",
                     ],
         )
         columns = pd.read_excel(book, "02_Columns")
@@ -1422,6 +1467,10 @@ class WriteWorkbookTests(unittest.TestCase):
             self.assertIn(header, list(measures.columns))
         model_usage = pd.read_excel(book, "04_Model_Usage")
         self.assertIn("Depth", list(model_usage.columns))
+        functions = pd.read_excel(book, "12_Functions")
+        self.assertEqual(functions.loc[0, "Name"], "OrphanFunction")
+        self.assertEqual(functions.loc[0, "Status"], STATUS_UNUSED)
+        self.assertEqual(int(functions.loc[0, "Uses"]), 0)
         self.assertEqual(
             sorted(int(value) for value in model_usage["Depth"]), [1, 2]
         )
@@ -1713,6 +1762,84 @@ class ModelReferenceTests(unittest.TestCase):
         self.assertEqual(analysis.use_count, 2)
 
 
+class FunctionAnalysisTests(unittest.TestCase):
+    def stats(
+        self,
+        *,
+        measure_expression: str = "",
+        column_expression: str = "",
+        function_expression: str = "",
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            functions=[
+                FunctionStat(
+                    name="PercentageGrowth",
+                    function_id=56708,
+                    expression=function_expression,
+                )
+            ],
+            measures=[
+                SimpleNamespace(
+                    table="Sales",
+                    measure="Growth",
+                    expression=measure_expression,
+                )
+            ],
+            columns=[
+                SimpleNamespace(
+                    table="Sales",
+                    column="Growth Calc",
+                    is_calculated=True,
+                    expression=column_expression,
+                )
+            ],
+        )
+
+    def test_unused_function(self) -> None:
+        analysis = build_function_analyses(self.stats())
+        self.assertEqual(len(analysis), 1)
+        self.assertEqual(analysis[0].status, STATUS_UNUSED)
+        self.assertEqual(analysis[0].use_count, 0)
+
+    def test_measure_caller_is_detected(self) -> None:
+        analysis = build_function_analyses(
+            self.stats(measure_expression="PercentageGrowth([A], [B])")
+        )
+        self.assertEqual(analysis[0].status, STATUS_USED)
+        self.assertEqual(analysis[0].model_refs[0].kind, "measure")
+        self.assertEqual(analysis[0].model_refs[0].object, "'Sales'[Growth]")
+
+    def test_calculated_column_caller_is_detected(self) -> None:
+        analysis = build_function_analyses(
+            self.stats(column_expression="PercentageGrowth([A], [B])")
+        )
+        self.assertEqual(analysis[0].model_refs[0].kind, "calculated column")
+
+    def test_function_caller_is_detected(self) -> None:
+        value = self.stats()
+        value.functions.append(
+            FunctionStat(
+                name="Helper",
+                function_id=56709,
+                expression="PercentageGrowth([A], [B])",
+            )
+        )
+        analysis = build_function_analyses(value)
+        growth = next(
+            item
+            for item in analysis
+            if item.function.name == "PercentageGrowth"
+        )
+        self.assertEqual(growth.model_refs[0].kind, "user-defined function")
+        self.assertEqual(growth.model_refs[0].object, "function 'Helper'")
+
+    def test_string_literal_is_not_a_call(self) -> None:
+        analysis = build_function_analyses(
+            self.stats(measure_expression='"PercentageGrowth("')
+        )
+        self.assertEqual(analysis[0].status, STATUS_UNUSED)
+
+
 class AnalyzeDatasetSessionTests(unittest.TestCase):
     """Analisa web memakai sesi in-memory dan tidak menulis database."""
 
@@ -1956,6 +2083,9 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(result.report_pages["r1"][0]["field_count"], 1)
         self.assertEqual(result.m_queries[0]["name"], "Sales")
         self.assertEqual(result.m_queries[0]["detail"], "2 partisi")
+        self.assertEqual(len(result.functions), 1)
+        self.assertEqual(result.functions[0].function.name, "OrphanFunction")
+        self.assertEqual(result.functions[0].status, STATUS_UNUSED)
 
     def test_snapshot_restores_measures(self) -> None:
         result = load_snapshot(self.db, "ds")

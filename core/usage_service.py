@@ -38,6 +38,7 @@ from .api import ApiError
 from .auth import EntraTokens, ServicePrincipal, UserSession, fabric_provider
 from .column_stats import (
     ColumnStat,
+    FunctionStat,
     MeasureStat,
     ModelStats,
     TableStat,
@@ -484,6 +485,32 @@ class MeasureAnalysis:
     @property
     def size_bytes(self) -> int:
         return 0
+
+
+@dataclass
+class FunctionAnalysis:
+    """User-defined function DAX + pemanggil di model."""
+
+    function: FunctionStat
+    status: str
+    reason: str
+    model_refs: list[ModelReference] = field(default_factory=list)
+
+    @property
+    def counted_refs(self) -> list[ModelReference]:
+        return list(self.model_refs)
+
+    @property
+    def direct_refs(self) -> list[ModelReference]:
+        return list(self.model_refs)
+
+    @property
+    def transitive_refs(self) -> list[ModelReference]:
+        return []
+
+    @property
+    def use_count(self) -> int:
+        return len(self.model_refs)
 
 
 def measure_references(
@@ -1158,6 +1185,7 @@ class AnalysisResult:
     unresolved: list[dict[str, Any]] = field(default_factory=list)
     measures: list[MeasureAnalysis] = field(default_factory=list)
     hierarchies: list[HierarchyAnalysis] = field(default_factory=list)
+    functions: list[FunctionAnalysis] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     relationships: list[dict[str, Any]] = field(default_factory=list)
     m_queries: list[dict[str, Any]] = field(default_factory=list)
@@ -1173,6 +1201,12 @@ class AnalysisResult:
     def unused_measures(self) -> list[MeasureAnalysis]:
         return [
             measure for measure in self.measures if measure.status == STATUS_UNUSED
+        ]
+
+    @property
+    def unused_functions(self) -> list[FunctionAnalysis]:
+        return [
+            function for function in self.functions if function.status == STATUS_UNUSED
         ]
 
     @property
@@ -1195,6 +1229,13 @@ class AnalysisResult:
         counts: dict[str, int] = defaultdict(int)
         for measure in self.measures:
             counts[measure.status] += 1
+        return dict(counts)
+
+    @property
+    def function_status_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = defaultdict(int)
+        for function in self.functions:
+            counts[function.status] += 1
         return dict(counts)
 
 
@@ -1424,6 +1465,90 @@ def _build_measure_analyses(
     return analyses
 
 
+def build_function_analyses(stats: ModelStats) -> list[FunctionAnalysis]:
+    """Susun status user-defined function dari pemanggilnya di model.
+
+    Pemanggil dibaca dari ekspresi measure, calculated column, dan fungsi lain.
+    Isi fungsi (kolom/measure yang dipakai di dalam badan fungsi) belum
+    dihitung sebagai pemakaian objek lain.
+    """
+    if not stats.functions:
+        return []
+    patterns = {
+        function.key: (function, _function_call_pattern(function.name))
+        for function in stats.functions
+    }
+    refs: dict[str, list[ModelReference]] = defaultdict(list)
+    seen: set[tuple[str, str, str]] = set()
+
+    def add(key: str, kind: str, obj: str, detail: str) -> None:
+        token = (key, kind, obj)
+        if token in seen:
+            return
+        seen.add(token)
+        refs[key].append(
+            ModelReference(kind=kind, object=obj, detail=detail, blocking=False)
+        )
+
+    for measure in stats.measures:
+        code = strip_dax_literals(measure.expression)
+        for key, (_function, pattern) in patterns.items():
+            if pattern.search(code):
+                owner = f"'{measure.table}'[{measure.measure}]"
+                add(key, "measure", owner, f"measure {owner}")
+    for column in stats.columns:
+        if not column.is_calculated:
+            continue
+        code = strip_dax_literals(column.expression)
+        for key, (_function, pattern) in patterns.items():
+            if pattern.search(code):
+                owner = f"'{column.table}'[{column.column}]"
+                add(key, "calculated column", owner, f"calculated column {owner}")
+    for function in stats.functions:
+        code = strip_dax_literals(function.expression)
+        for key, (_target, pattern) in patterns.items():
+            if key == function.key:
+                continue
+            if pattern.search(code):
+                owner = f"function '{function.name}'"
+                add(key, "user-defined function", owner, owner)
+
+    analyses: list[FunctionAnalysis] = []
+    for function in stats.functions:
+        items = refs.get(function.key, [])
+        if items:
+            kinds = sorted({ref.kind for ref in items})
+            status = STATUS_USED
+            reason = "Used by model objects: " + ", ".join(kinds) + "."
+        else:
+            status = STATUS_UNUSED
+            reason = "No references in the model."
+        analyses.append(
+            FunctionAnalysis(
+                function=function,
+                status=status,
+                reason=reason,
+                model_refs=items,
+            )
+        )
+    analyses.sort(
+        key=lambda item: (
+            item.status != STATUS_UNUSED,
+            item.function.name.casefold(),
+        )
+    )
+    return analyses
+
+
+def _function_call_pattern(name: str) -> re.Pattern[str]:
+    """Pola panggilan ``Nama(...)``; nama boleh dikutip untuk nama berspasi."""
+    quoted = re.escape(name)
+    return re.compile(
+        rf"(?<![A-Za-z0-9_.])(?:'{quoted}'|{quoted})\s*\(",
+        re.IGNORECASE,
+    )
+
+
 def build_hierarchy_analyses(
     rows: Iterable[dict[str, Any]],
     hierarchies: Iterable[Mapping[str, Any]],
@@ -1631,6 +1756,7 @@ def build_analysis(
         hierarchies,
         coverage_complete=coverage_complete,
     )
+    function_analyses = build_function_analyses(stats)
     return AnalysisResult(
         dataset_id=dataset_id,
         dataset_name=dataset_name,
@@ -1653,6 +1779,7 @@ def build_analysis(
         unresolved=list(unresolved or []),
         measures=measures,
         hierarchies=hierarchy_analyses,
+        functions=function_analyses,
         messages=list(messages or []),
         relationships=list(relationships or []),
         m_queries=list(m_queries or []),
@@ -2547,6 +2674,18 @@ def model_snapshot(
             for table in stats.tables
         ],
         "relationships": list(relationships or []),
+        "functions": [
+            {
+                "function_id": item.function_id,
+                "name": item.name,
+                "expression": item.expression,
+                "is_hidden": item.is_hidden,
+                "description": item.description,
+                "error_message": item.error_message,
+                "lineage_tag": item.lineage_tag,
+            }
+            for item in stats.functions
+        ],
     }
     return json.dumps(payload, ensure_ascii=False)
 
@@ -2682,6 +2821,20 @@ def snapshot_from_connection(
         for row in measure_data
     ]
     stats = replace(stats, measures=measures)
+    functions = [
+        FunctionStat(
+            name=str(row.get("name") or ""),
+            function_id=int(row.get("function_id") or 0),
+            expression=str(row.get("expression") or ""),
+            is_hidden=bool(row.get("is_hidden")),
+            description=str(row.get("description") or ""),
+            error_message=str(row.get("error_message") or ""),
+            lineage_tag=str(row.get("lineage_tag") or ""),
+        )
+        for row in (meta.get("functions") or [])
+        if isinstance(row, dict)
+    ]
+    stats = replace(stats, functions=functions)
     measure_refs: dict[tuple[str, str], list[ModelReference]] = {
         (
             str(row.get("table_name") or "").casefold(),
@@ -2860,6 +3013,8 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
         ("Unused columns", len(result.unused)),
         ("Measures", len(result.measures)),
         ("Unused measures", len(result.unused_measures)),
+        ("Functions", len(result.functions)),
+        ("Unused functions", len(result.unused_functions)),
         ("Unused size", format_bytes(result.unused_bytes)),
         ("Reports", result.report_total),
         ("Reports scanned", result.report_scanned),
@@ -2883,6 +3038,8 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
         summary_rows.append((f"Status column {status}", count))
     for status, count in sorted(result.measure_status_counts.items()):
         summary_rows.append((f"Status measure {status}", count))
+    for status, count in sorted(result.function_status_counts.items()):
+        summary_rows.append((f"Status function {status}", count))
     for message in result.messages:
         summary_rows.append(("Note", message))
     summary = pd.DataFrame(summary_rows, columns=["Item", "Value"])
@@ -3171,6 +3328,30 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             pd.DataFrame(best_practice_rule_rows, columns=BEST_PRACTICE_RULE_COLUMNS),
             "11_BestPractice_Model_Rules",
             {"Rule": 50, "Reason": 56},
+        )
+        write_sheet(
+            writer,
+            pd.DataFrame(
+                [
+                    {
+                        "Name": item.function.name,
+                        "ID": item.function.function_id,
+                        "Source": result.dataset_name,
+                        "Status": item.status,
+                        "Uses": item.use_count,
+                        "Hidden": "Yes" if item.function.is_hidden else "No",
+                        "Expression": item.function.expression,
+                        "Note": item.reason,
+                    }
+                    for item in result.functions
+                ],
+                columns=[
+                    "Name", "ID", "Source", "Status", "Uses",
+                    "Hidden", "Expression", "Note",
+                ],
+            ),
+            "12_Functions",
+            {"Name": 34, "Expression": 80, "Note": 50},
         )
     return path
 

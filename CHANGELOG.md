@@ -33,6 +33,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Perbaikan
 
+- Analisa semantic model kini menampilkan **user-defined function (DAX UDF)**
+  dari `TMSCHEMA_FUNCTIONS`: objek seperti `PercentageGrowth` muncul di tab
+  All results (Type `User-defined function`) dan di ekspor Result (Table kosong,
+  Status/Number_of_Uses, serta `Used in artifacts` untuk pemanggilnya). Status
+  dihitung dari measure, calculated column, atau fungsi lain yang memanggil
+  `Nama(...)`. Isi badan fungsi belum dihitung sebagai pemakaian kolom/measure.
+  `build_unsupported` kini melaporkan jumlah UDF, bukan "tidak tersedia"; workbook
+  analisa menambah sheet `12_Functions`.
 - Halaman Analisa: grup `Used as key column` hanya diisi dari `IsKey`
   (`ModelReference` kind `key column`), tidak lagi diturunkan dari relasi.
   Sebelumnya setiap relasi yang menyentuh kolom menambahkan tabel tujuan sebagai
