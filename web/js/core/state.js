@@ -20,7 +20,7 @@ export const store = {
 };
 
 export const state = {
-  view: "ekstraksi",
+  view: "analisa",
   theme: store.get("pbi-theme", "dark") === "light" ? "light" : "dark",
   language: store.get("pbi-lang", "en") === "id" ? "id" : "en",
   motion: store.get("pbi-motion", "on") !== "off",

@@ -21,7 +21,7 @@
       </div>
       <nav class="side-nav" aria-label="Application sections" data-i18n-aria-label="Application sections">
         <div class="nav-label" data-i18n="Tools">Tools</div>
-        <button class="nav-item" type="button" data-view="analisa" title="Model analysis" data-i18n-title="Model analysis">
+        <button class="nav-item" type="button" data-view="analisa" aria-current="page" title="Model analysis" data-i18n-title="Model analysis">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
           <span class="label" data-i18n="Model analysis">Model analysis</span>
         </button>
@@ -33,7 +33,7 @@
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4Z"></path><path d="M4 11l8 4 8-4"></path><path d="M4 15l8 4 8-4"></path></svg>
           <span class="label" data-i18n="Partitions">Partitions</span>
         </button>
-        <button class="nav-item" type="button" data-view="ekstraksi" aria-current="page" title="Extraction &amp; TSD" data-i18n-title="Extraction &amp; TSD">
+        <button class="nav-item" type="button" data-view="ekstraksi" title="Extraction &amp; TSD" data-i18n-title="Extraction &amp; TSD">
           <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
           <span class="label" data-i18n="Extraction &amp; TSD">Extraction &amp; TSD</span>
         </button>
@@ -63,7 +63,7 @@
     <main class="workspace">
       <div class="view-scroll" id="viewScroll">
 
-        <section class="view" id="view-ekstraksi" aria-labelledby="titleEkstraksi">
+        <section class="view" id="view-ekstraksi" aria-labelledby="titleEkstraksi" hidden="">
           <div class="view-head">
             <div>
               <div class="view-eyebrow" data-i18n="Workflow · metadata">Workflow · metadata</div>
@@ -547,7 +547,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-analisa" aria-labelledby="titleAnalisa" hidden="">
+        <section class="view" id="view-analisa" aria-labelledby="titleAnalisa">
           <div class="view-head">
             <div>
               <div class="view-eyebrow" data-i18n="Workflow · audit">Workflow · audit</div>

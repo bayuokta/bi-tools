@@ -197,7 +197,7 @@ class WebSmokeTests(unittest.TestCase):
             f"http://127.0.0.1:{self.port}/?t={self.token}",
             wait_until="load",
         )
-        page.wait_for_selector("#view-ekstraksi", state="visible")
+        page.wait_for_selector("#view-analisa", state="visible")
         self.addCleanup(lambda: self.assertEqual(errors, [], "error di browser"))
         return page
 
@@ -318,7 +318,7 @@ class WebSmokeTests(unittest.TestCase):
         )
 
         page.reload(wait_until="load")
-        page.wait_for_selector("#view-ekstraksi", state="visible")
+        page.wait_for_selector("#view-analisa", state="visible")
         page.wait_for_function("document.documentElement.lang === 'id'")
         self.assertEqual(
             page.inner_text("#titleEkstraksi").strip(), "Ekstraksi & TSD"

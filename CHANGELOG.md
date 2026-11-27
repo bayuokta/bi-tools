@@ -29,6 +29,8 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Halaman Analisa: dialog details punya tombol maximize/restore.
 - Grafik Relationships memakai latar kanvas bertitik seperti lineage dan kartu
   tabel dapat digeser (edge mengikuti, posisi direset saat analisa baru).
+- Halaman awal saat URL dibuka kini **Analisa** (Model analysis), bukan
+  Extraction & TSD. Halaman ekstraksi tetap menjadi langkah 1 alur ekstraksi.
 
 ## 2026-11-26 - Rilis 0.9.1
 
