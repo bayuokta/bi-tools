@@ -410,8 +410,8 @@ class MeasureAnalysis:
 
     @property
     def use_count(self) -> int:
-        """Pemakaian report saja; rujukan model dihitung terpisah."""
-        return len(self.report_records)
+        """Pemakaian report + rujukan model langsung (depth <= 1)."""
+        return len(self.report_records) + len(self.direct_refs)
 
     @property
     def direct_refs(self) -> list[ModelReference]:
@@ -855,8 +855,8 @@ class ColumnAnalysis:
 
     @property
     def use_count(self) -> int:
-        """Pemakaian report saja; rujukan model dihitung terpisah."""
-        return len(self.report_records)
+        """Pemakaian report + rujukan model langsung (depth <= 1)."""
+        return len(self.report_records) + len(self.direct_refs)
 
     @property
     def direct_refs(self) -> list[ModelReference]:

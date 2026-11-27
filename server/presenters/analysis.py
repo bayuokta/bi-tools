@@ -722,7 +722,7 @@ def _column_row(
         "size": format_bytes(size_bytes),
         "size_bytes": size_bytes,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []),
+        "uses": len(analysis.report_records or []) + direct_refs,
         "direct_refs": direct_refs,
         "transitive_refs": transitive_refs,
         "reports": len(
@@ -762,7 +762,7 @@ def _measure_row(
         "size": "-",
         "size_bytes": 0,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []),
+        "uses": len(analysis.report_records or []) + direct_refs,
         "direct_refs": direct_refs,
         "transitive_refs": transitive_refs,
         "reports": len(

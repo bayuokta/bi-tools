@@ -54,8 +54,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   (langsung, `depth <= 1`) dan **Indirect references** (transitif, label
   menyertakan `depth N`). Sebelumnya semua rujukan transitif tampil dalam satu
   grup sehingga satu measure bisa terlihat dirujuk 10 measure padahal hanya 1
-  yang langsung. Kolom **Uses** kini hanya menghitung pemakaian report; ekspor
-  XLSX menambah kolom **Direct references** dan **Transitive references**.
+  yang langsung. Kolom **Uses** = pemakaian report + rujukan model **langsung**
+  (relationship/RLS/measure ikut dihitung, seperti Measure Killer); rujukan
+  transitif tidak menambah `Uses`. Ekspor XLSX menambah kolom
+  **Direct references** dan **Transitive references**.
 
 ## 2026-11-26 - Rilis 0.9.1
 

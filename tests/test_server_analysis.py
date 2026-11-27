@@ -270,7 +270,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(
             indirect["rows"][0]["cells"]["1"], "Measure \u00b7 depth 2"
         )
-        self.assertEqual(data["columns"][0]["uses"], 2)
+        self.assertEqual(data["columns"][0]["uses"], 7)
         self.assertEqual(data["columns"][0]["direct_refs"], 5)
         self.assertEqual(data["columns"][0]["transitive_refs"], 1)
         self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Dipakai")
