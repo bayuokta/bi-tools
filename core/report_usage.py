@@ -181,6 +181,7 @@ class _Collector:
         self.page_rows: list[dict[str, Any]] = []
         self._seen_format: set[tuple] = set()
         self._seen_field: set[tuple] = set()
+        self._seen_filter: set[tuple] = set()
 
     def add(
         self,
@@ -224,6 +225,17 @@ class _Collector:
             if field_key in self._seen_field:
                 return
             self._seen_field.add(field_key)
+        if usage_kind in {USAGE_FILTER_REPORT, USAGE_FILTER_PAGE, USAGE_FILTER_VISUAL}:
+            filter_key = (
+                usage_kind,
+                record.table.casefold(),
+                record.field.casefold(),
+                page_id,
+                visual_id,
+            )
+            if filter_key in self._seen_filter:
+                return
+            self._seen_filter.add(filter_key)
         if usage_kind == USAGE_FORMAT:
             key = (
                 usage_kind,
@@ -431,6 +443,57 @@ def _visual_calculations(node: Any, depth: int = 0) -> list[dict[str, Any]]:
     return out
 
 
+def _filter_fields(filter_obj: Any) -> list[tuple[str, str]]:
+    """Kolom di filter PBIR v2 (``From``/``Where``) tanpa ``field`` eksplisit."""
+    if not isinstance(filter_obj, dict):
+        return []
+    aliases = {
+        str(item.get("Name") or ""): str(item.get("Entity") or "")
+        for item in filter_obj.get("From") or []
+        if isinstance(item, dict)
+    }
+    out: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "Column" and isinstance(value, dict):
+                    expression = value.get("Expression") or {}
+                    source = expression.get("SourceRef") or {}
+                    table = str(
+                        source.get("Entity")
+                        or aliases.get(str(source.get("Source") or ""), "")
+                    )
+                    column = str(value.get("Property") or "")
+                    if table and column and (table, column) not in seen:
+                        seen.add((table, column))
+                        out.append((table, column))
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(filter_obj)
+    return out
+
+
+def _filter_infos(flt: dict[str, Any]) -> list[dict[str, Any]]:
+    field = flt.get("field")
+    if field:
+        return [parse_field(field)]
+    return [
+        {
+            "field_kind": "Column",
+            "table": table,
+            "field": column,
+            "aggregation": "",
+            "expression": "",
+        }
+        for table, column in _filter_fields(flt.get("filter"))
+    ]
+
+
 def _dax_columns(expression: str, table_names: Iterable[str]) -> list[tuple[str, str]]:
     if not expression or not table_names:
         return []
@@ -456,22 +519,23 @@ def _scan_pbir(
     )
 
     for flt in (report_meta.get("filterConfig") or {}).get("filters") or []:
-        info = parse_field(flt.get("field") or {})
         values = collect_filter_values(flt.get("filter"))
-        collector.add_field(
-            info,
-            usage_kind=USAGE_FILTER_REPORT,
-            page_name="(semua halaman)",
-            visual_title="(semua visual)",
-            detail=" · ".join(
-                part
-                for part in (
-                    str(flt.get("type") or "Filter"),
-                    "; ".join(values[:3]),
-                )
-                if part
-            ),
+        detail = " · ".join(
+            part
+            for part in (
+                str(flt.get("type") or "Filter"),
+                "; ".join(values[:3]),
+            )
+            if part
         )
+        for info in _filter_infos(flt):
+            collector.add_field(
+                info,
+                usage_kind=USAGE_FILTER_REPORT,
+                page_name="(semua halaman)",
+                visual_title="(semua visual)",
+                detail=detail,
+            )
 
     page_ids = list(pages_meta.get("pageOrder") or [])
     visual_paths = parts.paths("definition/pages/", "visual.json")
@@ -488,23 +552,24 @@ def _scan_pbir(
         page_name = str(page_json.get("displayName") or page_id)
 
         for flt in (page_json.get("filterConfig") or {}).get("filters") or []:
-            info = parse_field(flt.get("field") or {})
             values = collect_filter_values(flt.get("filter"))
-            collector.add_field(
-                info,
-                usage_kind=USAGE_FILTER_PAGE,
-                page_id=page_id,
-                page_name=page_name,
-                visual_title="(semua visual di halaman)",
-                detail=" · ".join(
-                    part
-                    for part in (
-                        str(flt.get("type") or "Filter"),
-                        "; ".join(values[:3]),
-                    )
-                    if part
-                ),
+            detail = " · ".join(
+                part
+                for part in (
+                    str(flt.get("type") or "Filter"),
+                    "; ".join(values[:3]),
+                )
+                if part
             )
+            for info in _filter_infos(flt):
+                collector.add_field(
+                    info,
+                    usage_kind=USAGE_FILTER_PAGE,
+                    page_id=page_id,
+                    page_name=page_name,
+                    visual_title="(semua visual di halaman)",
+                    detail=detail,
+                )
 
         group_parent: dict[str, str] = {}
         group_hidden: dict[str, bool] = {}
@@ -637,26 +702,27 @@ def _scan_pbir(
                 )
 
             for flt in (vjson.get("filterConfig") or {}).get("filters") or []:
-                info = parse_field(flt.get("field") or {})
                 values = collect_filter_values(flt.get("filter"))
-                collector.add_field(
-                    info,
-                    usage_kind=USAGE_FILTER_VISUAL,
-                    page_id=page_id,
-                    page_name=page_name,
-                    visual_id=visual_id,
-                    visual_type=visual_type,
-                    visual_title=title,
-                    detail=" · ".join(
-                        part
-                        for part in (
-                            str(flt.get("type") or "Filter"),
-                            "; ".join(values[:3]),
-                        )
-                        if part
-                    ),
-                    is_hidden=is_hidden,
+                detail = " · ".join(
+                    part
+                    for part in (
+                        str(flt.get("type") or "Filter"),
+                        "; ".join(values[:3]),
+                    )
+                    if part
                 )
+                for info in _filter_infos(flt):
+                    collector.add_field(
+                        info,
+                        usage_kind=USAGE_FILTER_VISUAL,
+                        page_id=page_id,
+                        page_name=page_name,
+                        visual_id=visual_id,
+                        visual_type=visual_type,
+                        visual_title=title,
+                        detail=detail,
+                        is_hidden=is_hidden,
+                    )
 
             for key in ("objects", "visualContainerObjects"):
                 collector.add_expression(

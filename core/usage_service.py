@@ -1351,7 +1351,7 @@ def build_analysis(
     rows.extend(extra)
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        if str(row.get("field_kind") or "") == "Measure":
+        if str(row.get("field_kind") or "") in {"Measure", "HierarchyLevel"}:
             continue
         key = (
             str(row.get("table_name") or "").casefold(),

@@ -47,6 +47,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dengan kartu tujuannya, halaman report diurutkan mengikuti baris model yang
   dirujuk, dan urutan layer memakai transpose untuk menekan persilangan edge.
   Graph otomatis **Fit** saat canvas lebih besar dari viewport.
+- Filter PBIR v2 tanpa `field` sekarang dibaca dari `filter.From`/`Where`, dan
+  level hierarchy tidak lagi dihitung sebagai pemakaian kolom; pemakaian
+  filter/field/measure dihitung sekali per visual.
 - Paritas kolom/measure dengan Measure Killer untuk dataset SDMS:
   `calculatedTableColumn` lain dilabeli `Column`, data type memakai nama ramah
   (Text/Integer/Double/DateTime), ekspor menambah kolom `Source`, `Uses`/status

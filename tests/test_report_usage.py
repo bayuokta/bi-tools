@@ -382,6 +382,47 @@ class PbirScanTests(unittest.TestCase):
         ]
         self.assertEqual(len(formats), 2)
 
+    def test_filter_v2_without_field_is_read_from_where(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]
+        visual["filterConfig"] = {
+            "filters": [
+                {
+                    "type": "Categorical",
+                    "filter": {
+                        "From": [{"Name": "s", "Entity": "Sales"}],
+                        "Where": [
+                            {
+                                "Condition": {
+                                    "In": {
+                                        "Expressions": [
+                                            {
+                                                "Column": {
+                                                    "Expression": {
+                                                        "SourceRef": {"Source": "s"}
+                                                    },
+                                                    "Property": "Customer",
+                                                }
+                                            }
+                                        ],
+                                        "Values": [["A"]],
+                                    }
+                                }
+                            }
+                        ],
+                    },
+                }
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        filters = [
+            row
+            for row in usage.records
+            if row.usage_kind == USAGE_FILTER_VISUAL
+        ]
+        self.assertIn(("Sales", "Customer"), {(r.table, r.field) for r in filters})
+
     def test_field_parameters_are_counted_as_visual_usage(self) -> None:
         parts = pbir_parts()
         visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
