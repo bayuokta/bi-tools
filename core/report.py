@@ -116,6 +116,28 @@ def deep_entity_property(node: Any) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _first_field_node(node: Any) -> dict[str, Any] | None:
+    """Node field pertama di dalam ekspresi (mis. Arithmetic)."""
+    queue: list[Any] = [node]
+    while queue:
+        current = queue.pop(0)
+        if isinstance(current, dict):
+            for key in ("Measure", "Column", "Aggregation", "HierarchyLevel"):
+                child = current.get(key)
+                if isinstance(child, dict):
+                    return {key: child}
+            queue.extend(
+                value
+                for value in current.values()
+                if isinstance(value, (dict, list))
+            )
+        elif isinstance(current, list):
+            queue.extend(
+                item for item in current if isinstance(item, (dict, list))
+            )
+    return None
+
+
 def parse_field(field: dict[str, Any]) -> dict[str, Any]:
     """Kembalikan kind, table, field, agregasi, dan ekspresi tambahan."""
     kind = next((key for key in field if key != "Expression"), "Unknown")
@@ -155,6 +177,16 @@ def parse_field(field: dict[str, Any]) -> dict[str, Any]:
         hierarchy_node = (node.get("Expression") or {}).get("Hierarchy") or {}
         hierarchy = hierarchy_node.get("Property")
         name = f"{hierarchy}.{level}" if hierarchy and level else (level or hierarchy)
+    elif kind == "Arithmetic":
+        # Implicit measure/kolom di dalam operasi aritmetika (mis. Divide)
+        # harus diambil dari node aslinya, bukan ditebak dari nama.
+        nested = _first_field_node(node)
+        if nested:
+            info = parse_field(nested)
+            table = info["table"]
+            name = info["field"]
+        if not name:
+            table, name = deep_entity_property(node)
     else:
         table, name = deep_entity_property(node)
 

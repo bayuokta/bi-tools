@@ -307,6 +307,35 @@ class PbirScanTests(unittest.TestCase):
         self.assertIn(("Measure", "Sales", "Total Sales", ""), fields)
         self.assertIn(("Aggregation", "Sales", "Qty", "Sum"), fields)
 
+    def test_arithmetic_uses_underlying_field_table(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]
+        visual["visual"]["query"]["queryState"]["Values"]["projections"] = [
+            {
+                "field": {
+                    "Arithmetic": {
+                        "Left": aggregation("Sales", "Qty"),
+                        "Right": {
+                            "ScopedEval": {
+                                "Expression": aggregation("Sales", "Qty"),
+                                "Scope": [{"RoleRef": {"Role": "Columns"}}],
+                            }
+                        },
+                        "Operator": 3,
+                    }
+                },
+                "queryRef": "Divide(Sum(Sales.Qty), ScopedEval(Sum(Sales.Qty), [Role.Columns]))",
+            }
+        ]
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        fields = [
+            (row.field_kind, row.table, row.field)
+            for row in usage.records
+            if row.usage_kind == USAGE_FIELD
+        ]
+        self.assertIn(("Arithmetic", "Sales", "Qty"), fields)
+
     def test_filters_report_page_visual(self) -> None:
         kinds = {row.usage_kind for row in self.usage.records}
         self.assertIn(USAGE_FILTER_REPORT, kinds)

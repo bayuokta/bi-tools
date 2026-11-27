@@ -1169,18 +1169,30 @@ def _measure_usage_key(
     row: dict[str, Any],
     keys: set[tuple[str, str]],
     by_name: dict[str, tuple[str, str]],
+    column_keys: set[tuple[str, str]] | None = None,
 ) -> tuple[str, str] | None:
     """Cocokkan baris usage ke measure; fallback untuk Field/Arithmetic legacy."""
     table = str(row.get("table_name") or "").casefold()
     name = str(row.get("field_name") or "").casefold()
-    if (table, name) in keys:
+    kind = str(row.get("field_kind") or "")
+    columns = column_keys or set()
+    in_measures = (table, name) in keys
+    in_columns = (table, name) in columns
+    if in_measures and (kind == "Measure" or not in_columns):
         return (table, name)
+    if in_columns:
+        # Baris ini menunjuk kolom model; jangan dipinjamkan ke measure
+        # lain yang kebetulan namanya sama.
+        return None
     if name in by_name:
         return by_name[name]
-    if str(row.get("field_kind") or "") == "Arithmetic":
+    if kind == "Arithmetic":
         text = f"{table} {name}"
         for candidate in sorted(by_name, key=len, reverse=True):
-            if candidate and candidate in text:
+            if candidate and re.search(
+                rf"(?<![0-9a-z_]){re.escape(candidate)}(?![0-9a-z_])",
+                text,
+            ):
                 return by_name[candidate]
     return None
 
@@ -1196,7 +1208,18 @@ def _build_measure_analyses(
     if not stats.measures:
         return []
     keys = {measure.key for measure in stats.measures}
-    by_name = {measure.measure.casefold(): measure.key for measure in stats.measures}
+    column_keys = {column.key for column in stats.columns}
+    by_name: dict[str, tuple[str, str]] = {}
+    duplicate_names: set[str] = set()
+    for measure in stats.measures:
+        name = measure.measure.casefold()
+        if name in by_name:
+            duplicate_names.add(name)
+        else:
+            by_name[name] = measure.key
+    for name in duplicate_names:
+        # Nama measure yang sama di beberapa tabel tidak boleh ditebak.
+        by_name.pop(name, None)
     direct: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in usage_rows:
         if str(row.get("field_kind") or "") not in {
@@ -1205,7 +1228,7 @@ def _build_measure_analyses(
             "Arithmetic",
         }:
             continue
-        key = _measure_usage_key(row, keys, by_name)
+        key = _measure_usage_key(row, keys, by_name, column_keys)
         if key is None:
             continue
         direct[key].append(

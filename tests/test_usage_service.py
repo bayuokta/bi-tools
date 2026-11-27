@@ -1006,6 +1006,111 @@ class MeasureAnalysisTests(unittest.TestCase):
 
         self.assertEqual(total.status, STATUS_USED)
 
+    def test_ambiguous_measure_name_is_not_guessed(self) -> None:
+        from dataclasses import replace
+
+        from core.column_stats import MeasureStat
+
+        model = replace(
+            stats(),
+            measures=[
+                MeasureStat(table="Sales", measure="Total", expression="1"),
+                MeasureStat(table="Budget", measure="Total", expression="1"),
+            ],
+        )
+        row = measure_usage("Total, ScopedEval(Budget.Total, [])", "Arithmetic")
+        row["table_name"] = "Divide(Budget"
+        result = build_analysis(
+            stats=model,
+            usage_rows=[row],
+            model_refs={},
+            reports=[],
+            dataset_id="ds",
+            dataset_name="Uji",
+            workspace_id="ws",
+            workspace_name="Contoh",
+            method="admin",
+            report_total=1,
+            report_scanned=1,
+            report_skipped=0,
+            report_failed=0,
+            coverage_complete=True,
+            coverage="1 report",
+            measure_refs={},
+        )
+
+        self.assertEqual([item.report_count for item in result.measures], [0, 0])
+
+    def test_arithmetic_uses_table_when_name_is_duplicated(self) -> None:
+        from dataclasses import replace
+
+        from core.column_stats import MeasureStat
+
+        model = replace(
+            stats(),
+            measures=[
+                MeasureStat(table="Sales", measure="Total", expression="1"),
+                MeasureStat(table="Budget", measure="Total", expression="1"),
+            ],
+        )
+        row = measure_usage("Total", "Arithmetic")
+        row["table_name"] = "Budget"
+        result = build_analysis(
+            stats=model,
+            usage_rows=[row],
+            model_refs={},
+            reports=[],
+            dataset_id="ds",
+            dataset_name="Uji",
+            workspace_id="ws",
+            workspace_name="Contoh",
+            method="admin",
+            report_total=1,
+            report_scanned=1,
+            report_skipped=0,
+            report_failed=0,
+            coverage_complete=True,
+            coverage="1 report",
+            measure_refs={},
+        )
+        by_key = {(item.measure.table, item.measure.measure): item for item in result.measures}
+
+        self.assertEqual(by_key[("Budget", "Total")].report_count, 1)
+        self.assertEqual(by_key[("Sales", "Total")].report_count, 0)
+
+    def test_arithmetic_column_is_not_borrowed_by_measure(self) -> None:
+        from dataclasses import replace
+
+        from core.column_stats import MeasureStat
+
+        model = replace(
+            stats(),
+            measures=[
+                MeasureStat(table="Other", measure="Customer", expression="1"),
+            ],
+        )
+        row = measure_usage("Customer", "Arithmetic")
+        result = build_analysis(
+            stats=model,
+            usage_rows=[row],
+            model_refs={},
+            reports=[],
+            dataset_id="ds",
+            dataset_name="Uji",
+            workspace_id="ws",
+            workspace_name="Contoh",
+            method="admin",
+            report_total=1,
+            report_scanned=1,
+            report_skipped=0,
+            report_failed=0,
+            coverage_complete=True,
+            coverage="1 report",
+            measure_refs={},
+        )
+
+        self.assertEqual(result.measures[0].report_count, 0)
+
     def test_measure_rows_for_gui(self) -> None:
         result = self.analyse([measure_usage("Total")])
         rows = {row["name"]: row for row in measure_rows(result)}

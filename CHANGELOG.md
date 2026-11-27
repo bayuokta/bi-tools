@@ -53,6 +53,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   filters**, **Used in Power Query**, **Used as default label**, **Used in
   calculated tables**, dan **Used in hierarchy** (sebelumnya hanya sebagian
   yang tampil).
+- Proyeksi `Arithmetic` (mis. `Divide(Sum(Tabel.Kolom), ...)`) kini dipetakan ke
+  field di dalamnya, sehingga measure tidak lagi dipinjamkan ke kolom bernama sama
+  dan hitungan `# used` measure/kolom lebih akurat.
 - Filter PBIR v2 tanpa `field` sekarang dibaca dari `filter.From`/`Where`
   (filter gabungan lintas entity diabaikan), dan
   level hierarchy tidak lagi dihitung sebagai pemakaian kolom; pemakaian
