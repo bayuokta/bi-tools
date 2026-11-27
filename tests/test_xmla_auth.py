@@ -309,5 +309,52 @@ class ChannelCacheRetryTests(unittest.TestCase):
         self.assertEqual(type(self).FlakyConnection.attempts, 2)
 
 
+class WorkerLoginLogTests(unittest.TestCase):
+    """Login XMLA interaktif harus terlihat di log dan punya batas waktu."""
+
+    def setUp(self) -> None:
+        from core import xmla_worker_client
+
+        self.module = xmla_worker_client
+        with self.module._WORKERS_LOCK:
+            self.module._WORKERS.clear()
+        self.addCleanup(self._clear)
+
+    def _clear(self) -> None:
+        with self.module._WORKERS_LOCK:
+            self.module._WORKERS.clear()
+
+    def test_login_is_logged_only_when_worker_is_created(self) -> None:
+        lines: list[str] = []
+
+        class FakeProcess:
+            def poll(self) -> None:
+                return None
+
+        class FakeWorker:
+            def __init__(self, endpoint: str, catalog: str) -> None:
+                self._process = FakeProcess()
+
+            def terminate(self) -> None:
+                pass
+
+        with patch.object(self.module, "WorkerXmlaClient", FakeWorker):
+            first = self.module.get_worker_client(ENDPOINT, "Model", log=lines.append)
+            second = self.module.get_worker_client(
+                ENDPOINT, "Model", log=lines.append
+            )
+
+        self.assertIs(first, second)
+        self.assertEqual(
+            lines,
+            [self.module.LOGIN_WAIT_MESSAGE, self.module.LOGIN_DONE_MESSAGE],
+        )
+
+    def test_open_timeout_message_names_the_login_window(self) -> None:
+        message = self.module.open_timeout_message(300)
+        self.assertIn("300", message)
+        self.assertIn("BI Tools - XMLA login", message)
+
+
 if __name__ == "__main__":
     unittest.main()

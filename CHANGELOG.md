@@ -31,6 +31,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   tabel dapat digeser (edge mengikuti, posisi direset saat analisa baru).
 - Halaman awal saat URL dibuka kini **Analisa** (Model analysis), bukan
   Extraction & TSD. Halaman ekstraksi tetap menjadi langkah 1 alur ekstraksi.
+- Login XMLA interaktif kini terlihat di log job: `Menunggu login XMLA...` dan
+  `Login XMLA selesai.` Jendela `BI Tools - XMLA login` dipaksa selalu di depan
+  selama koneksi, dan pembukaan worker dibatasi 300 detik dengan pesan yang
+  menyebut jendela login (sebelumnya job bisa tampak menggantung tanpa batas).
 
 ## 2026-11-26 - Rilis 0.9.1
 

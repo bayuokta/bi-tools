@@ -89,12 +89,25 @@ def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
     try:
         if op == "open":
             root.deiconify()
+            try:
+                # Dialog MSOLAP bisa tertutup jendela lain; pastikan di depan.
+                root.attributes("-topmost", True)
+                root.lift()
+                root.focus_force()
+            except tk.TclError:
+                pass
             root.update()
-            result = session.open(
-                str(request.get("endpoint") or ""),
-                str(request.get("catalog") or ""),
-            )
-            root.withdraw()
+            try:
+                result = session.open(
+                    str(request.get("endpoint") or ""),
+                    str(request.get("catalog") or ""),
+                )
+            finally:
+                try:
+                    root.attributes("-topmost", False)
+                except tk.TclError:
+                    pass
+                root.withdraw()
             _respond({"ok": True, **result})
         elif op == "query":
             sql = str(request.get("query") or "")

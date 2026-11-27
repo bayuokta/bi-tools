@@ -1823,7 +1823,7 @@ def analyze_dataset(
             if interactive:
                 from .xmla_worker_client import get_worker_client
 
-                client = get_worker_client(endpoint, dataset_name)
+                client = get_worker_client(endpoint, dataset_name, log=log)
             else:
                 client = open_client(
                     endpoint=endpoint,

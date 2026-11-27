@@ -8,10 +8,25 @@ import queue
 import subprocess
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 from .paths import APP_DIR, cli_argv
 from .xmla_client import DMV_RE, XmlaError
+
+# Login MSOLAP tidak punya timeout sendiri; batasi agar job tidak menggantung.
+OPEN_TIMEOUT_SECONDS = 300.0
+LOGIN_WAIT_MESSAGE = (
+    "Menunggu login XMLA: selesaikan jendela 'BI Tools - XMLA login'..."
+)
+LOGIN_DONE_MESSAGE = "Login XMLA selesai."
+
+
+def open_timeout_message(seconds: float) -> str:
+    return (
+        f"Login XMLA tidak selesai dalam {int(seconds)} detik. "
+        "Ulangi analisa lalu selesaikan jendela 'BI Tools - XMLA login'."
+    )
+
 
 
 class WorkerXmlaClient:
@@ -46,7 +61,8 @@ class WorkerXmlaClient:
         try:
             response = self._request(
                 {"op": "open", "endpoint": endpoint, "catalog": catalog},
-                timeout=900,
+                timeout=OPEN_TIMEOUT_SECONDS,
+                timeout_message=open_timeout_message(OPEN_TIMEOUT_SECONDS),
             )
         except Exception:
             self.terminate()
@@ -69,7 +85,17 @@ class WorkerXmlaClient:
                 if len(self._stderr) > 80:
                     del self._stderr[:20]
 
-    def _request(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    def _request(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout: float,
+        timeout_message: str = "",
+    ) -> dict[str, Any]:
+        message = timeout_message or (
+            "Worker XMLA tidak menjawab dalam batas waktu. "
+            "Selesaikan dialog login yang muncul."
+        )
         with self._lock:
             if self._process.poll() is not None:
                 raise XmlaError(
@@ -87,17 +113,11 @@ class WorkerXmlaClient:
             while response is None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise XmlaError(
-                        "Worker XMLA tidak menjawab dalam batas waktu. "
-                        "Selesaikan dialog login yang muncul."
-                    )
+                    raise XmlaError(message)
                 try:
                     line = self._lines.get(timeout=remaining)
                 except queue.Empty as exc:
-                    raise XmlaError(
-                        "Worker XMLA tidak menjawab dalam batas waktu. "
-                        "Selesaikan dialog login yang muncul."
-                    ) from exc
+                    raise XmlaError(message) from exc
                 if line is None:
                     raise XmlaError(
                         "Worker XMLA berhenti. "
@@ -162,7 +182,9 @@ _WORKERS: dict[tuple[str, str], WorkerXmlaClient] = {}
 _WORKERS_LOCK = threading.RLock()
 
 
-def get_worker_client(endpoint: str, catalog: str) -> WorkerXmlaClient:
+def get_worker_client(
+    endpoint: str, catalog: str, *, log: Callable[[str], None] | None = None
+) -> WorkerXmlaClient:
     key = (str(endpoint), str(catalog))
     with _WORKERS_LOCK:
         worker = _WORKERS.get(key)
@@ -172,8 +194,17 @@ def get_worker_client(endpoint: str, catalog: str) -> WorkerXmlaClient:
                 return worker
             worker.terminate()
             _WORKERS.pop(key, None)
-        worker = WorkerXmlaClient(str(endpoint), str(catalog))
+        if log is not None:
+            log(LOGIN_WAIT_MESSAGE)
+        try:
+            worker = WorkerXmlaClient(str(endpoint), str(catalog))
+        except Exception:
+            if log is not None:
+                log("Login XMLA gagal.")
+            raise
         _WORKERS[key] = worker
+        if log is not None:
+            log(LOGIN_DONE_MESSAGE)
         return worker
 
 
