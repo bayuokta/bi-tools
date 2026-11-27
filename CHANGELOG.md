@@ -63,6 +63,8 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   field parameter (kolom tabel parameter dan measure yang dirujuk `NAMEOF`),
   serta referensi `'Tabel'[Measure]` kini terdeteksi. Langkah M dan sort visual
   tetap disimpan di detail tetapi tidak menambah `Uses`.
+- Pemakaian **formatting** untuk field yang sudah dipakai sebagai field visual
+  di report tidak lagi menambah `Uses` (memperbaiki `Month` dan `Quarter`).
 
 ## 2026-11-26 - Rilis 0.9.1
 

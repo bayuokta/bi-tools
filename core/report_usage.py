@@ -226,6 +226,29 @@ class _Collector:
             self._seen_format.add(key)
         self.records.append(record)
 
+    def finish(self) -> None:
+        """Buang format ganda pada visual yang sudah memakai field itu.
+
+        Measure Killer menghitung setiap referensi formatting, tetapi tidak
+        menambah hitungan bila field yang sama sudah menjadi field visual.
+        """
+        visual_fields = {
+            (record.table.casefold(), record.field.casefold())
+            for record in self.records
+            if record.usage_kind == USAGE_FIELD
+        }
+        if not visual_fields:
+            return
+        self.records = [
+            record
+            for record in self.records
+            if not (
+                record.usage_kind == USAGE_FORMAT
+                and (record.table.casefold(), record.field.casefold())
+                in visual_fields
+            )
+        ]
+
     def add_field(
         self,
         info: dict[str, Any],
@@ -1023,6 +1046,7 @@ def scan_definition(
             report_format=report_format,
             unresolved=[f"Format report tidak dikenal: {report_format or '(kosong)'}"],
         )
+    collector.finish()
     if not collector.records:
         collector.unresolved.append(
             "Tidak ada field yang terbaca; report mungkin kosong atau memakai "

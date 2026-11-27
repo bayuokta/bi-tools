@@ -323,6 +323,35 @@ class PbirScanTests(unittest.TestCase):
         formats = [row for row in self.usage.records if row.usage_kind == USAGE_FORMAT]
         self.assertEqual([(row.field_kind, row.field) for row in formats], [("Measure", "Highlight")])
 
+    def test_formatting_is_skipped_when_field_already_used_in_visual(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
+        visual["objects"] = {
+            "labels": [
+                {
+                    "properties": {
+                        "color": {
+                            "solid": {"color": {"expr": column("Sales", "Customer")}}
+                        },
+                        "fill": {
+                            "solid": {
+                                "color": {"expr": measure("Sales", "Total Sales")}
+                            }
+                        },
+                        "highlight": {
+                            "solid": {"color": {"expr": measure("Sales", "Highlight")}}
+                        },
+                    }
+                }
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        formats = sorted(
+            row.field for row in usage.records if row.usage_kind == USAGE_FORMAT
+        )
+        self.assertEqual(formats, ["Highlight"])
+
     def test_hidden_group_inheritance(self) -> None:
         slicer = [
             row
