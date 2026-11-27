@@ -32,7 +32,6 @@ import {
   analysisExport,
   analysisExportLineageImage,
   analysisHealthOpen,
-  analysisIsOpen,
   analysisItemTabs,
   analysisLineageApplySearch,
   analysisLineageApplyView,
@@ -1405,13 +1404,16 @@ var NEWLINE = String.fromCharCode(10);
       if (!header) return;
       analysisSetSort(header.getAttribute("data-analysis-sort"));
     });
+    function copyCodeBlock(button) {
+      var codeCell = button.closest(".code-cell");
+      var pre = codeCell ? codeCell.querySelector("pre") : null;
+      copyTextValue(pre ? pre.textContent : "");
+    }
     $("#analyzeBody").addEventListener("click", function (event) {
       var copyButton = event.target.closest("[data-copy-code]");
       if (copyButton) {
         event.preventDefault();
-        var codeCell = copyButton.closest(".code-cell");
-        var pre = codeCell ? codeCell.querySelector("pre") : null;
-        copyTextValue(pre ? pre.textContent : "");
+        copyCodeBlock(copyButton);
         return;
       }
       var ruleInfo = event.target.closest("[data-health-rule-info]");
@@ -1447,8 +1449,9 @@ var NEWLINE = String.fromCharCode(10);
       if (!toggle) return;
       event.preventDefault();
       var key = toggle.getAttribute("data-analysis-toggle");
+      var expanded = toggle.getAttribute("aria-expanded") === "true";
       state.analysisForceOpen = null;
-      state.analysisOpen[key] = !analysisIsOpen(key, false);
+      state.analysisOpen[key] = !expanded;
       analysisRender();
     });
     $("#analyzeBody").addEventListener("contextmenu", function (event) {
@@ -1604,6 +1607,18 @@ var NEWLINE = String.fromCharCode(10);
     });
     $("#copyAnalysisExpression").addEventListener("click", function () {
       copyTextValue(state.analysisDetailsExpression || "");
+    });
+    $("#analysisDetailsBody").addEventListener("click", function (event) {
+      var button = event.target.closest("[data-copy-code]");
+      if (!button) return;
+      event.preventDefault();
+      copyCodeBlock(button);
+    });
+    $("#analysisItemPane").addEventListener("click", function (event) {
+      var button = event.target.closest("[data-copy-code]");
+      if (!button) return;
+      event.preventDefault();
+      copyCodeBlock(button);
     });
     $("#expandAnalysisDetails").addEventListener("click", function () {
       var dialog = $("#analysisDetailsDialog");

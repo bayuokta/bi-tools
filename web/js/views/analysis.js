@@ -1089,7 +1089,7 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (query.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' + highlightCode(query.expression, "m") + "</pre>";
+        "</h3>" + analysisExpressionMarkup(query.expression, "m");
     }
     analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html, {
       copyText: query.expression || ""
@@ -1666,8 +1666,7 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (details.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' +
-        highlightCode(details.expression, "dax") + "</pre>";
+        "</h3>" + analysisExpressionMarkup(details.expression, "dax");
     }
     return html;
   }
@@ -1865,6 +1864,15 @@ import { state } from "../core/state.js";
     $("#analysisRawMetaJson").textContent = "";
   }
 
+  function analysisExpressionMarkup(expression, language) {
+    var copyLabel = escapeHtml(t("Copy code"));
+    return '<div class="code-cell detail-code-cell">' +
+      '<button type="button" class="code-copy" data-copy-code aria-label="' +
+      copyLabel + '" title="' + copyLabel + '">' + MENU_ICONS.copy +
+      '</button><pre class="detail-code">' +
+      highlightCode(expression, language || "dax") + "</pre></div>";
+  }
+
   function analysisDetailRow(label, value) {
     var text = (value === undefined || value === null || value === "") ?
       "\u2014" : String(value);
@@ -1915,7 +1923,7 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (item.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' + highlightCode(item.expression, "dax") + "</pre>";
+        "</h3>" + analysisExpressionMarkup(item.expression, "dax");
     }
     return html;
   }
@@ -1932,7 +1940,7 @@ import { state } from "../core/state.js";
     state.analysisDetailsExpression = String(item.expression || "");
     if (mode === "dax") {
       $("#analysisDetailsBody").innerHTML = item.expression
-        ? '<pre class="detail-code">' + highlightCode(item.expression, "dax") + "</pre>"
+        ? analysisExpressionMarkup(item.expression, "dax")
         : '<p class="detail-empty">' + escapeHtml(t("(no DAX expression)")) + "</p>";
     } else {
       $("#analysisDetailsBody").innerHTML = analysisDetailsMarkup(item, target.kind);

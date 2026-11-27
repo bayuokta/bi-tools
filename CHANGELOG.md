@@ -35,6 +35,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   `Login XMLA selesai.` Jendela `BI Tools - XMLA login` dipaksa selalu di depan
   selama koneksi, dan pembukaan worker dibatasi 300 detik dengan pesan yang
   menyebut jendela login (sebelumnya job bisa tampak menggantung tanpa batas).
+- Tab **All results**: satu klik pada panah baris kini langsung membuka/menutup
+  walau pencarian aktif (sebelumnya klik pertama tidak berefek karena status
+  dihitung tanpa `ignoreQuery`).
+- Blok **Expression** di Measure/Column details, DAX expression, dan Table
+  details punya ikon copy di kanan atas, sama seperti baris kode di tab
+  DAX Expressions dan M queries.
 
 ## 2026-11-26 - Rilis 0.9.1
 
