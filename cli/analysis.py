@@ -168,15 +168,6 @@ def main(argv: list[str] | None = None) -> int:
             f"{best_practice.get('evaluated', 0)}/"
             f"{best_practice.get('rule_count', 0)} rules evaluated"
         )
-        print(
-            "Subscriptions     : "
-            f"{len(result.subscriptions)} · {result.subscription_status or 'ok'}"
-            + (
-                f" · {result.subscription_note}"
-                if result.subscription_note
-                else ""
-            )
-        )
         print(f"Workbook          : {path}")
         return 0
     except ExtractionError as exc:

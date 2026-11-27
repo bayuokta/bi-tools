@@ -1304,7 +1304,7 @@ class ModelReferenceTests(unittest.TestCase):
                 {"ID": 11, "TableID": 2, "ExplicitName": "Qty", "Type": 1, "ExplicitDataType": 6},
                 {"ID": 12, "TableID": 2, "ExplicitName": "Year", "Type": 1, "ExplicitDataType": 6},
                 {"ID": 13, "TableID": 2, "ExplicitName": "Month", "Type": 1, "ExplicitDataType": 2, "SortByColumnID": 12},
-                {"ID": 20, "TableID": 3, "ExplicitName": "Name", "Type": 1, "ExplicitDataType": 2},
+                {"ID": 20, "TableID": 3, "ExplicitName": "Name", "Type": 1, "ExplicitDataType": 2, "IsKey": True},
                 {"ID": 21, "TableID": 4, "ExplicitName": "Parameter", "Type": 1, "ExplicitDataType": 2},
             ],
             "TMSCHEMA_MEASURES": [
@@ -1319,6 +1319,18 @@ class ModelReferenceTests(unittest.TestCase):
                     "TableID": 2,
                     "Name": "Helper",
                     "Expression": "[Total Sales] * 2",
+                },
+                {
+                    "ID": 32,
+                    "TableID": 2,
+                    "Name": "Max Pages",
+                    "Expression": "MAX ( Sales[Qty] )",
+                },
+                {
+                    "ID": 33,
+                    "TableID": 2,
+                    "Name": "Uses Max",
+                    "Expression": "'Sales'[Max Pages] + 1",
                 },
             ],
             "TMSCHEMA_PARTITIONS": [
@@ -1360,7 +1372,13 @@ class ModelReferenceTests(unittest.TestCase):
                     "RoleID": 90,
                     "TableID": 2,
                     "FilterExpression": 'Sales[Customer] = "A"',
-                }
+                },
+                {
+                    "ID": 81,
+                    "RoleID": 90,
+                    "TableID": 3,
+                    "FilterExpression": '[Name] = "A"',
+                },
             ],
         }
         return LiveModel(self.FakeClient(rows))
@@ -1426,6 +1444,43 @@ class ModelReferenceTests(unittest.TestCase):
         measure_refs = measure_references(self.model())
         total_refs = measure_refs[("sales", "total sales")]
         self.assertEqual(total_refs[0].depth, 1)
+
+    def test_unqualified_rls_filter_uses_permission_table(self) -> None:
+        refs = model_references(self.model())
+        kinds = {ref.kind for ref in refs[("product", "name")]}
+        self.assertIn("RLS", kinds)
+
+    def test_key_column_reference_is_detected(self) -> None:
+        refs = model_references(self.model())
+        kinds = {ref.kind for ref in refs[("product", "name")]}
+        self.assertIn("key column", kinds)
+
+    def test_table_qualified_measure_reference_is_resolved(self) -> None:
+        refs = measure_references(self.model())
+        max_pages = refs[("sales", "max pages")]
+
+        self.assertTrue(max_pages)
+        self.assertEqual(max_pages[0].kind, "measure")
+        self.assertEqual(max_pages[0].source_measure, "Uses Max")
+
+    def test_use_count_skips_m_step_and_visual_sort(self) -> None:
+        analysis = ColumnAnalysis(
+            column=column("Qty"),
+            status=STATUS_USED,
+            reason="",
+            model_refs=[
+                ModelReference("measure", "'Sales'[Total Sales]", "", blocking=False),
+                ModelReference("langkah M", "query 'Sales'", ""),
+            ],
+            report_records=[
+                {"usage_kind": "field", "report_id": "r1"},
+                {"usage_kind": "sort", "report_id": "r1"},
+            ],
+        )
+
+        self.assertEqual(len(analysis.direct_refs), 2)
+        self.assertEqual(len(analysis.counted_refs), 1)
+        self.assertEqual(analysis.use_count, 2)
 
 
 class AnalyzeDatasetSessionTests(unittest.TestCase):

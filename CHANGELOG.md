@@ -58,6 +58,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   (relationship/RLS/measure ikut dihitung, seperti Measure Killer); rujukan
   transitif tidak menambah `Uses`. Ekspor XLSX menambah kolom
   **Direct references** dan **Transitive references**.
+- Perhitungan **Uses** diselaraskan dengan Measure Killer: `key column`
+  (`IsKey`), RLS tanpa kualifikasi tabel (`[Email] = USERPRINCIPALNAME()`),
+  field parameter (kolom tabel parameter dan measure yang dirujuk `NAMEOF`),
+  serta referensi `'Tabel'[Measure]` kini terdeteksi. Langkah M dan sort visual
+  tetap disimpan di detail tetapi tidak menambah `Uses`.
 
 ## 2026-11-26 - Rilis 0.9.1
 

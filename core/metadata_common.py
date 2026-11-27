@@ -240,12 +240,27 @@ def build_dependencies(
 ) -> list[dict[str, Any]]:
     table_names = [table["table"] for table in tables]
     measure_set = {measure["measure"] for measure in measures}
+    measure_map = {
+        (str(measure["table"]).casefold(), str(measure["measure"]).casefold()): str(
+            measure["measure"]
+        )
+        for measure in measures
+    }
     column_set = {(column["table"], column["column"]) for column in columns}
 
     edges: dict[str, list[tuple[str, str, str]]] = {}
     for measure in measures:
         column_refs, measure_refs = find_dax_refs(measure["expression"], table_names)
-        refs: list[tuple[str, str, str]] = [("Column", table, column) for table, column in column_refs]
+        refs: list[tuple[str, str, str]] = []
+        for table, column in column_refs:
+            if (table, column) not in column_set:
+                # Referensi berkualifikasi tabel yang menunjuk measure
+                # (mis. 'Pages'[Max Pages]) bukan kolom.
+                target = measure_map.get((table.casefold(), column.casefold()))
+                if target:
+                    refs.append(("Measure", "", target))
+                    continue
+            refs.append(("Column", table, column))
         refs += [("Measure", "", name) for name in measure_refs]
         edges[measure["measure"]] = refs
 

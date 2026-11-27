@@ -38,6 +38,8 @@ from core.requests import AnalysisRequest
 from core.usage_service import (
     analyze_dataset,
     format_bytes,
+    is_counted_record,
+    is_counted_reference,
     output_file_name,
     report_url,
     resolve_names,
@@ -505,6 +507,7 @@ def _usage_groups(
             "depth": int(getattr(ref, "depth", 1) or 1),
         }
         for ref in (analysis.model_refs or [])
+        if is_counted_reference(ref)
     ]
     direct_refs = [ref for ref in refs if ref["depth"] <= 1]
     indirect_refs = [ref for ref in refs if ref["depth"] > 1]
@@ -592,6 +595,18 @@ def _usage_groups(
                     6: "Dipakai",
                     7: entry["count"],
                 },
+            )
+        )
+
+    for ref in refs:
+        if ref["kind"] != "key column":
+            continue
+        ref_table, _ref_column = _parse_object(ref["object"])
+        groups[GROUP_KEY_COLUMN].append(
+            _child(
+                ref["object"] or ref["detail"],
+                "table",
+                {1: "Key column", 2: ref_table, 3: "Model"},
             )
         )
 
@@ -697,7 +712,11 @@ def _usage_groups(
 
 
 def _ref_counts(analysis: Any) -> tuple[int, int]:
-    refs = list(getattr(analysis, "model_refs", []) or [])
+    refs = [
+        ref
+        for ref in (getattr(analysis, "model_refs", []) or [])
+        if is_counted_reference(ref)
+    ]
     direct = sum(
         1 for ref in refs if int(getattr(ref, "depth", 1) or 1) <= 1
     )
@@ -722,7 +741,9 @@ def _column_row(
         "size": format_bytes(size_bytes),
         "size_bytes": size_bytes,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []) + direct_refs,
+        "uses": len(
+            [row for row in (analysis.report_records or []) if is_counted_record(row)]
+        ) + direct_refs,
         "direct_refs": direct_refs,
         "transitive_refs": transitive_refs,
         "reports": len(
@@ -762,7 +783,9 @@ def _measure_row(
         "size": "-",
         "size_bytes": 0,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []) + direct_refs,
+        "uses": len(
+            [row for row in (analysis.report_records or []) if is_counted_record(row)]
+        ) + direct_refs,
         "direct_refs": direct_refs,
         "transitive_refs": transitive_refs,
         "reports": len(

@@ -29,7 +29,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 from uuid import uuid4
 
 import pandas as pd
@@ -397,6 +397,19 @@ class ModelReference:
     depth: int = 1
 
 
+# Pemakaian yang tidak dihitung di kolom "Uses" (tetap disimpan di detail).
+UNCOUNTED_REF_KINDS = frozenset({"langkah M"})
+UNCOUNTED_USAGE_KINDS = frozenset({"sort"})
+
+
+def is_counted_reference(reference: Any) -> bool:
+    return str(getattr(reference, "kind", "") or "") not in UNCOUNTED_REF_KINDS
+
+
+def is_counted_record(record: Mapping[str, Any]) -> bool:
+    return str(record.get("usage_kind") or "") not in UNCOUNTED_USAGE_KINDS
+
+
 @dataclass
 class MeasureAnalysis:
     """Measure model + pemakaian report/measure lain + verdict."""
@@ -409,9 +422,17 @@ class MeasureAnalysis:
     indirect: bool = False
 
     @property
+    def counted_records(self) -> list[dict[str, Any]]:
+        return [row for row in self.report_records if is_counted_record(row)]
+
+    @property
+    def counted_refs(self) -> list[ModelReference]:
+        return [ref for ref in self.direct_refs if is_counted_reference(ref)]
+
+    @property
     def use_count(self) -> int:
         """Pemakaian report + rujukan model langsung (depth <= 1)."""
-        return len(self.report_records) + len(self.direct_refs)
+        return len(self.counted_records) + len(self.counted_refs)
 
     @property
     def direct_refs(self) -> list[ModelReference]:
@@ -547,10 +568,26 @@ def measure_references(
     for row in build_partitions(model):
         if str(row.get("source_type")) != "calculated":
             continue
-        owner = f"calculated table '{row['table']}'"
-        _columns, measure_names = find_dax_refs(
-            str(row["source"]), table_names
-        )
+        table_name = str(row["table"])
+        source = str(row["source"])
+        named = find_field_parameter_refs(source)
+        if named:
+            # Field parameter berisi measure: measure itu dipakai parameter.
+            for ref_table, ref_column in named:
+                key = (ref_table.casefold(), ref_column.casefold())
+                if key not in measure_keys:
+                    continue
+                add(
+                    ref_table,
+                    ref_column,
+                    "field parameter",
+                    f"'{table_name}'",
+                    f"field parameter '{table_name}'",
+                    blocking=False,
+                )
+            continue
+        owner = f"calculated table '{table_name}'"
+        _columns, measure_names = find_dax_refs(source, table_names)
         for name in measure_names:
             add(
                 table_by_name.get(name.casefold(), ""),
@@ -706,6 +743,20 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                     f"'{table_name}'",
                     f"field parameter '{table_name}'",
                 )
+            # Measure Killer juga menandai kolom tabel parameter itu sendiri
+            # (Parameter/Parameter Fields/Parameter Order) sebagai pemakaian.
+            for col_table, col_name in model.column_name.values():
+                if col_table != table_name:
+                    continue
+                if (col_table.casefold(), col_name.casefold()) not in model_columns:
+                    continue
+                add(
+                    col_table,
+                    col_name,
+                    "field parameter",
+                    f"'{table_name}'",
+                    f"field parameter '{table_name}'",
+                )
             continue
         owner = f"calculated table '{table_name}'"
         for table, column in find_dax_refs(source, table_names)[0]:
@@ -731,6 +782,22 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 f"'{from_table}'[{from_column}]",
                 f"relasi ke '{from_table}'[{from_column}]",
             )
+
+    for column_id, column in model.column_by_id.items():
+        if not column.get("IsKey"):
+            continue
+        table, name = model.column_name.get(column_id, ("", ""))
+        if not table or not name:
+            continue
+        if (table.casefold(), name.casefold()) not in model_columns:
+            continue
+        add(
+            table,
+            name,
+            "key column",
+            f"'{table}'[{name}]",
+            f"kolom kunci tabel '{table}'",
+        )
 
     for column_id, column in model.column_by_id.items():
         sort_id = column.get("SortByColumnID")
@@ -762,12 +829,24 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
         table = model.table_name.get(int(row["TableID"]), "")
         role = model.role_by_id.get(int(row["RoleID"]), {})
         role_name = str(role.get("Name") or "")
-        for ref_table, ref_column in find_dax_refs(
-            str(row.get("FilterExpression") or ""), table_names
-        )[0]:
+        filter_text = str(row.get("FilterExpression") or "")
+        for ref_table, ref_column in find_dax_refs(filter_text, table_names)[0]:
             add(
                 ref_table,
                 ref_column,
+                "RLS",
+                f"role '{role_name}'",
+                f"filter RLS role '{role_name}' pada tabel '{table}'",
+            )
+        # Kolom tanpa kualifikasi tabel (mis. [Email] = USERPRINCIPALNAME())
+        # berlaku pada tabel permission itu sendiri.
+        for match in re.finditer(r"\[([^\]]+)\]", filter_text):
+            name = match.group(1).strip()
+            if (table.casefold(), name.casefold()) not in model_columns:
+                continue
+            add(
+                table,
+                name,
                 "RLS",
                 f"role '{role_name}'",
                 f"filter RLS role '{role_name}' pada tabel '{table}'",
@@ -854,9 +933,17 @@ class ColumnAnalysis:
     report_records: list[dict[str, Any]] = field(default_factory=list)
 
     @property
+    def counted_records(self) -> list[dict[str, Any]]:
+        return [row for row in self.report_records if is_counted_record(row)]
+
+    @property
+    def counted_refs(self) -> list[ModelReference]:
+        return [ref for ref in self.direct_refs if is_counted_reference(ref)]
+
+    @property
     def use_count(self) -> int:
         """Pemakaian report + rujukan model langsung (depth <= 1)."""
-        return len(self.report_records) + len(self.direct_refs)
+        return len(self.counted_records) + len(self.counted_refs)
 
     @property
     def direct_refs(self) -> list[ModelReference]:
@@ -2367,7 +2454,7 @@ def column_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                 "size_bytes": column.size_bytes,
                 "status": column.status,
                 "uses": column.use_count,
-                "direct_refs": len(column.direct_refs),
+                "direct_refs": len(column.counted_refs),
                 "transitive_refs": len(column.transitive_refs),
                 "reports": column.report_count,
                 "format_string": column.column.format_string,
@@ -2398,7 +2485,7 @@ def measure_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                 "size_bytes": 0,
                 "status": item.status,
                 "uses": item.use_count,
-                "direct_refs": len(item.direct_refs),
+                "direct_refs": len(item.counted_refs),
                 "transitive_refs": len(item.transitive_refs),
                 "reports": item.report_count,
                 "format_string": item.measure.format_string,
@@ -2481,7 +2568,7 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             "Rows": column.column.rows,
             "Uses": column.use_count,
             "Reports": column.report_count,
-            "Direct references": len(column.direct_refs),
+            "Direct references": len(column.counted_refs),
             "Transitive references": len(column.transitive_refs),
             "Format string": column.column.format_string,
             "Has error": "Yes" if column.column.has_error else "No",
@@ -2635,7 +2722,7 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
                         "Status": item.status,
                         "Uses": item.use_count,
                         "Reports": item.report_count,
-                        "Direct references": len(item.direct_refs),
+                        "Direct references": len(item.counted_refs),
                         "Transitive references": len(item.transitive_refs),
                         "Format string": item.measure.format_string,
                         "Hidden": "Yes" if item.measure.is_hidden else "No",
