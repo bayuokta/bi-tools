@@ -65,3 +65,4 @@ m-query*.csv
 /TSD_*.html
 /TSD_*.json
 /results.xlsx
+/tests/data/pembanding_results.xlsx
