@@ -447,10 +447,20 @@ def _filter_fields(filter_obj: Any) -> list[tuple[str, str]]:
     """Kolom di filter PBIR v2 (``From``/``Where``) tanpa ``field`` eksplisit."""
     if not isinstance(filter_obj, dict):
         return []
+    from_items = [
+        item for item in filter_obj.get("From") or [] if isinstance(item, dict)
+    ]
+    entities = {
+        str(item.get("Entity") or "").strip()
+        for item in from_items
+        if str(item.get("Entity") or "").strip()
+    }
+    if len(entities) > 1:
+        # Filter gabungan lintas tabel tidak dihitung Measure Killer.
+        return []
     aliases = {
         str(item.get("Name") or ""): str(item.get("Entity") or "")
-        for item in filter_obj.get("From") or []
-        if isinstance(item, dict)
+        for item in from_items
     }
     out: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
