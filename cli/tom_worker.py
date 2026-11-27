@@ -101,7 +101,7 @@ class _Session:
             raise TomError("The TOM connection is not open yet.")
         folder = str(target or "").strip()
         if not folder:
-            raise TomError("Folder tujuan ekspor model wajib diisi.")
+            raise TomError("Model export target folder is required.")
         from core.tom_export import export_model
 
         return export_model(self.server, self.catalog, folder)
@@ -146,7 +146,7 @@ def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
             session.close()
             _respond({"ok": True})
         else:
-            raise ValueError(f"Operasi worker TOM tidak dikenal: {op}")
+            raise ValueError(f"Unknown TOM worker operation: {op}")
     except Exception as exc:  # noqa: BLE001 - diteruskan ke server
         _respond({"ok": False, "error": str(exc)})
 

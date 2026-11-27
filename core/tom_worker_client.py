@@ -63,7 +63,7 @@ class TomWorkerClient:
         with self._lock:
             if self._process.poll() is not None:
                 raise ExtractionError(
-                    "Worker TOM berhenti. "
+                    "The TOM worker stopped. "
                     + (self._stderr[-1] if self._stderr else "No details.")
                 )
             assert self._process.stdin is not None
@@ -88,7 +88,7 @@ class TomWorkerClient:
                     ) from exc
                 if line is None:
                     raise ExtractionError(
-                        "Worker TOM berhenti. "
+                        "The TOM worker stopped. "
                         + (self._stderr[-1] if self._stderr else "No details.")
                     )
                 try:

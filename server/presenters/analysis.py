@@ -140,7 +140,7 @@ ARTIFACT_TYPES = {
     "calculation item": "Calculation item",
     "KPI": "KPI",
     "hierarchy": "Hierarchy",
-    "langkah M": "Langkah M",
+    "langkah M": "M step",
 }
 SECURITY_TYPES = {"RLS": "RLS", "column permission": "OLS"}
 KIND_SORT = "sort by"

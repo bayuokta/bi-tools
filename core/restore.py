@@ -104,7 +104,7 @@ def inspect_archive(path: Path | str, *, strict: bool = True) -> ArchiveInfo:
                 total += int(info.file_size or 0)
                 if total > MAX_UNCOMPRESSED:
                     raise ExtractionError(
-                        "Isi ZIP backup terlalu besar setelah diekstrak."
+                        "The backup ZIP content is too large after extraction."
                     )
                 payload = archive.read(info)
                 clean = relative.as_posix()

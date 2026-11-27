@@ -34,8 +34,8 @@ SCOPES = ("both", "pages", "visuals")
 
 SCOPE_LABELS = {
     "both": "Page + visual",
-    "pages": "Page saja",
-    "visuals": "Visual saja",
+    "pages": "Pages only",
+    "visuals": "Visuals only",
 }
 
 # Objek dekoratif pada report: tetap terlihat di screenshot halaman, tetapi
@@ -133,7 +133,7 @@ def build_items(
     dikecualikan lewat ``exclude_visual_types``.
     """
     if scope not in SCOPES:
-        raise ValueError(f"Cakupan screenshot tidak dikenal: {scope}")
+        raise ValueError(f"Unknown screenshot scope: {scope}")
 
     exclude = set(exclude_visual_types or ())
     root = Path(output_root)

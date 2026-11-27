@@ -1635,7 +1635,7 @@ def _apply_function(
             return state
         new_name = _parse_name(args[1])
         if new_name is None:
-            warnings.append(Warning(step, "", "dynamic_columns", f"{name} tanpa nama kolom statis."))
+            warnings.append(Warning(step, "", "dynamic_columns", f"{name} without a static column name."))
             state.columns_known = False
             return state
         refs = _extract_refs(args[2]) if lowered == "table.addcolumn" and len(args) >= 3 else []
@@ -1655,7 +1655,7 @@ def _apply_function(
         used = _parse_string_list(args[1])
         new_name = _parse_name(args[3])
         if used is None or new_name is None:
-            warnings.append(Warning(step, "", "dynamic_columns", "Table.CombineColumns tidak statis."))
+            warnings.append(Warning(step, "", "dynamic_columns", "Table.CombineColumns is not static."))
             state.columns_known = False
             return state
         for column_name in used:
@@ -1724,17 +1724,17 @@ def _apply_function(
                 column.confidence = "medium"
             if not column.detail:
                 column.detail = (
-                    "Transformasi Table.TransformColumns tidak dianalisa; "
-                    "sumber kolom tetap."
+                    "Table.TransformColumns transformations are not analyzed; "
+                    "the column source stays the same."
                 )
         warnings.append(
             Warning(
                 step,
                 "",
                 "transform_columns",
-                "Table.TransformColumns pada "
+                "Table.TransformColumns on "
                 + ", ".join(names)
-                + ": logika transformasi tidak dianalisa.",
+                + ": transformation logic is not analyzed.",
             )
         )
         return state
@@ -1743,7 +1743,7 @@ def _apply_function(
         keys = _parse_string_list(args[1]) if len(args) >= 2 else None
         if keys is None:
             state.columns_known = False
-            warnings.append(Warning(step, "", "dynamic_columns", "Table.Group memakai key dinamis."))
+            warnings.append(Warning(step, "", "dynamic_columns", "Table.Group uses dynamic keys."))
             return state
         grouped: dict[str, ColumnLineage] = {}
         for key in keys:
@@ -1841,7 +1841,7 @@ def _apply_function(
         detail = (
             "Dynamic column rename (Table.TransformColumnNames) cannot be determined."
             if lowered == "table.transformcolumnnames"
-            else "Table.Pivot mengubah nama kolom secara dinamis."
+            else "Table.Pivot renames columns dynamically."
         )
         _mark_all(state, "dynamic_rename", "low", detail, step, warnings)
         return state
@@ -1998,7 +1998,7 @@ def build_lineage(
     """
     result = LineageResult()
     if not m_text or not m_text.strip():
-        result.warnings.append(Warning("", "", "no_query", "Partisi tidak memiliki query M."))
+        result.warnings.append(Warning("", "", "no_query", "The partition has no M query."))
         return result
 
     if resolver is None and registry:

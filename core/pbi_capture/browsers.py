@@ -79,10 +79,10 @@ def install_chromium(log: Log = _silent) -> None:
         command = driver_command("install", "--no-progress", BROWSER)
     except Exception as exc:  # noqa: BLE001 - paket Playwright tidak lengkap
         raise ExtractionError(
-            "Playwright tidak tersedia di paket ini; pasang ulang aplikasi."
+            "Playwright is not available in this package; reinstall the application."
         ) from exc
 
-    log("Mengunduh Chromium (sekitar 150 MB) ...")
+    log("Downloading Chromium (about 150 MB) ...")
     creationflags = (
         getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
     )
@@ -99,8 +99,8 @@ def install_chromium(log: Log = _silent) -> None:
         )
     except OSError as exc:
         raise ExtractionError(
-            f"Tidak bisa menjalankan pengunduh Chromium: {exc}. "
-            "Jalankan 'bi-tools-cli install-browser' dari Command Prompt."
+            f"Could not run the Chromium downloader: {exc}. "
+            "Run 'bi-tools-cli install-browser' from Command Prompt."
         ) from exc
 
     if process.stdout is not None:
@@ -111,10 +111,10 @@ def install_chromium(log: Log = _silent) -> None:
     code = process.wait()
     if code != 0:
         raise ExtractionError(
-            f"Unduh Chromium gagal (exit {code}). Periksa koneksi/proxy lalu "
-            "jalankan 'bi-tools-cli install-browser'."
+            f"Chromium download failed (exit {code}). Check the connection/proxy, then "
+            "run 'bi-tools-cli install-browser'."
         )
-    log("Chromium siap dipakai.")
+    log("Chromium is ready.")
 
 
 __all__ = [

@@ -176,7 +176,7 @@ class LineageBuilderTests(unittest.TestCase):
                 ModelReference(
                     kind="measure",
                     object="'M'[Calc]",
-                    detail="dipakai measure",
+                    detail="used by measure",
                     blocking=False,
                     source_table="M",
                     source_measure="Calc",
@@ -551,7 +551,7 @@ in
                 ModelReference(
                     kind="measure",
                     object="'M'[Base]",
-                    detail="dipakai measure",
+                    detail="used by measure",
                     blocking=False,
                     source_table="M",
                     source_measure="Base",
@@ -1376,7 +1376,7 @@ in
             return ModelReference(
                 kind="measure",
                 object=f"'_Measures'[{name}]",
-                detail=f"measure '{name}' (kedalaman {depth})",
+                detail=f"measure '{name}' (depth {depth})",
                 blocking=False,
                 depth=depth,
             )
@@ -1401,7 +1401,7 @@ in
                 ModelReference(
                     kind="measure",
                     object="'_Measures'[# KK]",
-                    detail="measure '# KK' (kedalaman 1)",
+                    detail="measure '# KK' (depth 1)",
                     blocking=False,
                     depth=1,
                 )

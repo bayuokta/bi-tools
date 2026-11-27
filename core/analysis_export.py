@@ -138,7 +138,7 @@ def write_lineage_image(
         raise ValueError("Image format must be svg or png.")
     text = str(content or "").strip()
     if not text:
-        raise ValueError("Isi gambar lineage kosong.")
+        raise ValueError("Lineage image content is empty.")
     if fmt == "svg":
         if not text.lower().startswith("<svg"):
             raise ValueError("SVG content is not valid.")

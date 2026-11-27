@@ -250,10 +250,10 @@ def _read_sheets(path: Path, sheets: tuple[str, ...], log: Log) -> dict[str, pd.
         with pd.ExcelFile(path) as book:
             names = set(book.sheet_names)
     except Exception as exc:  # pandas melempar beberapa tipe berbeda
-        raise ExtractionError(f"Workbook tidak bisa dibaca: {path} ({exc}).") from exc
+        raise ExtractionError(f"Workbook could not be read: {path} ({exc}).") from exc
     missing = [name for name in sheets if name not in names]
     for name in missing:
-        log(f"WARNING: sheet {name} tidak ada di {path.name}; bagian TSD terkait kosong.")
+        log(f"WARNING: sheet {name} does not exist in {path.name}; the related TSD section is empty.")
     present = [name for name in sheets if name in names]
     if not present:
         return {}
@@ -613,10 +613,10 @@ def _attach_screenshots(
                 stats["missing_visuals"] += 1
 
     log(
-        f"Screenshot       : {stats['pages']}/{len(pages)} page, "
+        f"Screenshot       : {stats['pages']}/{len(pages)} pages, "
         f"{stats['visuals']} visual, {stats['mobile']} mobile; "
-        f"{stats['missing_pages']} page & {stats['missing_visuals']} visual "
-        "tanpa gambar (placeholder)."
+        f"{stats['missing_pages']} pages & {stats['missing_visuals']} visuals "
+        "without images (placeholder)."
     )
     return stats, mobile_shots
 
@@ -1358,14 +1358,14 @@ def _apply_page_overrides(
             else ""
         )
         log(
-            f"WARNING: {len(unknown_pages)} override halaman tidak cocok dengan "
-            f"workbook ({preview}{rest}); dilewati. Sidecar mungkin milik report lain."
+            f"WARNING: {len(unknown_pages)} page overrides do not match the "
+            f"workbook ({preview}{rest}); skipped. The sidecar may belong to another report."
         )
     if unknown_visuals:
         log(
-            f"WARNING: {unknown_visuals} override visual tidak cocok dengan "
-            "workbook; dilewati (termasuk visual dekoratif yang kini tidak "
-            "ditampilkan)."
+            f"WARNING: {unknown_visuals} visual overrides do not match the "
+            "workbook; skipped (including decorative visuals that are no longer "
+            "shown)."
         )
     return pages
 
@@ -1426,10 +1426,10 @@ def build_context(
     report_path = Path(report_workbook)
     if not report_path.exists():
         raise ExtractionError(
-            f"Workbook report tidak ditemukan: {report_path}. Jalankan ekstraksi report dulu."
+            f"Report workbook not found: {report_path}. Run report extraction first."
         )
     if report_path.suffix.lower() != ".xlsx":
-        raise ExtractionError(f"Workbook report harus file .xlsx: {report_path}")
+        raise ExtractionError(f"Report workbook must be an .xlsx file: {report_path}")
 
     report_frames = _read_sheets(report_path, REPORT_SHEETS, log)
     model_frames: dict[str, pd.DataFrame] = {}
@@ -1439,8 +1439,8 @@ def build_context(
             model_frames = _read_sheets(model_path, MODEL_SHEETS, log)
         else:
             log(
-                f"WARNING: workbook model tidak ditemukan: {model_path.name}; "
-                "bagian model TSD dikosongkan."
+                f"WARNING: model workbook not found: {model_path.name}; "
+                "the TSD model section is left empty."
             )
 
     context = _empty_context()
@@ -1658,7 +1658,7 @@ def render_tsd(
     path = Path(template_path) if template_path else TEMPLATE_PATH
     if not path.exists():
         raise ExtractionError(
-            f"Template TSD tidak ditemukan: {path}. Salin dari "
+            f"TSD template not found: {path}. Copy it from "
             r"..\template-tsd\templates\tsd.template.html."
         )
     template_text = path.read_text(encoding="utf-8")
@@ -1675,13 +1675,13 @@ def validate_html(html: str) -> None:
     if leftover:
         line = html.count("\n", 0, leftover.start()) + 1
         raise ExtractionError(
-            f"Token Jinja belum dirender di baris {line}: {leftover.group(0)}"
+            f"Jinja token was not rendered on line {line}: {leftover.group(0)}"
         )
     if "<html" not in html or "</html>" not in html:
-        raise ExtractionError("Hasil render bukan dokumen HTML lengkap.")
+        raise ExtractionError("The render result is not a complete HTML document.")
     for anchor in REQUIRED_ANCHORS:
         if f'id="{anchor}"' not in html:
-            raise ExtractionError(f"Section TSD wajib tidak ditemukan: {anchor}")
+            raise ExtractionError(f"Required TSD section not found: {anchor}")
 
 
 def write_tsd(
@@ -1768,9 +1768,9 @@ def load_manual(path: Path, log: Log = _silent) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ExtractionError(f"Konteks manual tidak bisa dibaca: {path} ({exc}).") from exc
+        raise ExtractionError(f"Manual context could not be read: {path} ({exc}).") from exc
     if not isinstance(data, dict):
-        raise ExtractionError(f"Konteks manual harus objek JSON: {path}")
+        raise ExtractionError(f"Manual context must be a JSON object: {path}")
     return data
 
 
@@ -1802,11 +1802,11 @@ def run_tsd(
     report_path = Path(report_workbook) if report_workbook else Path(OUT_FILE)
     if not report_path.exists():
         raise ExtractionError(
-            f"Workbook report tidak ditemukan: {report_path}. Jalankan ekstraksi report dulu."
+            f"Report workbook not found: {report_path}. Run report extraction first."
         )
     model_path = Path(model_workbook) if model_workbook else None
     if model_path is not None and not model_path.exists():
-        log(f"WARNING: workbook model tidak ditemukan: {model_path}; dilewati.")
+        log(f"WARNING: model workbook not found: {model_path}; skipped.")
         model_path = None
 
     explicit_manual = dict(manual or {})
@@ -1837,8 +1837,8 @@ def run_tsd(
         manual_file = path.with_suffix(".json")
 
     log(f"Report workbook  : {report_path}")
-    log(f"Model workbook   : {model_path if model_path else 'tidak ada'}")
-    log(f"Konteks manual   : {manual_file}")
+    log(f"Model workbook   : {model_path if model_path else 'none'}")
+    log(f"Manual context   : {manual_file}")
     log(f"Template         : {Path(template_path) if template_path else TEMPLATE_PATH}")
 
     screenshots: ScreenshotSet | None = None
@@ -1868,7 +1868,7 @@ def run_tsd(
                 options = replace(
                     options, viewport_width=width, viewport_height=height
                 )
-                log(f"Viewport capture  : {width}x{height} (ukuran halaman report)")
+                log(f"Viewport capture  : {width}x{height} (report page size)")
         log(f"Screenshot assets: {assets_root}")
         screenshots = load_or_capture(options, log=log)
 
@@ -1902,7 +1902,7 @@ def run_tsd(
             write_manual(manual_file, to_save)
             saved = True
         if saved:
-            log(f"Konteks manual disimpan: {manual_file}")
+            log(f"Manual context saved: {manual_file}")
 
     html = output.read_text(encoding="utf-8")
     pages = context.get("objects", {}).get("pages", [])
@@ -1932,14 +1932,14 @@ def run_tsd(
         "screenshot_root": screenshots.root if screenshots is not None else None,
     }
     log("")
-    log(f"TSD dibuat        : {output}")
-    log(f"Halaman / visual  : {summary['pages']} / {summary['visuals']}")
+    log(f"TSD created       : {output}")
+    log(f"Pages / visuals   : {summary['pages']} / {summary['visuals']}")
     if summary["screenshot_root"] is not None:
         log(
             f"Screenshot        : {summary['screenshot_pages']} page / "
             f"{summary['screenshot_visuals']} visual / "
             f"{summary['screenshot_mobile']} mobile "
-            f"({summary['screenshot_missing']} tanpa gambar)"
+            f"({summary['screenshot_missing']} without images)"
         )
-    log(f"Ukuran / TODO     : {summary['size'] / 1024:.1f} KB / {summary['todos']}")
+    log(f"Size / TODO       : {summary['size'] / 1024:.1f} KB / {summary['todos']}")
     return summary

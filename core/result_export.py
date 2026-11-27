@@ -130,7 +130,7 @@ def _quoted(text: Any) -> str:
 
 def _visual_name(record: Mapping[str, Any]) -> str:
     title = str(record.get("visual_title") or "").strip()
-    for prefix in ("(untitled) ", "(tanpa judul) "):
+    for prefix in ("(untitled) ",):
         if title.startswith(prefix):
             title = title[len(prefix) :].strip()
             title = re.sub(r"\s+[0-9a-f]{8}$", "", title, flags=re.IGNORECASE)

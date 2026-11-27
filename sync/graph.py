@@ -314,7 +314,7 @@ class GraphUploader:
                 self._log(f"Upload chunk {offset}/{total} byte")
         if offset < total:
             raise ExtractionError(
-                f"Upload berhenti di {offset} of {total} byte: {source.name}"
+                f"Upload stopped at {offset} of {total} bytes: {source.name}"
             )
         return last
 

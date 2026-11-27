@@ -789,8 +789,8 @@ class DesktopInstance:
 
     @property
     def label(self) -> str:
-        name = self.file_name or self.model_name or "(tanpa nama)"
-        stamp = f" - dibuka {self.modified}" if self.modified else ""
+        name = self.file_name or self.model_name or "(unnamed)"
+        stamp = f" - opened {self.modified}" if self.modified else ""
         return f"{name} - localhost:{self.port}{stamp}"
 
 
@@ -984,7 +984,7 @@ def open_client(
 
         names = [item["name"] for item in catalogs if item["name"]]
         if not names:
-            errors.append(f"{endpoint_label}: tidak ada catalog")
+            errors.append(f"{endpoint_label}: no catalogs")
             continue
 
         requested = connection_catalog(connection_string) or catalog
@@ -992,8 +992,8 @@ def open_client(
             match = [name for name in names if name.lower() == requested.lower()]
             if not match:
                 errors.append(
-                    f"{endpoint_label}: catalog '{requested}' tidak ada "
-                    f"(tersedia: {', '.join(names)})"
+                    f"{endpoint_label}: catalog '{requested}' was not found "
+                    f"(available: {', '.join(names)})"
                 )
                 continue
             chosen = match[0]

@@ -122,7 +122,7 @@ def _search(args: argparse.Namespace) -> int:
         print("No results.")
         return 0
     _print_table(
-        ["Tipe", "Nama", "Workspace", "Owner", "ID"],
+        ["Type", "Name", "Workspace", "Owner", "ID"],
         (
             (
                 row.get("node_type"),
@@ -177,7 +177,7 @@ def _lineage(args: argparse.Namespace) -> int:
         print("No items in this direction.")
         return 0
     _print_table(
-        ["Depth", "Tipe", "Nama", "Workspace", "Owner", "Relasi"],
+        ["Depth", "Type", "Name", "Workspace", "Owner", "Relationship"],
         (
             (
                 node.get("depth"),

@@ -99,7 +99,7 @@ class WorkerXmlaClient:
         with self._lock:
             if self._process.poll() is not None:
                 raise XmlaError(
-                    "Worker XMLA berhenti. "
+                    "The XMLA worker stopped. "
                     + (self._stderr[-1] if self._stderr else "No details.")
                 )
             assert self._process.stdin is not None
@@ -120,7 +120,7 @@ class WorkerXmlaClient:
                     raise XmlaError(message) from exc
                 if line is None:
                     raise XmlaError(
-                        "Worker XMLA berhenti. "
+                        "The XMLA worker stopped. "
                         + (self._stderr[-1] if self._stderr else "No details.")
                     )
                 try:

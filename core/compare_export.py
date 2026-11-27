@@ -51,7 +51,7 @@ def script_manifest(result: Mapping[str, Any]) -> dict[str, Any]:
         }
         if item.get("type") in {"Table", "M query", "Data source"}:
             entry["reason"] = (
-                "Definisi objek ini ikut dalam blok TOM; tinjau sebelum diterapkan."
+                "This object definition is included in the TOM block; review it before applying."
             )
             manual.append(entry)
         else:
@@ -61,8 +61,8 @@ def script_manifest(result: Mapping[str, Any]) -> dict[str, Any]:
         "source": result.get("source") or {},
         "target": result.get("target") or {},
         "note": (
-            "Pratinjau read-only dari serializer TOM. Script tidak dijalankan "
-            "oleh BI Tools; validasi dan terapkan secara manual."
+            "Read-only preview from the TOM serializer. The script is not executed "
+            "by BI Tools; validate and apply it manually."
         ),
         "actions": actions,
         "manual": manual,

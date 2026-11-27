@@ -61,9 +61,9 @@ def read_snapshot(
     """Baca snapshot TOM lewat proses anak (read-only)."""
     name = str(catalog or "").strip()
     if not name:
-        raise ExtractionError("Catalog semantic model kosong.")
+        raise ExtractionError("Empty semantic model catalog.")
     if not port and not str(endpoint or "").strip():
-        raise ExtractionError("Endpoint XMLA kosong.")
+        raise ExtractionError("Empty XMLA endpoint.")
     if interactive:
         from .tom_worker_client import get_tom_worker
 

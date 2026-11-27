@@ -306,7 +306,7 @@ class RestoreRequest:
         if self.overwrite:
             if not target_id:
                 raise ExtractionError("Select the target item to overwrite.")
-            target_id = _guid(target_id, "ID item tujuan")
+            target_id = _guid(target_id, "target item ID")
         elif target_id:
             raise ExtractionError("A target item is only used when overwriting.")
         object.__setattr__(self, "target_id", target_id)

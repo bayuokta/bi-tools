@@ -164,7 +164,7 @@ def _dependency_warnings(model: Any, settings: Mapping[str, Any]) -> list[dict[s
                 continue
             details = []
             if missing_columns:
-                details.append("kolom: " + ", ".join(sorted(set(missing_columns))))
+                details.append("column: " + ", ".join(sorted(set(missing_columns))))
             if missing_measures:
                 details.append("measure: " + ", ".join(sorted(set(missing_measures))))
             warnings.append(
@@ -172,7 +172,7 @@ def _dependency_warnings(model: Any, settings: Mapping[str, Any]) -> list[dict[s
                     "type": "Measure dependency",
                     "table": str(table.Name),
                     "measure": str(measure.Name),
-                    "message": "Referensi tidak ditemukan di model — " + "; ".join(details),
+                    "message": "Reference not found in the model — " + "; ".join(details),
                 }
             )
     warnings.sort(key=lambda item: (item["table"].casefold(), item["measure"].casefold()))

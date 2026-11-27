@@ -949,7 +949,7 @@ class MeasureAnalysisTests(unittest.TestCase):
                 ModelReference(
                     "measure",
                     "'Sales'[Total]",
-                    "dipakai measure",
+                    "used by measure",
                     blocking=False,
                     source_table="Sales",
                     source_measure="Total",
@@ -969,7 +969,7 @@ class MeasureAnalysisTests(unittest.TestCase):
                 ModelReference(
                     "measure",
                     "'Sales'[Helper]",
-                    "dipakai measure",
+                    "used by measure",
                     blocking=False,
                     source_table="Sales",
                     source_measure="Helper",
@@ -1351,7 +1351,7 @@ class WriteWorkbookTests(unittest.TestCase):
                         ModelReference(
                             "measure",
                             "'Sales'[Helper]",
-                            "measure (kedalaman 2)",
+                            "measure (depth 2)",
                             blocking=False,
                             depth=2,
                         ),
@@ -1850,7 +1850,7 @@ class SnapshotTests(unittest.TestCase):
                         {
                             "kind": "measure",
                             "object": "'Sales'[Total]",
-                            "detail": "dipakai measure",
+                            "detail": "used by measure",
                             "blocking": False,
                             "source_table": "Sales",
                             "source_measure": "Total",

@@ -68,25 +68,25 @@ class CaptureOptions:
         self.report_id = str(self.report_id or "").strip()
         if not is_guid(self.workspace_id):
             raise ExtractionError(
-                "Workspace ID harus GUID (36 karakter, mis. "
+                "Workspace ID must be a GUID (36 characters, e.g. "
                 "11111111-1111-4111-8111-111111111111)."
             )
         if not is_guid(self.report_id):
             raise ExtractionError(
-                "Report ID harus GUID (36 karakter, mis. "
+                "Report ID must be a GUID (36 characters, e.g. "
                 "22222222-2222-4222-8222-222222222222)."
             )
         self.scope = str(self.scope or "both").lower()
         if self.scope not in SCOPES:
             raise ExtractionError(
-                "Cakupan screenshot harus salah satu: " + ", ".join(SCOPES) + "."
+                "Screenshot scope must be one of: " + ", ".join(SCOPES) + "."
             )
         try:
             self.scale = float(self.scale)
         except (TypeError, ValueError) as exc:
-            raise ExtractionError("Skala screenshot harus angka (mis. 1 atau 2).") from exc
+            raise ExtractionError("Screenshot scale must be a number (e.g. 1 or 2).") from exc
         if not 0.5 <= self.scale <= 4:
-            raise ExtractionError("Skala screenshot harus antara 0.5 dan 4.")
+            raise ExtractionError("Screenshot scale must be between 0.5 and 4.")
         self.extra_dataset_ids = tuple(self.extra_dataset_ids or ())
         self.exclude_visual_types = tuple(self.exclude_visual_types or ())
         self.reveal_bookmarks = bool(self.reveal_bookmarks)
@@ -122,7 +122,7 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
         max_retries=options.max_retries,
         log=log,
     )
-    log("Membuat embed token (RLS)...")
+    log("Creating embed token (RLS)...")
     embed_token = provider.get_embed_token(
         options.workspace_id, options.report_id, options.extra_dataset_ids
     )
@@ -147,8 +147,8 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
     hints = load_layout_hints(options.hints_workbook)
     if hints:
         log(
-            f"Layout hint       : {sum(len(v) for v in hints.values())} visual "
-            "dari workbook report"
+            f"Layout hint       : {sum(len(v) for v in hints.values())} visuals "
+            "from the report workbook"
         )
     manifest = new_manifest(options.workspace_id, options.report_id)
     page_pngs: dict[str, bytes] = {}
@@ -160,10 +160,10 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
         pages = capturer.list_pages()
         if not pages:
             raise ExtractionError(
-                "Report tidak memiliki page yang bisa di-capture "
-                "(halaman tersembunyi tidak dikembalikan embed API)."
+                "The report has no capturable pages "
+                " (hidden pages are not returned by the embed API)."
             )
-        log(f"Ditemukan {len(pages)} page; mulai capture.")
+        log(f"Found {len(pages)} pages; starting capture.")
         for ordinal, page in enumerate(pages, start=1):
             name = str(page.get("name") or "")
             label = str(page.get("displayName") or name)
@@ -226,13 +226,13 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
                 }
                 if not mobile_pages:
                     log(
-                        "Tidak ada page dengan mobile layout; "
-                        "screenshot mobile dilewati."
+                        "No pages have a mobile layout; "
+                        "mobile screenshots are skipped."
                     )
                 else:
                     log(
-                        f"Capture mobile layout {len(mobile_pages)} page "
-                        f"dari {len(mobile_pages_all)} page."
+                        f"Capture mobile layout {len(mobile_pages)} pages "
+                        f"out of {len(mobile_pages_all)} pages."
                     )
                     for ordinal, page in enumerate(mobile_pages, start=1):
                         name = str(page.get("name") or "")
@@ -251,7 +251,7 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
                             warnings.append(f"mobile {label}: {exc}")
         except Exception as exc:  # noqa: BLE001 - jangan batalkan capture desktop
             warnings.append(f"mobile layout: {exc}")
-            log(f"WARNING: capture mobile layout gagal: {exc}")
+            log(f"WARNING: mobile layout capture failed: {exc}")
 
     for entry in manifest["pages"]:
         entry["mobileLayout"] = str(entry.get("name") or "") in mobile_layout_names
@@ -277,8 +277,8 @@ def capture_report(options: CaptureOptions, log: Log = _silent) -> ScreenshotSet
     )
     if cached.missing:
         log(
-            f"{len(cached.missing)} file tidak terpetakan ke elemen DOM "
-            "(lihat capture.json)."
+            f"{len(cached.missing)} files were not mapped to DOM elements "
+            " (see capture.json)."
         )
     for warning in warnings:
         log(f"WARNING: {warning}")
@@ -299,9 +299,9 @@ def load_or_capture(
             options.scope,
             require_mobile=options.mobile,
         ):
-            log(f"Cache screenshot dipakai: {root} ({cached.summary()}).")
+            log(f"Screenshot cache used: {root} ({cached.summary()}).")
             return cached
-        log("Cache screenshot belum ada atau tidak sesuai; capture baru dijalankan.")
+        log("The screenshot cache is missing or does not match; running a new capture.")
     else:
-        log("Refresh screenshot diminta; capture baru dijalankan.")
+        log("Screenshot refresh requested; running a new capture.")
     return capture_report(replace(options, output_root=root), log=log)

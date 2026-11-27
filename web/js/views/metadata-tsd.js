@@ -140,7 +140,7 @@ import { state } from "../core/state.js";
       renderModelAvailability();
       return;
     }
-    $("#pbixKind").textContent = "Membaca file…";
+    $("#pbixKind").textContent = "Reading file…";
     app.api().get("/api/metadata/pbix?path=" + encodeURIComponent(path)).then(function (data) {
       state.pbix = data;
       $("#pbixKind").textContent = data.label;
@@ -413,7 +413,7 @@ import { state } from "../core/state.js";
     var paths = data.paths || {};
     $("#tsdOutFolder").value = paths.out_dir || form.out_dir || "";
     $("#tsdFileName").placeholder = paths.suggested_name
-      ? "Otomatis: " + paths.suggested_name
+      ? "Automatic: " + paths.suggested_name
       : "Automatic from the report name";
 
     if (!state.tsdLoaded) {

@@ -116,7 +116,7 @@ def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
         elif op == "dmv":
             name = str(request.get("dmv") or "")
             if not DMV_RE.match(name):
-                raise ValueError(f"Nama DMV tidak valid: {name}")
+                raise ValueError(f"Invalid DMV name: {name}")
             rows = session.query(f"SELECT * FROM $SYSTEM.{name}")
             _respond({"ok": True, "rows": rows})
         elif op == "ping":
@@ -125,7 +125,7 @@ def _handle(session: _Session, request: dict[str, Any], root: tk.Tk) -> None:
             session.close()
             _respond({"ok": True})
         else:
-            raise ValueError(f"Operasi worker tidak dikenal: {op}")
+            raise ValueError(f"Unknown worker operation: {op}")
     except Exception as exc:  # noqa: BLE001 - diteruskan ke server
         _respond({"ok": False, "error": str(exc)})
 

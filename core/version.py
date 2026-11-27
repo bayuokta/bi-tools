@@ -38,7 +38,7 @@ def require_release_version() -> str:
     value = __version__
     if not _VERSION_RE.match(value):
         raise ValueError(
-            f"Versi aplikasi tidak valid: {value!r} (must be MAJOR.MINOR.PATCH)"
+            f"Invalid application version: {value!r} (must be MAJOR.MINOR.PATCH)"
         )
     return value
 

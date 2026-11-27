@@ -538,8 +538,8 @@ def read_model_stats(
 
     if not segments:
         notes.append(
-            "DMV ukuran tidak memberi data; ukuran kolom 0 B. Model Direct Lake "
-            "yang belum resident memang tidak punya segmen VertiPaq."
+            "The size DMV returned no data; column size is 0 B. Direct Lake models "
+            "that are not resident have no VertiPaq segments."
         )
     log(
         f"Model: {len(model.column_by_id)} raw columns, "

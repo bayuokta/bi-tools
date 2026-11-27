@@ -212,7 +212,7 @@ def run_lineage_scan(
 
         if mode == "auto":
             resolved_mode = "admin" if client.probe_admin() else "member"
-            log(f"Mode terpilih otomatis: {resolved_mode}")
+            log(f"Auto-selected mode: {resolved_mode}")
 
         if resolved_mode == "admin":
             scan_id = _run_admin_scan(

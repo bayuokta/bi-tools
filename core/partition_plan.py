@@ -175,7 +175,7 @@ def normalize_refresh_type(value: str) -> str:
     except KeyError as exc:
         allowed = ", ".join(REFRESH_TYPE_ORDER)
         raise TomError(
-            f"Jenis refresh tidak dikenal: {value!r}. Pilihan: {allowed}."
+            f"Unknown refresh type: {value!r}. Options: {allowed}."
         ) from exc
 
 
@@ -246,7 +246,7 @@ def build_refresh_tmsl(
     """
     catalog = str(dataset or "").strip()
     if not catalog:
-        raise TomError("Nama dataset TMSL tidak boleh kosong.")
+        raise TomError("TMSL dataset name cannot be empty.")
     normalized = normalize_refresh_type(refresh_type)
     pairs = _normalize_targets(targets)
 

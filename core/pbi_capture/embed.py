@@ -58,8 +58,8 @@ class EmbedTokenProvider:
         """Token untuk report/dataset/GenerateToken (scope Power BI)."""
         if self._token_provider is None:
             raise EmbedError(
-                "Kredensial service principal belum disiapkan untuk capture "
-                "screenshot (Tenant ID / Client ID / Client Secret)."
+                "Service principal credentials are not ready for screenshot "
+                "capture (Tenant ID / Client ID / Client Secret)."
             )
         return str(self._token_provider.get_token())
 
@@ -75,16 +75,16 @@ class EmbedTokenProvider:
 
         report = self._client.get_report(workspace_id, report_id)
         if not report:
-            raise EmbedError(f"Report {report_id} tidak ditemukan di workspace.")
+            raise EmbedError(f"Report {report_id} was not found in the workspace.")
         dataset_id = report.get("datasetId")
         dataset_ws = report.get("datasetWorkspaceId") or workspace_id
         if not dataset_id:
-            raise EmbedError("Respons report tidak memiliki datasetId.")
+            raise EmbedError("The report response has no datasetId.")
 
         dataset = self._client.get_dataset(dataset_ws, dataset_id) or {}
         roles_required = bool(dataset.get("isEffectiveIdentityRolesRequired"))
         self._log(
-            f"Dataset {dataset_id}: role RLS {'dibutuhkan' if roles_required else 'tidak dibutuhkan'}."
+            f"Dataset {dataset_id}: RLS roles {'required' if roles_required else 'not required'}."
         )
 
         datasets = [{"id": dataset_id, "xmlaPermissions": "ReadOnly"}]
@@ -101,11 +101,11 @@ class EmbedTokenProvider:
         if roles_required:
             if not self.rls_username:
                 raise EmbedError(
-                    "Dataset membutuhkan role RLS, tetapi RLS username belum diisi."
+                    "The dataset requires RLS roles, but the RLS username is not set."
                 )
             if not self.rls_roles:
                 raise EmbedError(
-                    "Dataset membutuhkan role RLS, tetapi daftar role masih kosong."
+                    "The dataset requires RLS roles, but the role list is empty."
                 )
             identity_datasets = [item["id"] for item in datasets]
             body["identities"] = [
@@ -129,5 +129,5 @@ class EmbedTokenProvider:
             ]
 
         embed_token = self._client.generate_embed_token(body)
-        self._log(f"Embed token diterima ({len(embed_token)} karakter).")
+        self._log(f"Embed token received ({len(embed_token)} karakter).")
         return embed_token

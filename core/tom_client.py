@@ -244,7 +244,7 @@ def connect_desktop_server(
         server_cls, _token, _offset = load_tom(dll_dir)
     catalog = str(dataset or "").strip()
     if not catalog:
-        raise TomError("Nama semantic model Desktop kosong.")
+        raise TomError("Empty Desktop semantic model name.")
     server = server_cls()
     connection = (
         f'Provider=MSOLAP;Data Source="localhost:{int(port)}";'
@@ -331,7 +331,7 @@ def list_partitions(server: Any, dataset: str) -> list[PartitionInfo]:
     try:
         tables = list(database.Model.Tables)
     except Exception as exc:  # noqa: BLE001
-        raise TomError(f"Tabel model '{dataset}' could not be read: {exc}") from exc
+        raise TomError(f"Model table '{dataset}' could not be read: {exc}") from exc
 
     for table in tables:
         table_name = str(table.Name)
@@ -339,7 +339,7 @@ def list_partitions(server: Any, dataset: str) -> list[PartitionInfo]:
             partitions = list(table.Partitions)
         except Exception as exc:  # noqa: BLE001
             raise TomError(
-                f"Partisi tabel '{table_name}' could not be read: {exc}"
+                f"Partitions of table '{table_name}' could not be read: {exc}"
             ) from exc
         for partition in partitions:
             source = getattr(partition, "Source", None)

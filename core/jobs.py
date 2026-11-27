@@ -214,7 +214,7 @@ def _run_service_metadata_job(
     report_out = target_dir / OUT_FILE.name
     model_out = target_dir / DEFAULT_MODEL_OUT.name
 
-    log("Jenis sumber     : Power BI Service")
+    log("Source type      : Power BI Service")
     if service is not None:
         log(f"Workspace        : {service.workspace_id}")
         log(f"Report           : {service.report_id}")
@@ -374,7 +374,7 @@ def _run_service_batch_job(
     membatalkan report lain.
     """
     if not reports:
-        raise ExtractionError("Batch report kosong.")
+        raise ExtractionError("Batch reports are empty.")
     if token_provider is None:
         raise ExtractionError("The Fabric token is not ready for batch reports.")
     workspace_id = reports[0].workspace_id
@@ -396,7 +396,7 @@ def _run_service_batch_job(
     model_out = target_dir / DEFAULT_MODEL_OUT.name
     summary_out = target_dir / "Batch_Summary.xlsx"
 
-    log("Jenis sumber     : Power BI Service (batch)")
+    log("Source type      : Power BI Service (batch)")
     log(f"Workspace        : {workspace_id}")
     log(f"Reports          : {len(reports)}")
     if extract_model:
@@ -442,10 +442,10 @@ def _run_service_batch_job(
                         "Visuals": 0,
                         "Fields": 0,
                         "Output": "",
-                        "Message": "Dibatalkan pengguna.",
+                        "Message": "Cancelled by the user.",
                     }
                 )
-                log("Batch dihentikan atas permintaan pengguna.")
+                log("Batch stopped at the user request.")
                 break
             name = str((names or {}).get(service.report_id) or "")
             label = f"{name or 'Report'} ({service.report_id[:8]})"

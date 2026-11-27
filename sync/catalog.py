@@ -91,7 +91,7 @@ def run_workspace_sync(
 
         if mode == "auto":
             resolved_mode = "admin" if client.probe_admin() else "member"
-            log(f"Mode terpilih otomatis: {resolved_mode}")
+            log(f"Auto-selected mode: {resolved_mode}")
 
         if resolved_mode == "admin":
             rows = client.admin_workspaces()

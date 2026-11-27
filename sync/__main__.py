@@ -33,19 +33,19 @@ COMMANDS = ("run", "workspaces", "lineage", "check")
 MODES = ("auto", "admin", "member")
 
 USAGE = """\
-bi-tools-sync - program sync database bersama (service principal)
+bi-tools-sync - shared database sync program (service principal)
 
-Pemakaian:
-  bi-tools-sync [run] [opsi]        katalog + lineage + report + snapshot
-  bi-tools-sync workspaces [opsi]   katalog workspace saja
-  bi-tools-sync lineage [opsi]      scan lineage saja
-  bi-tools-sync check [opsi]        cek site/library/folder SharePoint
+Usage:
+  bi-tools-sync [run] [options]      catalog + lineage + reports + snapshot
+  bi-tools-sync workspaces [options] workspace catalog only
+  bi-tools-sync lineage [options]    lineage scan only
+  bi-tools-sync check [options]      check the SharePoint site/library/folder
 
-Opsi umum:
-  --database PATH       database kerja SQLite
+General options:
+  --database PATH       SQLite working database
   --mode auto|admin|member
   --env-file PATH       credentials .env file service principal
-  -h, --help            bantuan per perintah
+  -h, --help            help per command
 """
 
 
@@ -93,7 +93,7 @@ def _run_parser() -> argparse.ArgumentParser:
         help="target snapshot file (shared folder); default next to the database",
     )
     parser.add_argument("--mode", choices=MODES, default="auto")
-    parser.add_argument("--full", action="store_true", help="lineage scan penuh")
+    parser.add_argument("--full", action="store_true", help="full lineage scan")
     parser.add_argument(
         "--include-personal",
         action="store_true",
@@ -102,9 +102,9 @@ def _run_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-catalog", action="store_true")
     parser.add_argument("--skip-lineage", action="store_true")
     parser.add_argument("--skip-reports", action="store_true")
-    parser.add_argument("--upload", action="store_true", help="upload snapshot ke SharePoint")
+    parser.add_argument("--upload", action="store_true", help="upload the snapshot to SharePoint")
     parser.add_argument("--sharepoint-host", default="", help="hostname SharePoint")
-    parser.add_argument("--sharepoint-site", default="", help="path site (mis. /teams/Data)")
+    parser.add_argument("--sharepoint-site", default="", help="site path (e.g. /teams/Data)")
     parser.add_argument("--sharepoint-library", default="", help="document library name")
     parser.add_argument("--sharepoint-folder", default="", help="destination folder in the library")
     parser.add_argument("--env-file", default="", help="credentials .env file")
@@ -116,10 +116,10 @@ def _workspaces_parser() -> argparse.ArgumentParser:
         prog="bi-tools-sync workspaces",
         description="Sync the workspace list to SQLite (no snapshot).",
     )
-    parser.add_argument("--database", default="", help="database SQLite tujuan")
+    parser.add_argument("--database", default="", help="target SQLite database")
     parser.add_argument("--mode", choices=MODES, default="auto")
     parser.add_argument("--env-file", default="", help="credentials .env file")
-    parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
+    parser.add_argument("--json", action="store_true", help="print a JSON summary")
     return parser
 
 
@@ -128,16 +128,16 @@ def _lineage_parser() -> argparse.ArgumentParser:
         prog="bi-tools-sync lineage",
         description="Scan Power BI Service lineage to SQLite (no snapshot).",
     )
-    parser.add_argument("--database", default="", help="database SQLite tujuan")
+    parser.add_argument("--database", default="", help="target SQLite database")
     parser.add_argument("--mode", choices=MODES, default="auto")
-    parser.add_argument("--full", action="store_true", help="paksa full scan")
+    parser.add_argument("--full", action="store_true", help="force a full scan")
     parser.add_argument(
         "--include-personal",
         action="store_true",
         help="include My Workspace (admin mode only)",
     )
     parser.add_argument("--env-file", default="", help="credentials .env file")
-    parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
+    parser.add_argument("--json", action="store_true", help="print a JSON summary")
     return parser
 
 
@@ -268,7 +268,7 @@ def _check_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sharepoint-folder", default="", help="destination folder")
     parser.add_argument("--env-file", default="", help="credentials .env file")
     parser.add_argument("--limit", type=int, default=20, help="number of files to show")
-    parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
+    parser.add_argument("--json", action="store_true", help="print a JSON summary")
     return parser
 
 

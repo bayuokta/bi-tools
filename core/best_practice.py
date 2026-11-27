@@ -70,7 +70,7 @@ UNSUPPORTED_REASONS = {
         "Data source/provider partition metadata was not collected."
     ),
     "FIX_REFERENTIAL_INTEGRITY_VIOLATIONS": (
-        "Butuh pemindaian data, bukan metadata model."
+        "Requires a data scan, not model metadata."
     ),
     "REMOVE_DATA_SOURCES_NOT_REFERENCED_BY_ANY_PARTITIONS": (
         "Data source metadata was not collected by this analysis."
@@ -957,12 +957,12 @@ def _empty_expressions(result: Any, rule: BpaRule) -> list[Finding]:
     found: list[Finding] = []
     for measure in _measures(result):
         if not str(getattr(measure, "expression", "") or "").strip():
-            found.append(_measure_finding(rule, measure, "ekspresi kosong"))
+            found.append(_measure_finding(rule, measure, "empty expression"))
     for column in _columns(result):
         if bool(getattr(column, "is_calculated", False)) and not str(
             getattr(column, "expression", "") or ""
         ).strip():
-            found.append(_column_finding(rule, column, "ekspresi kosong"))
+            found.append(_column_finding(rule, column, "empty expression"))
     return found
 
 

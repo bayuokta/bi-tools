@@ -133,7 +133,7 @@ def _token_result(access: Any) -> Token:
     """Ubah hasil azure-identity menjadi :class:`Token` (waktu refresh)."""
     value = str(getattr(access, "token", "") or "")
     if not value:
-        raise ExtractionError("Token Microsoft Entra kosong.")
+        raise ExtractionError("The Microsoft Entra token is empty.")
     expires_on = int(getattr(access, "expires_on", 0) or 0)
     if not expires_on:
         expires_on = int(time.time()) + 3600

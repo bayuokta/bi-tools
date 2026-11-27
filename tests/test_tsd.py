@@ -988,10 +988,10 @@ class ManualMergeTests(TsdTestCase):
         }
         context = self.context(manual=manual, log=messages.append)
         self.assertEqual(len(context["objects"]["pages"]), 2)
-        warnings = [message for message in messages if "override halaman" in message]
+        warnings = [message for message in messages if "page overrides" in message]
         self.assertEqual(len(warnings), 1)
-        self.assertIn("2 override halaman", warnings[0])
-        self.assertIn("tidak cocok dengan workbook", warnings[0])
+        self.assertIn("2 page overrides", warnings[0])
+        self.assertIn("do not match the workbook", warnings[0])
 
     def test_nested_document_merge_keeps_other_fields(self) -> None:
         manual = {"document": {"author": {"name": "Budi"}}}
@@ -1189,7 +1189,7 @@ class RunTsdTests(TsdTestCase):
                 out_file=self.tmp / "out" / "TSD.html",
                 log=lambda _message: None,
             )
-        self.assertIn("tidak ditemukan", str(ctx.exception))
+        self.assertIn("not found", str(ctx.exception))
 
     def test_manual_skeleton_has_page_and_visual_ids(self) -> None:
         skeleton = manual_skeleton(self.context())

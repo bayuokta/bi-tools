@@ -1052,7 +1052,7 @@ class MissingBrowserTests(unittest.TestCase):
             self.assertEqual(capturer._launch_browser(), "browser")
         install.assert_called_once()
         self.assertEqual(len(attempts), 2)
-        self.assertTrue(any("mengunduh otomatis" in line.lower() for line in lines))
+        self.assertTrue(any("downloading it automatically" in line.lower() for line in lines))
 
     def test_auto_install_can_be_disabled(self) -> None:
         capturer, _lines, attempts = self._capturer_for_launch(

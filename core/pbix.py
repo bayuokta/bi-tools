@@ -22,9 +22,9 @@ LIVE_CONNECTION = "live_connection"
 UNSUPPORTED = "unsupported"
 
 KIND_LABELS = {
-    LOCAL_MODEL: "Model lokal (Import/DirectQuery)",
+    LOCAL_MODEL: "Local model (Import/DirectQuery)",
     LIVE_CONNECTION: "Live connection (thin report)",
-    UNSUPPORTED: "Jenis sumber tidak dikenali",
+    UNSUPPORTED: "Unrecognized source type",
 }
 
 

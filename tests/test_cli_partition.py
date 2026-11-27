@@ -126,7 +126,7 @@ class PartitionCliTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(code, 2)
-        self.assertIn("Token", buffer.getvalue())
+        self.assertIn("token", buffer.getvalue())
 
     def test_process_with_yes_delegates(self) -> None:
         payload = {

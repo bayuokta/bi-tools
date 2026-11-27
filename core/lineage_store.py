@@ -550,7 +550,7 @@ def lineage(
         row = info.get(current) or {
             "node_id": current,
             "node_type": "Unknown",
-            "name": "(tidak ada di tabel nodes)",
+            "name": "(not present in the nodes table)",
             "workspace_name": None,
             "owner": None,
             "last_modified_at": None,

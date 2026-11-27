@@ -68,20 +68,20 @@ def fake_result() -> SimpleNamespace:
         SimpleNamespace(
             kind="relationship",
             object="'Fact Sales'[Customer Name]",
-            detail="relasi ke 'Fact Sales'[Customer Name]",
+            detail="relationship to 'Fact Sales'[Customer Name]",
             blocking=True,
         ),
         SimpleNamespace(
             kind="measure",
             object="'Fact Sales'[Total Sales]",
-            detail="measure 'Fact Sales'[Total Sales] (kedalaman 1)",
+            detail="measure 'Fact Sales'[Total Sales] (depth 1)",
             blocking=False,
             depth=1,
         ),
         SimpleNamespace(
             kind="measure",
             object="'Fact Sales'[Other Measure]",
-            detail="measure 'Fact Sales'[Other Measure] (kedalaman 2)",
+            detail="measure 'Fact Sales'[Other Measure] (depth 2)",
             blocking=False,
             depth=2,
         ),
@@ -299,7 +299,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         artifacts = by_label["Used in artifacts"]
         self.assertEqual(artifacts["count"], 1)
         self.assertNotIn(
-            "Langkah M",
+            "M step",
             {row["cells"].get("1") for row in artifacts["rows"]},
         )
         self.assertNotIn("Used in Power Query", by_label)

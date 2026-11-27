@@ -107,7 +107,7 @@ STATUS_UNUSED = "Unused"
 STATUS_USED = "Used"
 STATUS_BLOCKER = "Must keep"
 STATUS_UNKNOWN = "Needs review"
-COVERAGE_MODEL_ONLY = "report tidak disertakan · metadata model saja"
+COVERAGE_MODEL_ONLY = "reports not included · model metadata only"
 
 BLOCKING_KINDS = {
     "relationship",
@@ -553,8 +553,8 @@ def measure_references(
             str(dependency["referenced_object"]),
             "measure",
             f"'{origin_table}'[{origin}]",
-            f"dipakai measure '{origin_table}'[{origin}] "
-            f"(kedalaman {dependency['depth']})",
+            f"used by measure '{origin_table}'[{origin}] "
+            f"(depth {dependency['depth']})",
             blocking=False,
             source_table=origin_table,
             source_measure=origin,
@@ -729,7 +729,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             "measure",
             f"'{measure_table}'[{measure}]",
             f"measure '{measure_table}'[{measure}] "
-            f"(kedalaman {dependency['depth']})",
+            f"(depth {dependency['depth']})",
             blocking=False,
             depth=int(dependency.get("depth") or 1),
         )
@@ -807,14 +807,14 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 from_column,
                 "relationship",
                 f"'{to_table}'[{to_column}]",
-                f"relasi ke '{to_table}'[{to_column}]",
+                f"relationship to '{to_table}'[{to_column}]",
             )
             add(
                 to_table,
                 to_column,
                 "relationship",
                 f"'{from_table}'[{from_column}]",
-                f"relasi ke '{from_table}'[{from_column}]",
+                f"relationship to '{from_table}'[{from_column}]",
             )
 
     for column_id, column in model.column_by_id.items():
@@ -941,7 +941,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             name,
             "calculated table column",
             f"'{owner_table}'[{owner_name}]",
-            f"kolom calculated table '{owner_table}'[{owner_name}]",
+            f"column of calculated table '{owner_table}'[{owner_name}]",
         )
 
     columns_by_table: dict[str, set[str]] = defaultdict(set)
@@ -1948,7 +1948,7 @@ def scan_reports(
                 status="app",
                 message=(
                     "Skipped: the report comes from the Power BI App feature "
-                    "([App] …); report sumbernya sudah dianalisa."
+                    "([App] ...); the source report is already analyzed."
                 ),
             )
             counters.app += 1

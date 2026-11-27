@@ -25,131 +25,131 @@ from core.tsd import MODEL_WORKBOOK_NAME, run_tsd
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate dokumen TSD (HTML gaya Confluence) dari Report_Metadata.xlsx "
-            "dan Semantic_Model_Metadata.xlsx."
+            "Generate the TSD document (Confluence-style HTML) from Report_Metadata.xlsx "
+            "and Semantic_Model_Metadata.xlsx."
         ),
         allow_abbrev=False,
     )
     parser.add_argument(
         "--report",
-        help=f"Workbook report (default: {OUT_FILE.name} di folder tooling).",
+        help=f"Report workbook (default: {OUT_FILE.name} in the tooling folder).",
     )
     parser.add_argument(
         "--model",
         help=(
             "Workbook model (default: "
-            f"{MODEL_WORKBOOK_NAME} di folder tooling bila ada)."
+            f"{MODEL_WORKBOOK_NAME} in the tooling folder when present)."
         ),
     )
     parser.add_argument(
         "--manual",
-        help="File JSON override manual (default: <nama output>.json di folder yang sama).",
+        help="Manual override JSON file (default: <output name>.json in the same folder).",
     )
-    parser.add_argument("--out", help="File HTML output (default: TSD_<nama report>.html).")
-    parser.add_argument("--name", help="Nama report untuk judul dan nama file output.")
+    parser.add_argument("--out", help="Output HTML file (default: TSD_<report name>.html).")
+    parser.add_argument("--name", help="Report name for the title and output file name.")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--draft",
         action="store_true",
-        help="Tampilkan TODO dan teks instruksi untuk field kosong (default).",
+        help="Show TODO and instruction text for empty fields (default).",
     )
     mode.add_argument(
         "--final",
         action="store_true",
-        help="Sembunyikan TODO dan teks instruksi (dokumen final).",
+        help="Hide TODO and instruction text (final document).",
     )
     parser.add_argument(
         "--expand-all",
         action="store_true",
-        help="Buka semua panel expand (default: tertutup).",
+        help="Open all expand panels (default: collapsed).",
     )
     parser.add_argument(
         "--template",
-        help="Path template Jinja2 (default: templates\\tsd.template.html).",
+        help="Jinja2 template path (default: templates\\tsd.template.html).",
     )
     service = parser.add_argument_group(
-        "Screenshot Power BI Service",
-        "Capture gambar page/visual untuk section 2.2.7.1 Web layout.",
+        "Power BI Service screenshots",
+        "Capture page/visual images for section 2.2.7.1 Web layout.",
     )
     service.add_argument(
         "--screenshots",
         action="store_true",
-        help="Ambil screenshot page & visual dari Power BI Service.",
+        help="Capture page & visual screenshots from the Power BI Service.",
     )
     service.add_argument(
         "--workspace-id",
-        help="ID workspace report (atau environment PBI_WORKSPACE_ID).",
+        help="Report workspace ID (or the PBI_WORKSPACE_ID environment variable).",
     )
     service.add_argument(
         "--report-id",
-        help="ID report Power BI Service (atau environment PBI_REPORT_ID).",
+        help="Power BI Service report ID (or the PBI_REPORT_ID environment variable).",
     )
     service.add_argument(
         "--rls-username",
-        help="Username identitas RLS (default RLS_USERNAME di .env).",
+        help="RLS identity username (default RLS_USERNAME in .env).",
     )
     service.add_argument(
         "--rls-roles",
-        help="Daftar role RLS dipisah koma, mis. HO,Region (default RLS_ROLES).",
+        help="Comma-separated RLS roles, e.g. HO,Region (default RLS_ROLES).",
     )
     service.add_argument(
         "--screenshot-scope",
         choices=["both", "pages", "visuals"],
         default="both",
-        help="Cakupan capture (default: both).",
+        help="Capture scope (default: both).",
     )
     service.add_argument(
         "--screenshot-scale",
         type=float,
         default=1.0,
-        help="Skala resolusi screenshot 0.5-4 (default: 1).",
+        help="Screenshot resolution scale 0.5-4 (default: 1).",
     )
     service.add_argument(
         "--screenshot-dir",
         help=(
-            "Folder cache screenshot (default: "
-            "TSD_assets\\<nama report> di folder output)."
+            "Screenshot cache folder (default: "
+            "TSD_assets\\<report name> in the output folder)."
         ),
     )
     service.add_argument(
         "--refresh-screenshots",
         action="store_true",
-        help="Paksa capture baru walau cache masih ada.",
+        help="Force a new capture even when the cache exists.",
     )
     service.add_argument(
         "--no-reveal-bookmarks",
         action="store_true",
         help=(
-            "Jangan coba bookmark untuk memunculkan visual tersembunyi."
+            "Do not try bookmarks to reveal hidden visuals."
         ),
     )
     service.add_argument(
         "--no-mobile-screenshots",
         action="store_true",
         help=(
-            "Jangan ambil screenshot mobile layout (2.2.7.2). Default: aktif "
-            "bila halaman punya mobile layout."
+            "Do not capture mobile layout screenshots (2.2.7.2). Default: enabled "
+            "when a page has a mobile layout."
         ),
     )
     service.add_argument(
         "--no-auto-install-browser",
         action="store_true",
         help=(
-            "Jangan unduh Chromium otomatis bila belum ada. Default: capture "
-            "mengunduh lewat driver Playwright pada percobaan pertama."
+            "Do not download Chromium automatically when missing. Default: capture "
+            "downloads it via the Playwright driver on the first attempt."
         ),
     )
     service.add_argument(
         "--headed",
         action="store_true",
-        help="Tampilkan jendela browser saat capture (debug).",
+        help="Show the browser window during capture (debug).",
     )
     parser.add_argument(
         "--include-decorative-visuals",
         action="store_true",
         help=(
-            "Sertakan shape/image/textbox/tombol sebagai baris visual di TSD "
-            "dan screenshot-nya (default: disembunyikan, slicer tetap tampil)."
+            "Include shape/image/textbox/button as visual rows in the TSD "
+            "and their screenshots (default: hidden, slicers still shown)."
         ),
     )
     return parser.parse_args(argv)
@@ -190,8 +190,8 @@ def _capture_options(args: argparse.Namespace) -> CaptureOptions | None:
     report_id = (args.report_id or os.getenv("PBI_REPORT_ID", "")).strip()
     if not workspace_id or not report_id:
         raise ExtractionError(
-            "--screenshots membutuhkan --workspace-id dan --report-id "
-            "(atau environment PBI_WORKSPACE_ID / PBI_REPORT_ID)."
+            "--screenshots requires --workspace-id and --report-id "
+            " (or the PBI_WORKSPACE_ID / PBI_REPORT_ID environment variables)."
         )
     base = CaptureCredentials.from_env()
     tokens = DeferredTokenProvider(

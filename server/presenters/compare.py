@@ -115,7 +115,7 @@ def run_job(
     options = normalize_options(request.options)
     if cancel.is_set():
         raise ExtractionError("Comparison cancelled.")
-    log(f"Sumber: {_side_label(request.source)}")
+    log(f"Source: {_side_label(request.source)}")
     log(f"Target: {_side_label(request.target)}")
     source, source_label = _read_side(store, request.source, options, log)
     if cancel.is_set():

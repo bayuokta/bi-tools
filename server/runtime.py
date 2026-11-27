@@ -282,7 +282,7 @@ def run(
         except Exception as exc:  # noqa: BLE001 - tampilkan pesan ke konsol
             print(f"Server failed to start: {exc}", flush=True)
             return 1
-        print("Server berhenti.", flush=True)
+        print("Server stopped.", flush=True)
         return 0
     finally:
         try:

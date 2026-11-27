@@ -52,7 +52,7 @@ def _read_stdin(args: argparse.Namespace) -> tuple[dict[str, Any], _StaticTokens
         return payload, None
     token = str(payload.get("token") or "").strip()
     if not token:
-        raise ExtractionError("Token compare kosong.")
+        raise ExtractionError("Empty compare token.")
     expires_on = int(payload.get("expires_on") or (time.time() + 3000))
     return payload, _StaticTokens(token, expires_on)
 
@@ -72,7 +72,7 @@ def _snapshot_json(args: argparse.Namespace) -> int:
             raise ExtractionError("Mode snapshot membutuhkan --endpoint.")
         interactive = bool(payload.get("interactive"))
         if tokens is None and not interactive:
-            raise ExtractionError("Token compare kosong.")
+            raise ExtractionError("Empty compare token.")
         with connect_server(
             endpoint, catalog, tokens, interactive=interactive
         ) as server:

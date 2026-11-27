@@ -117,7 +117,7 @@ def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticT
         return endpoint, catalog, None, payload
     token = str((payload or {}).get("token") or "").strip()
     if not token:
-        raise ExtractionError(f"Token {mode} kosong.")
+        raise ExtractionError(f"Empty {mode} token.")
     expires_on = int((payload or {}).get("expires_on") or (time.time() + 3000))
     return endpoint, catalog, _StaticTokens(token, expires_on), payload
 

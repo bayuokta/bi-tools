@@ -89,5 +89,5 @@ class PowerBIClient:
         data = self._transport.json("POST", "GenerateToken", json=body)
         token = data.get("token") if isinstance(data, dict) else ""
         if not token:
-            raise ExtractionError("Respons GenerateToken tidak berisi token.")
+            raise ExtractionError("The GenerateToken response contains no token.")
         return str(token)

@@ -585,7 +585,7 @@ def pair_visuals_to_rects(
 
     unmatched = sum(1 for v in result.values() if v is None)
     if unmatched:
-        log(f"{unmatched} visual tidak memiliki pasangan elemen DOM.")
+        log(f"{unmatched} visuals had no matching DOM element.")
     return result
 
 
@@ -612,9 +612,9 @@ class ReportCapturer:
     ) -> None:
         if sync_playwright is None:
             raise CaptureError(
-                "Playwright belum terpasang. Dari source: 'pip install playwright' "
-                "lalu 'python -m playwright install chromium'. Di aplikasi "
-                "terpaket: jalankan 'bi-tools-cli install-browser' "
+                "Playwright is not installed. From source: 'pip install playwright' "
+                "then 'python -m playwright install chromium'. In the packaged app: "
+                "run 'bi-tools-cli install-browser' "
                 f"(import error: {_PLAYWRIGHT_IMPORT_ERROR})"
             )
         self.report_id = report_id
@@ -676,9 +676,9 @@ class ReportCapturer:
         except Exception as exc:  # noqa: BLE001 - pesan Playwright
             self.close()
             raise CaptureError(
-                "Chromium untuk screenshot belum tersedia. Di aplikasi terpaket "
-                "jalankan 'bi-tools-cli install-browser', atau dari source "
-                "'python -m playwright install chromium', lalu ulangi capture. "
+                "Chromium for screenshots is not available. In the packaged app "
+                "run 'bi-tools-cli install-browser', or from source "
+                "'python -m playwright install chromium', then retry the capture. "
                 f"Detail: {exc}"
             ) from exc
         self._ctx = self._browser.new_context(
@@ -695,7 +695,7 @@ class ReportCapturer:
             )
         except Exception as exc:  # noqa: BLE001 - pesan Playwright
             raise CaptureError(
-                f"Report gagal dimuat dalam 30 detik: {exc}"
+                f"Report failed to load within 30 seconds: {exc}"
             ) from exc
         err = self._page.evaluate("() => window.__error")
         if err:
@@ -706,7 +706,7 @@ class ReportCapturer:
             "([ms]) => window.__waitRender(ms, 1)", [self.render_timeout_ms]
         )
         self._page.wait_for_timeout(self.settle_ms)
-        self._log("Report siap di-capture.")
+        self._log("Report is ready to capture.")
         return self
 
     def _launch_browser(self):
@@ -717,11 +717,11 @@ class ReportCapturer:
             if not (self.auto_install and missing_browser(exc)):
                 raise
             self._log(
-                "Chromium belum tersedia; mengunduh otomatis sekali "
-                "(sekitar 150 MB) ..."
+                "Chromium is not available; downloading it automatically once "
+                " (about 150 MB) ..."
             )
             install_chromium(self._log)
-            self._log("Chromium terpasang; mengulang launch.")
+            self._log("Chromium installed; retrying launch.")
             return self._pw.chromium.launch(headless=self.headless)
 
     def close(self) -> None:
@@ -758,8 +758,8 @@ class ReportCapturer:
         )
         if status == "timeout":
             self._log(
-                f"Event 'rendered' tidak datang untuk page {page_name}; "
-                "lanjut setelah settle."
+                f"The 'rendered' event did not arrive for page {page_name}; "
+                "continuing after settle."
             )
         self._page.wait_for_timeout(self.settle_ms)
 
@@ -772,7 +772,7 @@ class ReportCapturer:
         for frame in self._page.frames:
             if frame is not self._page.main_frame:
                 return frame
-        raise CaptureError("iframe report tidak ditemukan.")
+        raise CaptureError("report iframe not found.")
 
     # ----------------------------------------------------------- API publik
     def list_pages(self) -> list[dict]:
@@ -785,7 +785,7 @@ class ReportCapturer:
             "(name) => window.__getVisuals(name)", page_name
         )
         if visuals is None:
-            raise CaptureError(f"Page {page_name} tidak ditemukan di report.")
+            raise CaptureError(f"Page {page_name} was not found in the report.")
         return visuals
 
     def probe_visual_elements(self) -> dict:
@@ -798,7 +798,7 @@ class ReportCapturer:
         try:
             data = self._page.evaluate("() => window.__getBookmarks()")
         except Exception as exc:  # noqa: BLE001 - bookmark opsional
-            self._log(f"Bookmark tidak bisa dibaca: {exc}")
+            self._log(f"Bookmarks could not be read: {exc}")
             return []
         return [item for item in data or [] if isinstance(item, dict)]
 
@@ -812,7 +812,7 @@ class ReportCapturer:
                 [name, timeout_ms or self.render_timeout_ms],
             )
         except Exception as exc:  # noqa: BLE001 - bookmark opsional
-            self._log(f"Bookmark '{name}' gagal diterapkan: {exc}")
+            self._log(f"Bookmark '{name}' could not be applied: {exc}")
             return False
         self._page.wait_for_timeout(self.settle_ms)
         return bool(ok)
@@ -822,7 +822,7 @@ class ReportCapturer:
         try:
             return bool(self._page.evaluate("() => window.__saveState()"))
         except Exception as exc:  # noqa: BLE001 - state opsional
-            self._log(f"State report tidak bisa disimpan: {exc}")
+            self._log(f"The report state could not be saved: {exc}")
             return False
 
     def restore_bookmark_state(self, timeout_ms: int | None = None) -> bool:
@@ -833,7 +833,7 @@ class ReportCapturer:
                 [timeout_ms or self.render_timeout_ms],
             )
         except Exception as exc:  # noqa: BLE001 - state opsional
-            self._log(f"State report tidak bisa dipulihkan: {exc}")
+            self._log(f"The report state could not be restored: {exc}")
             return False
         self._page.wait_for_timeout(self.settle_ms)
         return bool(ok)
@@ -866,7 +866,7 @@ class ReportCapturer:
                 target[visual_name] = handle.screenshot(type="png")
                 captured += 1
             except Exception as exc:  # noqa: BLE001 - lanjut visual lain
-                self._log(f"Gagal screenshot visual {visual_name}: {exc}")
+                self._log(f"Could not screenshot visual {visual_name}: {exc}")
         return captured
 
     def _probe_reveal(
@@ -885,10 +885,10 @@ class ReportCapturer:
         """
         bookmarks = self.get_bookmarks()
         if not bookmarks:
-            self._log("Tidak ada bookmark untuk mencoba membuka visual tersembunyi.")
+            self._log("No bookmarks to try revealing hidden visuals.")
             return False
         if not self.save_bookmark_state():
-            self._log("State report tidak bisa disimpan; probe bookmark dilewati.")
+            self._log("The report state could not be saved; bookmark probing skipped.")
             return False
 
         captured = False
@@ -958,7 +958,7 @@ class ReportCapturer:
             "(name) => window.__getVisuals(name)", page_name
         )
         if visuals is None:
-            raise CaptureError(f"Page {page_name} tidak ditemukan di report.")
+            raise CaptureError(f"Page {page_name} was not found in the report.")
 
         result: dict = {
             "page_png": None,
@@ -987,7 +987,7 @@ class ReportCapturer:
         rects = probe.get("rects") or []
         if not rects:
             result["debug"] = (
-                "Elemen visual tidak ditemukan di DOM iframe "
+                "Visual element not found in the iframe DOM "
                 f"(selector dicoba: {_VISUAL_SELECTORS})"
             )
             self._log(result["debug"])
@@ -1012,7 +1012,7 @@ class ReportCapturer:
         if not missing:
             return result
         if not reveal_bookmarks:
-            self._log(f"{len(missing)} visual tetap tanpa gambar (tidak dirender).")
+            self._log(f"{len(missing)} visuals remain without images (not rendered).")
             return result
 
         self._probe_reveal(page_name, missing, scale, result, hints)
@@ -1023,8 +1023,8 @@ class ReportCapturer:
         ]
         if still_missing:
             self._log(
-                f"{len(still_missing)} visual tetap tanpa gambar setelah probe "
-                "bookmark (tidak ada bookmark yang memunculkannya)."
+                f"{len(still_missing)} visuals remain without images after "
+                "bookmark probing (no bookmark revealed them)."
             )
         return result
 
@@ -1061,4 +1061,4 @@ class ReportCapturer:
             )
             self._log(f"Debug capture disimpan ke {debug}.")
         except Exception as exc:  # noqa: BLE001 - best effort
-            self._log(f"Gagal menyimpan debug capture: {exc}")
+            self._log(f"Could not save capture debug: {exc}")

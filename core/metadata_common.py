@@ -155,7 +155,7 @@ def fmt_pages(pages: set[tuple[int, str]]) -> str:
 # ---------------------------------------------------------------------------
 # DAX dependency graph
 # ---------------------------------------------------------------------------
-_DEPENDENCY_DEPTH = re.compile(r"\(kedalaman\s+(\d+)\)")
+_DEPENDENCY_DEPTH = re.compile(r"\(depth\s+(\d+)\)")
 
 
 def reference_depth(detail: str) -> int:

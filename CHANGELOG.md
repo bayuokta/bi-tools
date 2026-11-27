@@ -18,7 +18,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Status verdict memakai Bahasa Inggris: `Unused`, `Used`, `Must keep`,
   `Needs review`. Nilai `ui/language=id` dari versi lama diabaikan.
 - Angka memakai format `en-US`; `format_bytes()` kini memakai titik desimal.
-- Tes `tests/test_i18n.py` diganti `tests/test_english_only.py`.
+- Pesan alur TSD/screenshot, bantuan `cli/tsd.py`, dan bantuan `bi-tools-sync`
+  juga ditulis dalam Bahasa Inggris; teks dokumen TSD (template) tetap Indonesia.
+- Tes `tests/test_i18n.py` diganti `tests/test_english_only.py`, yang kini juga
+  memindai literal sumber UI/log/CLI agar tidak ada kata Indonesia yang masuk lagi.
 
 ### Perbaikan
 
