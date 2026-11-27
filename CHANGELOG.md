@@ -50,6 +50,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 - Grafik **Relationships** kini benar-benar menampilkan latar bertitik seperti
   lineage. Sebelumnya `background-image` tertimpa shorthand `background` dari
   `.graph-wrap`; selektor diganti menjadi `.graph-wrap.rel-graph-canvas`.
+- Tab **All results**: rujukan measure dipisah menjadi **Model references**
+  (langsung, `depth <= 1`) dan **Indirect references** (transitif, label
+  menyertakan `depth N`). Sebelumnya semua rujukan transitif tampil dalam satu
+  grup sehingga satu measure bisa terlihat dirujuk 10 measure padahal hanya 1
+  yang langsung. Kolom **Uses** kini hanya menghitung pemakaian report; ekspor
+  XLSX menambah kolom **Direct references** dan **Transitive references**.
 
 ## 2026-11-26 - Rilis 0.9.1
 

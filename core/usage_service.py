@@ -144,6 +144,7 @@ UNRESOLVED_COLUMNS = [
 ]
 MEASURE_COLUMNS = [
     "Table", "Measure", "Data type", "Status", "Uses", "Reports",
+    "Direct references", "Transitive references",
     "Format string", "Hidden", "Display folder", "Expression", "Note",
 ]
 HEALTH_COLUMNS = [
@@ -409,7 +410,24 @@ class MeasureAnalysis:
 
     @property
     def use_count(self) -> int:
-        return len(self.report_records) + len(self.model_refs)
+        """Pemakaian report saja; rujukan model dihitung terpisah."""
+        return len(self.report_records)
+
+    @property
+    def direct_refs(self) -> list[ModelReference]:
+        return [
+            ref
+            for ref in self.model_refs
+            if int(getattr(ref, "depth", 1) or 1) <= 1
+        ]
+
+    @property
+    def transitive_refs(self) -> list[ModelReference]:
+        return [
+            ref
+            for ref in self.model_refs
+            if int(getattr(ref, "depth", 1) or 1) > 1
+        ]
 
     @property
     def report_count(self) -> int:
@@ -837,7 +855,24 @@ class ColumnAnalysis:
 
     @property
     def use_count(self) -> int:
-        return len(self.report_records) + len(self.model_refs)
+        """Pemakaian report saja; rujukan model dihitung terpisah."""
+        return len(self.report_records)
+
+    @property
+    def direct_refs(self) -> list[ModelReference]:
+        return [
+            ref
+            for ref in self.model_refs
+            if int(getattr(ref, "depth", 1) or 1) <= 1
+        ]
+
+    @property
+    def transitive_refs(self) -> list[ModelReference]:
+        return [
+            ref
+            for ref in self.model_refs
+            if int(getattr(ref, "depth", 1) or 1) > 1
+        ]
 
     @property
     def report_count(self) -> int:
@@ -2332,6 +2367,8 @@ def column_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                 "size_bytes": column.size_bytes,
                 "status": column.status,
                 "uses": column.use_count,
+                "direct_refs": len(column.direct_refs),
+                "transitive_refs": len(column.transitive_refs),
                 "reports": column.report_count,
                 "format_string": column.column.format_string,
                 "has_error": column.column.has_error,
@@ -2361,6 +2398,8 @@ def measure_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                 "size_bytes": 0,
                 "status": item.status,
                 "uses": item.use_count,
+                "direct_refs": len(item.direct_refs),
+                "transitive_refs": len(item.transitive_refs),
                 "reports": item.report_count,
                 "format_string": item.measure.format_string,
                 "has_error": item.measure.has_error,
@@ -2442,6 +2481,8 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
             "Rows": column.column.rows,
             "Uses": column.use_count,
             "Reports": column.report_count,
+            "Direct references": len(column.direct_refs),
+            "Transitive references": len(column.transitive_refs),
             "Format string": column.column.format_string,
             "Has error": "Yes" if column.column.has_error else "No",
             "Hidden": "Yes" if column.column.is_hidden else "No",
@@ -2594,6 +2635,8 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
                         "Status": item.status,
                         "Uses": item.use_count,
                         "Reports": item.report_count,
+                        "Direct references": len(item.direct_refs),
+                        "Transitive references": len(item.transitive_refs),
                         "Format string": item.measure.format_string,
                         "Hidden": "Yes" if item.measure.is_hidden else "No",
                         "Display folder": item.measure.display_folder,

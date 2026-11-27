@@ -94,7 +94,8 @@ SORT_KEYS = (
     "warning",
 )
 SORT_DESC_DEFAULT = {"size", "uses", "has_error"}
-GROUP_ARTIFACTS = "Used in artifacts"
+GROUP_MODEL = "Model references"
+GROUP_INDIRECT = "Indirect references"
 GROUP_VISUALS = "Used in visuals"
 GROUP_KEY_COLUMN = "Used as key column"
 GROUP_RELATIONSHIPS = "Used in relationships"
@@ -104,7 +105,8 @@ GROUP_SORTING = "Used in column sorting"
 GROUP_FIELD_PARAMETERS = "Used in field parameters"
 
 GROUP_ORDER = (
-    GROUP_ARTIFACTS,
+    GROUP_MODEL,
+    GROUP_INDIRECT,
     GROUP_VISUALS,
     GROUP_KEY_COLUMN,
     GROUP_RELATIONSHIPS,
@@ -337,7 +339,18 @@ def _record_payload(record: Mapping[str, Any]) -> dict[str, Any]:
 
 
 GROUP_COLUMNS = {
-    GROUP_ARTIFACTS: (
+    GROUP_MODEL: (
+        (1, "Type"),
+        (2, "Table"),
+        (3, "Source"),
+        (4, "Data type"),
+        (5, "Size"),
+        (6, "Status"),
+        (7, "# of uses"),
+        (8, "Format string"),
+        (10, "Display folder"),
+    ),
+    GROUP_INDIRECT: (
         (1, "Type"),
         (2, "Table"),
         (3, "Source"),
@@ -374,7 +387,8 @@ GROUP_COLUMNS = {
 }
 
 GROUP_ICONS = {
-    GROUP_ARTIFACTS: "measure",
+    GROUP_MODEL: "measure",
+    GROUP_INDIRECT: "dependencies",
     GROUP_VISUALS: "page",
     GROUP_KEY_COLUMN: "link",
     GROUP_RELATIONSHIPS: "link",
@@ -488,15 +502,20 @@ def _usage_groups(
             "kind": str(ref.kind or ""),
             "object": str(ref.object or ""),
             "detail": str(ref.detail or ""),
+            "depth": int(getattr(ref, "depth", 1) or 1),
         }
         for ref in (analysis.model_refs or [])
     ]
+    direct_refs = [ref for ref in refs if ref["depth"] <= 1]
+    indirect_refs = [ref for ref in refs if ref["depth"] > 1]
     groups: dict[str, list[dict[str, Any]]] = {key: [] for key in GROUP_ORDER}
 
-    for ref in refs:
+    def reference_child(
+        ref: dict[str, Any], *, indirect: bool = False
+    ) -> dict[str, Any] | None:
         label = ARTIFACT_TYPES.get(ref["kind"])
         if not label:
-            continue
+            return None
         ref_table, ref_column = _parse_object(ref["object"])
         key = (ref_table.casefold(), ref_column.casefold())
         item = None
@@ -518,13 +537,22 @@ def _usage_groups(
             }
         else:
             cells = {1: label, 2: ref_table, 3: "Model"}
-        groups[GROUP_ARTIFACTS].append(
-            _child(
-                ref["object"] or ref["detail"],
-                "measure" if ref["kind"] == "measure" else "code",
-                cells,
-            )
+        if indirect:
+            cells[1] = f"{label} \u00b7 depth {ref['depth']}"
+        return _child(
+            ref["object"] or ref["detail"],
+            "measure" if ref["kind"] == "measure" else "code",
+            cells,
         )
+
+    for ref in direct_refs:
+        child = reference_child(ref)
+        if child is not None:
+            groups[GROUP_MODEL].append(child)
+    for ref in indirect_refs:
+        child = reference_child(ref, indirect=True)
+        if child is not None:
+            groups[GROUP_INDIRECT].append(child)
 
     for record in records:
         if record["usage_kind"] != "field":
@@ -668,6 +696,14 @@ def _usage_groups(
     return payload
 
 
+def _ref_counts(analysis: Any) -> tuple[int, int]:
+    refs = list(getattr(analysis, "model_refs", []) or [])
+    direct = sum(
+        1 for ref in refs if int(getattr(ref, "depth", 1) or 1) <= 1
+    )
+    return direct, len(refs) - direct
+
+
 def _column_row(
     analysis: Any,
     context: Mapping[str, Any] | None = None,
@@ -676,6 +712,7 @@ def _column_row(
 ) -> dict[str, Any]:
     column = analysis.column
     size_bytes = int(getattr(column, "size_total_bytes", 0) or 0)
+    direct_refs, transitive_refs = _ref_counts(analysis)
     return {
         "name": str(getattr(column, "column", "")),
         "type": str(getattr(column, "column_type", "")),
@@ -685,7 +722,9 @@ def _column_row(
         "size": format_bytes(size_bytes),
         "size_bytes": size_bytes,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []) + len(analysis.model_refs or []),
+        "uses": len(analysis.report_records or []),
+        "direct_refs": direct_refs,
+        "transitive_refs": transitive_refs,
         "reports": len(
             {str(row.get("report_id") or "") for row in analysis.report_records or []}
         ),
@@ -713,6 +752,7 @@ def _measure_row(
     with_children: bool = True,
 ) -> dict[str, Any]:
     measure = analysis.measure
+    direct_refs, transitive_refs = _ref_counts(analysis)
     return {
         "name": str(getattr(measure, "measure", "")),
         "type": "measure (hidden)" if getattr(measure, "is_hidden", False) else "measure",
@@ -722,7 +762,9 @@ def _measure_row(
         "size": "-",
         "size_bytes": 0,
         "status": str(analysis.status or ""),
-        "uses": len(analysis.report_records or []) + len(analysis.model_refs or []),
+        "uses": len(analysis.report_records or []),
+        "direct_refs": direct_refs,
+        "transitive_refs": transitive_refs,
         "reports": len(
             {str(row.get("report_id") or "") for row in analysis.report_records or []}
         ),

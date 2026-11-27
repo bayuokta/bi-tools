@@ -761,7 +761,8 @@ class WebLayerTests(unittest.TestCase):
             )
         self.assertIn('if (tab === "all") view = analysisFlatRows();', js)
         for label in (
-            "Used in artifacts",
+            "Model references",
+            "Indirect references",
             "Used in visuals",
             "Used as key column",
             "Used in relationships",

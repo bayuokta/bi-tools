@@ -76,6 +76,14 @@ def fake_result() -> SimpleNamespace:
             object="'Fact Sales'[Total Sales]",
             detail="measure 'Fact Sales'[Total Sales] (kedalaman 1)",
             blocking=False,
+            depth=1,
+        ),
+        SimpleNamespace(
+            kind="measure",
+            object="'Fact Sales'[Other Measure]",
+            detail="measure 'Fact Sales'[Other Measure] (kedalaman 2)",
+            blocking=False,
+            depth=2,
         ),
         SimpleNamespace(
             kind="RLS",
@@ -233,7 +241,8 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(
             [group["label"] for group in groups],
             [
-                "Used in artifacts",
+                "Model references",
+                "Indirect references",
                 "Used in visuals",
                 "Used as key column",
                 "Used in relationships",
@@ -253,25 +262,36 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(artifacts["rows"][0]["name"], "'Fact Sales'[Total Sales]")
         self.assertEqual(artifacts["rows"][0]["cells"]["1"], "Measure")
         self.assertEqual(artifacts["rows"][0]["cells"]["4"], "Double")
+        indirect = groups[1]
+        self.assertEqual(indirect["count"], 1)
+        self.assertEqual(
+            indirect["rows"][0]["name"], "'Fact Sales'[Other Measure]"
+        )
+        self.assertEqual(
+            indirect["rows"][0]["cells"]["1"], "Measure \u00b7 depth 2"
+        )
+        self.assertEqual(data["columns"][0]["uses"], 2)
+        self.assertEqual(data["columns"][0]["direct_refs"], 5)
+        self.assertEqual(data["columns"][0]["transitive_refs"], 1)
         self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Dipakai")
-        visuals = groups[1]
+        visuals = groups[2]
         self.assertEqual(
             [(column["index"], column["label"]) for column in visuals["columns"]],
             [(1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")],
         )
         self.assertEqual(visuals["rows"][0]["cells"]["2"], "Halaman 1")
         self.assertEqual(visuals["rows"][0]["cells"]["10"], "Values")
-        self.assertEqual(groups[2]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[2]["rows"][0]["cells"]["5"], "1,0 KB")
-        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Fact Sales")
-        self.assertEqual(groups[4]["rows"][0]["cells"]["1"], "RLS")
-        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[5]["rows"][0]["cells"]["1"], "Categorical")
-        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Halaman 1")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["4"], "Text")
-        self.assertEqual(groups[7]["rows"][0]["name"], "Parameter Posisi")
-        self.assertEqual(groups[7]["rows"][0]["cells"]["1"], "Field parameter")
+        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[3]["rows"][0]["cells"]["5"], "1,0 KB")
+        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Fact Sales")
+        self.assertEqual(groups[5]["rows"][0]["cells"]["1"], "RLS")
+        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["1"], "Categorical")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Halaman 1")
+        self.assertEqual(groups[7]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[7]["rows"][0]["cells"]["4"], "Text")
+        self.assertEqual(groups[8]["rows"][0]["name"], "Parameter Posisi")
+        self.assertEqual(groups[8]["rows"][0]["cells"]["1"], "Field parameter")
         self.assertEqual(data["measures"][0]["children"], [])
         self.assertEqual(data["measures"][0]["expression"], "SUM(Fact[Amount])")
         self.assertEqual(data["reports"][0]["report_name"], "Report Uji")

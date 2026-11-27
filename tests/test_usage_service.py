@@ -1250,9 +1250,14 @@ class WriteWorkbookTests(unittest.TestCase):
         columns = pd.read_excel(book, "02_Columns")
         self.assertEqual(columns.loc[0, "Column"], "Customer")
         self.assertEqual(columns.loc[0, "Status"], STATUS_UNUSED)
+        self.assertEqual(int(columns.loc[0, "Uses"]), 1)
+        self.assertEqual(int(columns.loc[0, "Direct references"]), 1)
+        self.assertEqual(int(columns.loc[0, "Transitive references"]), 1)
         measures = pd.read_excel(book, "08_Measures")
         self.assertEqual(measures.loc[0, "Measure"], "Total")
         self.assertEqual(measures.loc[0, "Status"], STATUS_USED)
+        for header in ("Uses", "Direct references", "Transitive references"):
+            self.assertIn(header, list(measures.columns))
         model_usage = pd.read_excel(book, "04_Model_Usage")
         self.assertIn("Depth", list(model_usage.columns))
         self.assertEqual(
