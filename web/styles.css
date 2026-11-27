@@ -523,6 +523,7 @@ html[data-theme="light"] .segmented button[aria-pressed="true"]{ box-shadow:0 1p
 }
 .dialog::backdrop{ background:rgba(4,8,14,.62); }
 .dialog-head{ flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px; border-bottom:1px solid var(--border); }
+.dialog-head-actions{ flex:none; display:flex; align-items:center; gap:6px; }
 .dialog-title{ margin:0; font-size:15px; font-weight:600; }
 .dialog-head .helper{ margin:3px 0 0; }
 .dialog-close{
@@ -673,6 +674,16 @@ tr.row-unused td{ background:var(--danger-soft); }
 table.data tbody tr.row-unused:hover td{ background:var(--danger-soft); box-shadow:inset 0 0 0 999px rgba(255,255,255,.03); }
 
 tr.code-row td{ padding:0; background:var(--console-bg); }
+.code-cell{ position:relative; }
+.code-copy{
+  position:absolute; top:6px; right:10px; width:24px; height:24px;
+  display:grid; place-items:center;
+  border:1px solid var(--border); border-radius:var(--r-sm);
+  background:var(--surface); color:var(--text-3); cursor:pointer; opacity:.75;
+}
+.code-copy:hover{ color:var(--text); opacity:1; }
+.code-copy:focus-visible{ outline:2px solid var(--accent-text); outline-offset:1px; }
+.code-copy svg{ width:13px; height:13px; }
 tr.code-row pre{
   margin:0; padding:10px 16px 12px 44px; font-family:var(--font-mono); font-size:11.5px; line-height:1.7;
   color:var(--text-2); white-space:pre; overflow-x:auto;
@@ -688,7 +699,13 @@ tr.code-row pre{
 .tool-actions{ align-items:center; }
 .rel-graph{ background:var(--console-bg); }
 .rel-graph-main{ display:grid; grid-template-columns:minmax(0,1fr) 288px; align-items:stretch; }
-.rel-graph-canvas{ padding:10px 14px 2px; min-width:0; display:flex; align-items:center; }
+.rel-graph-canvas{ padding:10px 14px 2px; min-width:0; display:flex; align-items:center;
+  background-color:var(--console-bg);
+  background-image:radial-gradient(var(--border) 1px, transparent 1px);
+  background-size:22px 22px; }
+.rel-graph-canvas svg [data-rel-table]{ cursor:grab; }
+.rel-graph-canvas svg.is-dragging-node,
+.rel-graph-canvas svg.is-dragging-node [data-rel-table]{ cursor:grabbing; }
 .rel-graph-canvas svg{ cursor:grab; }
 .rel-graph-canvas svg.is-panning{ cursor:grabbing; }
 .rel-graph-canvas svg{ width:100%; height:auto; display:block; overflow:visible; }
@@ -1110,6 +1127,11 @@ tr.is-menu-open .row-menu-btn,
 .menu-divider{ height:1px; margin:5px 6px; background:var(--border); }
 
 .dialog--details{ width:min(640px, calc(100vw - 32px)); }
+.dialog--details.is-max{
+  width:calc(100vw - 24px); height:calc(100vh - 32px); max-height:none;
+}
+.dialog--details.is-max .dialog-body{ flex:1; min-height:0; }
+.dialog--details.is-max .detail-code{ max-height:none; }
 .detail-grid{ display:flex; flex-direction:column; }
 .detail-row{
   display:grid; grid-template-columns:172px minmax(0,1fr); gap:10px;

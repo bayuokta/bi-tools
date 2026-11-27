@@ -54,6 +54,20 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(response.json()["rls"]["roles"], "HO,Region")
 
+    def test_static_assets_disable_browser_cache(self) -> None:
+        index = self.client.get("/index.html")
+        self.assertEqual(index.status_code, 200)
+        self.assertEqual(index.headers.get("cache-control"), "no-store")
+        (self.web / "styles.css").write_text("body{}", encoding="utf-8")
+        asset = self.client.get("/styles.css")
+        self.assertEqual(asset.status_code, 200)
+        self.assertEqual(asset.headers.get("cache-control"), "no-store")
+
+    def test_api_responses_keep_their_headers(self) -> None:
+        health = self.client.get("/api/health")
+        self.assertEqual(health.status_code, 200)
+        self.assertNotEqual(health.headers.get("cache-control"), "no-store")
+
     def test_save_paths_rejects_relative(self) -> None:
         response = self.client.put(
             "/api/settings/paths", json={"lineage_db": "data/bi_tools.db"}

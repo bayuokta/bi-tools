@@ -36,6 +36,8 @@ import {
   analysisItemTabs,
   analysisLineageApplySearch,
   analysisLineageApplyView,
+  analysisBeginRelNodeDrag,
+  analysisEndRelNodeDrag,
   analysisLineageApplyZoom,
   analysisLineageClearHighlight,
   analysisLineageConsumeDragClick,
@@ -58,6 +60,7 @@ import {
   analysisLoad,
   analysisLoadDatasets,
   analysisLoadLineage,
+  analysisMoveRelNode,
   analysisNote,
   analysisOpenBpRules,
   analysisOpenHealthRules,
@@ -1142,6 +1145,8 @@ var NEWLINE = String.fromCharCode(10);
     $("#includePersonal").addEventListener("change", analysisSavePrefs);
 
     $("#searchAnalyze").addEventListener("input", function () {
+      state.analysisQueries[state.analysisTab] = $("#searchAnalyze").value;
+      state.analysisOpen = {};
       if (state.analysis) analysisRender();
     });
     $("#typeAnalyze").addEventListener("change", function () {
@@ -1312,10 +1317,36 @@ var NEWLINE = String.fromCharCode(10);
     });
 
     var relSvg = $("#relGraphSvg");
+    function relScale() {
+      var rect = relSvg.getBoundingClientRect();
+      var baseWidth = state.relGraphBaseWidth || 760;
+      var baseHeight = state.relGraphBaseHeight || 500;
+      var zoom = state.relZoom || 1;
+      return {
+        x: rect.width ? (baseWidth / zoom) / rect.width : 1,
+        y: rect.height ? (baseHeight / zoom) / rect.height : 1
+      };
+    }
     relSvg.addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
+      var node = event.target.closest("[data-rel-table]");
+      if (node) {
+        var name = node.getAttribute("data-rel-table");
+        var box = node.querySelector("rect.node-box");
+        var scale = relScale();
+        analysisBeginRelNodeDrag(name, box ? {
+          x: parseFloat(box.getAttribute("x")) || 0,
+          y: parseFloat(box.getAttribute("y")) || 0
+        } : null);
+        state.relDrag = {
+          kind: "node", name: name, x: event.clientX, y: event.clientY,
+          pointerId: event.pointerId, moved: false,
+          scaleX: scale.x, scaleY: scale.y
+        };
+        return;
+      }
       state.relDrag = {
-        x: event.clientX, y: event.clientY,
+        kind: "pan", x: event.clientX, y: event.clientY,
         panX: state.relPanX || 0, panY: state.relPanY || 0,
         pointerId: event.pointerId, moved: false
       };
@@ -1329,7 +1360,11 @@ var NEWLINE = String.fromCharCode(10);
       if (!drag.moved) {
         drag.moved = true;
         relSvg.setPointerCapture(drag.pointerId);
-        relSvg.classList.add("is-panning");
+        relSvg.classList.add(drag.kind === "node" ? "is-dragging-node" : "is-panning");
+      }
+      if (drag.kind === "node") {
+        analysisMoveRelNode(drag.name, dx * drag.scaleX, dy * drag.scaleY);
+        return;
       }
       var rect = relSvg.getBoundingClientRect();
       var baseWidth = state.relGraphBaseWidth || 760;
@@ -1348,15 +1383,18 @@ var NEWLINE = String.fromCharCode(10);
     function endRelDrag(event) {
       if (!state.relDrag) return;
       var moved = state.relDrag.moved;
+      var kind = state.relDrag.kind;
       var pointerId = state.relDrag.pointerId;
       state.relDrag = null;
-      relSvg.classList.remove("is-panning");
+      relSvg.classList.remove("is-panning", "is-dragging-node");
+      if (kind === "node") analysisEndRelNodeDrag();
       if (relSvg.hasPointerCapture(pointerId)) {
         relSvg.releasePointerCapture(pointerId);
       }
       if (moved) {
         state.relJustDragged = true;
         window.setTimeout(function () { state.relJustDragged = false; }, 0);
+        if (kind === "node") analysisRender();
       }
     }
     relSvg.addEventListener("pointerup", endRelDrag);
@@ -1368,6 +1406,14 @@ var NEWLINE = String.fromCharCode(10);
       analysisSetSort(header.getAttribute("data-analysis-sort"));
     });
     $("#analyzeBody").addEventListener("click", function (event) {
+      var copyButton = event.target.closest("[data-copy-code]");
+      if (copyButton) {
+        event.preventDefault();
+        var codeCell = copyButton.closest(".code-cell");
+        var pre = codeCell ? codeCell.querySelector("pre") : null;
+        copyTextValue(pre ? pre.textContent : "");
+        return;
+      }
       var ruleInfo = event.target.closest("[data-health-rule-info]");
       if (ruleInfo) {
         event.preventDefault();
@@ -1558,6 +1604,14 @@ var NEWLINE = String.fromCharCode(10);
     });
     $("#copyAnalysisExpression").addEventListener("click", function () {
       copyTextValue(state.analysisDetailsExpression || "");
+    });
+    $("#expandAnalysisDetails").addEventListener("click", function () {
+      var dialog = $("#analysisDetailsDialog");
+      var expanded = dialog.classList.toggle("is-max");
+      var button = $("#expandAnalysisDetails");
+      var label = t(expanded ? "Restore" : "Maximize");
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
     });
     $("#analysisDetailsDialog").addEventListener("click", function (event) {
       if (event.target === event.currentTarget) $("#analysisDetailsDialog").close();

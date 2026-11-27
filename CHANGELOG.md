@@ -7,6 +7,29 @@ perubahan di bawah ini, ditambah perubahan pengerasan rilis sesudahnya. Riwayat
 per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 `bi-tools-main-62commits.bundle`.
 
+## Belum dirilis
+
+### Perbaikan
+
+- Aset statis (`/index.html`, `/app.js`, `styles.css`, modul `js/`) dikirim dengan
+  `Cache-Control: no-store`. Sebelumnya Chrome memakai heuristic caching sehingga
+  tampilan lama bisa bertahan berhari-hari setelah aplikasi diperbarui; port lokal
+  yang selalu sama membuat cache key tidak berubah.
+- Halaman Analisa: opsi **Include reports from other workspaces** dan
+  **Include My Workspace** tidak lagi dinonaktifkan saat *Include report usage*
+  dimatikan; muncul hint bahwa keduanya hanya berlaku bila report usage disertakan.
+- Halaman Analisa: baris hasil pencarian kini bisa dibuka/ditutup dan tombol
+  **Expand all**/**Collapse all** tetap bekerja saat kotak pencarian terisi.
+- Halaman Analisa: kata kunci pencarian disimpan per tab, jadi filter di DAX
+  tidak ikut menyaring M queries (dan sebaliknya).
+- Halaman Analisa: Table details menyertakan tombol **Copy expression** dan
+  ekspresi M diwarnai dengan grammar M (sebelumnya memakai grammar DAX).
+- Halaman Analisa: baris kode di tab DAX Expressions dan M queries punya tombol
+  copy di pojok kanan; M queries kini memakai syntax highlight.
+- Halaman Analisa: dialog details punya tombol maximize/restore.
+- Grafik Relationships memakai latar kanvas bertitik seperti lineage dan kartu
+  tabel dapat digeser (edge mengikuti, posisi direset saat analisa baru).
+
 ## 2026-11-26 - Rilis 0.9.1
 
 ### Perbaikan

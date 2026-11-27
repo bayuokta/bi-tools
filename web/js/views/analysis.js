@@ -326,9 +326,12 @@ import { state } from "../core/state.js";
   }
 
   export function analysisSyncReportOptions() {
-    var enabled = $("#includeReports").checked;
-    $("#includeOther").disabled = !enabled;
-    $("#includePersonal").disabled = !enabled;
+    // Opsi workspace tetap bisa diubah walau pemakaian report dimatikan; server
+    // mengabaikannya saat include_reports=False. Hint menjelaskan hal itu.
+    $("#includeOther").disabled = false;
+    $("#includePersonal").disabled = false;
+    var hint = $("#analysisReportHint");
+    if (hint) hint.hidden = $("#includeReports").checked;
   }
 
   export function analysisSavePrefs() {
@@ -415,6 +418,9 @@ import { state } from "../core/state.js";
     state.analysis = result;
     state.analysisNote = note || "";
     state.analysisOpen = {};
+    state.analysisQueries = {};
+    state.relNodeOffset = {};
+    state.relNodeDrag = null;
     state.reportDetail = {};
     state.reportLoading = {};
     (result.tables || []).forEach(function (table) {
@@ -572,14 +578,16 @@ import { state } from "../core/state.js";
   }
 
   export function analysisIsOpen(id, defaultOpen, ignoreQuery) {
-    var query = ($("#searchAnalyze").value || "").trim();
-    if (query && !ignoreQuery) return true;
+    // Tombol Expand/Collapse all menang, lalu pilihan eksplisit pengguna pada
+    // baris itu. Dengan begitu baris tetap bisa ditutup saat ada kata kunci.
     if (state.analysisForceOpen === true || state.analysisForceOpen === false) {
       return state.analysisForceOpen;
     }
     if (Object.prototype.hasOwnProperty.call(state.analysisOpen, id)) {
       return Boolean(state.analysisOpen[id]);
     }
+    var query = ($("#searchAnalyze").value || "").trim();
+    if (query && !ignoreQuery) return true;
     return Boolean(defaultOpen);
   }
 
@@ -1045,13 +1053,15 @@ import { state } from "../core/state.js";
     }
   }
 
-  function analysisOpenInfoDialog(title, sub, html) {
+  function analysisOpenInfoDialog(title, sub, html, options) {
     var dialog = $("#analysisDetailsDialog");
     if (!dialog) return;
     $("#analysisDetailsTitle").textContent = title;
     $("#analysisDetailsSub").textContent = sub || "";
     $("#analysisDetailsBody").innerHTML = html;
-    $("#copyAnalysisExpression").hidden = true;
+    var copyText = options && options.copyText ? String(options.copyText) : "";
+    state.analysisDetailsExpression = copyText;
+    $("#copyAnalysisExpression").hidden = !copyText;
     if (dialog.open) dialog.close();
     dialog.showModal();
   }
@@ -1079,9 +1089,11 @@ import { state } from "../core/state.js";
     }).join("") + "</div>";
     if (query.expression) {
       html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
-        '</h3><pre class="detail-code">' + highlightCode(query.expression, "dax") + "</pre>";
+        '</h3><pre class="detail-code">' + highlightCode(query.expression, "m") + "</pre>";
     }
-    analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html);
+    analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html, {
+      copyText: query.expression || ""
+    });
   }
 
   function analysisOpenModelDetails() {
@@ -1133,7 +1145,7 @@ import { state } from "../core/state.js";
     var type = $("#typeAnalyze");
     if (type) type.value = "all";
     $("#unusedOnly").checked = false;
-    $("#searchAnalyze").value = target.table;
+    state.analysisQueries["all"] = target.table;
     analysisSetTab("all");
     var wrap = $("#analyzeTableWrap");
     if (wrap) wrap.scrollIntoView({ block: "nearest" });
@@ -4328,12 +4340,12 @@ import { state } from "../core/state.js";
           warning
         ]
       });
-      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression, language: "plain" });
+      if (open && row.expression) viewRows.push({ kind: "code", code: row.expression, language: "m" });
     });
     return {
       headers: [
         { label: t("Name"), key: "name" }, { label: t("Type"), key: "kind" },
-        { label: t("Source"), key: "source" }, { label: "Peringatan", key: "warning" }
+        { label: t("Source"), key: "source" }, { label: t("Warning"), key: "warning" }
       ],
       widths: ["35%", "13%", "37%", "15%"],
       rows: viewRows,
@@ -4758,8 +4770,14 @@ import { state } from "../core/state.js";
           escapeHtml(row.text) + "</td></tr>";
       }
       if (row.kind === "code") {
-        return '<tr class="code-row"><td colspan="' + headers.length + '"><pre>' +
-          (row.language === "plain" ? escapeHtml(row.code) : highlightCode(row.code, row.language || "dax")) + "</pre></td></tr>";
+        var codeHtml = row.language === "plain"
+          ? escapeHtml(row.code)
+          : highlightCode(row.code, row.language || "dax");
+        var copyLabel = escapeHtml(t("Copy code"));
+        return '<tr class="code-row"><td colspan="' + headers.length +
+          '"><div class="code-cell"><button type="button" class="code-copy" data-copy-code aria-label="' +
+          copyLabel + '" title="' + copyLabel + '">' + MENU_ICONS.copy +
+          "</button><pre>" + codeHtml + "</pre></div></td></tr>";
       }
       if (row.kind === "html") {
         return '<tr class="' + (row.cls || "analysis-sub") + '"><td colspan="' +
@@ -4988,7 +5006,61 @@ import { state } from "../core/state.js";
       });
     });
 
-    return { positions: positions, width: width, height: height, names: names };
+    var offsets = state.relNodeOffset || {};
+    var right = width;
+    var bottom = height;
+    Object.keys(positions).forEach(function (name) {
+      var offset = offsets[name];
+      if (!offset) return;
+      positions[name].x += offset.dx || 0;
+      positions[name].y += offset.dy || 0;
+      right = Math.max(right, positions[name].x + REL_NODE_W + REL_PAD);
+      bottom = Math.max(bottom, positions[name].y + REL_NODE_H + REL_PAD);
+    });
+
+    return { positions: positions, width: right, height: bottom, names: names };
+  }
+
+  export function analysisBeginRelNodeDrag(name, rect) {
+    var offsets = state.relNodeOffset || (state.relNodeOffset = {});
+    var offset = offsets[name] || { dx: 0, dy: 0 };
+    var dx = offset.dx || 0;
+    var dy = offset.dy || 0;
+    state.relNodeDrag = {
+      name: name,
+      baseDx: dx,
+      baseDy: dy,
+      baseX: ((rect && rect.x) || 0) - dx,
+      baseY: ((rect && rect.y) || 0) - dy
+    };
+  }
+
+  export function analysisMoveRelNode(name, dx, dy) {
+    var drag = state.relNodeDrag;
+    if (!drag || drag.name !== name) return;
+    var offsets = state.relNodeOffset || (state.relNodeOffset = {});
+    var nextX = drag.baseDx + dx;
+    var nextY = drag.baseDy + dy;
+    if (drag.baseX + nextX < REL_PAD) nextX = REL_PAD - drag.baseX;
+    if (drag.baseY + nextY < REL_PAD) nextY = REL_PAD - drag.baseY;
+    offsets[name] = {
+      dx: Math.min(nextX, 2400),
+      dy: Math.min(nextY, 2400)
+    };
+    if (!state.relDragFrame) {
+      state.relDragFrame = window.requestAnimationFrame(function () {
+        state.relDragFrame = 0;
+        if (state.analysisTab === "relationships") analysisRenderGraph(true);
+      });
+    }
+  }
+
+  export function analysisEndRelNodeDrag() {
+    state.relNodeDrag = null;
+    if (state.relDragFrame) {
+      window.cancelAnimationFrame(state.relDragFrame);
+      state.relDragFrame = 0;
+    }
   }
 
   function analysisRelRoutePath(x1, y1, x2, y2, laneY) {
@@ -5136,7 +5208,7 @@ import { state } from "../core/state.js";
     applyAnalysisZoom();
   }
 
-  function analysisRenderGraph() {
+  function analysisRenderGraph(keepSide) {
     var layer = $("#relGraphLayer");
     var relations = analysisFilteredRelationships();
     var allPairs = analysisRelPairs((state.analysis && state.analysis.relationships) || []);
@@ -5256,16 +5328,26 @@ import { state } from "../core/state.js";
     });
 
     layer.innerHTML = parts.join("");
-    state.relGraphBaseWidth = tree.width;
-    state.relGraphBaseHeight = tree.height;
+    if (!keepSide) {
+      state.relGraphBaseWidth = tree.width;
+      state.relGraphBaseHeight = tree.height;
+    }
     applyAnalysisZoom();
-    analysisGraphSide(selected, allPairs, visiblePairs, names);
+    if (!keepSide) {
+      analysisGraphSide(selected, allPairs, visiblePairs, names);
+    }
   }
 
   export function analysisSetTab(name) {
     if (!ANALYSIS_TABS[name]) return;
+    var previous = state.analysisTab;
+    if (previous && previous !== name) {
+      state.analysisQueries[previous] = $("#searchAnalyze").value || "";
+    }
     state.analysisTab = name;
+    $("#searchAnalyze").value = state.analysisQueries[name] || "";
     state.analysisForceOpen = null;
+    state.analysisOpen = {};
     state.relSelected = null;
     analysisApplyTabTools(name, true);
     analysisRender();

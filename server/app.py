@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -45,6 +45,37 @@ ROUTERS = (
     files.router,
     jobs.router,
 )
+
+
+class NoCacheStatic:
+    """Bungkus mount statis agar browser tidak memakai aset basi.
+
+    Starlette hanya mengirim ``ETag``/``Last-Modified``. Tanpa
+    ``Cache-Control`` Chrome memakai heuristic caching sehingga file lama bisa
+    dipakai berhari-hari setelah aplikasi diperbarui. Hanya respons mount
+    statis yang diubah; endpoint ``/api/*`` tidak disentuh.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_no_cache(message: dict[str, Any]) -> None:
+            if message.get("type") == "http.response.start":
+                headers = [
+                    (name, value)
+                    for name, value in message.get("headers", [])
+                    if name.lower() != b"cache-control"
+                ]
+                headers.append((b"cache-control", b"no-store"))
+                message = dict(message, headers=headers)
+            await send(message)
+
+        await self.app(scope, receive, send_no_cache)
 
 
 def create_app(
@@ -95,7 +126,7 @@ def create_app(
     if app.state.web_root.is_dir():
         app.mount(
             "/",
-            StaticFiles(directory=str(app.state.web_root), html=True),
+            NoCacheStatic(StaticFiles(directory=str(app.state.web_root), html=True)),
             name="web",
         )
     else:

@@ -75,3 +75,38 @@ export function compareLanguage(options) {
     operator: /[:=]/
   };
 })();
+
+// Grammar M (Power Query): lexical kecil dengan token yang sama seperti DAX
+// agar warna memakai aturan .token yang sudah ada. Bukan parser semantik.
+(function registerM() {
+  var instance = prism();
+  if (!instance || !instance.languages || instance.languages.m) return;
+  instance.languages.m = {
+    comment: [
+      { pattern: /\/\/[^\n]*/, greedy: true },
+      { pattern: /\/\*[\s\S]*?(?:\*\/|$)/, greedy: true }
+    ],
+    string: {
+      pattern: /"(?:[^"]|"")*"/,
+      greedy: true
+    },
+    "quoted-identifier": {
+      pattern: /#"(?:[^"]|"")*"/,
+      alias: "property"
+    },
+    "hash-literal": {
+      pattern: /#(?:date|datetime|datetimezone|duration|time|table|shared|sections|binary|infinity|nan)\b/i,
+      alias: "constant"
+    },
+    function: /\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b/,
+    type: {
+      pattern: /\b(?:any|anynonnull|binary|date|datetime|datetimezone|duration|function|list|logical|none|null|number|record|table|text|time|type)\b/i,
+      alias: "constant"
+    },
+    keyword: /\b(?:and|as|each|else|error|if|in|is|let|meta|not|or|otherwise|section|then|try)\b/i,
+    boolean: /\b(?:true|false)\b/i,
+    number: /\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/,
+    operator: /[=<>+\-*\/&?@]/,
+    punctuation: /[()\[\]{},;]/
+  };
+})();
