@@ -559,6 +559,11 @@ def build_tables(model: LiveModel) -> list[dict[str, Any]]:
 def build_columns(model: LiveModel) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     excluded = 0
+    field_parameter_tables = {
+        str(row.get("table") or "")
+        for row in build_partitions(model)
+        if "NAMEOF(" in str(row.get("source") or "").upper()
+    }
     for column_id, column in model.column_by_id.items():
         column_type = int(column.get("Type") or 0)
         if column_type == 3:
@@ -575,7 +580,11 @@ def build_columns(model: LiveModel) -> tuple[list[dict[str, Any]], int, list[dic
             {
                 "table": table,
                 "column": name,
-                "column_type": label(column_type, COLUMN_TYPE, "columnType"),
+                "column_type": (
+                "Field parameter"
+                if table in field_parameter_tables
+                else label(column_type, COLUMN_TYPE, "columnType")
+            ),
                 "data_type": label(column.get("ExplicitDataType") or column.get("InferredDataType"), DATA_TYPE, "dataType"),
                 "format_string": str(column.get("FormatString") or ""),
                 "summarize_by": label(column.get("SummarizeBy"), AGGREGATE_FUNCTION, "summarizeBy"),

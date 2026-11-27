@@ -3305,7 +3305,11 @@ import { state } from "../core/state.js";
           analysisNameCell(data.name, item.kind === "measure" ? "measure" : "column", {
             level: 0, toggleId: expandable ? id : "", open: open, menu: true
           }),
-          item.kind === "measure" ? "Measure" : "Kolom",
+          item.kind === "measure"
+            ? t("Measure")
+            : (data.type === "Field parameter"
+              ? t("Field parameter")
+              : t("Column")),
           escapeHtml(data.table || "—"),
           "Model",
           escapeHtml(data.data_type || "—"),

@@ -47,6 +47,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dengan kartu tujuannya, halaman report diurutkan mengikuti baris model yang
   dirujuk, dan urutan layer memakai transpose untuk menekan persilangan edge.
   Graph otomatis **Fit** saat canvas lebih besar dari viewport.
+- Kolom tabel field parameter kini bertipe **Field parameter** (bukan
+  `Column`/`calculatedTableColumn`), dan label **Type** di tab All results
+  mengikuti bahasa aktif (`Column`/`Kolom`, `Field parameter`).
 - Grafik **Relationships** kini benar-benar menampilkan latar bertitik seperti
   lineage. Sebelumnya `background-image` tertimpa shorthand `background` dari
   `.graph-wrap`; selektor diganti menjadi `.graph-wrap.rel-graph-canvas`.
