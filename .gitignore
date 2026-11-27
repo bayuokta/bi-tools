@@ -64,3 +64,4 @@ m-query*.csv
 # Hasil TSD di root (preferensi lama) tetap hasil generate
 /TSD_*.html
 /TSD_*.json
+/results.xlsx
