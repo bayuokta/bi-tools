@@ -99,7 +99,12 @@ SORT_KEYS = (
 SORT_DESC_DEFAULT = {"size", "uses", "has_error"}
 GROUP_MODEL = "Model references"
 GROUP_INDIRECT = "Indirect references"
+GROUP_CALC_TABLE = "Used in calculated tables"
 GROUP_VISUALS = "Used in visuals"
+GROUP_VISUAL_FILTERS = "Used in visual level filters"
+GROUP_REPORT_FILTERS = "Used in report level filters"
+GROUP_HIERARCHY = "Used in hierarchy"
+GROUP_POWER_QUERY = "Used in Power Query"
 GROUP_KEY_COLUMN = "Used as key column"
 GROUP_RELATIONSHIPS = "Used in relationships"
 GROUP_SECURITY = "Used in row/object level security"
@@ -110,13 +115,18 @@ GROUP_FIELD_PARAMETERS = "Used in field parameters"
 GROUP_ORDER = (
     GROUP_MODEL,
     GROUP_INDIRECT,
+    GROUP_CALC_TABLE,
     GROUP_VISUALS,
+    GROUP_VISUAL_FILTERS,
+    GROUP_PAGE_FILTERS,
+    GROUP_REPORT_FILTERS,
     GROUP_KEY_COLUMN,
     GROUP_RELATIONSHIPS,
     GROUP_SECURITY,
-    GROUP_PAGE_FILTERS,
     GROUP_SORTING,
     GROUP_FIELD_PARAMETERS,
+    GROUP_HIERARCHY,
+    GROUP_POWER_QUERY,
 )
 
 ARTIFACT_TYPES = {
@@ -364,7 +374,19 @@ GROUP_COLUMNS = {
         (8, "Format string"),
         (10, "Display folder"),
     ),
+    GROUP_CALC_TABLE: (
+        (1, "Type"),
+        (2, "Table"),
+        (3, "Source"),
+        (5, "Size"),
+        (6, "Status"),
+        (7, "# of uses"),
+    ),
     GROUP_VISUALS: ((1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")),
+    GROUP_VISUAL_FILTERS: ((1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")),
+    GROUP_REPORT_FILTERS: ((1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")),
+    GROUP_HIERARCHY: ((1, "Type"), (2, "Table"), (3, "Source")),
+    GROUP_POWER_QUERY: ((1, "Type"), (2, "Table"), (3, "Source")),
     GROUP_KEY_COLUMN: (
         (1, "Type"),
         (2, "Table"),
@@ -392,7 +414,12 @@ GROUP_COLUMNS = {
 GROUP_ICONS = {
     GROUP_MODEL: "measure",
     GROUP_INDIRECT: "dependencies",
+    GROUP_CALC_TABLE: "table",
     GROUP_VISUALS: "page",
+    GROUP_VISUAL_FILTERS: "filter",
+    GROUP_REPORT_FILTERS: "filter",
+    GROUP_HIERARCHY: "group",
+    GROUP_POWER_QUERY: "query",
     GROUP_KEY_COLUMN: "link",
     GROUP_RELATIONSHIPS: "link",
     GROUP_SECURITY: "filter",
@@ -500,7 +527,7 @@ def _usage_groups(
         if (own_table, name.casefold()) in _relation_sides(relation)
     ]
     records = [_record_payload(record) for record in (analysis.report_records or [])]
-    refs = [
+    refs_all = [
         {
             "kind": str(ref.kind or ""),
             "object": str(ref.object or ""),
@@ -508,8 +535,8 @@ def _usage_groups(
             "depth": int(getattr(ref, "depth", 1) or 1),
         }
         for ref in (analysis.model_refs or [])
-        if is_counted_reference(ref)
     ]
+    refs = [ref for ref in refs_all if is_counted_reference(ref)]
     direct_refs = [ref for ref in refs if ref["depth"] <= 1]
     indirect_refs = [ref for ref in refs if ref["depth"] > 1]
     groups: dict[str, list[dict[str, Any]]] = {key: [] for key in GROUP_ORDER}
@@ -550,6 +577,8 @@ def _usage_groups(
         )
 
     for ref in direct_refs:
+        if ref["kind"] in {"calculated table", "hierarchy"}:
+            continue
         child = reference_child(ref)
         if child is not None:
             groups[GROUP_MODEL].append(child)
@@ -557,6 +586,33 @@ def _usage_groups(
         child = reference_child(ref, indirect=True)
         if child is not None:
             groups[GROUP_INDIRECT].append(child)
+    for ref in direct_refs:
+        if ref["kind"] == "calculated table":
+            groups[GROUP_CALC_TABLE].append(
+                _child(
+                    ref["object"] or ref["detail"],
+                    "table",
+                    {1: "Calculated table", 3: "Model"},
+                )
+            )
+        elif ref["kind"] == "hierarchy":
+            ref_table, _ = _parse_object(ref["object"])
+            groups[GROUP_HIERARCHY].append(
+                _child(
+                    ref["object"] or ref["detail"],
+                    "group",
+                    {1: "Hierarchy", 2: ref_table, 3: "Model"},
+                )
+            )
+    for ref in refs_all:
+        if ref["kind"] == "langkah M":
+            groups[GROUP_POWER_QUERY].append(
+                _child(
+                    ref["object"] or ref["detail"],
+                    "query",
+                    {1: "Power Query", 3: "Model"},
+                )
+            )
 
     for record in records:
         if record["usage_kind"] != "field":
@@ -638,6 +694,35 @@ def _usage_groups(
                 ref["object"] or label,
                 "filter",
                 {1: label, 2: _security_table(ref["detail"]), 3: "Model"},
+            )
+        )
+
+    for record in records:
+        if record["usage_kind"] != "filter-visual":
+            continue
+        groups[GROUP_VISUAL_FILTERS].append(
+            _child(
+                record["visual_title"] or record["visual_type"] or "(visual)",
+                "filter",
+                {
+                    1: record["visual_type"],
+                    2: record["page_name"],
+                    3: record["report_name"],
+                    10: record["detail"],
+                },
+                record["url"],
+            )
+        )
+
+    for record in records:
+        if record["usage_kind"] != "filter-report":
+            continue
+        groups[GROUP_REPORT_FILTERS].append(
+            _child(
+                record["report_name"] or "(report)",
+                "filter",
+                {1: "Filter report", 3: record["report_name"], 10: record["detail"]},
+                record["url"],
             )
         )
 

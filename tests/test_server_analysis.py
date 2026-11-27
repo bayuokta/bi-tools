@@ -244,10 +244,10 @@ class AnalysisPresenterTests(unittest.TestCase):
                 "Model references",
                 "Indirect references",
                 "Used in visuals",
+                "Used in page level filters",
                 "Used as key column",
                 "Used in relationships",
                 "Used in row/object level security",
-                "Used in page level filters",
                 "Used in column sorting",
                 "Used in field parameters",
             ],
@@ -281,13 +281,13 @@ class AnalysisPresenterTests(unittest.TestCase):
         )
         self.assertEqual(visuals["rows"][0]["cells"]["2"], "Halaman 1")
         self.assertEqual(visuals["rows"][0]["cells"]["10"], "Values")
-        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[3]["rows"][0]["cells"]["5"], "1,0 KB")
-        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Fact Sales")
-        self.assertEqual(groups[5]["rows"][0]["cells"]["1"], "RLS")
-        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["1"], "Categorical")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Halaman 1")
+        self.assertEqual(groups[3]["rows"][0]["cells"]["1"], "Categorical")
+        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Halaman 1")
+        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(groups[4]["rows"][0]["cells"]["5"], "1,0 KB")
+        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Fact Sales")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["1"], "RLS")
+        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Dim Customer")
         self.assertEqual(groups[7]["rows"][0]["cells"]["2"], "Dim Customer")
         self.assertEqual(groups[7]["rows"][0]["cells"]["4"], "Text")
         self.assertEqual(groups[8]["rows"][0]["name"], "Parameter Posisi")
