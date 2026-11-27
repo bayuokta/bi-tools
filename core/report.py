@@ -171,12 +171,29 @@ def parse_field(field: dict[str, Any]) -> dict[str, Any]:
             function = None
         aggregation = QUERY_AGGREGATE_FUNCTION.get(function, "")
     elif kind == "HierarchyLevel":
-        table, _ = deep_entity_property(node)
-        hierarchy = None
-        level = node.get("Level")
         hierarchy_node = (node.get("Expression") or {}).get("Hierarchy") or {}
-        hierarchy = hierarchy_node.get("Property")
-        name = f"{hierarchy}.{level}" if hierarchy and level else (level or hierarchy)
+        variation = (
+            (hierarchy_node.get("Expression") or {}).get("PropertyVariationSource")
+            or {}
+        )
+        if variation:
+            # Auto date/time hierarchy: level menunjuk kolom basisnya.
+            table = (
+                (variation.get("Expression") or {}).get("SourceRef") or {}
+            ).get("Entity")
+            name = variation.get("Property")
+            kind = "Column"
+        else:
+            table, _ = deep_entity_property(node)
+            hierarchy = hierarchy_node.get("Property") or hierarchy_node.get(
+                "Hierarchy"
+            )
+            level = node.get("Level")
+            name = (
+                f"{hierarchy}.{level}"
+                if hierarchy and level
+                else (level or hierarchy)
+            )
     elif kind == "Arithmetic":
         # Implicit measure/kolom di dalam operasi aritmetika (mis. Divide)
         # harus diambil dari node aslinya, bukan ditebak dari nama.

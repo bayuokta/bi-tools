@@ -53,6 +53,7 @@ from .fabric_api import (
 )
 from .lineage_api import PowerBILineageClient
 from .lineage_service import reports_using_dataset
+from .m_lineage import build_lineage
 from .report_catalog import catalog_reports
 from .lineage_store import DEFAULT_DB, close_quietly, connect
 from .metadata_common import (
@@ -423,7 +424,11 @@ def display_data_type(value: Any) -> str:
 
 
 def is_counted_reference(reference: Any) -> bool:
-    return str(getattr(reference, "kind", "") or "") not in UNCOUNTED_REF_KINDS
+    if isinstance(reference, Mapping):
+        kind = reference.get("kind")
+    else:
+        kind = getattr(reference, "kind", "")
+    return str(kind or "") not in UNCOUNTED_REF_KINDS
 
 
 def is_counted_record(record: Mapping[str, Any]) -> bool:
@@ -727,11 +732,22 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             depth=int(dependency.get("depth") or 1),
         )
 
+    model_columns = {
+        (table.casefold(), name.casefold())
+        for table, name in model.column_name.values()
+    }
     for row in columns_rows:
         if not row.get("is_calculated"):
             continue
         owner = f"'{row['table']}'[{row['column']}]"
-        for table, column in find_dax_refs(str(row["expression"]), table_names)[0]:
+        found, unqualified = find_dax_refs(str(row["expression"]), table_names)
+        own_table = str(row["table"])
+        for name in unqualified:
+            # Di calculated column, [X] tanpa nama tabel menunjuk kolom X
+            # pada tabel yang sama.
+            if (own_table.casefold(), name.casefold()) in model_columns:
+                found.append((own_table, name))
+        for table, column in found:
             add(
                 table,
                 column,
@@ -740,10 +756,6 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 f"calculated column {owner}",
             )
 
-    model_columns = {
-        (table.casefold(), name.casefold())
-        for table, name in model.column_name.values()
-    }
     for row in build_partitions(model):
         if str(row.get("source_type")) != "calculated":
             continue
@@ -951,6 +963,82 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 "langkah M",
                 f"query '{table}'",
                 f"langkah Power Query tabel '{table}' (indikatif)",
+                blocking=False,
+            )
+
+    # Referensi Power Query yang benar-benar dipakai objek lain:
+    # 1) query yang menyalin tabel lain (passthrough) memakai semua kolomnya,
+    # 2) incremental refresh memakai kolom tanggal pada RangeStart/RangeEnd.
+    query_by_table: dict[str, str] = {}
+    for row in model.raw["TMSCHEMA_PARTITIONS"]:
+        table = model.table_name.get(int(row["TableID"]), "")
+        source = clean_expr(row.get("QueryDefinition"))
+        if table and source and table not in query_by_table:
+            query_by_table[table] = source
+    table_by_query = {name.casefold(): name for name in query_by_table}
+    column_names_by_table: dict[str, dict[str, str]] = defaultdict(dict)
+    for row in columns_rows:
+        table = str(row["table"])
+        name = str(row["column"])
+        if table and name:
+            column_names_by_table[table][name.casefold()] = name
+
+    passthrough = re.compile(
+        r'^let Source = (?:#"(?P<quoted>[^"]+)"|(?P<bare>[A-Za-z_][A-Za-z0-9_]*)) '
+        r"in Source$",
+        re.IGNORECASE,
+    )
+    for table, source in query_by_table.items():
+        match = passthrough.match(" ".join(source.split()))
+        if not match:
+            continue
+        target = (match.group("quoted") or match.group("bare") or "").strip()
+        target_table = table_by_query.get(target.casefold())
+        if not target_table or target_table == table:
+            continue
+        for name in column_names_by_table.get(target_table, {}).values():
+            add(
+                target_table,
+                name,
+                "Power Query",
+                f"query '{table}'",
+                f"Power Query reference tabel '{table}'",
+                blocking=False,
+            )
+
+    for row in model.raw["TMSCHEMA_REFRESH_POLICIES"]:
+        table = model.table_name.get(int(row["TableID"]), "")
+        source = clean_expr(row.get("SourceExpression"))
+        if not table or not source:
+            continue
+        filtered = {
+            match.group(1).strip()
+            for match in re.finditer(
+                r"\[([^\]]+)\]\s*(?:>=|<=|>|<|=)\s*Range(?:Start|End)\b",
+                strip_dax_literals(source),
+            )
+        }
+        if not filtered:
+            continue
+        lineage = build_lineage(source)
+        for source_column in filtered:
+            final = next(
+                (
+                    name
+                    for name, column in lineage.columns.items()
+                    if str(getattr(column, "source_column", "")).casefold()
+                    == source_column.casefold()
+                ),
+                "",
+            )
+            if not final:
+                continue
+            add(
+                table,
+                final,
+                "Power Query",
+                f"incremental refresh tabel '{table}'",
+                f"incremental refresh kolom '{final}'",
                 blocking=False,
             )
 

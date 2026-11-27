@@ -453,6 +453,16 @@ def _parse_object(text: str) -> tuple[str, str]:
     return match.group(1).replace("''", "'"), match.group(2)
 
 
+def _m_query_table(text: str) -> str:
+    """Nama tabel dari object referensi ``query 'Tabel'``."""
+    value = str(text or "").strip()
+    if value.lower().startswith("query "):
+        value = value[6:].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return value.replace("''", "'")
+
+
 def _child(
     name: str, icon: str, cells: Mapping[int, Any], href: str = ""
 ) -> dict[str, Any]:
@@ -618,17 +628,24 @@ def _usage_groups(
                 )
             )
     for ref in refs_all:
-        if ref["kind"] == "langkah M":
-            groups[GROUP_POWER_QUERY].append(
-                _child(
-                    ref["object"] or ref["detail"],
-                    "query",
-                    {1: "Power Query", 3: "Model"},
-                )
+        if ref["kind"] not in {"langkah M", "Power Query"}:
+            continue
+        if (
+            ref["kind"] == "langkah M"
+            and _m_query_table(ref["object"]).casefold() == table.casefold()
+        ):
+            # Query M tabel sendiri bukan pemakaian oleh objek lain.
+            continue
+        groups[GROUP_POWER_QUERY].append(
+            _child(
+                ref["object"] or ref["detail"],
+                "query",
+                {1: "Power Query", 3: "Model"},
             )
+        )
 
     for record in records:
-        if record["usage_kind"] != "field":
+        if record["usage_kind"] not in {"field", "format"}:
             continue
         groups[GROUP_VISUALS].append(
             _child(

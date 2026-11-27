@@ -307,6 +307,42 @@ class PbirScanTests(unittest.TestCase):
         self.assertIn(("Measure", "Sales", "Total Sales", ""), fields)
         self.assertIn(("Aggregation", "Sales", "Qty", "Sum"), fields)
 
+    def test_auto_date_hierarchy_uses_base_column(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]
+        visual["visual"]["query"]["queryState"]["Values"]["projections"] = [
+            {
+                "field": {
+                    "HierarchyLevel": {
+                        "Expression": {
+                            "Hierarchy": {
+                                "Expression": {
+                                    "PropertyVariationSource": {
+                                        "Expression": {
+                                            "SourceRef": {"Entity": "Sales"}
+                                        },
+                                        "Name": "Variation",
+                                        "Property": "Order Date",
+                                    }
+                                },
+                                "Hierarchy": "Date Hierarchy",
+                            }
+                        },
+                        "Level": "Year",
+                    }
+                },
+                "queryRef": "Sales.Order Date.Variation.Date Hierarchy.Year",
+            }
+        ]
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        fields = [
+            (row.field_kind, row.table, row.field)
+            for row in usage.records
+            if row.usage_kind == USAGE_FIELD
+        ]
+        self.assertIn(("Column", "Sales", "Order Date"), fields)
+
     def test_arithmetic_uses_underlying_field_table(self) -> None:
         parts = pbir_parts()
         visual = parts["definition/pages/p1/visuals/v1/visual.json"]
@@ -381,6 +417,30 @@ class PbirScanTests(unittest.TestCase):
         )
         self.assertEqual(formats, ["Highlight"])
 
+    def test_formatting_counts_on_visual_that_does_not_use_the_field(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v3/visual.json"]["visual"]
+        visual["objects"] = {
+            "labels": [
+                {
+                    "properties": {
+                        "color": {
+                            "solid": {"color": {"expr": column("Sales", "Customer")}}
+                        }
+                    }
+                }
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+
+        formats = sorted(
+            (row.field, row.visual_id)
+            for row in usage.records
+            if row.usage_kind == USAGE_FORMAT
+        )
+        self.assertIn(("Customer", "v3"), formats)
+        self.assertNotIn(("Customer", "v1"), formats)
+
     def test_formatting_counts_each_property(self) -> None:
         parts = pbir_parts()
         visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
@@ -451,6 +511,58 @@ class PbirScanTests(unittest.TestCase):
             if row.usage_kind == USAGE_FILTER_VISUAL
         ]
         self.assertIn(("Sales", "Customer"), {(r.table, r.field) for r in filters})
+
+    def test_filter_objects_on_one_visual_are_counted_separately(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]
+        visual["filterConfig"] = {
+            "filters": [
+                {
+                    "name": "Filter1",
+                    "field": column("Sales", "Customer"),
+                    "type": "Categorical",
+                },
+                {
+                    "name": "Filter2",
+                    "field": column("Sales", "Customer"),
+                    "type": "Categorical",
+                },
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+        rows = [
+            row
+            for row in usage.records
+            if row.usage_kind == USAGE_FILTER_VISUAL
+            and row.field == "Customer"
+        ]
+        self.assertEqual(len(rows), 2)
+
+    def test_filter_with_same_name_is_not_double_counted(self) -> None:
+        parts = pbir_parts()
+        visual = parts["definition/pages/p1/visuals/v1/visual.json"]
+        visual["filterConfig"] = {
+            "filters": [
+                {
+                    "name": "Filter1",
+                    "field": column("Sales", "Customer"),
+                    "type": "Categorical",
+                },
+                {
+                    "name": "Filter1",
+                    "field": column("Sales", "Customer"),
+                    "type": "Categorical",
+                },
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+        rows = [
+            row
+            for row in usage.records
+            if row.usage_kind == USAGE_FILTER_VISUAL
+            and row.field == "Customer"
+        ]
+        self.assertEqual(len(rows), 1)
 
     def test_field_parameters_are_counted_as_visual_usage(self) -> None:
         parts = pbir_parts()

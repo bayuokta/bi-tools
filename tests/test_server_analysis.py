@@ -103,6 +103,12 @@ def fake_result() -> SimpleNamespace:
             detail="field parameter 'Parameter Posisi'",
             blocking=True,
         ),
+        SimpleNamespace(
+            kind="langkah M",
+            object="query 'Dim Customer'",
+            detail="langkah Power Query tabel 'Dim Customer' (indikatif)",
+            blocking=False,
+        ),
     ]
     column = SimpleNamespace(
         column=column_stat,
@@ -255,6 +261,11 @@ class AnalysisPresenterTests(unittest.TestCase):
         by_label = {group["label"]: group for group in groups}
         artifacts = by_label["Used in artifacts"]
         self.assertEqual(artifacts["count"], 1)
+        self.assertNotIn(
+            "Langkah M",
+            {row["cells"].get("1") for row in artifacts["rows"]},
+        )
+        self.assertNotIn("Used in Power Query", by_label)
         self.assertEqual(
             [column["index"] for column in artifacts["columns"]],
             [1, 2, 3, 4, 5, 6, 7, 8, 10],

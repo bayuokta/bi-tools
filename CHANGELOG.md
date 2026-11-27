@@ -53,6 +53,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   filters**, **Used in Power Query**, **Used as default label**, **Used in
   calculated tables**, dan **Used in hierarchy** (sebelumnya hanya sebagian
   yang tampil).
+- Pemakaian filter dihitung per **filter object** (dua filter pada satu visual tetap
+  terhitung), formatting hanya dibuang bila field yang sama dipakai di visual yang
+  sama, dan calculated column `[Kolom]` tanpa nama tabel diresolusi ke tabelnya.
+- Level hierarchy otomatis date/time dipetakan ke kolom basis; query passthrough
+  tabel lain dan incremental refresh dihitung sebagai pemakaian Power Query.
 - Proyeksi `Arithmetic` (mis. `Divide(Sum(Tabel.Kolom), ...)`) kini dipetakan ke
   field di dalamnya, sehingga measure tidak lagi dipinjamkan ke kolom bernama sama
   dan hitungan `# used` measure/kolom lebih akurat.

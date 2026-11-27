@@ -1403,12 +1403,21 @@ class ModelReferenceTests(unittest.TestCase):
                 {"ID": 2, "Name": "Sales", "IsHidden": False},
                 {"ID": 3, "Name": "Product", "IsHidden": False},
                 {"ID": 4, "Name": "Parameter Posisi", "IsHidden": False},
+                {"ID": 5, "Name": "Sales Copy", "IsHidden": False},
             ],
             "TMSCHEMA_COLUMNS": [
                 {"ID": 10, "TableID": 2, "ExplicitName": "Customer", "Type": 1, "ExplicitDataType": 2},
                 {"ID": 11, "TableID": 2, "ExplicitName": "Qty", "Type": 1, "ExplicitDataType": 6},
                 {"ID": 12, "TableID": 2, "ExplicitName": "Year", "Type": 1, "ExplicitDataType": 6},
                 {"ID": 13, "TableID": 2, "ExplicitName": "Month", "Type": 1, "ExplicitDataType": 2, "SortByColumnID": 12},
+                {
+                    "ID": 14,
+                    "TableID": 2,
+                    "ExplicitName": "Customer Copy",
+                    "Type": 2,
+                    "ExplicitDataType": 2,
+                    "Expression": "[Customer]",
+                },
                 {"ID": 20, "TableID": 3, "ExplicitName": "Name", "Type": 1, "ExplicitDataType": 2, "IsKey": True},
                 {"ID": 21, "TableID": 4, "ExplicitName": "Parameter", "Type": 1, "ExplicitDataType": 2},
             ],
@@ -1460,6 +1469,30 @@ class ModelReferenceTests(unittest.TestCase):
                         '    ("Tahun", NAMEOF(\'Sales\'[Year]), 1)\n}'
                     ),
                 },
+                {
+                    "ID": 42,
+                    "TableID": 5,
+                    "Name": "Sales Copy",
+                    "Mode": 0,
+                    "QueryDefinition": 'let Source = #"Sales" in Source',
+                },
+            ],
+            "TMSCHEMA_REFRESH_POLICIES": [
+                {
+                    "TableID": 2,
+                    "PolicyType": 0,
+                    "Mode": 0,
+                    "SourceExpression": (
+                        "let\n"
+                        '    Source = Sql.Database("srv","db"),\n'
+                        '    dbo_t = Source{[Schema="dbo",Item="t"]}[Data],\n'
+                        "    Filtered = Table.SelectRows(dbo_t, each "
+                        "[period] >= RangeStart and [period] < RangeEnd),\n"
+                        '    Renamed = Table.RenameColumns(Filtered, {{"period", "Qty"}})\n'
+                        "in\n"
+                        "    Renamed"
+                    ),
+                }
             ],
             "TMSCHEMA_RELATIONSHIPS": [
                 {"ID": 50, "FromColumnID": 10, "ToColumnID": 20}
@@ -1503,6 +1536,41 @@ class ModelReferenceTests(unittest.TestCase):
         self.assertIn("hierarchy", kinds("Year"))
         self.assertIn("sort by", kinds("Year"))
         self.assertIn("relationship", kinds("Name", table="product"))
+
+    def test_calculated_column_resolves_unqualified_column(self) -> None:
+        refs = model_references(self.model())
+        calculated = [
+            ref
+            for ref in refs[("sales", "customer")]
+            if ref.kind == "calculated column"
+        ]
+
+        self.assertEqual(
+            [ref.object for ref in calculated], ["'Sales'[Customer Copy]"]
+        )
+
+    def test_passthrough_query_marks_source_columns(self) -> None:
+        refs = model_references(self.model())
+        passthrough = [
+            ref
+            for ref in refs[("sales", "qty")]
+            if ref.kind == "Power Query" and ref.object.startswith("query ")
+        ]
+
+        self.assertEqual(
+            [ref.object for ref in passthrough], ["query 'Sales Copy'"]
+        )
+
+    def test_incremental_refresh_marks_date_column(self) -> None:
+        refs = model_references(self.model())
+        refresh = [
+            ref
+            for ref in refs[("sales", "qty")]
+            if ref.kind == "Power Query" and "incremental" in ref.object
+        ]
+
+        self.assertEqual(len(refresh), 1)
+        self.assertEqual(refresh[0].detail, "incremental refresh kolom 'Qty'")
 
     def test_field_parameter_is_detected_once(self) -> None:
         refs = model_references(self.model())

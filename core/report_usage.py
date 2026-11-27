@@ -198,6 +198,7 @@ class _Collector:
         aggregation: str = "",
         detail: str = "",
         is_hidden: bool = False,
+        filter_name: str = "",
     ) -> None:
         if not field:
             return
@@ -232,6 +233,7 @@ class _Collector:
                 record.field.casefold(),
                 page_id,
                 visual_id,
+                filter_name,
             )
             if filter_key in self._seen_filter:
                 return
@@ -253,18 +255,24 @@ class _Collector:
     def finish(self) -> None:
         """Buang format ganda pada visual yang sudah memakai field itu.
 
-        Measure Killer menghitung setiap referensi formatting, tetapi tidak
-        menambah hitungan bila field yang sama sudah menjadi field visual.
+        Measure Killer menghitung formatting pada visual yang tidak memakai
+        field tersebut sebagai field visual, walaupun field yang sama dipakai
+        di visual lain pada report yang sama.
         """
         visual_fields = {
-            (record.table.casefold(), record.field.casefold())
+            (
+                record.table.casefold(),
+                record.field.casefold(),
+                record.page_id,
+                record.visual_id,
+            )
             for record in self.records
             if record.usage_kind == USAGE_FIELD
         }
         if not visual_fields:
             return
         measure_fields = {
-            record.field.casefold()
+            (record.field.casefold(), record.page_id, record.visual_id)
             for record in self.records
             if record.usage_kind == USAGE_FIELD
             and record.field_kind == "Measure"
@@ -275,11 +283,21 @@ class _Collector:
             if not (
                 record.usage_kind == USAGE_FORMAT
                 and (
-                    (record.table.casefold(), record.field.casefold())
+                    (
+                        record.table.casefold(),
+                        record.field.casefold(),
+                        record.page_id,
+                        record.visual_id,
+                    )
                     in visual_fields
                     or (
                         record.field_kind == "Measure"
-                        and record.field.casefold() in measure_fields
+                        and (
+                            record.field.casefold(),
+                            record.page_id,
+                            record.visual_id,
+                        )
+                        in measure_fields
                     )
                 )
             )
@@ -298,6 +316,10 @@ class _Collector:
         detail: str = "",
         is_hidden: bool = False,
     ) -> None:
+        if usage_kind in {USAGE_FILTER_REPORT, USAGE_FILTER_PAGE, USAGE_FILTER_VISUAL}:
+            filter_name = str(info.get("filter_name") or "")
+            if filter_name:
+                detail = f"{detail} · {filter_name}" if detail else filter_name
         self.add(
             usage_kind,
             field_kind=str(info.get("field_kind") or ""),
@@ -311,6 +333,7 @@ class _Collector:
             aggregation=str(info.get("aggregation") or ""),
             detail=detail,
             is_hidden=is_hidden,
+            filter_name=str(info.get("filter_name") or ""),
         )
 
     def add_expression(
@@ -489,9 +512,10 @@ def _filter_fields(filter_obj: Any) -> list[tuple[str, str]]:
 
 
 def _filter_infos(flt: dict[str, Any]) -> list[dict[str, Any]]:
+    name = str(flt.get("name") or "")
     field = flt.get("field")
     if field:
-        return [parse_field(field)]
+        return [{**parse_field(field), "filter_name": name}]
     return [
         {
             "field_kind": "Column",
@@ -499,6 +523,7 @@ def _filter_infos(flt: dict[str, Any]) -> list[dict[str, Any]]:
             "field": column,
             "aggregation": "",
             "expression": "",
+            "filter_name": name,
         }
         for table, column in _filter_fields(flt.get("filter"))
     ]
