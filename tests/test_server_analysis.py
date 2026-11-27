@@ -241,18 +241,19 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(
             [group["label"] for group in groups],
             [
-                "Model references",
-                "Indirect references",
                 "Used in visuals",
+                "Used in artifacts",
+                "Indirect references",
                 "Used in page level filters",
-                "Used as key column",
                 "Used in relationships",
                 "Used in row/object level security",
+                "Used as key column",
                 "Used in column sorting",
                 "Used in field parameters",
             ],
         )
-        artifacts = groups[0]
+        by_label = {group["label"]: group for group in groups}
+        artifacts = by_label["Used in artifacts"]
         self.assertEqual(artifacts["count"], 1)
         self.assertEqual(
             [column["index"] for column in artifacts["columns"]],
@@ -262,7 +263,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(artifacts["rows"][0]["name"], "'Fact Sales'[Total Sales]")
         self.assertEqual(artifacts["rows"][0]["cells"]["1"], "Measure")
         self.assertEqual(artifacts["rows"][0]["cells"]["4"], "Double")
-        indirect = groups[1]
+        indirect = by_label["Indirect references"]
         self.assertEqual(indirect["count"], 1)
         self.assertEqual(
             indirect["rows"][0]["name"], "'Fact Sales'[Other Measure]"
@@ -274,24 +275,30 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["columns"][0]["direct_refs"], 5)
         self.assertEqual(data["columns"][0]["transitive_refs"], 1)
         self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Dipakai")
-        visuals = groups[2]
+        visuals = by_label["Used in visuals"]
         self.assertEqual(
             [(column["index"], column["label"]) for column in visuals["columns"]],
             [(1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")],
         )
         self.assertEqual(visuals["rows"][0]["cells"]["2"], "Halaman 1")
         self.assertEqual(visuals["rows"][0]["cells"]["10"], "Values")
-        self.assertEqual(groups[3]["rows"][0]["cells"]["1"], "Categorical")
-        self.assertEqual(groups[3]["rows"][0]["cells"]["2"], "Halaman 1")
-        self.assertEqual(groups[4]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[4]["rows"][0]["cells"]["5"], "1,0 KB")
-        self.assertEqual(groups[5]["rows"][0]["cells"]["2"], "Fact Sales")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["1"], "RLS")
-        self.assertEqual(groups[6]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[7]["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(groups[7]["rows"][0]["cells"]["4"], "Text")
-        self.assertEqual(groups[8]["rows"][0]["name"], "Parameter Posisi")
-        self.assertEqual(groups[8]["rows"][0]["cells"]["1"], "Field parameter")
+        page_filters = by_label["Used in page level filters"]
+        self.assertEqual(page_filters["rows"][0]["cells"]["1"], "Categorical")
+        self.assertEqual(page_filters["rows"][0]["cells"]["2"], "Halaman 1")
+        relationships = by_label["Used in relationships"]
+        self.assertEqual(relationships["rows"][0]["cells"]["2"], "Fact Sales")
+        security = by_label["Used in row/object level security"]
+        self.assertEqual(security["rows"][0]["cells"]["1"], "RLS")
+        self.assertEqual(security["rows"][0]["cells"]["2"], "Dim Customer")
+        key_column = by_label["Used as key column"]
+        self.assertEqual(key_column["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(key_column["rows"][0]["cells"]["5"], "1,0 KB")
+        sorting = by_label["Used in column sorting"]
+        self.assertEqual(sorting["rows"][0]["cells"]["2"], "Dim Customer")
+        self.assertEqual(sorting["rows"][0]["cells"]["4"], "Text")
+        parameters = by_label["Used in field parameters"]
+        self.assertEqual(parameters["rows"][0]["name"], "Parameter Posisi")
+        self.assertEqual(parameters["rows"][0]["cells"]["1"], "Field parameter")
         self.assertEqual(data["measures"][0]["children"], [])
         self.assertEqual(data["measures"][0]["expression"], "SUM(Fact[Amount])")
         self.assertEqual(data["reports"][0]["report_name"], "Report Uji")

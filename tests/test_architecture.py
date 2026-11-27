@@ -761,13 +761,19 @@ class WebLayerTests(unittest.TestCase):
             )
         self.assertIn('if (tab === "all") view = analysisFlatRows();', js)
         for label in (
-            "Model references",
-            "Indirect references",
             "Used in visuals",
-            "Used as key column",
+            "Used in artifacts",
+            "Indirect references",
+            "Used in visual level filters",
+            "Used in page level filters",
+            "Used in report level filters",
             "Used in relationships",
             "Used in row/object level security",
-            "Used in page level filters",
+            "Used in Power Query",
+            "Used as default label",
+            "Used in calculated tables",
+            "Used in hierarchy",
+            "Used as key column",
             "Used in column sorting",
             "Used in field parameters",
         ):

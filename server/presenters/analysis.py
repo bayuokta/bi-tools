@@ -97,7 +97,7 @@ SORT_KEYS = (
     "warning",
 )
 SORT_DESC_DEFAULT = {"size", "uses", "has_error"}
-GROUP_MODEL = "Model references"
+GROUP_MODEL = "Used in artifacts"
 GROUP_INDIRECT = "Indirect references"
 GROUP_CALC_TABLE = "Used in calculated tables"
 GROUP_VISUALS = "Used in visuals"
@@ -105,6 +105,7 @@ GROUP_VISUAL_FILTERS = "Used in visual level filters"
 GROUP_REPORT_FILTERS = "Used in report level filters"
 GROUP_HIERARCHY = "Used in hierarchy"
 GROUP_POWER_QUERY = "Used in Power Query"
+GROUP_DEFAULT_LABEL = "Used as default label"
 GROUP_KEY_COLUMN = "Used as key column"
 GROUP_RELATIONSHIPS = "Used in relationships"
 GROUP_SECURITY = "Used in row/object level security"
@@ -113,20 +114,21 @@ GROUP_SORTING = "Used in column sorting"
 GROUP_FIELD_PARAMETERS = "Used in field parameters"
 
 GROUP_ORDER = (
+    GROUP_VISUALS,
     GROUP_MODEL,
     GROUP_INDIRECT,
-    GROUP_CALC_TABLE,
-    GROUP_VISUALS,
     GROUP_VISUAL_FILTERS,
     GROUP_PAGE_FILTERS,
     GROUP_REPORT_FILTERS,
-    GROUP_KEY_COLUMN,
     GROUP_RELATIONSHIPS,
     GROUP_SECURITY,
+    GROUP_POWER_QUERY,
+    GROUP_DEFAULT_LABEL,
+    GROUP_CALC_TABLE,
+    GROUP_HIERARCHY,
+    GROUP_KEY_COLUMN,
     GROUP_SORTING,
     GROUP_FIELD_PARAMETERS,
-    GROUP_HIERARCHY,
-    GROUP_POWER_QUERY,
 )
 
 ARTIFACT_TYPES = {
@@ -387,6 +389,7 @@ GROUP_COLUMNS = {
     GROUP_REPORT_FILTERS: ((1, "Type"), (2, "Page"), (3, "Report"), (10, "Used as")),
     GROUP_HIERARCHY: ((1, "Type"), (2, "Table"), (3, "Source")),
     GROUP_POWER_QUERY: ((1, "Type"), (2, "Table"), (3, "Source")),
+    GROUP_DEFAULT_LABEL: ((1, "Type"), (2, "Table"), (3, "Source")),
     GROUP_KEY_COLUMN: (
         (1, "Type"),
         (2, "Table"),
@@ -420,6 +423,7 @@ GROUP_ICONS = {
     GROUP_REPORT_FILTERS: "filter",
     GROUP_HIERARCHY: "group",
     GROUP_POWER_QUERY: "query",
+    GROUP_DEFAULT_LABEL: "column",
     GROUP_KEY_COLUMN: "link",
     GROUP_RELATIONSHIPS: "link",
     GROUP_SECURITY: "filter",
@@ -602,6 +606,15 @@ def _usage_groups(
                     ref["object"] or ref["detail"],
                     "group",
                     {1: "Hierarchy", 2: ref_table, 3: "Model"},
+                )
+            )
+        elif ref["kind"] == "default label":
+            ref_table, _ = _parse_object(ref["object"])
+            groups[GROUP_DEFAULT_LABEL].append(
+                _child(
+                    ref["object"] or ref["detail"],
+                    "column",
+                    {1: "Default label", 2: ref_table, 3: "Model"},
                 )
             )
     for ref in refs_all:

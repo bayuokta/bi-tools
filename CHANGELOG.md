@@ -47,9 +47,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dengan kartu tujuannya, halaman report diurutkan mengikuti baris model yang
   dirujuk, dan urutan layer memakai transpose untuk menekan persilangan edge.
   Graph otomatis **Fit** saat canvas lebih besar dari viewport.
-- Tab All results kini menampilkan kelompok **Used in visual level filters**,
-  **Used in report level filters**, **Used in calculated tables**, **Used in
-  hierarchy**, dan **Used in Power Query** (sebelumnya hanya sebagian yang tampil).
+- Tab All results kini menampilkan kelompok pemakaian dengan urutan seperti
+  Measure Killer: **Used in visuals**, **Used in artifacts** (dulu *Model
+  references*), **Used in visual level filters**, **Used in report level
+  filters**, **Used in Power Query**, **Used as default label**, **Used in
+  calculated tables**, dan **Used in hierarchy** (sebelumnya hanya sebagian
+  yang tampil).
 - Filter PBIR v2 tanpa `field` sekarang dibaca dari `filter.From`/`Where`
   (filter gabungan lintas entity diabaikan), dan
   level hierarchy tidak lagi dihitung sebagai pemakaian kolom; pemakaian

@@ -804,6 +804,23 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             )
 
     for column_id, column in model.column_by_id.items():
+        if not column.get("IsDefaultLabel"):
+            continue
+        table, name = model.column_name.get(column_id, ("", ""))
+        if not table or not name:
+            continue
+        if (table.casefold(), name.casefold()) not in model_columns:
+            continue
+        add(
+            table,
+            name,
+            "default label",
+            f"'{table}'[{name}]",
+            f"label default tabel '{table}'",
+            blocking=False,
+        )
+
+    for column_id, column in model.column_by_id.items():
         if not column.get("IsKey"):
             continue
         table, name = model.column_name.get(column_id, ("", ""))
