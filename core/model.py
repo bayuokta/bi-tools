@@ -65,7 +65,7 @@ AGGREGATE_FUNCTION = {
     7: "average",
     8: "distinctCount",
 }
-COLUMN_TYPE = {1: "data", 2: "calculated", 3: "rowNumber", 4: "calculatedTableColumn"}
+COLUMN_TYPE = {1: "data", 2: "calculated", 3: "rowNumber", 4: "Column"}
 MODE_TYPE = {0: "Import", 1: "DirectQuery", 2: "Default", 3: "Push", 4: "Dual", 5: "DirectLake"}
 OBJECT_STATE = {
     1: "ready",
@@ -575,6 +575,9 @@ def build_columns(model: LiveModel) -> tuple[list[dict[str, Any]], int, list[dic
         sort_by = ""
         if sort_id is not None:
             sort_by = model.column_name.get(int(sort_id), ("", ""))[1]
+        explicit_dtype = column.get("ExplicitDataType")
+        if int(explicit_dtype or 0) == 1 and column.get("InferredDataType") is not None:
+            explicit_dtype = column.get("InferredDataType")
         expression = clean_expr(column.get("Expression"))
         rows.append(
             {
@@ -585,7 +588,7 @@ def build_columns(model: LiveModel) -> tuple[list[dict[str, Any]], int, list[dic
                 if table in field_parameter_tables
                 else label(column_type, COLUMN_TYPE, "columnType")
             ),
-                "data_type": label(column.get("ExplicitDataType") or column.get("InferredDataType"), DATA_TYPE, "dataType"),
+                "data_type": label(explicit_dtype or column.get("InferredDataType"), DATA_TYPE, "dataType"),
                 "format_string": str(column.get("FormatString") or ""),
                 "summarize_by": label(column.get("SummarizeBy"), AGGREGATE_FUNCTION, "summarizeBy"),
                 "sort_by_column": sort_by,

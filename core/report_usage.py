@@ -180,6 +180,7 @@ class _Collector:
         self.theme = ""
         self.page_rows: list[dict[str, Any]] = []
         self._seen_format: set[tuple] = set()
+        self._seen_field: set[tuple] = set()
 
     def add(
         self,
@@ -213,6 +214,16 @@ class _Collector:
             detail=_shorten(detail),
             is_hidden=is_hidden,
         )
+        if usage_kind == USAGE_FIELD:
+            field_key = (
+                record.table.casefold(),
+                record.field.casefold(),
+                page_id,
+                visual_id,
+            )
+            if field_key in self._seen_field:
+                return
+            self._seen_field.add(field_key)
         if usage_kind == USAGE_FORMAT:
             key = (
                 usage_kind,

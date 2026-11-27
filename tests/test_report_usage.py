@@ -387,7 +387,7 @@ class PbirScanTests(unittest.TestCase):
         visual = parts["definition/pages/p1/visuals/v1/visual.json"]["visual"]
         visual["query"]["queryState"]["Values"]["fieldParameters"] = [
             {
-                "parameterExpr": column("Sales", "Customer"),
+                "parameterExpr": column("Sales", "Segment"),
                 "index": 0,
                 "length": 1,
             }
@@ -397,7 +397,7 @@ class PbirScanTests(unittest.TestCase):
         records = [
             row
             for row in usage.records
-            if row.field == "Customer" and row.detail == "field parameter"
+            if row.field == "Segment" and row.detail == "field parameter"
         ]
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].usage_kind, USAGE_FIELD)

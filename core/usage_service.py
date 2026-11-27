@@ -143,7 +143,7 @@ UNRESOLVED_COLUMNS = [
     "Report", "Page", "Visual", "Query Ref", "Reason",
 ]
 MEASURE_COLUMNS = [
-    "Table", "Measure", "Data type", "Status", "Uses", "Reports",
+    "Table", "Source", "Measure", "Data type", "Status", "Uses", "Reports",
     "Direct references", "Transitive references",
     "Format string", "Hidden", "Display folder", "Expression", "Note",
 ]
@@ -400,6 +400,26 @@ class ModelReference:
 # Pemakaian yang tidak dihitung di kolom "Uses" (tetap disimpan di detail).
 UNCOUNTED_REF_KINDS = frozenset({"langkah M"})
 UNCOUNTED_USAGE_KINDS = frozenset({"sort"})
+
+
+DATA_TYPE_DISPLAY = {
+    "string": "Text",
+    "int64": "Integer",
+    "double": "Double",
+    "decimal": "Decimal",
+    "boolean": "Boolean",
+    "datetime": "DateTime",
+    "date": "Date",
+    "binary": "Binary",
+    "unknown": "Unknown",
+    "variant": "Variant",
+    "automatic": "Automatic",
+}
+
+
+def display_data_type(value: Any) -> str:
+    text = str(value or "")
+    return DATA_TYPE_DISPLAY.get(text.strip().casefold(), text)
 
 
 def is_counted_reference(reference: Any) -> bool:
@@ -914,6 +934,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 "langkah M",
                 f"query '{table}'",
                 f"langkah Power Query tabel '{table}' (indikatif)",
+                blocking=False,
             )
 
     return refs
@@ -1047,6 +1068,7 @@ def verdict(
     coverage_complete: bool,
 ) -> tuple[str, str]:
     """Tentukan status satu kolom beserta alasannya (konservatif)."""
+    model_refs = [ref for ref in model_refs if is_counted_reference(ref)]
     blocking = [ref for ref in model_refs if ref.blocking]
     if blocking:
         kinds = sorted({ref.kind for ref in blocking})
@@ -1178,6 +1200,24 @@ def _build_measure_analyses(
                 ),
             }
         )
+
+    # Satu visual dihitung sekali per jenis pemakaian, termasuk bila muncul
+    # sebagai Measure dan Arithmetic (implicit aggregation) pada visual sama.
+    for key, rows in list(direct.items()):
+        seen_visual: set[tuple[Any, Any, Any, Any]] = set()
+        unique: list[dict[str, Any]] = []
+        for row in rows:
+            visual_key = (
+                row.get("report_id"),
+                row.get("page_id"),
+                row.get("visual_id"),
+                row.get("usage_kind"),
+            )
+            if visual_key in seen_visual:
+                continue
+            seen_visual.add(visual_key)
+            unique.append(row)
+        direct[key] = unique
 
     edges = measure_edges(measure_refs)
     used = set(direct)
@@ -2504,7 +2544,7 @@ def column_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                 "name": column.column.column,
                 "type": column.column.column_type,
                 "table": column.column.table,
-                "data_type": column.column.data_type,
+                "data_type": display_data_type(column.column.data_type),
                 "size": format_bytes(column.size_bytes),
                 "size_bytes": column.size_bytes,
                 "status": column.status,
@@ -2535,7 +2575,7 @@ def measure_rows(result: AnalysisResult) -> list[dict[str, Any]]:
                     else "measure"
                 ),
                 "table": item.measure.table,
-                "data_type": item.measure.data_type,
+                "data_type": display_data_type(item.measure.data_type),
                 "size": "-",
                 "size_bytes": 0,
                 "status": item.status,
@@ -2611,9 +2651,10 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
     column_rows = [
         {
             "Table": column.column.table,
+            "Source": result.dataset_name,
             "Column": column.column.column,
             "Type": column.column.column_type,
-            "Data type": column.column.data_type,
+            "Data type": display_data_type(column.column.data_type),
             "Status": column.status,
             "Size": format_bytes(column.size_bytes),
             "Size bytes": column.size_bytes,
@@ -2772,8 +2813,9 @@ def write_workbook(result: AnalysisResult, target: Path | str) -> Path:
                 [
                     {
                         "Table": item.measure.table,
+                        "Source": result.dataset_name,
                         "Measure": item.measure.measure,
-                        "Data type": item.measure.data_type,
+                        "Data type": display_data_type(item.measure.data_type),
                         "Status": item.status,
                         "Uses": item.use_count,
                         "Reports": item.report_count,
