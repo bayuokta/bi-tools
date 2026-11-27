@@ -47,6 +47,9 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   dengan kartu tujuannya, halaman report diurutkan mengikuti baris model yang
   dirujuk, dan urutan layer memakai transpose untuk menekan persilangan edge.
   Graph otomatis **Fit** saat canvas lebih besar dari viewport.
+- Grafik **Relationships** kini benar-benar menampilkan latar bertitik seperti
+  lineage. Sebelumnya `background-image` tertimpa shorthand `background` dari
+  `.graph-wrap`; selektor diganti menjadi `.graph-wrap.rel-graph-canvas`.
 
 ## 2026-11-26 - Rilis 0.9.1
 

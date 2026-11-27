@@ -339,6 +339,39 @@ class WebSmokeTests(unittest.TestCase):
         text = page.inner_text("#analyzeEmptyText").lower()
         self.assertTrue(text)
 
+    def test_relationship_canvas_has_dotted_background(self) -> None:
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        page.evaluate(
+            """async () => {
+              const s = await import('/js/core/state.js');
+              s.state.analysis = {
+                tables: [
+                  {name: 'Fact', column_count: 3, measure_count: 1},
+                  {name: 'Dim', column_count: 2, measure_count: 0}
+                ],
+                relationships: [{
+                  from_table: 'Fact', to_table: 'Dim', is_active: true,
+                  type: 'Many to one', cross: 'Single', cardinality: '*:1',
+                  auto: 'No', status: 'Dipakai'
+                }],
+                measures: [], columns: [], m_queries: [], roles: [],
+                totals: {}, coverage_complete: true, coverage: '',
+                reports_included: true
+              };
+              s.state.analysisTab = 'relationships';
+              const analysis = await import('/js/views/analysis.js');
+              analysis.analysisRender();
+            }"""
+        )
+        page.wait_for_selector("#relGraphSvg [data-rel-table]")
+        background = page.eval_on_selector(
+            "#relGraph .rel-graph-canvas",
+            "el => getComputedStyle(el).backgroundImage",
+        )
+        self.assertIn("radial-gradient", background)
+        self.assertEqual(page.locator("#relGraphSvg [data-rel-table]").count(), 2)
+
     def test_no_failed_assets_and_no_body_overflow(self) -> None:
         failed: list[str] = []
         page = self.open_page()
