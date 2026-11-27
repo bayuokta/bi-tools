@@ -6,13 +6,69 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<!-- lucide:sprite:begin -->
+<svg class="icon-sprite" aria-hidden="true">
+  <symbol id="i-arrow-left-right" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4" /> <path d="M4 7h16" /> <path d="m16 21 4-4-4-4" /> <path d="M20 17H4" /></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="m12 5 7 7-7 7" /></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /> <path d="m3.3 7 8.7 5 8.7-5" /> <path d="M12 22V12" /></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" /> <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" /></symbol>
+  <symbol id="i-chart-column" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16" /> <path d="M18 17V9" /> <path d="M13 17V5" /> <path d="M8 17v-3" /></symbol>
+  <symbol id="i-chart-line" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16" /> <path d="m19 9-5 5-4-4-3 3" /></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+  <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6" /></symbol>
+  <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></symbol>
+  <symbol id="i-code-xml" viewBox="0 0 24 24"><path d="m18 16 4-4-4-4" /> <path d="m6 8-4 4 4 4" /> <path d="m14.5 4-5 16" /></symbol>
+  <symbol id="i-columns-2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M12 3v18" /></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /> <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" /></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <polyline points="7 10 12 15 17 10" /> <line x1="12" x2="12" y1="15" y2="3" /></symbol>
+  <symbol id="i-ellipsis-vertical" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1" /> <circle cx="12" cy="5" r="1" /> <circle cx="12" cy="19" r="1" /></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" /> <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" /> <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" /> <path d="m2 2 20 20" /></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /> <path d="M14 2v4a2 2 0 0 0 2 2h4" /></symbol>
+  <symbol id="i-file-chart-column" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /> <path d="M14 2v4a2 2 0 0 0 2 2h4" /> <path d="M8 18v-1" /> <path d="M12 18v-6" /> <path d="M16 18v-3" /></symbol>
+  <symbol id="i-file-code" viewBox="0 0 24 24"><path d="M10 12.5 8 15l2 2.5" /> <path d="m14 12.5 2 2.5-2 2.5" /> <path d="M14 2v4a2 2 0 0 0 2 2h4" /> <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" /></symbol>
+  <symbol id="i-file-spreadsheet" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /> <path d="M14 2v4a2 2 0 0 0 2 2h4" /> <path d="M8 13h2" /> <path d="M14 13h2" /> <path d="M8 17h2" /> <path d="M14 17h2" /></symbol>
+  <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /> <path d="M14 2v4a2 2 0 0 0 2 2h4" /> <path d="M10 9H8" /> <path d="M16 13H8" /> <path d="M16 17H8" /></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></symbol>
+  <symbol id="i-git-branch" viewBox="0 0 24 24"><line x1="6" x2="6" y1="3" y2="15" /> <circle cx="18" cy="6" r="3" /> <circle cx="6" cy="18" r="3" /> <path d="M18 9a9 9 0 0 1-9 9" /></symbol>
+  <symbol id="i-git-compare" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3" /> <circle cx="6" cy="6" r="3" /> <path d="M13 6h3a2 2 0 0 1 2 2v7" /> <path d="M11 18H8a2 2 0 0 1-2-2V9" /></symbol>
+  <symbol id="i-git-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="3" /> <circle cx="6" cy="6" r="3" /> <circle cx="18" cy="6" r="3" /> <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" /> <path d="M12 12v3" /></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /> <path d="M2 12h20" /></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /> <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /> <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></symbol>
+  <symbol id="i-link-2" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2" /> <path d="M15 7h2a5 5 0 1 1 0 10h-2" /> <line x1="8" x2="16" y1="12" y2="12" /></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /> <path d="M7 11V7a5 5 0 0 1 10 0v4" /></symbol>
+  <symbol id="i-maximize-2" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9" /> <polyline points="9 21 3 21 3 15" /> <line x1="21" x2="14" y1="3" y2="10" /> <line x1="3" x2="10" y1="21" y2="14" /></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" /></symbol>
+  <symbol id="i-panel-left-close" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /> <path d="m16 15-3-3 3-3" /></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" /></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="M12 5v14" /></symbol>
+  <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /> <path d="M21 3v5h-5" /> <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /> <path d="M8 16H3v5" /></symbol>
+  <symbol id="i-rows-3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M21 9H3" /> <path d="M21 15H3" /></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /> <circle cx="12" cy="12" r="3" /></symbol>
+  <symbol id="i-sigma" viewBox="0 0 24 24"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2" /></symbol>
+  <symbol id="i-sliders-horizontal" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4" /> <line x1="10" x2="3" y1="4" y2="4" /> <line x1="21" x2="12" y1="12" y2="12" /> <line x1="8" x2="3" y1="12" y2="12" /> <line x1="21" x2="16" y1="20" y2="20" /> <line x1="12" x2="3" y1="20" y2="20" /> <line x1="14" x2="14" y1="2" y2="6" /> <line x1="8" x2="8" y1="10" y2="14" /> <line x1="16" x2="16" y1="18" y2="22" /></symbol>
+  <symbol id="i-square-function" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /> <path d="M9 17c2 0 2.8-1 2.8-2.8V10c0-2 1-3.3 3.2-3" /> <path d="M9 11.2h5.7" /></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><path d="M12 3v18" /> <rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M3 9h18" /> <path d="M3 15h18" /></symbol>
+  <symbol id="i-table-2" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" /></symbol>
+  <symbol id="i-table-columns-split" viewBox="0 0 24 24"><path d="M14 14v2" /> <path d="M14 20v2" /> <path d="M14 2v2" /> <path d="M14 8v2" /> <path d="M2 15h8" /> <path d="M2 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2" /> <path d="M2 9h8" /> <path d="M22 15h-4" /> <path d="M22 3h-2a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2" /> <path d="M22 9h-4" /> <path d="M5 3v18" /></symbol>
+  <symbol id="i-table-properties" viewBox="0 0 24 24"><path d="M15 3v18" /> <rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M21 9H3" /> <path d="M21 15H3" /></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <circle cx="9" cy="7" r="4" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <path d="M16 3.13a4 4 0 0 1 0 7.75" /></symbol>
+  <symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2" /> <path d="M7 11v4a2 2 0 0 0 2 2h4" /> <rect width="8" height="8" x="13" y="13" rx="2" /></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+</svg>
+<!-- lucide:sprite:end -->
 <div class="app-window">
 
   <div class="app-body">
     <aside class="sidebar" id="appSidebar">
       <div class="side-brand">
         <span class="logo" aria-hidden="true">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 15l4-5 3 3 5-7"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chart-line"></use></svg>
         </span>
         <div class="text">
           <div class="side-brand-name">Metadata Tools</div>
@@ -22,36 +78,36 @@
       <nav class="side-nav" aria-label="Application sections">
         <div class="nav-label">Tools</div>
         <button class="nav-item" type="button" data-view="analisa" aria-current="page" title="Model analysis">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-chart-column"></use></svg>
           <span class="label">Model analysis</span>
         </button>
         <button class="nav-item" type="button" data-view="compare" title="Compare model">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5"></rect><rect x="13" y="4" width="8" height="16" rx="1.5"></rect><path d="M7 9h0M7 13h0M17 9h0M17 13h0"></path><path d="M9.5 11h5"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-git-compare"></use></svg>
           <span class="label">Compare model</span>
         </button>
         <button class="nav-item" type="button" data-view="partisi" title="Partitions">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4Z"></path><path d="M4 11l8 4 8-4"></path><path d="M4 15l8 4 8-4"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-layers"></use></svg>
           <span class="label">Partitions</span>
         </button>
         <button class="nav-item" type="button" data-view="ekstraksi" title="Extraction &amp; TSD">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6"></ellipse><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"></path><path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-database"></use></svg>
           <span class="label">Extraction &amp; TSD</span>
         </button>
         <button class="nav-item" type="button" data-view="lineage" title="Lineage">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="9" r="2"></circle><path d="M6 7v10"></path><path d="M8 19h3a6 6 0 0 0 6-6V11"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-git-fork"></use></svg>
           <span class="label">Lineage</span>
         </button>
         <button class="nav-item" type="button" data-view="backup" title="Backup and Restore">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4M5 20h14"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-download"></use></svg>
           <span class="label">Backup and Restore</span>
         </button>
         <div class="nav-label">System</div>
         <button class="nav-item" type="button" data-view="pengaturan" title="Settings">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h4M12 17h8"></path><circle cx="15" cy="7" r="2.2"></circle><circle cx="9" cy="17" r="2.2"></circle></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg>
           <span class="label">Settings</span>
         </button>
         <button class="nav-item nav-toggle" id="sidebarToggle" type="button" aria-controls="appSidebar" aria-expanded="true" title="Collapse sidebar" aria-label="Collapse sidebar">
-          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path><path d="M15 9l-3 3 3 3"></path></svg>
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-panel-left-close"></use></svg>
           <span class="label">Collapse sidebar</span>
         </button>
       </nav>
@@ -72,7 +128,7 @@
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runExtract" type="button">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><use href="#i-play"></use></svg>
                 <span>Run extraction</span>
               </button>
             </div>
@@ -138,7 +194,7 @@
                         </select>
                       </div>
                       <button class="btn btn-sm" type="button" id="reloadDesktop">
-                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 -2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>
                         <span>Reload</span>
                       </button>
                     </div>
@@ -216,7 +272,7 @@
                   </div>
                   <div class="file-list">
                     <div class="file-row">
-                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><use href="#i-file-spreadsheet"></use></svg></span>
                       <div>
                         <div class="file-name">Report_Metadata.xlsx</div>
                         <div class="file-meta" id="metaReport">Not created</div>
@@ -224,7 +280,7 @@
                       <button class="btn btn-sm" id="openReport" type="button" disabled="">Open</button>
                     </div>
                     <div class="file-row">
-                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 10h16M4 15h16M10 4v16"></path></svg></span>
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><use href="#i-file-spreadsheet"></use></svg></span>
                       <div>
                         <div class="file-name">Semantic_Model_Metadata.xlsx</div>
                         <div class="file-meta" id="metaModel">Not created</div>
@@ -232,7 +288,7 @@
                       <button class="btn btn-sm" id="openModel" type="button" disabled="">Open</button>
                     </div>
                     <div class="file-row">
-                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 14l-1.5 1.5L9 17M12 14l1.5 1.5L12 17"></path></svg></span>
+                      <span class="file-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file-code"></use></svg></span>
                       <div>
                         <div class="file-name">TSD_Report.html</div>
                         <div class="file-meta" id="metaTsd">Not created</div>
@@ -242,7 +298,7 @@
                   </div>
                   <div class="row-actions">
                     <button class="btn btn-sm" id="openFolder" type="button" disabled="">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><use href="#i-folder"></use></svg>
                       <span>Open folder</span>
                     </button>
                     <button class="btn btn-sm" id="goTsd" type="button">Continue to Generate TSD</button>
@@ -259,7 +315,7 @@
               <div class="panel" id="extractDone" hidden="">
                 <div class="panel-body" style="flex-direction:row;align-items:center;gap:12px">
                   <span class="empty-icon" style="color:var(--ok);border-color:var(--ok-soft);background:var(--ok-soft)" aria-hidden="true">
-                    <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                    <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-check"></use></svg>
                   </span>
                   <div>
                     <div style="font-weight:600">Extraction complete</div>
@@ -288,7 +344,7 @@
                 <div class="panel-body">
                   <div class="empty" id="summaryEmpty" style="padding:10px 4px">
                     <span class="empty-icon" aria-hidden="true">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chart-column"></use></svg>
                     </span>
                     <div class="empty-title">No results yet</div>
                     <p class="empty-text">Run an extraction to see table, column, and measure counts.</p>
@@ -308,7 +364,7 @@
           <div class="panel meta-lock" id="tsdLock">
             <div class="panel-body meta-lock-body">
               <span class="meta-lock-icon" aria-hidden="true">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-lock"></use></svg>
               </span>
               <div>
                 <div class="meta-lock-title">Step 2 · Generate TSD is waiting for extraction</div>
@@ -329,7 +385,7 @@
             <div class="view-actions">
               <button class="btn btn-sm" id="backToExtract" type="button">Back to step 1</button>
               <button class="btn btn-primary" id="runTsd" type="button">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-file"></use></svg>
                 Generate TSD
               </button>
             </div>
@@ -510,7 +566,7 @@
                 <div class="panel-body">
                   <div class="empty" id="tsdPreviewEmpty" style="padding:12px 4px">
                     <span class="empty-icon" aria-hidden="true">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file-text"></use></svg>
                     </span>
                     <div class="empty-title">Not generated yet</div>
                     <p class="empty-text">The TSD document is built from the workbooks on the left.</p>
@@ -526,7 +582,7 @@
                       <div class="stat-row" id="tsdShotRow" hidden><span class="stat-key">Screenshot Service</span><span class="stat-val" id="tsdShotVal">—</span></div>
                     </div>
                     <div class="note" style="margin-top:12px">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg>
                       <span id="tsdTodoNote"><span>Empty manual context fields are marked</span> <strong>TODO</strong> <span>in draft mode.</span></span>
                     </div>
                     <button class="btn btn-sm btn-primary" id="previewOpenTsd" type="button" style="margin-top:12px">Open document</button>
@@ -723,7 +779,7 @@
               </div>
               <div class="empty" id="analyzeEmpty">
                 <span class="empty-icon" aria-hidden="true">
-                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"></path><path d="M4 20h16"></path><rect x="7" y="12" width="3" height="5" rx=".6"></rect><rect x="12" y="8" width="3" height="9" rx=".6"></rect><rect x="17" y="5" width="3" height="12" rx=".6"></rect></svg>
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chart-column"></use></svg>
                 </span>
                 <div class="empty-title" id="analyzeEmptyTitle">No analysis results yet</div>
                 <p class="empty-text" id="analyzeEmptyText">Choose a workspace and semantic model, then press Analyze. Results appear here without changing the model.</p>
@@ -746,11 +802,11 @@
             </div>
             <div class="view-actions">
               <button class="btn btn-sm" id="compareOptions" type="button" title="Comparison options">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h4M12 17h8"></path><circle cx="15" cy="7" r="2.2"></circle><circle cx="9" cy="17" r="2.2"></circle></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg>
                 <span>Options</span>
               </button>
               <button class="btn btn-primary" id="runCompare" type="button">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l11 7-11 7V5Z"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><use href="#i-play"></use></svg>
                 <span>Run comparison</span>
               </button>
             </div>
@@ -761,7 +817,7 @@
               <span class="panel-title">Source &amp; target</span>
               <div class="spacer"></div>
               <button class="btn btn-sm" id="cmpSwap" type="button" title="Swap source and target">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h13M20 7l-3-3M17 17H4M4 17l3 3"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-arrow-left-right"></use></svg>
                 <span>Swap</span>
               </button>
             </div>
@@ -795,7 +851,7 @@
 
                 <div class="compare-switch" aria-hidden="true">
                   <span class="compare-switch-line"></span>
-                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M16 8l4 4-4 4"></path></svg>
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow-right"></use></svg>
                   <span class="compare-switch-line"></span>
                 </div>
 
@@ -874,7 +930,7 @@
                   </table>
                 </div>
                 <div class="empty" id="cmpEmpty">
-                  <span class="empty-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="16" rx="1.5"></rect><rect x="13" y="4" width="8" height="16" rx="1.5"></rect><path d="M9.5 11h5"></path></svg></span>
+                  <span class="empty-icon" aria-hidden="true"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-columns-2"></use></svg></span>
                   <div class="empty-title" id="cmpEmptyTitle">No comparison yet</div>
                   <p class="empty-text" id="cmpEmptyText">Choose source and target, then run the comparison. Results show definition differences in both models.</p>
                   <button class="btn btn-sm" id="cmpFromEmpty" type="button">Compare now</button>
@@ -894,7 +950,7 @@
             <div class="od-stack" style="--od-gap:16px">
               <div class="panel"><div class="panel-head"><span class="panel-title">Summary</span></div><div class="panel-body"><div class="stat-list" id="cmpSummaryBody" hidden><div class="stat-row"><span class="stat-key">Source</span><span class="stat-val" id="cmpStatSource">—</span></div><div class="stat-row"><span class="stat-key">Target</span><span class="stat-val" id="cmpStatTarget">—</span></div><div class="stat-row"><span class="stat-key">Items checked</span><span class="stat-val" id="cmpStatCompared">—</span></div><div class="stat-row"><span class="stat-key">Update actions</span><span class="stat-val" id="cmpStatActions">0</span></div><div class="stat-row"><span class="stat-key">Last compared</span><span class="stat-val" id="cmpStatTime">—</span></div><div class="stat-row"><span class="stat-key">Warnings</span><span class="stat-val" id="cmpStatWarnings">0</span></div></div><div class="empty" id="cmpSummaryEmpty" style="padding:10px 4px"><div class="empty-title">No data yet</div><p class="empty-text">Run a comparison to fill the summary.</p></div></div></div>
               <div class="panel"><div class="panel-head"><span class="panel-title">Item details</span></div><div class="panel-body" id="cmpDetail"><p class="helper">Click a table row to see status, action, and expressions.</p></div></div>
-              <div class="panel"><div class="panel-head"><span class="panel-title">About comparison</span></div><div class="panel-body" style="gap:9px"><div class="note"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg><span>Comparison only reads metadata. Update actions are suggestions; nothing is written to the target.</span></div><p class="helper">Service models are read through XMLA; Desktop models are read from the open instance.</p></div></div>
+              <div class="panel"><div class="panel-head"><span class="panel-title">About comparison</span></div><div class="panel-body" style="gap:9px"><div class="note"><svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg><span>Comparison only reads metadata. Update actions are suggestions; nothing is written to the target.</span></div><p class="helper">Service models are read through XMLA; Desktop models are read from the open instance.</p></div></div>
             </div>
           </div>
         </section>
@@ -908,7 +964,7 @@
             </div>
             <div class="view-actions">
               <button class="btn" id="exportCsv" type="button">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"></path><path d="M8 10l4 4 4-4"></path><path d="M5 19h14"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-download"></use></svg>
                 Export CSV
               </button>
               <button class="btn" id="exportSvg" type="button" disabled="" aria-label="Export lineage graph (SVG)">SVG</button>
@@ -969,11 +1025,11 @@
                   <div class="depth">
                     <span class="helper">Depth</span>
                     <button class="btn btn-sm btn-icon" id="depthMinus" type="button" aria-label="Decrease depth">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><use href="#i-minus"></use></svg>
                     </button>
                     <span class="depth-val" id="depthVal">3 levels</span>
                     <button class="btn btn-sm btn-icon" id="depthPlus" type="button" aria-label="Increase depth">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><use href="#i-plus"></use></svg>
                     </button>
                   </div>
                   <div class="graph-zoom" role="group" aria-label="Lineage graph zoom">
@@ -995,7 +1051,7 @@
                   <button class="btn btn-sm" id="visualLineage" type="button" aria-pressed="false">Visual lineage</button>
                 </div>
                 <div class="graph-wrap">
-                  <svg id="lineageSvg" viewBox="0 0 780 280" role="group" aria-label="Grafik lineage item terpilih">
+                  <svg id="lineageSvg" viewBox="0 0 780 280" role="group" aria-label="Selected item lineage graph">
                     <defs>
                       <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                         <path class="edge-arrow" d="M0 0L8 4L0 8z"></path>
@@ -1122,7 +1178,7 @@
               </div>
               <div class="empty" id="partitionEmptyState">
                 <span class="empty-icon" aria-hidden="true">
-                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path><path d="M8 5v14"></path></svg>
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-table-2"></use></svg>
                 </span>
                 <div class="empty-title">Partition inventory is not available yet</div>
                 <p class="empty-text">Choose a workspace and semantic model, then load the inventory. The table is read from XMLA and no sample data is used.</p>
@@ -1145,7 +1201,7 @@
             </div>
             <div class="view-actions">
               <button class="btn btn-primary" id="runBackup" type="button">
-                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4M5 20h14"></path></svg>
+                <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-download"></use></svg>
                 <span>Run backup</span>
               </button>
             </div>
@@ -1253,7 +1309,7 @@
                   <div class="panel-head"><span class="panel-title">Notes</span></div>
                   <div class="panel-body" style="gap:9px">
                     <div class="note">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg>
                       <span>Backup needs XMLA read access (TMDL) and Fabric API access (report definition). Restore needs workspace write access.</span>
                     </div>
                     <p class="helper">Backup stores definitions only: data, refresh schedules, permissions, credentials, and sensitivity labels are not included.</p>
@@ -1328,7 +1384,7 @@
                   <div class="panel-head"><span class="panel-title">Notes</span></div>
                   <div class="panel-body" style="gap:9px">
                     <div class="note">
-                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg>
                       <span>Restore uses Fabric updateDefinition/create with your account. Overwriting replaces the whole item definition; validate first.</span>
                     </div>
                     <p class="helper">Model restored without processing. Refresh the semantic model after restore.</p>
@@ -1392,7 +1448,7 @@
               </div>
             </div>
             <div class="note">
-              <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+              <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg>
               <span>Sign in with your Microsoft 365 account. Tokens stay in process memory; XMLA uses the MSOLAP login dialog. Admin sync runs separately with a service principal.</span>
             </div>
           </div>
@@ -1429,7 +1485,7 @@
                   <span id="syncChip"></span>
                 </div>
                 <div class="note">
-                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"></circle></svg>
+                  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-info"></use></svg>
                   <span>Sync runs separately with a service principal. Download a read-only snapshot; SQLite is never opened directly from SharePoint.</span>
                 </div>
               </div>
@@ -1453,7 +1509,7 @@
                     <span class="theme-card-row">
                       <span class="theme-card-name">Dark</span>
                       <span class="theme-check" aria-hidden="true">
-                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-check"></use></svg>
                       </span>
                     </span>
                     <span class="helper">For long sessions in a dim room.</span>
@@ -1470,7 +1526,7 @@
                     <span class="theme-card-row">
                       <span class="theme-card-name">Light</span>
                       <span class="theme-check" aria-hidden="true">
-                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+                        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-check"></use></svg>
                       </span>
                     </span>
                     <span class="helper">For bright rooms and presentations.</span>
@@ -1509,7 +1565,7 @@
       <div class="console console--dock" id="consoleDock" role="region" aria-label="Session console log">
         <div class="console-head">
           <button class="console-toggle" id="consoleToggle" type="button" aria-expanded="false" aria-controls="consoleBody">
-            <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
+            <svg class="od-icon" id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-chevron-up"></use></svg>
             <span class="console-title">Console log</span>
             <span class="chip chip-idle" id="consoleCount" hidden="">0</span>
             <span class="console-preview" id="consolePreview">No activity in this session yet.</span>
@@ -1532,7 +1588,7 @@
       <p class="helper">Defaults follow ALM Toolkit. Apply-only options are disabled because this page is read-only.</p>
     </div>
     <button class="dialog-close" id="closeCompareOptions" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1570,7 +1626,7 @@
       <p class="helper" id="folderDialogPath">Loading…</p>
     </div>
     <button class="dialog-close" id="closeFolderDialog" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1596,7 +1652,7 @@
       <p class="helper" id="jsonDialogPath"></p>
     </div>
     <button class="dialog-close" id="closeJsonDialog" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1616,7 +1672,7 @@
       <p class="helper" id="partitionDialogCount"></p>
     </div>
     <button class="dialog-close" id="closePartitionDialog" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1647,10 +1703,10 @@
     </div>
     <div class="dialog-head-actions">
       <button class="dialog-close" id="expandAnalysisDetails" type="button" aria-label="Maximize" title="Maximize">
-        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M3 15v4a2 2 0 0 0 2 2h4"></path></svg>
+        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-maximize-2"></use></svg>
       </button>
       <button class="dialog-close" id="closeAnalysisDetails" type="button" aria-label="Close dialog">
-        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
       </button>
     </div>
   </div>
@@ -1668,7 +1724,7 @@
       <p class="helper mono" id="analysisLineageSub"></p>
     </div>
     <button class="dialog-close" id="closeLineageDialog" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="lineage-toolbar">
@@ -1754,7 +1810,7 @@
       <p class="helper mono" id="analysisRawSub"></p>
     </div>
     <button class="dialog-close" id="closeAnalysisRaw" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1786,7 +1842,7 @@
       <p class="helper mono" id="analysisItemSub"></p>
     </div>
     <button class="dialog-close" id="closeAnalysisItem" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="tabs tabs--item" id="analysisItemTabs" role="tablist" aria-label="Item details">
@@ -1811,7 +1867,7 @@
       <p class="helper">Heuristic checks built from the analysis result. No extra Power BI requests are made.</p>
     </div>
     <button class="dialog-close" id="closeHealthRules" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body health-rules" id="analysisHealthRulesBody"></div>
@@ -1830,7 +1886,7 @@
       <p class="helper">Microsoft / Tabular Editor Best Practice Analyzer catalog.</p>
     </div>
     <button class="dialog-close" id="closeBpRules" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body health-rules" id="analysisBpRulesBody"></div>
@@ -1848,7 +1904,7 @@
       <p class="helper mono" id="analysisRawMetaSub"></p>
     </div>
     <button class="dialog-close" id="closeAnalysisRawMeta" type="button" aria-label="Close dialog">
-      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg>
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
   </div>
   <div class="dialog-body">
@@ -1880,7 +1936,7 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite">
-  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+  <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-check"></use></svg>
   <span id="toastText"></span>
 </div>
 

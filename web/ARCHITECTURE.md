@@ -26,7 +26,9 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 | `web\js\core\format.js` | `decimalText`, `fmtInt`, `sizeText`, `fileMeta`. |
 | `web\js\core\combo.js` | Komponen combo: enhance select, popup, pencarian, set/get options. |
 | `web\js\core\highlight.js` | Prism DAX/JSON + grammar TMDL lexical; `highlightCode`, `highlightLine`, `compareLanguage`. |
+| `web\js\core\icons.js` | `icon(name, className, strokeWidth)` yang membangun `<svg><use href="#i-...">`. |
 | `web\vendor\prism\` | Prism 1.29 core + DAX + JSON + LICENSE, vendored lokal (tanpa CDN). |
+| `web\vendor\lucide\` | Lucide 0.468.0 (ISC): `icons.json` + LICENSE untuk sprite ikon; tidak dimuat saat runtime. |
 | `web\js\core\app_api.js` | Jembatan sementara: `app.toast`, `app.startJob`, `app.api`, dll. Diisi `app.js` sebelum `init()`. |
 | `web\js\views\analysis.js` | Seluruh logika halaman Analisa (payload, tabel, menu, detail, lineage, health, best practice, relationships, roles). |
 | `web\js\views\compare.js` | Halaman Compare model: picker sumber/target, job compare read-only, tree hasil, detail TMDL/TMSL persis, options dialog, validate/export/script. |
@@ -38,6 +40,26 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 Server melayani seluruh folder `web\` lewat `StaticFiles`; PyInstaller menyalin
 folder `web\` apa adanya (`ASSET_DIRS`). Menambah subfolder **tidak** memerlukan
 perubahan `server\app.py` atau `packaging\bi_tools.spec`.
+
+## Ikon
+
+- Semua ikon UI berasal dari **satu sprite Lucide** di awal `<body>` `web\index.html`
+  (`<!-- lucide:sprite:begin -->` … `<!-- lucide:sprite:end -->`, satu
+  `<symbol id="i-<nama>">` per ikon). Geometri asli juga tersimpan di
+  `web\vendor\lucide\icons.json` (versi dipin, ISC).
+- Markup statis memakai `<svg class="od-icon" …><use href="#i-table"></use></svg>`.
+  Kode JS memakai `icon("table", "row-ico", 1.6)` dari `web\js\core\icons.js`.
+- Nama semantik di view dipertahankan (`ANALYSIS_ICONS.column`,
+  `MENU_ICONS.copy`, `TYPE_ICONS.Measure`, `NODE_ICON_IDS.db`); yang berubah hanya
+  nama ikon Lucide di dalamnya.
+- `stroke`/`fill` tetap `currentColor` + `fill="none"` di elemen `<svg>`, sehingga
+  tema dan warna baris berlaku otomatis. Jangan menaruh `stroke`/`fill` di `<symbol>`.
+- Jangan menambah path SVG inline baru di `index.html` atau view. Pengecualian:
+  kanvas grafik (`relGraphSvg`, `lineageSvg`, `analysisLineageSvg`) dan dokumen SVG
+  hasil ekspor lineage, yang memang menggambar sendiri.
+- `tests\test_web_icons.py` menjaga agar semua `#i-…` teresolusi, sprite sama dengan
+  manifest, tidak ada ikon yatim, dan tidak ada sumber ikon eksternal/CDN.
+  `web\vendor\lucide\README.md` memuat cara regenerasi.
 
 ## Titik masuk
 

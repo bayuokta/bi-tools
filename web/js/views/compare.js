@@ -9,6 +9,7 @@ import {
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
 import { compareLanguage, highlightLine } from "../core/highlight.js";
+import { icon } from "../core/icons.js";
 import { state, store } from "../core/state.js";
 
 var DEFAULT_OPTIONS = {
@@ -51,15 +52,15 @@ var STATUS_CLASSES = {
 var diffScrollLock = false;
 
 var TYPE_ICONS = {
-  Table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.6"/><path d="M3 9h18M9 9v11"/></svg>',
-  Measure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 19L18 5M6 5h3M15 19h3"/></svg>',
-  Relationship: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 13.5a4 4 0 010-5.7l2.4-2.4a4 4 0 015.7 5.7l-1.6 1.6"/><path d="M14 10.5a4 4 0 010 5.7l-2.4 2.4a4 4 0 01-5.7-5.7l1.6-1.6"/></svg>',
-  Expression: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg>',
-  Role: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0111 0"/><path d="M16 6h5M16 10h5M16 14h3"/></svg>',
-  "Data source": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>',
-  Perspective: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
-  Culture: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>',
-  "Calculation item": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M18 4H6l6 8-6 8h12"/></svg>'
+  Table: icon("table", "", 1.6),
+  Measure: icon("sigma", "", 1.7),
+  Relationship: icon("link-2", "", 1.6),
+  Expression: icon("braces", "", 1.7),
+  Role: icon("users", "", 1.6),
+  "Data source": icon("database", "", 1.6),
+  Perspective: icon("layers", "", 1.6),
+  Culture: icon("globe", "", 1.6),
+  "Calculation item": icon("square-function", "", 1.7)
 };
 
 function loadOptions() {
@@ -379,14 +380,13 @@ function treeRow(item, level, hasChildren, open) {
     ? '<button type="button" class="cmp-tree-toggle" data-compare-toggle="' +
       escapeHtml(item.id) + '" aria-expanded="' + (open ? "true" : "false") +
       '" aria-label="' + escapeHtml(open ? "Collapse " : "Expand ") +
-      escapeHtml(item.name) + '">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>'
+      escapeHtml(item.name) + '">' + icon("chevron-right", "", 2) + "</button>"
     : '<span class="cmp-tree-toggle" aria-hidden="true"></span>';
-  var icon = TYPE_ICONS[item.type] || TYPE_ICONS.Expression;
+  var objectIcon = TYPE_ICONS[item.type] || TYPE_ICONS.Expression;
   return '<tr data-id="' + escapeHtml(item.id) + '" tabindex="0"' +
     (state.compareActive === item.id ? ' class="is-current"' : "") + ">" +
     '<td><div class="cmp-object" style="--depth:' + level + '">' + toggle +
-      '<span class="cmp-object-icon">' + icon + "</span>" +
+      '<span class="cmp-object-icon">' + objectIcon + "</span>" +
       '<span class="cmp-object-name" title="' + escapeHtml(item.name) + '">' +
       escapeHtml(item.name) + "</span></div></td>" +
     '<td class="name" title="' + escapeHtml(item.source_name || "—") + '">' +

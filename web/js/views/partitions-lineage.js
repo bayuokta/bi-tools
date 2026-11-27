@@ -2,9 +2,10 @@ import { app } from "../core/app_api.js";
 import { getSelectValue, setSelectOptions } from "../core/combo.js";
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
+import { icon } from "../core/icons.js";
 import { state } from "../core/state.js";
 
-  var PARTITION_CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  var PARTITION_CHEVRON = icon("chevron-right", "od-icon", 2);
 
   // -- Partisi ------------------------------------------------------------
   function partitionRows() {
@@ -435,16 +436,14 @@ import { state } from "../core/state.js";
     Workspace: "neutral"
   };
 
-  var NODE_ICONS = {
-    db: '<ellipse cx="5" cy="2.6" rx="3.6" ry="1.5"></ellipse>' +
-      '<path d="M1.4 2.6v4.8c0 .83 1.61 1.5 3.6 1.5s3.6-.67 3.6-1.5V2.6"></path>',
-    flow: '<path d="M1 3h4.2l1.6 1.6h2.2"></path><path d="M1 7h3.1l1.4-1.4"></path>' +
-      '<path d="M7.6 2.2l1.4 2.4-1.4 2.4"></path>',
-    model: '<path d="M5 1.2l3.8 1.9v3.8L5 8.8 1.2 6.9V3.1z"></path><path d="M1.2 3.1L5 5l3.8-1.9M5 5v3.8"></path>',
-    table: '<rect x="1.4" y="2.2" width="7.2" height="5.6" rx="1"></rect><path d="M1.4 4.6h7.2M4.4 2.2v5.6"></path>',
-    measure: '<path d="M7.8 2.4H2.4l2.7 2.6-2.7 2.6h5.4"></path>',
-    report: '<path d="M2.4 1.4h3.4l2 2v5.2H2.4z"></path><path d="M5.8 1.4v2h2"></path>',
-    neutral: '<circle cx="5" cy="5" r="2.2"></circle>'
+  var NODE_ICON_IDS = {
+    db: "#i-database",
+    flow: "#i-workflow",
+    model: "#i-box",
+    table: "#i-table",
+    measure: "#i-sigma",
+    report: "#i-file-text",
+    neutral: "#i-circle"
   };
 
   function nodeHue(type) {
@@ -453,9 +452,10 @@ import { state } from "../core/state.js";
 
   function nodeIconMarkup(hue, x, y) {
     return '<g class="node-icon" transform="translate(' + x + " " + y + ')" fill="none" ' +
-      'stroke="currentColor" stroke-width="1.1" stroke-linecap="round" ' +
+      'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" ' +
       'stroke-linejoin="round" aria-hidden="true">' +
-      (NODE_ICONS[hue] || NODE_ICONS.neutral) + "</g>";
+      '<use href="' + (NODE_ICON_IDS[hue] || NODE_ICON_IDS.neutral) +
+      '" width="10" height="10"></use></g>';
   }
 
   function clipLabel(text, max) {

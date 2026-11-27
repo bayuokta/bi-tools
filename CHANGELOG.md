@@ -22,6 +22,13 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   juga ditulis dalam Bahasa Inggris; teks dokumen TSD (template) tetap Indonesia.
 - Tes `tests/test_i18n.py` diganti `tests/test_english_only.py`, yang kini juga
   memindai literal sumber UI/log/CLI agar tidak ada kata Indonesia yang masuk lagi.
+- Seluruh ikon UI memakai **Lucide 0.468.0** (ISC) yang di-vendor lokal di
+  `web/vendor/lucide/` dan dirender dari satu sprite `<symbol>` di `web/index.html`.
+  Path SVG inline lama di `index.html`, `analysis.js`, `compare.js`, dan
+  `partitions-lineage.js` dihapus; JS memakai helper `icon()` di
+  `web/js/core/icons.js`. Ukuran ikon baris naik 13→14px. Tidak ada CDN atau build
+  step. `tests/test_web_icons.py` menjaga sprite, rujukan `#i-...`, dan manifest
+  tetap sinkron.
 
 ### Perbaikan
 

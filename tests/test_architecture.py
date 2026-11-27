@@ -263,7 +263,7 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('{ label: "Views", num: true }', js)
         self.assertIn("hidden: Boolean(page.is_hidden)", js)
         self.assertIn("hidden: Boolean(visual.is_hidden)", js)
-        self.assertIn('page: \'<svg class="row-ico"', js)
+        self.assertIn('page: icon("file", "row-ico"', js)
         self.assertIn("options.hidden && ANALYSIS_ICONS.hidden", js)
         self.assertIn(
             "#analyzeTable td.cell-name{ padding-left:calc(9px + var(--depth, 0) * 16px); }",
@@ -669,7 +669,7 @@ class WebLayerTests(unittest.TestCase):
             'id="cmpApply"',
             'id="tab-roles"',
             'id="cmpDiffSummary"',
-            "M6 15l6-6 6 6",
+            '<use href="#i-chevron-up">',
         ):
             self.assertIn(marker, html)
         for marker in (
