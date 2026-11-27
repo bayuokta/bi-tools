@@ -48,7 +48,7 @@ class ResultExportTests(unittest.TestCase):
             measure="Total",
             measure_id=20,
             data_type="Double",
-            format_string="0",
+            format_string="#,0",
         )
         stats = ModelStats(
             model_name="Model",
@@ -212,6 +212,15 @@ class ResultExportTests(unittest.TestCase):
         ].iloc[0]
         self.assertEqual(used_func["Used_in_name"], "Total")
         self.assertEqual(used_func["Used_in_object_type"], "Measure")
+        self.assertEqual(int(used_func["Used_in_ID"]), 20)
+        self.assertEqual(used_func["Used_in_table_page"], "Sales")
+        self.assertEqual(used_func["Used_in_data_type"], "Double")
+        self.assertEqual(used_func["Used_in_size"], "0 B")
+        self.assertEqual(used_func["Used_in_status"], "Used")
+        self.assertEqual(int(used_func["Used_in_number_of_uses"]), 1)
+        self.assertFalse(bool(used_func["Used_in_has_error"]))
+        self.assertEqual(used_func["Used_in_format_string"], "#,0")
+        self.assertEqual(used_func["Used_in_source"], "Model Uji")
 
 
 if __name__ == "__main__":

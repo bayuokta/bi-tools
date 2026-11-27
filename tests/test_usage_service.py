@@ -1552,6 +1552,24 @@ class ModelReferenceTests(unittest.TestCase):
                     "Name": "Uses Max",
                     "Expression": "'Sales'[Max Pages] + 1",
                 },
+                {
+                    "ID": 34,
+                    "TableID": 2,
+                    "Name": "Pct In",
+                    "Expression": "1",
+                },
+                {
+                    "ID": 35,
+                    "TableID": 2,
+                    "Name": "Pct Out",
+                    "Expression": "1",
+                },
+                {
+                    "ID": 36,
+                    "TableID": 2,
+                    "Name": "Testingw",
+                    "Expression": "PercentageGrowth([Pct In], [Pct Out])",
+                },
             ],
             "TMSCHEMA_PARTITIONS": [
                 {
@@ -1700,6 +1718,15 @@ class ModelReferenceTests(unittest.TestCase):
         self.assertEqual(referenced[0].source_measure, "Helper")
         self.assertEqual(referenced[0].object, "'Sales'[Helper]")
         self.assertFalse(referenced[0].blocking)
+
+    def test_udf_arguments_are_measure_references(self) -> None:
+        refs = measure_references(self.model())
+        for name in ("pct in", "pct out"):
+            pairs = {
+                (ref.kind, ref.object)
+                for ref in refs.get(("sales", name), [])
+            }
+            self.assertIn(("measure", "'Sales'[Testingw]"), pairs)
 
     def test_measure_reference_is_not_blocking(self) -> None:
         refs = model_references(self.model())

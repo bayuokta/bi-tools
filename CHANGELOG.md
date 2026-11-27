@@ -38,7 +38,11 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   All results (Type `User-defined function`) dan di ekspor Result (Table kosong,
   Status/Number_of_Uses, serta `Used in artifacts` untuk pemanggilnya). Status
   dihitung dari measure, calculated column, atau fungsi lain yang memanggil
-  `Nama(...)`. Isi badan fungsi belum dihitung sebagai pemakaian kolom/measure.
+  `Nama(...)`. Baris `Used in artifacts` untuk pemanggil UDF kini membawa
+  metadata lengkap (`Used_in_ID`, table, data type, size, status, uses,
+  has_error), dan `Data_type` memakai nama ramah (`Variant`, bukan `variant`).
+  Argumen UDF berupa measure/kolom dihitung lewat `measure_references`; isi
+  badan fungsi yang langsung menunjuk `Tabel[Kolom]` belum dipropagasikan.
   `build_unsupported` kini melaporkan jumlah UDF, bukan "tidak tersedia"; workbook
   analisa menambah sheet `12_Functions`.
 - Halaman Analisa: grup `Used as key column` hanya diisi dari `IsKey`

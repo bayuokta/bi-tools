@@ -18,6 +18,7 @@ from .usage_service import (
     STATUS_UNKNOWN,
     STATUS_UNUSED,
     STATUS_USED,
+    display_data_type,
     is_counted_record,
     is_counted_reference,
 )
@@ -340,7 +341,7 @@ def _artifact_meta(
         return {
             "type": "Measure",
             "id": int(getattr(item, "measure_id", 0) or 0),
-            "data_type": str(getattr(item, "data_type", "") or ""),
+            "data_type": display_data_type(getattr(item, "data_type", "")),
             "size": "0 B",
             "status": _status_text(analysis.status),
             "uses": _use_count(analysis),
@@ -355,7 +356,7 @@ def _artifact_meta(
         return {
             "type": _type_text(getattr(item, "column_type", "")),
             "id": int(getattr(item, "column_id", 0) or 0),
-            "data_type": str(getattr(item, "data_type", "") or ""),
+            "data_type": display_data_type(getattr(item, "data_type", "")),
             "size": _size_text(getattr(item, "size_total_bytes", 0)),
             "status": _status_text(analysis.status),
             "uses": _use_count(analysis),
@@ -494,7 +495,7 @@ def _object_rows(
         type_label=type_label,
         table=table,
         dataset=dataset,
-        data_type=data_type,
+        data_type=display_data_type(data_type),
         size=size,
         status=getattr(analysis, "status", ""),
         uses=_use_count(analysis),
@@ -744,7 +745,15 @@ def _object_rows(
     return rows or [base]
 
 
-def _function_rows(analysis: Any, *, dataset: str) -> list[dict[str, Any]]:
+def _function_rows(
+    analysis: Any,
+    *,
+    dataset: str,
+    columns: Mapping[tuple[str, str], Any],
+    measures: Mapping[tuple[str, str], Any],
+    tables: Mapping[str, Any],
+    functions: Mapping[str, Any],
+) -> list[dict[str, Any]]:
     """Baris Result untuk satu user-defined function DAX."""
     item = analysis.function
     base = _base_row(
@@ -760,23 +769,60 @@ def _function_rows(analysis: Any, *, dataset: str) -> list[dict[str, Any]]:
     rows = [base]
     for ref in getattr(analysis, "model_refs", []) or []:
         kind = str(getattr(ref, "kind", "") or "")
-        if kind == "measure":
-            object_type = "Measure"
-        elif kind == "calculated column":
-            object_type = "Calculated column"
+        object_text = str(getattr(ref, "object", "") or "")
+        ref_table, ref_name = _split_object(object_text)
+        meta: dict[str, Any] | None = None
+        name = ref_name or object_text
+        object_type = BLANK
+        if kind in {"measure", "calculated column"}:
+            meta = _artifact_meta(
+                columns, measures, tables, ref_table, ref_name
+            )
+            object_type = (
+                meta["type"]
+                if meta
+                else ("Measure" if kind == "measure" else "Calculated Column")
+            )
         elif kind == "user-defined function":
+            match = re.match(r"^function\s+(.+)$", object_text, re.IGNORECASE)
+            caller_name = (
+                match.group(1).strip().strip("'\"") if match else object_text
+            )
+            caller = functions.get(caller_name.casefold())
+            name = caller_name or object_text
             object_type = "User-defined function"
+            if caller is not None:
+                meta = {
+                    "type": "User-defined function",
+                    "id": int(getattr(caller.function, "function_id", 0) or 0),
+                    "data_type": BLANK,
+                    "size": BLANK,
+                    "status": _status_text(caller.status),
+                    "uses": _use_count(caller),
+                    "format_string": BLANK,
+                    "has_error": None,
+                    "display_folder": BLANK,
+                    "table": BLANK,
+                }
         else:
             continue
-        _table, ref_name = _split_object(str(getattr(ref, "object", "") or ""))
+        meta = meta or {}
         rows.append(
             _with_usage(
                 base,
                 usage_type="Used in artifacts",
-                name=ref_name or str(getattr(ref, "object", "") or ""),
+                name=name,
+                object_id=meta.get("id", BLANK),
                 object_type=object_type,
+                page=meta.get("table", BLANK),
                 source=dataset,
-                status="Used",
+                data_type=meta.get("data_type", BLANK),
+                size=meta.get("size", BLANK),
+                status=meta.get("status", BLANK),
+                uses=meta.get("uses", BLANK),
+                format_string=meta.get("format_string", BLANK),
+                has_error=meta.get("has_error", BLANK),
+                display_folder=meta.get("display_folder", BLANK),
             )
         )
     return rows
@@ -807,6 +853,10 @@ def write_result_export(result: Any, path: Path | str) -> Path:
         for item in (getattr(result, "relationships", []) or [])
         if isinstance(item, Mapping)
     ]
+    functions = {
+        item.function.name.casefold(): item
+        for item in (getattr(result, "functions", []) or [])
+    }
     urls = _report_urls(result)
 
     rows: list[dict[str, Any]] = []
@@ -854,7 +904,14 @@ def write_result_export(result: Any, path: Path | str) -> Path:
         )
     for analysis in getattr(result, "functions", []) or []:
         rows.extend(
-            _function_rows(analysis, dataset=str(result.dataset_name or ""))
+            _function_rows(
+                analysis,
+                dataset=str(result.dataset_name or ""),
+                columns=columns,
+                measures=measures,
+                tables=tables,
+                functions=functions,
+            )
         )
 
     rows.sort(
