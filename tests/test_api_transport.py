@@ -152,7 +152,7 @@ class RequestTests(unittest.TestCase):
         with self.assertRaises(ApiError) as ctx:
             transport.json("GET", "items")
         self.assertEqual(ctx.exception.status_code, 429)
-        self.assertIn("menit", str(ctx.exception))
+        self.assertIn("minutes", str(ctx.exception))
         self.assertEqual(sleeps, [])
         self.assertEqual(len(session.calls), 1)
 
@@ -163,7 +163,7 @@ class RequestTests(unittest.TestCase):
         )
         with self.assertRaises(ApiError) as ctx:
             transport.poll_status("operations/1")
-        self.assertIn("menit", str(ctx.exception))
+        self.assertIn("minutes", str(ctx.exception))
 
     def test_2xx_outside_allow_is_reported_with_hint(self) -> None:
         # Regresi: Scanner API menjawab 202; dulu hanya "gagal (HTTP 202)".
@@ -174,7 +174,7 @@ class RequestTests(unittest.TestCase):
         with self.assertRaises(ApiError) as ctx:
             transport.json("POST", "admin/workspaces/getInfo")
         self.assertEqual(ctx.exception.status_code, 202)
-        self.assertIn("tidak ada di daftar allow", str(ctx.exception))
+        self.assertIn("not in the caller allow list", str(ctx.exception))
 
     def test_202_is_accepted_when_allowed(self) -> None:
         transport, _, _ = make_transport(
@@ -204,7 +204,7 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(error.code, "Forbidden")
         self.assertEqual(error.request_id, "req-123")
         self.assertIn("no access", str(error))
-        self.assertIn("izin service principal", str(error))
+        self.assertIn("service principal permissions", str(error))
 
     def test_token_never_appears_in_error_or_log(self) -> None:
         logs: list[str] = []
@@ -268,7 +268,7 @@ class PollTests(unittest.TestCase):
         )
         with self.assertRaises(ApiError) as ctx:
             transport.poll_status("operations/4", max_polls=2)
-        self.assertIn("Batas waktu", str(ctx.exception))
+        self.assertIn("Operation wait timeout", str(ctx.exception))
 
 
 class PaginationTests(unittest.TestCase):

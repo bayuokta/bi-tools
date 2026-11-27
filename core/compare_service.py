@@ -85,11 +85,11 @@ def read_snapshot(
     )
     if completed.returncode != 0:
         line = _error_line(completed.stderr or completed.stdout)
-        raise ExtractionError(line or "Proses snapshot TOM gagal tanpa pesan.")
+        raise ExtractionError(line or "The TOM snapshot process failed without a message.")
     try:
         data = json.loads(completed.stdout or "{}")
     except ValueError as exc:
-        raise ExtractionError(f"Output snapshot TOM tidak valid: {exc}") from exc
+        raise ExtractionError(f"Invalid TOM snapshot output: {exc}") from exc
     if not isinstance(data, dict) or not data.get("objects"):
-        raise ExtractionError("Snapshot TOM tidak berisi objek yang bisa dibandingkan.")
+        raise ExtractionError("The TOM snapshot contains no comparable objects.")
     return data

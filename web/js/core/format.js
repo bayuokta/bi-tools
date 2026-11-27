@@ -1,13 +1,12 @@
-// Utilitas format angka dan ukuran. Bahasa mengikuti preferensi UI.
+// Number and size formatting (English).
 
-import { currentLanguage, t } from "./i18n.js";
 
 export function decimalText(text) {
-  return currentLanguage() === "id" ? String(text).replace(".", ",") : String(text);
+  return String(text);
 }
 
 export function fmtInt(value) {
-  return Number(value).toLocaleString(currentLanguage() === "id" ? "id-ID" : "en-US");
+  return Number(value).toLocaleString("en-US");
 }
 
 export function sizeText(bytes) {
@@ -19,9 +18,9 @@ export function sizeText(bytes) {
 }
 
 export function fileMeta(entry) {
-  if (!entry || !entry.exists) return t("Not created");
+  if (!entry || !entry.exists) return "Not created";
   var parts = [];
   if (entry.modified) parts.push(entry.modified);
   if (entry.size) parts.push(sizeText(entry.size));
-  return parts.join(" \u00b7 ") || t("Ready");
+  return parts.join(" \u00b7 ") || "Ready";
 }

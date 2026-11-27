@@ -31,7 +31,7 @@ class _StaticTokens:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Snapshot TOM untuk perbandingan semantic model (internal).",
+        description="TOM snapshot for semantic model comparison (internal).",
         allow_abbrev=False,
     )
     parser.add_argument("--snapshot-json", action="store_true", help=argparse.SUPPRESS)
@@ -45,9 +45,9 @@ def _read_stdin(args: argparse.Namespace) -> tuple[dict[str, Any], _StaticTokens
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError as exc:
-        raise ExtractionError(f"Payload compare tidak valid: {exc}") from exc
+        raise ExtractionError(f"Invalid compare payload: {exc}") from exc
     if not isinstance(payload, dict):
-        raise ExtractionError("Payload compare harus berupa object JSON.")
+        raise ExtractionError("The compare payload must be a JSON object.")
     if args.port or bool(payload.get("interactive")):
         return payload, None
     token = str(payload.get("token") or "").strip()
@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.snapshot_json:
             return _snapshot_json(args)
-        raise ExtractionError("Mode compare tidak dikenal.")
+        raise ExtractionError("Unknown compare mode.")
     except (ExtractionError, TomError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

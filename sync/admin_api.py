@@ -132,7 +132,7 @@ class AdminClient(PowerBILineageClient):
         )
         scan_id = str(job.get("id") or "")
         if not scan_id:
-            raise ExtractionError("Scanner API tidak mengembalikan ID scan.")
+            raise ExtractionError("The Scanner API did not return a scan ID.")
         self._transport.poll_status(
             f"admin/workspaces/scanStatus/{scan_id}",
             wait=5,
@@ -140,7 +140,7 @@ class AdminClient(PowerBILineageClient):
         )
         result = self._call("GET", f"admin/workspaces/scanResult/{scan_id}")
         if not isinstance(result, dict):
-            raise ExtractionError("Hasil scan Power BI bukan object JSON.")
+            raise ExtractionError("The Power BI scan result is not a JSON object.")
         return scan_id, result
 
     def reports_for_dataset(
@@ -157,7 +157,7 @@ class AdminClient(PowerBILineageClient):
         except ValueError:
             valid = False
         if not valid:
-            raise ExtractionError(f"Dataset ID bukan GUID yang valid: {dataset_id!r}.")
+            raise ExtractionError(f"Dataset ID is not a valid GUID: {dataset_id!r}.")
         items: list[dict[str, Any]] = []
         seen: set[str] = set()
         skip = 0

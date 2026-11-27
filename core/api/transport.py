@@ -160,18 +160,18 @@ class Transport:
     ) -> ApiError:
         status = int(getattr(response, "status_code", 0) or 0)
         detail, code = _detail(response)
-        message = f"{method} {url} gagal (HTTP {status})"
+        message = f"{method} {url} failed (HTTP {status})"
         if detail:
             message += f": {detail}"
         message += note
         if 200 <= status < 300:
             message += (
-                " (status sukses ini tidak ada di daftar allow pemanggil; "
-                "tambahkan bila memang jawaban normal endpoint)"
+                " (this success status is not in the caller allow list; "
+                "add it if it is a normal endpoint response)"
             )
         if status in (401, 403):
             message += (
-                " (periksa izin service principal dan pengaturan Admin API tenant)"
+                " (check the service principal permissions and the tenant Admin API settings)"
             )
         return ApiError(
             message,
@@ -197,14 +197,14 @@ class Transport:
         dengan ``json`` pada request yang sama.
         """
         if data is not None and json is not None:
-            raise ExtractionError("Body request tidak boleh berisi data dan json sekaligus.")
+            raise ExtractionError("The request body cannot contain both data and json.")
         if str(method or "").strip().upper() == "DELETE":
             # Kebijakan tool: tidak pernah memakai metode HTTP DELETE. Operasi
             # hapus/bersihkan memakai POST (mis. cache/clear, jobs/{id}/cancel).
             raise ExtractionError(
-                "Metode HTTP DELETE dilarang di tool ini. Gunakan POST "
-                "(mis. .../clear atau .../cancel); larangan berlaku untuk API "
-                "Power BI, Fabric, maupun API lokal."
+                "The HTTP DELETE method is forbidden in this tool. Use POST "
+                "(e.g. .../clear or .../cancel); the ban applies to the "
+                "Power BI, Fabric, and local API."
             )
         url = self._url(path_or_url)
         optional: dict[str, Any] = {}
@@ -229,7 +229,7 @@ class Transport:
                 last_error = exc
                 wait = self._backoff(attempt)
                 self._log(
-                    f"{method} {url} gagal dihubungi; coba lagi dalam {wait:.0f}s"
+                    f"{method} {url} could not be reached; retrying in {wait:.0f}s"
                 )
                 self._sleep(wait)
                 continue
@@ -245,12 +245,12 @@ class Transport:
                         url,
                         response,
                         note=(
-                            " - permintaan ditunda server (throttling); "
-                            f"coba lagi dalam ±{wait / 60:.0f} menit"
+                            " - the server deferred the request (throttling); "
+                            f"retry in about {wait / 60:.0f} minutes"
                         ),
                     )
                 self._log(
-                    f"{method} {url} -> HTTP {status}; coba lagi dalam {wait:.0f}s"
+                    f"{method} {url} -> HTTP {status}; retrying in {wait:.0f}s"
                 )
                 self._sleep(wait)
                 continue
@@ -258,7 +258,7 @@ class Transport:
 
         detail = f": {last_error}" if last_error else ""
         raise ApiError(
-            f"{method} {url} gagal setelah {self.max_retries} percobaan{detail}"
+            f"{method} {url} failed after {self.max_retries} attempts{detail}"
         )
 
     def _parse_json(self, path_or_url: str, response: Any) -> Any:
@@ -269,7 +269,7 @@ class Transport:
             return response.json()
         except ValueError as exc:
             raise ApiError(
-                f"Respons {self._url(path_or_url)} bukan JSON valid"
+                f"Response {self._url(path_or_url)} is not valid JSON"
             ) from exc
 
     def json(self, method: str, path_or_url: str, **kwargs: Any) -> Any:
@@ -311,9 +311,9 @@ class Transport:
         delay = retry_after(response, wait)
         if delay > self.max_retry_after:
             raise ApiError(
-                "Server meminta tunggu "
-                f"±{delay / 60:.0f} menit sebelum operasi bisa dilanjutkan "
-                "(throttling); coba lagi nanti."
+                "The server asked to wait "
+                f"about {delay / 60:.0f} minutes before the operation can continue "
+                "(throttling); try again later."
             )
         return delay
 
@@ -343,7 +343,7 @@ class Transport:
                 continue
             data = self._parse_json(path_or_url, response)
             if not isinstance(data, dict):
-                raise ApiError("Status operasi bukan object JSON.")
+                raise ApiError("Operation status is not a JSON object.")
             if ready is not None and ready(data):
                 return data
             status = str(data.get("status") or "").lower()
@@ -354,5 +354,5 @@ class Transport:
                 raise ApiError(f"Operasi {status}: {detail}")
             delay = self._poll_delay(response, wait)
         raise ApiError(
-            f"Batas waktu menunggu operasi ({max_polls} polling)."
+            f"Operation wait timeout ({max_polls} polling)."
         )

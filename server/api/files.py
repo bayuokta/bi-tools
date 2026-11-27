@@ -107,7 +107,7 @@ def browse(
         }
     target = Path(path).expanduser()
     if not target.is_dir():
-        raise HTTPException(status_code=400, detail=f"Folder tidak ditemukan: {path}")
+        raise HTTPException(status_code=400, detail=f"Folder not found: {path}")
     extensions = {
         item.strip().lower()
         for item in str(ext).replace(";", ",").split(",")
@@ -121,7 +121,7 @@ def browse(
         )
     except OSError as exc:
         raise HTTPException(
-            status_code=400, detail=f"Folder tidak bisa dibaca: {exc}"
+            status_code=400, detail=f"Folder cannot be read: {exc}"
         ) from exc
     for child in children:
         try:
@@ -166,14 +166,14 @@ def open_path(payload: OpenIn) -> dict[str, Any]:
     """Buka berkas/folder di aplikasi default, atau sorot di Explorer."""
     text = str(payload.path or "").strip().strip('"')
     if not text or "\x00" in text:
-        raise HTTPException(status_code=400, detail="Path tidak valid.")
+        raise HTTPException(status_code=400, detail="Invalid path.")
     target = Path(text).expanduser()
     if not target.exists():
-        raise HTTPException(status_code=404, detail=f"Berkas tidak ditemukan: {text}")
+        raise HTTPException(status_code=404, detail=f"File not found: {text}")
     if target.is_file() and target.suffix.lower() in BLOCKED_SUFFIXES:
         raise HTTPException(
             status_code=400,
-            detail="Berkas yang dapat dieksekusi tidak dibuka dari halaman web.",
+            detail="Executable files are not opened from the web page.",
         )
     if payload.mode == "reveal":
         if os.name == "nt":

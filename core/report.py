@@ -269,7 +269,7 @@ def resolve_visual(
         {
             "page_name": "",
             "page_id": "",
-            "visual_name": f"(visual tidak ditemukan) {visual_id[:8]}",
+            "visual_name": f"(visual not found) {visual_id[:8]}",
             "visual_type": "",
         },
     )
@@ -369,7 +369,7 @@ def extract_bookmarks(
                 "Report tidak memiliki folder definition/bookmarks, sehingga tidak ada "
                 "bookmark yang tersimpan di file PBIR. Bookmark yang dibuat di Power BI "
                 "Desktop akan muncul di sheet ini setelah file .pbix disimpan ulang.",
-                "definition/bookmarks (tidak ditemukan)",
+                "definition/bookmarks (not found)",
             )
         ]
 
@@ -623,8 +623,8 @@ def load_model_inventory_from_workbook(
     """Fallback offline: bangun inventory model dari Semantic_Model_Metadata.xlsx."""
     if not path.exists():
         raise ExtractionError(
-            f"Workbook model tidak ditemukan: {path}. "
-            "Jalankan extract_model_metadata.py atau tentukan --model-workbook."
+            f"Model workbook not found: {path}. "
+            "Run extract_model_metadata.py or specify --model-workbook."
         )
 
     tables: dict[str, dict[str, dict[str, bool]]] = {}
@@ -688,9 +688,9 @@ def extract_report(
             {
                 "scope": "Report",
                 "page_order": "",
-                "page_name": "(semua halaman)",
+                "page_name": "(all pages)",
                 "page_id": "",
-                "visual_name": "(semua visual)",
+                "visual_name": "(all visuals)",
                 "visual_id": "",
                 "field_kind": kind,
                 "table": table,
@@ -721,7 +721,7 @@ def extract_report(
                     "page_order": order,
                     "page_name": page_name,
                     "page_id": page_id,
-                    "visual_name": "(semua visual di halaman)",
+                    "visual_name": "(all visuals on page)",
                     "visual_id": "",
                     "field_kind": kind,
                     "table": table,
@@ -1523,11 +1523,11 @@ def run_report(
     log(f"Measures in model: {len(measures_df)}")
     log(f"Columns in model : {len(columns_df)}")
     if validation_skipped and not validation_issues:
-        log(f"Validation       : dilewati ({validation_skipped} field TIDAK DIVALIDASI)")
+        log(f"Validation       : skipped ({validation_skipped} fields NOT VALIDATED)")
     else:
         log(f"Validation issues: {validation_issues}")
         if validation_skipped:
-            log(f"  tidak divalidasi : {validation_skipped} field")
+            log(f"  not validated    : {validation_skipped} field")
     return {
         "out_file": out_file,
         "pages": len(pages_df),
@@ -1574,7 +1574,7 @@ def resolve_validation_model(
 ) -> tuple[dict[str, dict[str, dict[str, bool]]], list[dict[str, Any]], str]:
     """Pilih sumber validasi model: workbook eksplisit -> folder output -> tooling -> dilewati."""
     if no_model:
-        return {}, [], "tidak dipakai (validasi dimatikan): validasi field dilewati"
+        return {}, [], "not used (validation disabled): field validation skipped"
 
     if workbook is not None:
         tables, inventory = load_model_inventory_from_workbook(workbook)
@@ -1588,5 +1588,5 @@ def resolve_validation_model(
     return (
         {},
         [],
-        "tidak tersedia: validasi field dilewati (pilih workbook model untuk validasi penuh)",
+        "not available: field validation skipped (choose a model workbook for full validation)",
     )

@@ -33,7 +33,7 @@ class _Session:
         connection_cls, command_cls, _ = load_adomd()
         data_source = str(endpoint or "").strip()
         if not data_source or not str(catalog or "").strip():
-            raise ValueError("Endpoint dan catalog wajib diisi.")
+            raise ValueError("Endpoint and catalog are required.")
         connection_string = (
             "Provider=MSOLAP;"
             f"Data Source={data_source};"
@@ -63,7 +63,7 @@ class _Session:
 
     def query(self, sql: str, timeout: int | None = None) -> list[dict[str, Any]]:
         if self.connection is None or self.command_cls is None:
-            raise RuntimeError("Koneksi XMLA belum dibuka.")
+            raise RuntimeError("The XMLA connection is not open yet.")
         command = self.command_cls(sql, self.connection)
         if timeout is not None:
             command.CommandTimeout = int(timeout)
@@ -150,8 +150,8 @@ def main(argv: list[str] | None = None) -> int:
     root.geometry("360x100+80+80")
     tk.Label(
         root,
-        text="Selesaikan login XMLA di jendela yang muncul.\n"
-        "Jendela ini boleh diminimalkan setelah selesai.",
+        text="Complete the XMLA login in the window that appears.\n"
+        "You can minimize this window when done.",
         justify="center",
     ).pack(padx=12, pady=12)
     root.update()

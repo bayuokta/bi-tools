@@ -2,7 +2,6 @@ import { app } from "../core/app_api.js";
 import { getSelectItem, getSelectValue, refreshCombo, setSelectOptions, setSelectValue } from "../core/combo.js";
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
-import { t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
   export function loadInstances() {
@@ -11,7 +10,7 @@ import { state } from "../core/state.js";
       state.instances = data.instances || [];
       var select = $("#desktopInstance");
       var html = ['<option value="">' +
-        (state.instances.length ? t("Choose an instance…") : t("No open instance")) +
+        (state.instances.length ? "Choose an instance…" : "No open instance") +
         "</option>"];
       state.instances.forEach(function (item) {
         html.push('<option value="' + item.port + '">' + escapeHtml(item.label) + "</option>");
@@ -20,11 +19,11 @@ import { state } from "../core/state.js";
       if (state.instances.length === 1) select.value = String(state.instances[0].port);
       refreshCombo(select);
       state.instanceHint = data.hint || "";
-      $("#instanceHint").textContent = tr(state.instanceHint) || "";
+      $("#instanceHint").textContent = (state.instanceHint) || "";
       renderModelAvailability();
       return data;
     }).catch(function (error) {
-      app.addLog(t("The Desktop instance could not be read: ") + error.message, "warn");
+      app.addLog("The Desktop instance could not be read: " + error.message, "warn");
     });
   }
 
@@ -35,11 +34,11 @@ import { state } from "../core/state.js";
     $("#desktopInstance").disabled = !needed;
     $("#reloadDesktop").disabled = !needed;
     if (scope === "report") {
-      $("#instanceHint").textContent = t("Report scope only: the Power BI Desktop instance is not used.");
+      $("#instanceHint").textContent = "Report scope only: the Power BI Desktop instance is not used.";
     } else if (state.pbix && !state.pbix.has_local_model) {
-      $("#instanceHint").textContent = t("This file is a live connection; the Power BI Desktop instance is not used.");
+      $("#instanceHint").textContent = "This file is a live connection; the Power BI Desktop instance is not used.";
     } else if (!state.instances.length) {
-      $("#instanceHint").textContent = t("No Power BI Desktop instance is open. Open a .pbix file, then Reload.");
+      $("#instanceHint").textContent = "No Power BI Desktop instance is open. Open a .pbix file, then Reload.";
     }
   }
 
@@ -54,18 +53,18 @@ import { state } from "../core/state.js";
       setSelectOptions("reportWorkspace", options, "Choose a report workspace…");
       setSelectOptions("shotWorkspace", options, "Choose a workspace…");
       state.workspaceHint = data.hint || "";
-      $("#workspaceHint").textContent = tr(state.workspaceHint) ||
-        t("Type a workspace name to filter, or open the list.");
+      $("#workspaceHint").textContent = (state.workspaceHint) ||
+        "Type a workspace name to filter, or open the list.";
       return data;
     }).catch(function (error) {
-      app.addLog(t("Workspace catalog could not be read: ") + error.message, "error");
+      app.addLog("Workspace catalog could not be read: " + error.message, "error");
     });
   }
 
   export function loadModelContents() {
     var workspaceId = getSelectValue("modelWorkspace");
     if (!workspaceId || !app.apiReady()) return Promise.resolve();
-    $("#workspaceHint").textContent = t("Loading model workspace datasets…");
+    $("#workspaceHint").textContent = "Loading model workspace datasets…";
     return app.api().get(
       "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
       "/contents?datasets=true&reports=false"
@@ -77,18 +76,18 @@ import { state } from "../core/state.js";
       }), "Choose a dataset…");
       $("#workspaceHint").textContent = state.datasets.length
         ? ""
-        : t("This model workspace has no readable datasets.");
+        : "This model workspace has no readable datasets.";
       return data;
     }).catch(function (error) {
-      $("#workspaceHint").textContent = tr(error.message);
-      app.addLog(tr(error.message), "error");
+      $("#workspaceHint").textContent = (error.message);
+      app.addLog((error.message), "error");
     });
   }
 
   export function loadReportContents() {
     var workspaceId = getSelectValue("reportWorkspace");
     if (!workspaceId || !app.apiReady()) return Promise.resolve();
-    $("#reportHint").textContent = t("Loading report workspace…");
+    $("#reportHint").textContent = "Loading report workspace…";
     return app.api().get(
       "/api/metadata/workspaces/" + encodeURIComponent(workspaceId) +
       "/contents?datasets=false&reports=true"
@@ -100,19 +99,19 @@ import { state } from "../core/state.js";
       }), "Choose a report…");
       renderBatchReports();
       $("#reportHint").textContent = state.reports.length
-        ? t("Paginated (RDL) reports are marked and cannot be extracted.")
-        : t("This report workspace has no extractable reports.");
+        ? "Paginated (RDL) reports are marked and cannot be extracted."
+        : "This report workspace has no extractable reports.";
       return data;
     }).catch(function (error) {
-      $("#reportHint").textContent = tr(error.message);
-      app.addLog(tr(error.message), "error");
+      $("#reportHint").textContent = (error.message);
+      app.addLog((error.message), "error");
     });
   }
 
   export function applyReportDefaults(report) {
     if (report.is_paginated) {
       $("#reportHint").textContent =
-        t("Paginated (RDL) reports are not supported; choose a regular Power BI report.");
+        "Paginated (RDL) reports are not supported; choose a regular Power BI report.";
       return;
     }
     var dataset = null;
@@ -121,11 +120,11 @@ import { state } from "../core/state.js";
     });
     if (dataset) {
       $("#reportHint").textContent =
-        t("Report uses dataset ") + dataset.name +
-        t(". The model catalog is selected separately and may be in another workspace.");
+        "Report uses dataset " + dataset.name +
+        ". The model catalog is selected separately and may be in another workspace.";
     } else if (report.dataset_id) {
       $("#reportHint").textContent =
-        t("The report uses a dataset in another workspace; choose the model catalog separately.");
+        "The report uses a dataset in another workspace; choose the model catalog separately.";
     } else {
       $("#reportHint").textContent = "";
     }
@@ -136,7 +135,7 @@ import { state } from "../core/state.js";
     if (!app.apiReady()) return;
     if (!path) {
       state.pbix = null;
-      $("#pbixKind").textContent = t("Choose the source .pbix file.");
+      $("#pbixKind").textContent = "Choose the source .pbix file.";
       $("#pbixKind").title = "";
       renderModelAvailability();
       return;
@@ -150,7 +149,7 @@ import { state } from "../core/state.js";
       renderModelAvailability();
     }).catch(function (error) {
       state.pbix = null;
-      $("#pbixKind").textContent = tr(error.message);
+      $("#pbixKind").textContent = (error.message);
       renderModelAvailability();
     });
   }
@@ -182,9 +181,9 @@ import { state } from "../core/state.js";
     var datasets = batchDatasetIds();
     var hint = "";
     if (selected.length && datasets.length > 1) {
-      hint = t("Choose reports from the same dataset only.");
+      hint = "Choose reports from the same dataset only.";
     } else if (selected.length) {
-      hint = fmtInt(selected.length) + " " + t("reports selected");
+      hint = fmtInt(selected.length) + " " + "reports selected";
     }
     if ($("#batchHint")) $("#batchHint").textContent = hint;
     if ($("#runExtract")) {
@@ -209,7 +208,7 @@ import { state } from "../core/state.js";
           escapeHtml(item.id) + '"' + checked + "> <span>" +
           escapeHtml(item.label || item.name || item.id) + "</span></label>";
       }).join("")
-      : '<span class="helper">' + t("No extractable reports.") + "</span>";
+      : '<span class="helper">' + "No extractable reports." + "</span>";
     renderBatchHint();
   }
 
@@ -280,31 +279,31 @@ import { state } from "../core/state.js";
     var model = result.model || null;
     var batch = result.batch || [];
     if (!report && !model && !batch.length) {
-      app.setChip($("#outputState"), "idle", t("No results"));
+      app.setChip($("#outputState"), "idle", "No results");
       return;
     }
     state.extractReady = Boolean(result.report_out) && !batch.length;
     if (result.report_out) $("#reportWorkbook").value = result.report_out;
     if (result.model_out) $("#modelWorkbook").value = result.model_out;
-    app.setChip($("#outputState"), "ok", t("Done"));
+    app.setChip($("#outputState"), "ok", "Done");
     $("#extractDone").hidden = false;
     var notes = [];
-    if (batch.length) notes.push(batch.length + t(" reports"));
-    if (report) notes.push((report.pages || 0) + t(" pages"));
-    if (model) notes.push((model.tables || 0) + t(" tables"));
+    if (batch.length) notes.push(batch.length + " reports");
+    if (report) notes.push((report.pages || 0) + " pages");
+    if (model) notes.push((model.tables || 0) + " tables");
     $("#extractDoneText").textContent = notes.join(" · ") ||
-      t("Workbooks saved to the output folder.");
+      "Workbooks saved to the output folder.";
     if (batch.length && result.summary_out) {
       $("#extractDoneText").textContent += " · " + result.summary_out;
     }
     var stepParts = [];
     if (model) {
-      stepParts.push((model.tables || 0) + t(" tables"));
-      stepParts.push((model.columns || 0) + t(" columns"));
+      stepParts.push((model.tables || 0) + " tables");
+      stepParts.push((model.columns || 0) + " columns");
     } else if (report) {
-      stepParts.push((report.pages || 0) + t(" pages"));
+      stepParts.push((report.pages || 0) + " pages");
     }
-    $("#stepStateExtract").textContent = t("Done · ") + stepParts.join(" · ");
+    $("#stepStateExtract").textContent = "Done · " + stepParts.join(" · ");
     app.setMetaStep("extract", false);
     $("#summaryEmpty").hidden = true;
     $("#summaryBody").hidden = false;
@@ -323,7 +322,7 @@ import { state } from "../core/state.js";
         }, 0)
         : "-");
     $("#sumRelations").textContent = model ? model.relationships : "—";
-    if (result.model_error) app.addLog(t("Note: ") + result.model_error, "warn");
+    if (result.model_error) app.addLog("Note: " + result.model_error, "warn");
     // Workbook paths now exist; refresh TSD checklist and unlock step 2.
     inspectTsd();
   }
@@ -333,11 +332,11 @@ import { state } from "../core/state.js";
     if (state.batchMode) {
       var selected = batchSelectedIds();
       if (selected.length < 2) {
-        app.toast(t("Choose at least two reports for a batch"));
+        app.toast("Choose at least two reports for a batch");
         return;
       }
       if (batchDatasetIds().length > 1) {
-        app.toast(t("Choose reports from the same dataset only."));
+        app.toast("Choose reports from the same dataset only.");
         return;
       }
     }
@@ -346,9 +345,9 @@ import { state } from "../core/state.js";
     $("#extractRun").hidden = false;
     $("#extractBar").style.width = "6%";
     $("#extractRunPct").textContent = "";
-    $("#extractRunLabel").textContent = t("Preparing extraction…");
-    $("#stepStateExtract").textContent = t("Running…");
-    app.setChip($("#outputState"), "warn", t("Running"));
+    $("#extractRunLabel").textContent = "Preparing extraction…";
+    $("#stepStateExtract").textContent = "Running…";
+    app.setChip($("#outputState"), "warn", "Running");
     var progress = 6;
     state.extractTimer = window.setInterval(function () {
       progress = Math.min(92, progress + (progress < 50 ? 6 : 2));
@@ -359,7 +358,7 @@ import { state } from "../core/state.js";
       kind: "metadata",
       path: "/api/metadata/run",
       body: payload,
-      label: t("Metadata extraction"),
+      label: "Metadata extraction",
       button: $("#runExtract"),
       onDone: function (snapshot) {
         $("#extractBar").style.width = "100%";
@@ -415,7 +414,7 @@ import { state } from "../core/state.js";
     $("#tsdOutFolder").value = paths.out_dir || form.out_dir || "";
     $("#tsdFileName").placeholder = paths.suggested_name
       ? "Otomatis: " + paths.suggested_name
-      : t("Automatic from the report name");
+      : "Automatic from the report name";
 
     if (!state.tsdLoaded) {
       $("#reportWorkbook").value = form.report_workbook || "";
@@ -442,39 +441,39 @@ import { state } from "../core/state.js";
     }
 
     $("#reportWorkbookStatus").textContent =
-      tr(status.report && status.report.text) || t("Not selected");
+      (status.report && status.report.text) || "Not selected";
     $("#modelWorkbookStatus").textContent =
-      tr(status.model && status.model.text) || t("Unused");
+      (status.model && status.model.text) || "Unused";
     $("#tsdOutputState").textContent =
-      tr(status.output && status.output.text) || t("No TSD document yet.");
+      (status.output && status.output.text) || "No TSD document yet.";
 
     var cache = status.cache || {};
     $("#shotCacheStatus").textContent = cache.exists
-      ? tr(cache.summary)
-      : t("No cache yet; screenshots are captured during generation.");
+      ? (cache.summary)
+      : "No cache yet; screenshots are captured during generation.";
     $("#shotCachePath").textContent = cache.path || paths.assets_dir || "";
     $("#clearShotCache").disabled = !cache.exists;
     app.setChip(
       $("#shotChip"),
       $("#shotEnabled").checked ? "ok" : "idle",
-      $("#shotEnabled").checked ? t("Active") : t("Inactive")
+      $("#shotEnabled").checked ? "Active" : "Inactive"
     );
 
     var checklist = data.checklist || {};
     markChecklist(
-      "checkReport", "checkReportText", t("Report workbook"),
-      Boolean(checklist.report), "tersedia", t("not selected")
+      "checkReport", "checkReportText", "Report workbook",
+      Boolean(checklist.report), "tersedia", "not selected"
     );
     markChecklist(
-      "checkModel", "checkModelText", t("Model workbook"),
+      "checkModel", "checkModelText", "Model workbook",
       Boolean(checklist.model), "tersedia", "opsional"
     );
     markChecklist(
       "checkTemplate", "checkTemplateText", "Template",
-      Boolean(checklist.template), "ditemukan", t("not found")
+      Boolean(checklist.template), "found", "not found"
     );
     markChecklist(
-      "checkContext", "checkContextText", t("Manual context"),
+      "checkContext", "checkContextText", "Manual context",
       Boolean(checklist.manual), "tersedia", "opsional"
     );
 
@@ -486,7 +485,7 @@ import { state } from "../core/state.js";
       $("#openTsdFile").disabled = false;
       if (!state.tsdLastResult) {
         $("#tsdTodoNote").textContent =
-          t("The last document is available. Run Generate TSD to refresh the statistics.");
+          "The last document is available. Run Generate TSD to refresh the statistics.";
       }
     } else if (!state.tsdLastResult) {
       $("#tsdPreviewEmpty").hidden = false;
@@ -503,7 +502,7 @@ import { state } from "../core/state.js";
       renderTsdState(data);
       return data;
     }).catch(function (error) {
-      app.addLog(t("TSD status could not be read: ") + error.message, "warn");
+      app.addLog("TSD status could not be read: " + error.message, "warn");
     });
   }
 
@@ -525,11 +524,11 @@ import { state } from "../core/state.js";
 
   function startTsdProgress(label) {
     state.tsdRunning = true;
-    $("#stepStateTsd").textContent = t("Running…");
+    $("#stepStateTsd").textContent = "Running…";
     $("#tsdRun").hidden = false;
     $("#tsdBar").style.width = "8%";
     $("#tsdRunPct").textContent = "";
-    $("#tsdRunLabel").textContent = label || t("Preparing the document…");
+    $("#tsdRunLabel").textContent = label || "Preparing the document…";
     var progress = 8;
     if (state.tsdTimer) window.clearInterval(state.tsdTimer);
     state.tsdTimer = window.setInterval(function () {
@@ -552,14 +551,14 @@ import { state } from "../core/state.js";
     $("#tsdStatMeasures").textContent = result.measures == null ? "—" : result.measures;
     $("#tsdStatTodos").textContent = todos;
     $("#tsdTodoNote").innerHTML = todos
-      ? (todos + t(" fields are marked <strong>TODO</strong> because they are empty in the manual context."))
-      : t("No TODO fields in this document.");
+      ? (todos + " fields are marked <strong>TODO</strong> because they are empty in the manual context.")
+      : "No TODO fields in this document.";
     var hasShots = Boolean(result.screenshot_root);
     $("#tsdShotRow").hidden = !hasShots;
     if (hasShots) {
       $("#tsdShotVal").textContent =
-        (result.screenshot_pages || 0) + t(" pages · ") +
-        (result.screenshot_visuals || 0) + t(" visuals · ") +
+        (result.screenshot_pages || 0) + " pages · " +
+        (result.screenshot_visuals || 0) + " visuals · " +
         (result.screenshot_mobile || 0) + " mobile";
     }
     state.tsdOutputPath = result.output || state.tsdOutputPath;
@@ -569,13 +568,13 @@ import { state } from "../core/state.js";
     $("#tsdBar").style.width = "100%";
     $("#tsdRunPct").textContent = "100%";
     state.tsdRunning = false;
-    $("#stepStateTsd").textContent = t("Document ready");
-    app.toast("TSD dibuat: " + pages + t(" pages / ") + visuals + t(" visuals"));
+    $("#stepStateTsd").textContent = "Document ready";
+    app.toast("TSD dibuat: " + pages + " pages / " + visuals + " visuals");
   }
 
   export function runTsd() {
     if (!app.apiReady()) return;
-    startTsdProgress(t("Preparing the TSD document…"));
+    startTsdProgress("Preparing the TSD document…");
     app.startJob({
       kind: "tsd",
       path: "/api/tsd/run",
@@ -609,25 +608,25 @@ import { state } from "../core/state.js";
   export function captureTsdScreenshots() {
     if (!app.apiReady()) return;
     if (!$("#shotEnabled").checked) {
-      app.toast(t("Check 'Capture screenshots' first"));
+      app.toast("Check 'Capture screenshots' first");
       return;
     }
     if (!getSelectValue("shotWorkspace") || !getSelectValue("shotReport")) {
-      app.toast(t("Choose a workspace and report for screenshots"));
+      app.toast("Choose a workspace and report for screenshots");
       return;
     }
-    startTsdProgress(t("Capturing report screenshots…"));
+    startTsdProgress("Capturing report screenshots…");
     app.startJob({
       kind: "tsd_capture",
       path: "/api/tsd/capture",
       body: tsdPayload(),
-      label: t("Capture report screenshots"),
+      label: "Capture report screenshots",
       button: $("#captureScreenshots"),
       onDone: function (snapshot) {
         var result = snapshot.result || {};
         app.toast(
-          "Screenshot: " + (result.pages || 0) + t(" pages / ") +
-          (result.visuals || 0) + t(" visuals")
+          "Screenshot: " + (result.pages || 0) + " pages / " +
+          (result.visuals || 0) + " visuals"
         );
         inspectTsd();
       }
@@ -636,10 +635,10 @@ import { state } from "../core/state.js";
 
   export function clearTsdCache() {
     if (!app.apiReady()) return;
-    if (!window.confirm(t("Clear the TSD screenshot cache for this report?"))) return;
+    if (!window.confirm("Clear the TSD screenshot cache for this report?")) return;
     app.api().post("/api/tsd/cache/clear", tsdPayload()).then(function (data) {
       if (data.state) renderTsdState(data.state);
-      app.toast(data.removed ? t("Screenshot cache cleared") : t("No cache yet"));
+      app.toast(data.removed ? "Screenshot cache cleared" : "No cache yet");
     }).catch(app.reportError);
   }
 
@@ -647,7 +646,7 @@ import { state } from "../core/state.js";
     var path = state.tsdOutputPath ||
       (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
     if (!path) {
-      app.toast(t("No TSD document yet"));
+      app.toast("No TSD document yet");
       return;
     }
     window.open(
@@ -662,7 +661,7 @@ import { state } from "../core/state.js";
       (state.tsd && state.tsd.paths && state.tsd.paths.out_file) || "";
     var folder = path ? app.parentDir(path) : $("#tsdOutFolder").value.trim();
     if (!folder) {
-      app.toast(t("Output folder not set"));
+      app.toast("Output folder not set");
       return;
     }
     app.api().post("/api/files/open", { path: folder, mode: "open" }).catch(app.reportError);
@@ -676,9 +675,9 @@ import { state } from "../core/state.js";
       $("#contextJson").value = data.path || path;
       state.tsdManualCustom = true;
       $("#contextStatus").textContent = data.exists
-        ? t("Sidecar loaded.")
-        : t("No sidecar yet; new content is written when you save.");
-      if (!quiet) app.toast(data.exists ? t("Manual context loaded") : t("Sidecar not found"));
+        ? "Sidecar loaded."
+        : "No sidecar yet; new content is written when you save.";
+      if (!quiet) app.toast(data.exists ? "Manual context loaded" : "Sidecar not found");
       scheduleTsdInspect();
       return data;
     }).catch(app.reportError);
@@ -694,8 +693,8 @@ import { state } from "../core/state.js";
       state.tsdManual = result.data || {};
       state.tsdManualCustom = true;
       $("#contextJson").value = result.path || path;
-      $("#contextStatus").textContent = t("Sidecar saved.");
-      if (!quiet) app.toast(t("Manual context saved"));
+      $("#contextStatus").textContent = "Sidecar saved.";
+      if (!quiet) app.toast("Manual context saved");
       scheduleTsdInspect();
       return result;
     }).catch(app.reportError);
@@ -712,7 +711,7 @@ import { state } from "../core/state.js";
     loadTsdManual(true).then(function () {
       $("#jsonDialogPath").textContent = tsdManualPath();
       $("#jsonEditor").value = JSON.stringify(state.tsdManual || {}, null, 2);
-      $("#jsonStatus").textContent = t("JSON must be an object. Save writes a sidecar at the path above.");
+      $("#jsonStatus").textContent = "JSON must be an object. Save writes a sidecar at the path above.";
       $("#jsonDialog").showModal();
       $("#jsonEditor").focus();
     });
@@ -725,18 +724,18 @@ import { state } from "../core/state.js";
       try {
         data = JSON.parse(text);
       } catch (error) {
-        $("#jsonStatus").textContent = t("Invalid JSON: ") + error.message;
+        $("#jsonStatus").textContent = "Invalid JSON: " + error.message;
         return;
       }
     }
     if (data === null || typeof data !== "object" || Array.isArray(data)) {
-      $("#jsonStatus").textContent = t("JSON content must be an object (not an array/null).");
+      $("#jsonStatus").textContent = "JSON content must be an object (not an array/null).";
       return;
     }
     saveTsdManualFile(data, true).then(function (result) {
       if (result) {
         $("#jsonDialog").close();
-        app.toast(t("Manual context saved"));
+        app.toast("Manual context saved");
       }
     });
   }

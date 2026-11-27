@@ -644,7 +644,7 @@ def diagnostics(conn: sqlite3.Connection) -> dict[str, Any]:
 def require_database(path: Path | str) -> Path:
     database = Path(path).expanduser()
     if not database.exists():
-        raise ExtractionError(f"Database lineage tidak ditemukan: {database}")
+        raise ExtractionError(f"Lineage database not found: {database}")
     return database
 
 
@@ -659,7 +659,7 @@ def open_read_only(path: Path | str) -> sqlite3.Connection:
         if conn is not None:
             close_quietly(conn)
         raise ExtractionError(
-            f"Database lineage tidak bisa dibaca: {database} ({exc})"
+            f"The lineage database could not be read: {database} ({exc})"
         ) from exc
     return conn
 

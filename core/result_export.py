@@ -130,9 +130,11 @@ def _quoted(text: Any) -> str:
 
 def _visual_name(record: Mapping[str, Any]) -> str:
     title = str(record.get("visual_title") or "").strip()
-    if title.startswith("(tanpa judul) "):
-        title = title[len("(tanpa judul) ") :].strip()
-        title = re.sub(r"\s+[0-9a-f]{8}$", "", title, flags=re.IGNORECASE)
+    for prefix in ("(untitled) ", "(tanpa judul) "):
+        if title.startswith(prefix):
+            title = title[len(prefix) :].strip()
+            title = re.sub(r"\s+[0-9a-f]{8}$", "", title, flags=re.IGNORECASE)
+            break
     return title or str(record.get("visual_type") or "visual")
 
 
@@ -686,7 +688,7 @@ def _object_rows(
                 name = "Power Query reference"
                 object_type = "Reference"
             else:
-                match = re.search(r"tabel '([^']+)'", obj)
+                match = re.search(r"table '([^']+)'", obj)
                 ref_table = match.group(1) if match else ""
                 name = "Incremental refresh"
                 object_type = "Incremental refresh"

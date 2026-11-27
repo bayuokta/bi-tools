@@ -107,10 +107,10 @@ def preview(request: Request, payload: dict[str, Any] | None = None) -> dict[str
     kind = str(data.get("kind") or "column").strip().lower()
     if not dataset_id or not table or not name:
         raise HTTPException(
-            status_code=400, detail="Pilih kolom atau measure terlebih dahulu."
+            status_code=400, detail="Select a column or measure first."
         )
     if kind not in {"column", "measure"}:
-        raise HTTPException(status_code=400, detail="Jenis item harus column/measure.")
+        raise HTTPException(status_code=400, detail="Item type must be column/measure.")
     limit = data.get("limit", 100)
     return submit_job(
         request,
@@ -134,10 +134,10 @@ def raw_metadata(
     kind = str(data.get("kind") or "column").strip().lower()
     if not dataset_id or not table or not name:
         raise HTTPException(
-            status_code=400, detail="Pilih kolom atau measure terlebih dahulu."
+            status_code=400, detail="Select a column or measure first."
         )
     if kind not in {"column", "measure"}:
-        raise HTTPException(status_code=400, detail="Jenis item harus column/measure.")
+        raise HTTPException(status_code=400, detail="Item type must be column/measure.")
     return submit_job(
         request,
         "analysis-raw-metadata",
@@ -154,7 +154,7 @@ def run(request: Request, payload: dict[str, Any] | None = None) -> dict[str, An
     data = payload or {}
     if not data.get("workspace_id") or not data.get("dataset_id"):
         raise HTTPException(
-            status_code=400, detail="Pilih workspace dan semantic model dulu."
+            status_code=400, detail="Choose a workspace and semantic model first."
         )
     try:
         store.auth().validate()

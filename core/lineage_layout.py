@@ -87,13 +87,13 @@ def build_graph(
             continue
         results.append((side, data))
     if not results:
-        raise ValueError("hasil lineage downstream atau upstream diperlukan")
+        raise ValueError("downstream or upstream lineage results are required")
 
     root_payload = dict(results[0][1]["root"])
     root_id = str(root_payload["node_id"])
     for _side, data in results[1:]:
         if str(data["root"].get("node_id") or "") != root_id:
-            raise ValueError("root kedua hasil lineage berbeda")
+            raise ValueError("the two lineage results have different roots")
 
     # Kumpulkan kandidat, urutkan yang paling dekat root agar batas node
     # memotong cabang terdalam terlebih dahulu.
@@ -196,7 +196,7 @@ def build_graph(
             LayoutNode(
                 node_id=node_id,
                 node_type=str(payload.get("node_type") or "Unknown"),
-                name=str(payload.get("name") or "(tanpa nama)"),
+                name=str(payload.get("name") or "(unnamed)"),
                 workspace_name=payload.get("workspace_name"),
                 depth=abs(columns[node_id]),
                 column=columns[node_id],

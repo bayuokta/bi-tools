@@ -91,8 +91,8 @@ async def _send_json(send: Send, status: int, payload: dict) -> None:
 
 
 MISSING_TOKEN_HTML = """<!doctype html>
-<html lang="id"><head><meta charset="utf-8">
-<title>BI Tools - sesi tidak dikenal</title>
+<html lang="en"><head><meta charset="utf-8">
+<title>BI Tools - unknown session</title>
 <style>
 body{font-family:"Segoe UI",sans-serif;background:#0e1116;color:#e9edf3;
 display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
@@ -103,11 +103,11 @@ p{line-height:1.55;margin:.4rem 0;color:#b9c2d0}
 code{background:#10151c;border:1px solid #28303d;border-radius:4px;
 padding:.1rem .35rem;color:#f2c811}
 </style></head><body><main>
-<h1>Sesi server tidak dikenal</h1>
-<p>Halaman ini hanya bisa dibuka lewat tautan yang dibuat aplikasi.</p>
-<p>Jalankan <code>BI Tools</code> lagi (atau <code>python -m server</code> dari
-source) lalu gunakan tautan yang muncul di jendela konsol.</p>
-<p>Bila server sudah berjalan, tutup tab ini dan buka tautan dari konsol.</p>
+<h1>Unknown server session</h1>
+<p>This page can only be opened through the link created by the application.</p>
+<p>Start <code>BI Tools</code> again (or <code>python -m server</code> from
+source), then use the link shown in the console window.</p>
+<p>If the server is already running, close this tab and open the link from the console.</p>
 </main></body></html>
 """
 
@@ -143,7 +143,7 @@ class LocalGuard:
         host = _header(scope, "host").lower()
         if self.allowed_hosts and host not in self.allowed_hosts:
             await _send_json(
-                send, 400, {"detail": "Host tidak dikenal untuk server lokal."}
+                send, 400, {"detail": "Unknown host for the local server."}
             )
             return
 
@@ -173,7 +173,7 @@ class LocalGuard:
                 )
                 await send({"type": "http.response.body", "body": body})
                 return
-            await _send_json(send, 401, {"detail": "Token sesi tidak valid."})
+            await _send_json(send, 401, {"detail": "Invalid session token."})
             return
 
         bootstrap = _same_token(query_token, self.token) and not _same_token(

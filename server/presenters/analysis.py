@@ -147,11 +147,11 @@ KIND_SORT = "sort by"
 KIND_FIELD_PARAMETER = "field parameter"
 
 USAGE_LABELS = {
-    "field": "Field",
-    "filter-report": "Filter report",
-    "filter-page": "Filter halaman",
-    "filter-visual": "Filter visual",
-    "filter-query": "Filter query",
+    "field": "Visual field",
+    "filter-report": "Report filter",
+    "filter-page": "Page filter",
+    "filter-visual": "Visual filter",
+    "filter-query": "Visual query filter",
     "sort": "Sort",
     "format": "Format",
     "calculation": "Visual calculation",
@@ -237,10 +237,10 @@ def save_preferences(store: SettingsStore, payload: Mapping[str, Any]) -> dict[s
     current = analysis_settings(store)
     object_filter = str(payload.get("object_filter", current["object_filter"]))
     if object_filter not in OBJECT_FILTERS:
-        raise ExtractionError(f"Filter objek tidak dikenal: {object_filter}")
+        raise ExtractionError(f"Unknown object filter: {object_filter}")
     sort_column = str(payload.get("sort_column", current["sort_column"]))
     if sort_column not in SORT_KEYS:
-        raise ExtractionError(f"Kolom sort tidak dikenal: {sort_column}")
+        raise ExtractionError(f"Unknown sort column: {sort_column}")
     store.update(
         {
             keys.SETTINGS_ANALYSIS_OBJECT_FILTER_KEY: object_filter,
@@ -513,7 +513,7 @@ def _filter_type(detail: str) -> str:
 
 def _security_table(detail: str) -> str:
     text = str(detail or "")
-    match = re.search(r"tabel '((?:[^']|'')+)'", text)
+    match = re.search(r"table '((?:[^']|'')+)'", text)
     if match:
         return match.group(1).replace("''", "'")
     object_match = re.search(r"'((?:[^']|'')+)'\s*\[[^\]]+\]", text)
@@ -680,7 +680,7 @@ def _usage_groups(
                     2: entry["name"],
                     3: "Model",
                     5: info.get("size") or "",
-                    6: "Dipakai",
+                    6: "Used",
                     7: entry["count"],
                 },
             )
@@ -1043,7 +1043,7 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
         counts: dict[str, int] = {}
         for item in items:
             counts[item.status] = counts.get(item.status, 0) + 1
-        used = sum(1 for item in items if item.status != "Tidak dipakai")
+        used = sum(1 for item in items if item.status != "Unused")
         size_bytes = int(table.size_total_bytes)
         rows.append(
             {
@@ -1100,8 +1100,8 @@ def _relationship_row(item: Mapping[str, Any]) -> dict[str, Any]:
         "cross": cross,
         "cross_filtering": cross_filtering,
         "cardinality": cardinality,
-        "status": "Dipakai" if is_active else "Tidak dipakai",
-        "auto": "Ya" if item.get("is_auto") else "Tidak",
+        "status": "Used" if is_active else "Unused",
+        "auto": "Yes" if item.get("is_auto") else "No",
         "used": int(item.get("dependent_count") or 0),
         "security_filtering": str(item.get("security_filtering") or ""),
         "is_active": is_active,
@@ -1276,12 +1276,12 @@ def report_detail_payload(
     dataset = str(dataset_id or "").strip()
     report = str(report_id or "").strip()
     if not dataset or not report:
-        raise ExtractionError("Dataset dan report harus dipilih.")
+        raise ExtractionError("Choose a dataset and report.")
     session = _session(dataset, create=False)
     if session is None:
         raise ExtractionError(
-            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
-            "(hasil tidak disimpan ke database)."
+            "No analysis results in this session yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     with session.lock:
         return report_detail(session.conn, dataset, report)
@@ -1302,19 +1302,19 @@ def lineage_payload(
     """Graph lineage satu kolom/measure dari sesi analisa in-memory."""
     dataset = str(dataset_id or "").strip()
     if not dataset:
-        raise ExtractionError("Dataset harus dipilih.")
+        raise ExtractionError("Choose a dataset.")
     session = _session(dataset, create=False)
     if session is None:
         raise ExtractionError(
-            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
-            "(hasil tidak disimpan ke database)."
+            "No analysis results in this session yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     with session.lock:
         result = snapshot_from_connection(session.conn, dataset)
     if result is None:
         raise ExtractionError(
-            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
-            "dulu (hasil tidak disimpan ke database)."
+            "No analysis results for this dataset yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     try:
         if str(kind).strip().lower() == "table":
@@ -1342,19 +1342,19 @@ def lineage_payload(
 def _session_result(dataset_id: str) -> Any:
     dataset = str(dataset_id or "").strip()
     if not dataset:
-        raise ExtractionError("Dataset harus dipilih.")
+        raise ExtractionError("Choose a dataset.")
     session = _session(dataset, create=False)
     if session is None:
         raise ExtractionError(
-            "Belum ada hasil analisa di sesi ini. Jalankan analisa lebih dulu "
-            "(hasil tidak disimpan ke database)."
+            "No analysis results in this session yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     with session.lock:
         result = snapshot_from_connection(session.conn, dataset)
     if result is None:
         raise ExtractionError(
-            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
-            "dulu (hasil tidak disimpan ke database)."
+            "No analysis results for this dataset yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     return result
 
@@ -1377,7 +1377,7 @@ def _find_analysis(result: Any, kind: str, table: str, name: str) -> Any:
         ):
             return item
     raise ExtractionError(
-        "Kolom/measure tidak ditemukan di hasil analisa. Jalankan analisa ulang."
+        "Column/measure was not found in the analysis results. Run the analysis again."
     )
 
 
@@ -1419,13 +1419,13 @@ def preview_payload(
         )
     except XmlaError as exc:
         raise ExtractionError(
-            f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
-            f"{exc}\nPastikan XMLA Read aktif dan akun punya akses ke workspace."
+            f"Cannot connect to the XMLA workspace '{result.workspace_name}': "
+            f"{exc}\nMake sure XMLA Read is enabled and the account can access the workspace."
         ) from exc
     try:
         rows = client.query_sql(query, timeout=QUERY_TIMEOUT)
     except XmlaError as exc:
-        raise ExtractionError(f"Query data mentah gagal: {exc}") from exc
+        raise ExtractionError(f"Raw data query failed: {exc}") from exc
     finally:
         client.close()
     return build_preview_payload(rows, query=query, limit=limit)
@@ -1481,15 +1481,15 @@ def raw_metadata_payload(
         )
     except XmlaError as exc:
         raise ExtractionError(
-            f"Tidak bisa terhubung ke XMLA workspace '{result.workspace_name}': "
-            f"{exc}\nPastikan XMLA Read aktif dan akun punya akses ke workspace."
+            f"Cannot connect to the XMLA workspace '{result.workspace_name}': "
+            f"{exc}\nMake sure XMLA Read is enabled and the account can access the workspace."
         ) from exc
     dmv = MEASURE_DMV if is_measure else COLUMN_DMV
     try:
         tables = client.query(TABLE_DMV)
         rows = client.query(dmv)
     except XmlaError as exc:
-        raise ExtractionError(f"Metadata TMSCHEMA tidak bisa dibaca: {exc}") from exc
+        raise ExtractionError(f"TMSCHEMA metadata could not be read: {exc}") from exc
     finally:
         client.close()
     row = find_row(
@@ -1505,8 +1505,8 @@ def raw_metadata_payload(
     )
     if not payload["found"]:
         raise ExtractionError(
-            f"Baris {dmv} untuk '{node_table}'[{node_name}] tidak ditemukan. "
-            "Jalankan analisa ulang atau periksa nama objek."
+            f"{dmv} row for '{node_table}'[{node_name}] was not found. "
+            "Run the analysis again or check the object name."
         )
     return payload
 
@@ -1523,7 +1523,7 @@ def export_lineage(
     category = str(payload.get("category") or "all").strip().lower()
     export_format = str(payload.get("format") or "all").strip().lower()
     if export_format not in {"all", "csv", "json"}:
-        raise ExtractionError("Format ekspor harus csv, json, atau all.")
+        raise ExtractionError("Export format must be csv, json, or all.")
     result = _session_result(dataset_id)
     try:
         if kind == "table":
@@ -1550,8 +1550,8 @@ def export_lineage(
         )
     except OSError as exc:
         raise ExtractionError(
-            f"Tidak bisa menulis berkas ekspor: {exc}. Tutup file yang sedang "
-            "dibuka lalu coba lagi."
+            f"Could not write the export file: {exc}. Close the open file "
+            "and try again."
         ) from exc
 
 
@@ -1575,8 +1575,8 @@ def export_lineage_image(
         raise ExtractionError(str(exc)) from exc
     except OSError as exc:
         raise ExtractionError(
-            f"Tidak bisa menulis gambar lineage: {exc}. Tutup file yang sedang "
-            "dibuka lalu coba lagi."
+            f"Could not write the lineage image: {exc}. Close the open file "
+            "and try again."
         ) from exc
 
 
@@ -1596,8 +1596,8 @@ def export_dependencies(
         )
     except OSError as exc:
         raise ExtractionError(
-            f"Tidak bisa menulis berkas ekspor: {exc}. Tutup file yang sedang "
-            "dibuka lalu coba lagi."
+            f"Could not write the export file: {exc}. Close the open file "
+            "and try again."
         ) from exc
     return {"path": str(path), "rows": len(rows)}
 
@@ -1608,7 +1608,7 @@ def run_job(
     workspace_id = str(payload.get("workspace_id") or "").strip()
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not workspace_id or not dataset_id:
-        raise ExtractionError("Pilih workspace dan semantic model dulu.")
+        raise ExtractionError("Choose a workspace and semantic model first.")
     principal: Any = store.auth()
     principal.validate()
     database = database_path(store)
@@ -1649,26 +1649,26 @@ def run_job(
 def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not dataset_id:
-        raise ExtractionError("Semantic model belum dipilih.")
+        raise ExtractionError("No semantic model selected.")
     tab = str(payload.get("tab") or "all").strip().lower() or "all"
     session = _session(dataset_id, create=False)
     if session is None:
         raise ExtractionError(
-            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
-            "dulu (hasil tidak disimpan ke database)."
+            "No analysis results for this dataset yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     with session.lock:
         result = snapshot_from_connection(session.conn, dataset_id)
     if result is None:
         raise ExtractionError(
-            "Belum ada hasil analisa untuk dataset ini. Jalankan analisa lebih "
-            "dulu (hasil tidak disimpan ke database)."
+            "No analysis results for this dataset yet. Run the analysis first "
+            "(results are not saved to the database)."
         )
     text = str(payload.get("output") or "").strip().strip('"')
     if text:
         target = Path(text).expanduser()
         if not target.is_absolute():
-            raise ExtractionError("Path ekspor harus absolut.")
+            raise ExtractionError("Export path must be absolute.")
     else:
         suffix = dataset_id.replace("-", "")[:8]
         safe = re.sub(r'[<>:"/\\|?*]+', " ", str(result.dataset_name or ""))
@@ -1694,10 +1694,10 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         "bestpractice",
     }:
         raise ExtractionError(
-            "Export untuk tab ini belum tersedia (coming soon)."
+            "Export for this tab is not available yet (coming soon)."
         )
     else:
-        raise ExtractionError(f"Tab export tidak dikenal: {tab}")
+        raise ExtractionError(f"Unknown export tab: {tab}")
     return {
         "path": str(target),
         "size": target.stat().st_size if target.exists() else 0,

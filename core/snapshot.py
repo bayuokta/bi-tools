@@ -73,7 +73,7 @@ def _quick_check(path: Path) -> None:
         conn.close()
     if not result or str(result[0]).lower() != "ok":
         raise ExtractionError(
-            f"Snapshot database rusak: {result[0] if result else 'tidak diketahui'}"
+            f"Snapshot database rusak: {result[0] if result else 'unknown'}"
         )
 
 
@@ -83,8 +83,8 @@ def ensure_schema(path: Path) -> dict[str, str]:
     version = str(meta.get("schema_version") or "").strip()
     if version and version.isdigit() and int(version) > SCHEMA_VERSION:
         raise ExtractionError(
-            "Snapshot database memakai skema yang lebih baru "
-            f"({version}) daripada aplikasi ({SCHEMA_VERSION}). Perbarui aplikasi."
+            "The database snapshot uses a newer schema "
+            f"({version}) than the application ({SCHEMA_VERSION}). Update the application."
         )
     return meta
 
@@ -99,7 +99,7 @@ def publish_snapshot(
     source = Path(database).expanduser().resolve()
     destination = Path(target).expanduser().resolve()
     if not source.exists():
-        raise ExtractionError(f"Database sumber tidak ditemukan: {source}")
+        raise ExtractionError(f"Source database not found: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     _set_meta(
@@ -143,7 +143,7 @@ def prepare_local_snapshot(
     origin = Path(source).expanduser().resolve()
     destination = Path(local).expanduser().resolve()
     if not origin.exists():
-        raise ExtractionError(f"Snapshot tidak ditemukan: {origin}")
+        raise ExtractionError(f"Snapshot not found: {origin}")
     if origin == destination:
         _quick_check(destination)
         return {"path": str(destination), "updated": False, "meta": ensure_schema(destination)}
@@ -155,7 +155,7 @@ def prepare_local_snapshot(
     actual = sha256_file(origin)
     if expected and expected != actual:
         raise ExtractionError(
-            "Checksum snapshot tidak cocok; unduhan tidak lengkap atau file berubah."
+            "Snapshot checksum mismatch; the download is incomplete or the file changed."
         )
 
     destination.parent.mkdir(parents=True, exist_ok=True)

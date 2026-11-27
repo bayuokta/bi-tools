@@ -52,7 +52,7 @@ def safe_name(value: str, fallback: str = "Analisa") -> str:
 
 
 def output_stem(table: str, name: str) -> str:
-    safe_table = safe_name(table, "Tabel")
+    safe_table = safe_name(table, "Table")
     safe_item = safe_name(name, "Item")
     if safe_item.casefold() == safe_table.casefold():
         return safe_table
@@ -135,15 +135,15 @@ def write_lineage_image(
     """
     fmt = str(image_format or "").strip().lower()
     if fmt not in IMAGE_FORMATS:
-        raise ValueError("Format gambar harus svg atau png.")
+        raise ValueError("Image format must be svg or png.")
     text = str(content or "").strip()
     if not text:
         raise ValueError("Isi gambar lineage kosong.")
     if fmt == "svg":
         if not text.lower().startswith("<svg"):
-            raise ValueError("Isi SVG tidak valid.")
+            raise ValueError("SVG content is not valid.")
         if "<script" in text.lower():
-            raise ValueError("SVG tidak boleh memuat script.")
+            raise ValueError("SVG must not contain scripts.")
         data = text.encode("utf-8")
     else:
         if text.startswith("data:image/png;base64,"):
@@ -151,11 +151,11 @@ def write_lineage_image(
         try:
             data = base64.b64decode(text, validate=True)
         except (binascii.Error, ValueError) as exc:
-            raise ValueError("Data PNG tidak valid.") from exc
+            raise ValueError("PNG data is not valid.") from exc
         if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-            raise ValueError("Data PNG tidak valid.")
+            raise ValueError("PNG data is not valid.")
     if len(data) > MAX_IMAGE_BYTES:
-        raise ValueError("Ukuran gambar melebihi 25 MB.")
+        raise ValueError("Image size exceeds 25 MB.")
     stem = (
         safe_name(file_stem, "lineage")
         if str(file_stem or "").strip()

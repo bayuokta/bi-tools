@@ -23,12 +23,12 @@ CancelCheck = Callable[[], bool]
 
 
 class BusyError(RuntimeError):
-    """Sudah ada pekerjaan yang berjalan."""
+    """A job is already running."""
 
     def __init__(self, job: "Job") -> None:
         super().__init__(
-            f"Pekerjaan lain masih berjalan: {job.label or job.kind}. "
-            "Tunggu sampai selesai."
+            f"Another job is still running: {job.label or job.kind}. "
+            "Wait for it to finish."
         )
         self.job = job
 
@@ -229,7 +229,7 @@ class JobManager:
         job = self.get(job_id)
         if job.running:
             job.cancel_requested.set()
-            job.log("Permintaan berhenti dikirim; menunggu langkah yang berjalan.")
+            job.log("Stop requested; waiting for the running step.")
         return job.snapshot(include_log=False)
 
     def history(self) -> list[dict[str, Any]]:

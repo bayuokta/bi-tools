@@ -197,7 +197,7 @@ def snapshot_from_server(
             available = []
         detail = f" Dataset tersedia: {', '.join(available)}." if available else ""
         raise ExtractionError(
-            f"Dataset '{dataset}' tidak ditemukan di server TOM.{detail}"
+            f"Dataset '{dataset}' was not found on the TOM server.{detail}"
         ) from exc
 
     model = database.Model
@@ -216,7 +216,7 @@ def snapshot_from_server(
                 _definition(data_source, "Data source", settings, api, serialize_options, database),
             )
     except Exception as exc:  # noqa: BLE001 - engine lama bisa tanpa DataSources
-        raise ExtractionError(f"Data source model tidak bisa dibaca: {exc}") from exc
+        raise ExtractionError(f"The model data source could not be read: {exc}") from exc
 
     for table in model.Tables:
         table_name = str(table.Name)

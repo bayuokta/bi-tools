@@ -31,7 +31,7 @@ def validate_scope(scope: str) -> str:
     value = str(scope or SCOPE_BOTH).strip().lower()
     if value not in SCOPES:
         raise ExtractionError(
-            "Cakupan ekstraksi harus salah satu: " + ", ".join(SCOPES) + "."
+            "Extraction scope must be one of: " + ", ".join(SCOPES) + "."
         )
     return value
 
@@ -63,7 +63,7 @@ class LocalMetadataRequest:
         if self.pbix is not None:
             object.__setattr__(self, "pbix", _path(self.pbix))
         if self.port is not None and int(self.port) <= 0:
-            raise ExtractionError(f"Port instance Desktop tidak valid: {self.port}.")
+            raise ExtractionError(f"Invalid Desktop instance port: {self.port}.")
 
     @property
     def extract_report(self) -> bool:
@@ -134,26 +134,26 @@ class ServiceMetadataRequest:
 
         if report_ids and len(report_ids) > MAX_BATCH_REPORTS:
             raise ExtractionError(
-                f"Maksimal {MAX_BATCH_REPORTS} report per batch; "
-                f"dipilih {len(report_ids)}."
+                f"At most {MAX_BATCH_REPORTS} reports per batch; "
+                f"{len(report_ids)} selected."
             )
         if scope != SCOPE_MODEL:
             if not self.workspace_id or not (self.report_id or report_ids):
                 raise ExtractionError(
-                    "Sumber report Power BI Service belum lengkap: isi Workspace ID "
-                    "dan Report ID (atau pilih beberapa report)."
+                    "The Power BI Service report source is incomplete: fill in the "
+                    "Workspace ID and Report ID (or select several reports)."
                 )
             # Validasi GUID dilakukan di satu tempat: ServiceReportRef.
             for item in self.report_ids or ((self.report_id,) if self.report_id else ()):
                 ServiceReportRef.from_ids(self.workspace_id, item)
         if scope != SCOPE_REPORT and not self.endpoint:
             raise ExtractionError(
-                "Endpoint XMLA workspace belum diisi; model service tidak bisa "
-                "diekstrak tanpa endpoint."
+                "The workspace XMLA endpoint is not set; the service model cannot "
+                "be extracted without it."
             )
         if report_ids and scope == SCOPE_MODEL:
             raise ExtractionError(
-                "Batch report tidak bisa dipakai dengan cakupan model saja."
+                "Batch reports cannot be used with model-only scope."
             )
 
     @property
@@ -229,11 +229,11 @@ class BackupRequest:
         )
         items = tuple(self.items or ())
         if not items:
-            raise ExtractionError("Pilih minimal satu item untuk dibackup.")
+            raise ExtractionError("Select at least one item to back up.")
         checked: list[BackupItem] = []
         for item in items:
             if not isinstance(item, BackupItem):
-                raise ExtractionError("Item backup tidak valid.")
+                raise ExtractionError("Invalid backup item.")
             object.__setattr__(
                 item, "item_id", _guid(item.item_id, f"ID {item.label}")
             )
@@ -241,7 +241,7 @@ class BackupRequest:
         object.__setattr__(self, "items", tuple(checked))
         folder = _path(self.folder)
         if not folder.is_absolute():
-            raise ExtractionError("Folder backup harus absolut.")
+            raise ExtractionError("Backup folder must be absolute.")
         object.__setattr__(self, "folder", folder)
         object.__setattr__(
             self, "workspace_name", str(self.workspace_name or "").strip()
@@ -254,7 +254,7 @@ class BackupRequest:
         payload = dict(value or {})
         raw = payload.get("items")
         if not isinstance(raw, list) or not raw:
-            raise ExtractionError("Pilih minimal satu item untuk dibackup.")
+            raise ExtractionError("Select at least one item to back up.")
         return cls(
             workspace_id=str(payload.get("workspace_id") or ""),
             items=tuple(BackupItem.from_payload(row) for row in raw),
@@ -293,11 +293,11 @@ class RestoreRequest:
         )
         target = _path(self.file)
         if not target.is_absolute():
-            raise ExtractionError("Path file backup harus absolut.")
+            raise ExtractionError("Backup file path must be absolute.")
         if target.suffix.lower() != ".zip":
-            raise ExtractionError("File backup harus berformat .zip.")
+            raise ExtractionError("The backup file must be a .zip file.")
         if not target.is_file():
-            raise ExtractionError(f"File backup tidak ditemukan: {target}")
+            raise ExtractionError(f"Backup file not found: {target}")
         object.__setattr__(self, "file", target)
         object.__setattr__(
             self, "workspace_name", str(self.workspace_name or "").strip()
@@ -305,10 +305,10 @@ class RestoreRequest:
         target_id = str(self.target_id or "").strip()
         if self.overwrite:
             if not target_id:
-                raise ExtractionError("Pilih item tujuan yang akan ditimpa.")
+                raise ExtractionError("Select the target item to overwrite.")
             target_id = _guid(target_id, "ID item tujuan")
         elif target_id:
-            raise ExtractionError("Target item hanya dipakai saat menimpa.")
+            raise ExtractionError("A target item is only used when overwriting.")
         object.__setattr__(self, "target_id", target_id)
         object.__setattr__(
             self, "target_name", str(self.target_name or "").strip()
@@ -361,7 +361,7 @@ class TsdRequest:
     def __post_init__(self) -> None:
         report = _path(self.report_workbook)
         if report.suffix.lower() != ".xlsx":
-            raise ExtractionError(f"Workbook report harus file .xlsx: {report}")
+            raise ExtractionError(f"The report workbook must be an .xlsx file: {report}")
         object.__setattr__(self, "report_workbook", report)
         object.__setattr__(self, "model_workbook", self._optional(self.model_workbook))
         object.__setattr__(self, "out_file", self._optional(self.out_file))
@@ -465,11 +465,11 @@ def _guid(value: str, label: str) -> str:
     """Normalisasi GUID; nilai kosong/asing ditolak dengan pesan yang jelas."""
     text = str(value or "").strip()
     if not text:
-        raise ExtractionError(f"{label} masih kosong.")
+        raise ExtractionError(f"{label} is still empty.")
     try:
         parsed = UUID(text)
     except ValueError as exc:
-        raise ExtractionError(f"{label} bukan GUID yang valid: {text}.") from exc
+        raise ExtractionError(f"{label} is not a valid GUID: {text}.") from exc
     return str(parsed)
 
 
@@ -511,18 +511,18 @@ class AnalysisRequest:
             value = int(self.max_reports)
             if value <= 0:
                 raise ExtractionError(
-                    f"Batas report per analisa harus > 0: {self.max_reports}."
+                    f"The report limit per analysis must be > 0: {self.max_reports}."
                 )
             object.__setattr__(self, "max_reports", value)
         try:
             workers = int(self.scan_workers)
         except (TypeError, ValueError) as exc:
             raise ExtractionError(
-                f"Jumlah worker scan report tidak valid: {self.scan_workers}."
+                f"Invalid report scan worker count: {self.scan_workers}."
             ) from exc
         if workers < 1 or workers > 4:
             raise ExtractionError(
-                f"Jumlah worker scan report harus 1-4: {self.scan_workers}."
+                f"The report scan worker count must be 1-4: {self.scan_workers}."
             )
         object.__setattr__(self, "scan_workers", workers)
 
@@ -599,18 +599,18 @@ class PartitionRefreshRequest(PartitionRequest):
                     table, partition = item
                 except (TypeError, ValueError) as exc:
                     raise ExtractionError(
-                        "Target partisi harus berisi pasangan (table, partition)."
+                        "Partition targets must contain (table, partition) pairs."
                     ) from exc
                 table = str(table or "").strip()
                 partition = str(partition or "").strip()
             if not table or not partition:
-                raise ExtractionError("Nama tabel dan partisi tidak boleh kosong.")
+                raise ExtractionError("Table and partition names cannot be empty.")
             key = (table, partition)
             if key not in seen:
                 seen.add(key)
                 pairs.append(key)
         if not pairs:
-            raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
+            raise ExtractionError("Select at least one partition to process.")
         object.__setattr__(self, "targets", tuple(pairs))
 
         from .partition_plan import normalize_refresh_type
@@ -620,7 +620,7 @@ class PartitionRefreshRequest(PartitionRequest):
         confirmation = str(self.confirmation or "").strip().upper()
         if confirmation != PARTITION_CONFIRMATION:
             raise ExtractionError(
-                f"Ketik {PARTITION_CONFIRMATION} untuk mengonfirmasi refresh partisi."
+                f"Ketik {PARTITION_CONFIRMATION} to confirm the partition refresh."
             )
         object.__setattr__(self, "confirmation", confirmation)
 
@@ -657,7 +657,7 @@ class CompareSide:
     def __post_init__(self) -> None:
         kind = str(self.kind or "").strip().lower()
         if kind not in {COMPARE_SIDE_DATASET, COMPARE_SIDE_DESKTOP}:
-            raise ExtractionError("Tipe sumber harus 'dataset' atau 'desktop'.")
+            raise ExtractionError("Source type must be 'dataset' or 'desktop'.")
         object.__setattr__(self, "kind", kind)
         if kind == COMPARE_SIDE_DATASET:
             object.__setattr__(
@@ -676,12 +676,12 @@ class CompareSide:
             try:
                 port = int(self.port)
             except (TypeError, ValueError) as exc:
-                raise ExtractionError("Port instance Desktop tidak valid.") from exc
+                raise ExtractionError("Invalid Desktop instance port.") from exc
             if port <= 0:
-                raise ExtractionError("Pilih instance Power BI Desktop dulu.")
+                raise ExtractionError("Select a Power BI Desktop instance first.")
             catalog = str(self.catalog or "").strip()
             if not catalog:
-                raise ExtractionError("Catalog instance Desktop masih kosong.")
+                raise ExtractionError("The Desktop instance catalog is still empty.")
             object.__setattr__(self, "port", port)
             object.__setattr__(self, "catalog", catalog)
 
@@ -732,9 +732,9 @@ class CompareRequest:
         if not isinstance(self.source, CompareSide) or not isinstance(
             self.target, CompareSide
         ):
-            raise ExtractionError("Sumber dan target perbandingan tidak valid.")
+            raise ExtractionError("Invalid comparison source and target.")
         if self.source.identity == self.target.identity:
-            raise ExtractionError("Sumber dan target tidak boleh model yang sama.")
+            raise ExtractionError("Source and target cannot be the same model.")
 
     @classmethod
     def from_payload(cls, value: Mapping[str, Any] | None) -> "CompareRequest":
@@ -743,7 +743,7 @@ class CompareRequest:
         target = CompareSide.from_payload(payload.get("target"))
         options = payload.get("options")
         if options is not None and not isinstance(options, Mapping):
-            raise ExtractionError("Opsi perbandingan tidak valid.")
+            raise ExtractionError("Invalid comparison options.")
         return cls(source=source, target=target, options=options)
 
     def to_run_kwargs(self) -> dict[str, Any]:

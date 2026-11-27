@@ -245,7 +245,7 @@ class DefinitionParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ExtractionError) as ctx:
                 materialize_definition(definition, Path(tmp))
-        self.assertIn("tidak aman", str(ctx.exception))
+        self.assertIn("Unsafe", str(ctx.exception))
 
 
 class FabricClientTests(unittest.TestCase):
@@ -415,7 +415,7 @@ class ServiceMetadataJobTests(unittest.TestCase):
                 extract_report=True,
                 extract_model=False,
             )
-        self.assertIn("Token Fabric", str(ctx.exception))
+        self.assertIn("Fabric token", str(ctx.exception))
 
     def test_nothing_selected_is_rejected(self) -> None:
         with self.assertRaises(ExtractionError) as ctx:
@@ -424,7 +424,7 @@ class ServiceMetadataJobTests(unittest.TestCase):
                 extract_report=False,
                 extract_model=False,
             )
-        self.assertIn("sama-sama dimatikan", str(ctx.exception))
+        self.assertIn("both report and model scopes are disabled", str(ctx.exception))
 
     def test_model_without_endpoint_is_rejected(self) -> None:
         with self.assertRaises(ExtractionError) as ctx:
@@ -433,7 +433,7 @@ class ServiceMetadataJobTests(unittest.TestCase):
                 extract_model=True,
                 extract_report=False,
             )
-        self.assertIn("Tidak ada file yang dibuat", str(ctx.exception))
+        self.assertIn("No files were created", str(ctx.exception))
 
     def test_model_via_desktop_instance(self) -> None:
         captured: dict = {}
@@ -546,7 +546,7 @@ class ReportUsageSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ExtractionError) as ctx:
                 _resolve_report_usage(Path(tmp), None, False)
-        self.assertIn("tidak lengkap", str(ctx.exception))
+        self.assertIn("Incomplete", str(ctx.exception))
 
 
 class ServiceReportJobTests(unittest.TestCase):

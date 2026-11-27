@@ -56,20 +56,20 @@ def instances_payload() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - dilaporkan ke halaman
         return {
             "instances": [],
-            "hint": f"Instance Power BI Desktop tidak bisa dibaca: {exc}",
+            "hint": f"The Power BI Desktop instance could not be read: {exc}",
         }
     if not items:
         hint = (
-            "Tidak ada instance Power BI Desktop yang terbuka. "
-            "Buka file .pbix lalu muat ulang."
+            "No Power BI Desktop instance is open. "
+            "Open a .pbix file, then reload."
         )
     elif len(items) > 1:
         hint = (
-            "Ada lebih dari satu instance Power BI Desktop. "
-            "Pilih instance yang sesuai sebelum menjalankan."
+            "More than one Power BI Desktop instance is open. "
+            "Choose the matching instance before running."
         )
     else:
-        hint = "Satu instance ditemukan dan dipakai otomatis."
+        hint = "One instance was found and used automatically."
     return {
         "instances": [
             {
@@ -89,16 +89,16 @@ def instances_payload() -> dict[str, Any]:
 def _pbix_detail(info: PbixSourceInfo) -> str:
     if info.has_local_model:
         return (
-            "Metadata model tersimpan di dalam .pbix. Ekstraksi model memakai "
-            "XMLA, jadi Power BI Desktop harus terbuka."
+            "Model metadata is stored inside the .pbix. Model extraction uses "
+            "XMLA, so Power BI Desktop must be open."
         )
     if info.is_live_connection:
         dataset = f" Dataset: {info.dataset_id}." if info.dataset_id else ""
         return (
-            f"Thin report ke dataset remote.{dataset} Metadata model tidak "
-            "tersedia di file; hanya report yang diekstrak."
+            f"Thin report to a remote dataset.{dataset} Model metadata is not "
+            "available in the file; only the report is extracted."
         )
-    return "Jenis sumber tidak dikenali. Report tetap bisa dicoba bila PBIR tersedia."
+    return "Source type was not recognized. The report can still be tried when PBIR is available."
 
 
 def pbix_payload(path: str) -> dict[str, Any]:
@@ -108,7 +108,7 @@ def pbix_payload(path: str) -> dict[str, Any]:
         "path": "",
         "exists": False,
         "kind": "",
-        "label": "Belum ada file .pbix dipilih.",
+        "label": "No .pbix file selected yet.",
         "detail": "",
         "has_pbir": False,
         "has_local_model": False,
@@ -122,7 +122,7 @@ def pbix_payload(path: str) -> dict[str, Any]:
         return {
             **empty,
             "path": str(target),
-            "label": f"File tidak ditemukan: {target}",
+            "label": f"File not found: {target}",
         }
     try:
         info = detect_pbix_source(target)
@@ -131,11 +131,11 @@ def pbix_payload(path: str) -> dict[str, Any]:
             **empty,
             "path": str(target),
             "exists": True,
-            "label": f"Tidak bisa dibaca: {exc}",
+            "label": f"Cannot read: {exc}",
         }
     label = info.label
     if not info.has_pbir:
-        label += " - Report/definition tidak ditemukan (format legacy?)"
+        label += " - Report/definition not found (legacy format?)"
     return {
         "path": str(info.path),
         "exists": True,
@@ -184,18 +184,18 @@ def contents_payload(
     """
     workspace = str(workspace_id or "").strip()
     if not workspace:
-        raise ExtractionError("Workspace belum dipilih.")
+        raise ExtractionError("No workspace selected.")
     principal = store.auth()
     principal.validate()
     database = _database(store)
     option = workspace_detail(database, workspace)
     if option is None:
         raise ExtractionError(
-            "Workspace tidak ada di katalog SQLite. Jalankan Sinkronisasi "
-            "katalog workspace di Pengaturan, lalu muat ulang daftar."
+            "Workspace is not in the SQLite catalog. Run workspace catalog sync "
+            "in Settings, then reload the list."
         )
     if not option.name:
-        raise ExtractionError("Nama workspace kosong; tidak bisa membuat endpoint XMLA.")
+        raise ExtractionError("Empty workspace name; cannot build the XMLA endpoint.")
     _options, duplicates, _hint = workspace_picklist(database)
     endpoint = workspace_endpoint("myorg", option.name, option.workspace_id, disambiguate=option.name in duplicates)
     payload = workspace_contents(
@@ -240,7 +240,7 @@ def _out_dir(store: SettingsStore, value: Any) -> Path:
         return effective_out_dir(store)
     path = Path(text).expanduser()
     if not path.is_absolute():
-        raise ExtractionError("Folder output harus absolut.")
+        raise ExtractionError("Output folder must be absolute.")
     return path
 
 
@@ -249,27 +249,27 @@ def _local_request(
 ) -> LocalMetadataRequest:
     text = str(payload.get("pbix") or "").strip().strip('"')
     if not text:
-        raise ExtractionError("Pilih file .pbix sumber terlebih dahulu.")
+        raise ExtractionError("Choose the source .pbix file first.")
     path = Path(text).expanduser()
     if not path.exists():
-        raise ExtractionError(f"File .pbix tidak ditemukan: {path}")
+        raise ExtractionError(f".pbix file not found: {path}")
     try:
         info = detect_pbix_source(path)
     except ExtractionError:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise ExtractionError(f"File .pbix tidak bisa dibaca: {exc}") from exc
+        raise ExtractionError(f".pbix file cannot be read: {exc}") from exc
 
     wants_report, wants_model = split_scope(scope)
     if wants_report and not info.has_pbir:
         raise ExtractionError(
-            "Report/definition tidak ditemukan di .pbix ini; hanya report PBIR "
-            "yang bisa diekstrak."
+            "Report/definition was not found in this .pbix; only PBIR reports "
+            "can be extracted."
         )
     if wants_model and not info.has_local_model:
         raise ExtractionError(
-            "File .pbix ini tidak menyimpan model lokal (live connection). "
-            "Pilih cakupan Report saja."
+            "This .pbix file has no local model (live connection). "
+            "Choose Report only scope."
         )
     port: int | None = None
     if wants_model:
@@ -277,11 +277,11 @@ def _local_request(
         try:
             port = int(raw_port) if raw_port not in (None, "", 0) else None
         except (TypeError, ValueError) as exc:
-            raise ExtractionError(f"Port instance Desktop tidak valid: {raw_port}") from exc
+            raise ExtractionError(f"Invalid Desktop instance port: {raw_port}") from exc
         if port is None:
             raise ExtractionError(
-                "Pilih instance Power BI Desktop yang memuat file ini "
-                "(Power BI Desktop harus terbuka)."
+                "Choose the Power BI Desktop instance that has this file open "
+                "(Power BI Desktop must be open)."
             )
     return LocalMetadataRequest(
         out_dir=out_dir,
@@ -327,18 +327,18 @@ def _service_request(
     report_type = str(payload.get("report_type") or "")
     if wants_report and report_type == "PaginatedReport":
         raise ExtractionError(
-            "Report paginated (RDL) tidak didukung; pilih report Power BI biasa."
+            "Paginated (RDL) reports are not supported; choose a regular Power BI report."
         )
     catalog = str(payload.get("catalog") or "").strip()
     if wants_model:
         if not model_workspace or not model_name:
             raise ExtractionError(
-                "Pilih workspace semantic model lebih dulu (boleh sama atau "
-                "berbeda dengan workspace report)."
+                "Choose the semantic model workspace first (it can be the same or "
+                "different from the report workspace)."
             )
         if not catalog:
             raise ExtractionError(
-                "Pilih catalog (dataset) semantic model di workspace model."
+                "Choose the semantic model catalog (dataset) in the model workspace."
             )
     request = ServiceMetadataRequest(
         out_dir=out_dir,
@@ -354,9 +354,9 @@ def _service_request(
     principal = store.auth()
     if not principal.is_complete:
         raise ExtractionError(
-            "Kredensial/identitas belum lengkap: "
+            "Credentials/identity are incomplete: "
             + ", ".join(principal.missing)
-            + " (isi di Pengaturan)."
+            + " (set it in Settings)."
         )
     return request
 
@@ -366,13 +366,13 @@ def build_request(store: SettingsStore, payload: Mapping[str, Any]):
     source = str(payload.get("source") or "local").strip()
     scope = str(payload.get("scope") or "both").strip()
     if scope not in SCOPES:
-        raise ExtractionError(f"Cakupan ekstraksi tidak dikenal: {scope}")
+        raise ExtractionError(f"Unknown extraction scope: {scope}")
     out_dir = _out_dir(store, payload.get("out_dir"))
     if source == "service":
         return _service_request(store, payload, scope, out_dir)
     if source == "local":
         return _local_request(store, payload, scope, out_dir)
-    raise ExtractionError(f"Sumber ekstraksi tidak dikenal: {source}")
+    raise ExtractionError(f"Unknown extraction source: {source}")
 
 
 def run_job(store: SettingsStore, payload: Mapping[str, Any], log: Any, cancel: Any) -> dict[str, Any]:

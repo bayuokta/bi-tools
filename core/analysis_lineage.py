@@ -151,7 +151,7 @@ def _m_query_registry(result: Any) -> dict[str, str]:
     for item in getattr(result, "m_queries", []) or []:
         if not isinstance(item, Mapping):
             continue
-        if str(item.get("kind") or "") not in {"Tabel", "Expression"}:
+        if str(item.get("kind") or "") not in {"Table", "Expression"}:
             continue
         name = str(item.get("name") or "").strip()
         expression = str(item.get("expression") or "").strip()
@@ -1553,20 +1553,20 @@ def build_lineage(
     """
     wanted = str(kind or "").strip().lower()
     if wanted not in {"column", "measure"}:
-        raise ValueError("Jenis lineage harus 'column' atau 'measure'.")
+        raise ValueError("Lineage kind must be 'column' or 'measure'.")
     mode = str(direction or "both").strip().lower()
     if mode not in DIRECTIONS:
-        raise ValueError("Arah lineage harus 'both', 'upstream', atau 'downstream'.")
+        raise ValueError("Lineage direction must be 'both', 'upstream', or 'downstream'.")
     try:
         limit = max(1, min(MAX_DEPTH, int(depth or 4)))
     except (TypeError, ValueError) as exc:
-        raise ValueError("Kedalaman lineage harus angka 1-8.") from exc
+        raise ValueError("Lineage depth must be a number from 1 to 8.") from exc
     scope = str(category or "all").strip().lower()
     if scope not in CATEGORIES:
-        raise ValueError("Kategori dependensi tidak dikenal.")
+        raise ValueError("Unknown dependency category.")
     outline_style = str(outline_mode or "compact").strip().lower()
     if outline_style not in {"compact", "full"}:
-        raise ValueError("Mode outline harus 'compact' atau 'full'.")
+        raise ValueError("Outline mode must be 'compact' or 'full'.")
 
     column_analyses: dict[str, Any] = {}
     measure_analyses: dict[str, Any] = {}
@@ -1596,7 +1596,7 @@ def build_lineage(
         seed_id = measure_lookup.get((str(table).casefold(), str(name).casefold()))
     if not seed_id:
         raise ValueError(
-            "Kolom/measure tidak ditemukan di hasil analisa. Jalankan analisa ulang."
+            "Column/measure was not found in the analysis results. Run the analysis again."
         )
 
     extra_nodes: dict[str, dict[str, Any]] = {}
@@ -1763,7 +1763,7 @@ def build_lineage(
     for item in getattr(result, "m_queries", []) or []:
         if not isinstance(item, Mapping):
             continue
-        if str(item.get("kind") or "") != "Tabel":
+        if str(item.get("kind") or "") != "Table":
             continue
         table_name = str(item.get("name") or "")
         if table_name:
@@ -1817,7 +1817,7 @@ def build_lineage(
         meta = {
             "table": table_name,
             "status": "unavailable",
-            "reason": "Tabel tidak punya ekspresi M.",
+            "reason": "The table has no M expression.",
             "warnings": [],
         }
         if expression:
@@ -1905,7 +1905,7 @@ def build_lineage(
             status = column_confidence(parsed, column.column)
             reason = ""
             if status == "unavailable":
-                reason = "Kolom tidak ditemukan di hasil lineage M."
+                reason = "Column was not found in the M lineage results."
             else:
                 seed_key = column.column.casefold()
                 for warning in parsed.warnings:
@@ -2044,7 +2044,7 @@ def build_lineage(
     graph = _Graph(max_nodes)
     seed_payload = node_payload(seed_id)
     if seed_payload is None:
-        raise ValueError("Objek lineage tidak punya metadata yang bisa digambar.")
+        raise ValueError("The lineage object has no drawable metadata.")
     seed_payload = {**seed_payload, "group": "selected"}
     graph.add(seed_payload)
 
@@ -2244,17 +2244,17 @@ def build_table_lineage(
     """Graph lineage level tabel: M query -> tabel -> kolom/measure -> report."""
     name = str(table or "").strip()
     if not name:
-        raise ValueError("Nama tabel harus diisi.")
+        raise ValueError("Table name is required.")
     mode = str(direction or "both").strip().lower()
     if mode not in DIRECTIONS:
-        raise ValueError("Arah lineage harus 'both', 'upstream', atau 'downstream'.")
+        raise ValueError("Lineage direction must be 'both', 'upstream', or 'downstream'.")
     try:
         limit = max(1, min(MAX_DEPTH, int(depth or 4)))
     except (TypeError, ValueError) as exc:
-        raise ValueError("Kedalaman lineage harus angka 1-8.") from exc
+        raise ValueError("Lineage depth must be a number from 1 to 8.") from exc
     outline_style = str(outline_mode or "compact").strip().lower()
     if outline_style not in {"compact", "full"}:
-        raise ValueError("Mode outline harus 'compact' atau 'full'.")
+        raise ValueError("Outline mode must be 'compact' or 'full'.")
 
     wanted = name.casefold()
     column_analyses = [
@@ -2274,7 +2274,7 @@ def build_table_lineage(
     ]
     mqueries: dict[str, dict[str, str]] = {}
     for item in getattr(result, "m_queries", []) or []:
-        if not isinstance(item, Mapping) or str(item.get("kind") or "") != "Tabel":
+        if not isinstance(item, Mapping) or str(item.get("kind") or "") != "Table":
             continue
         table_name = str(item.get("name") or "")
         if table_name:
@@ -2286,7 +2286,7 @@ def build_table_lineage(
     m_resolver = build_lineage_resolver(m_registry)
     if not column_analyses and not table_measures and name not in mqueries:
         raise ValueError(
-            "Tabel tidak ditemukan di hasil analisa. Jalankan analisa ulang."
+            "Table was not found in the analysis results. Run the analysis again."
         )
 
     graph = _Graph(max_nodes)
@@ -2327,7 +2327,7 @@ def build_table_lineage(
         m_lineage_meta = {
             "table": name,
             "status": "unavailable",
-            "reason": "Tabel tidak punya ekspresi M.",
+            "reason": "The table has no M expression.",
             "warnings": [],
         }
         if expression:

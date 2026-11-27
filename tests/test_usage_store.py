@@ -312,7 +312,7 @@ class UsageStoreTests(unittest.TestCase):
             [
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": "let Source = 1 in Source",
                     "warning": "",
@@ -336,7 +336,7 @@ class UsageStoreTests(unittest.TestCase):
         save_m_queries(
             self.conn,
             "ds",
-            [{"name": "Dates", "kind": "Tabel", "expression": "1"}],
+            [{"name": "Dates", "kind": "Table", "expression": "1"}],
         )
 
         rows = m_queries(self.conn, "ds")

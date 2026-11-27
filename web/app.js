@@ -1,6 +1,5 @@
 import { state, store } from "./js/core/state.js";
 import { $, $$, escapeHtml } from "./js/core/dom.js";
-import { i18n, t, tr, currentLanguage } from "./js/core/i18n.js";
 import { decimalText, fmtInt, sizeText, fileMeta } from "./js/core/format.js";
 import {
   enhanceAllSelects,
@@ -160,7 +159,7 @@ var NEWLINE = String.fromCharCode(10);
     store.set("pbi-theme", state.theme);
     if (announce && state.ready && !state.applying && window.BIToolsApi) {
       window.BIToolsApi.put("/api/settings/ui", { theme: state.theme }).catch(function () {
-        toast(t("Theme could not be saved to the server"));
+        toast("Theme could not be saved to the server");
       });
     }
     $$(".theme-card[data-theme]").forEach(function (card) {
@@ -181,7 +180,7 @@ var NEWLINE = String.fromCharCode(10);
       window.BIToolsApi.put("/api/settings/ui", { motion: state.motion }).catch(function () {});
     }
     if (announce) {
-      toast(state.motion ? t("Interface animations enabled") : t("Interface animations disabled"));
+      toast(state.motion ? "Interface animations enabled" : "Interface animations disabled");
     }
   }
 
@@ -190,7 +189,7 @@ var NEWLINE = String.fromCharCode(10);
     document.documentElement.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
     var toggle = $("#sidebarToggle");
     if (toggle) {
-      var text = state.sidebarCollapsed ? t("Open sidebar") : t("Collapse sidebar");
+      var text = state.sidebarCollapsed ? "Open sidebar" : "Collapse sidebar";
       var label = toggle.querySelector(".label");
       toggle.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
       toggle.setAttribute("aria-label", text);
@@ -200,94 +199,6 @@ var NEWLINE = String.fromCharCode(10);
     if (persist) {
       store.set("pbi-sidebar", state.sidebarCollapsed ? "collapsed" : "open");
     }
-  }
-
-  function applyLanguage(language, options) {
-    var opts = options || {};
-    var next = language === "id" ? "id" : "en";
-    state.language = next;
-    store.set("pbi-lang", next);
-    if (state.settings && state.settings.ui) {
-      state.settings.ui.language = next;
-    }
-    if (i18n) i18n.setLanguage(next);
-    document.documentElement.lang = next;
-    $$(".theme-card[data-language]").forEach(function (card) {
-      card.setAttribute("aria-checked", card.dataset.language === next ? "true" : "false");
-    });
-    if (opts.rerender !== false) {
-      rerenderLanguage();
-    }
-    if (opts.persist && state.ready && !state.applying && window.BIToolsApi) {
-      window.BIToolsApi.put("/api/settings/ui", { language: next }).catch(function () {
-        toast(t("Language could not be saved to the server"));
-      });
-    }
-    if (opts.announce) {
-      toast(t(next === "id"
-        ? "Interface language set to Indonesian"
-        : "Interface language set to English"));
-    }
-  }
-
-  function applyComboLanguage() {
-    $$("select").forEach(function (select) {
-      var key = select.dataset.i18nPlaceholder;
-      var head = select.querySelector("option[value='']");
-      if (key && head) head.textContent = t(key);
-      refreshCombo(select);
-    });
-  }
-
-  function rerenderLanguage() {
-    if (state.settings) renderSettings(state.settings);
-    if (state.tsd) renderTsdState(state.tsd);
-    if (state.analysis !== undefined) analysisRender();
-    if (state.compare) renderCompare();
-    if (state.backup && state.backup.loaded) backupRerender();
-    if (state.partitions !== null) partitionRender();
-    applyMetaSteps();
-    if (state.lineageGraph) {
-      lineageRenderGraph();
-      if (state.selectedId && state.lineageNodesLive[state.selectedId]) {
-        lineageRenderDetail(state.lineageNodesLive[state.selectedId].payload || {});
-      }
-    }
-    if (!state.lineageGraph && state.lineageHasDb && !state.lineageQuery) {
-      $("#lineageResults").innerHTML =
-        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
-        t("No search yet") + "</div>" +
-        '<p class="empty-text">' +
-        t("Search for a report, semantic model, table, or measure.") + "</p></div>";
-    }
-    if (state.system) {
-      $("#appVersion").textContent = t("Version ") + state.system.version;
-      $("#serverMeta").textContent = "Data: " + state.system.data_dir +
-        " \u00b7 " + t("Preferences: ") + state.system.settings.path;
-    }
-    $("#depthVal").textContent = state.depth + t(" levels");
-    $("#workspaceHint").textContent = tr(state.workspaceHint) ||
-      t("Type a workspace name to filter, or open the list.");
-    $("#instanceHint").textContent = tr(state.instanceHint) || "";
-    var selectedReport = getSelectItem("serviceReport");
-    if (selectedReport) {
-      applyReportDefaults(selectedReport);
-    } else {
-      $("#reportHint").textContent = "";
-    }
-    if (!state.pbix) {
-      $("#pbixKind").textContent = t("Choose the source .pbix file.");
-    }
-    renderModelAvailability();
-    renderLog();
-    if (state.ready) {
-      loadCatalogStatus();
-      loadOutputs();
-    }
-    applyComboLanguage();
-    $$(".theme-card[data-language]").forEach(function (card) {
-      card.setAttribute("aria-checked", card.dataset.language === state.language ? "true" : "false");
-    });
   }
 
   function showView(name) {
@@ -348,15 +259,15 @@ var NEWLINE = String.fromCharCode(10);
     if (tsdView) tsdView.hidden = !(state.view === "ekstraksi" && unlocked);
     var tsdState = $("#stepStateTsd");
     if (tsdState && !state.tsdRunning) {
-      if (!unlocked) tsdState.textContent = t("Waiting for extraction");
-      else if (state.tsdLastResult) tsdState.textContent = t("Document ready");
-      else tsdState.textContent = t("Ready");
+      if (!unlocked) tsdState.textContent = "Waiting for extraction";
+      else if (state.tsdLastResult) tsdState.textContent = "Document ready";
+      else tsdState.textContent = "Ready";
     }
   }
 
   function setMetaStep(name, scroll) {
     if (name === "tsd" && !tsdUnlocked()) {
-      toast(t("Run the metadata extraction first"));
+      toast("Run the metadata extraction first");
       return;
     }
     state.metaStep = name;
@@ -377,7 +288,7 @@ var NEWLINE = String.fromCharCode(10);
 
   function addLog(text, level) {
     var now = new Date();
-    var time = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    var time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     state.logs.push({ time: time, text: text, level: level || "info" });
     renderLog();
   }
@@ -394,7 +305,7 @@ var NEWLINE = String.fromCharCode(10);
     var badge = $("#consoleCount");
     badge.textContent = String(count);
     badge.hidden = count === 0;
-    $("#consolePreview").textContent = count ? state.logs[count - 1].text : t("No activity in this session yet.");
+    $("#consolePreview").textContent = count ? state.logs[count - 1].text : "No activity in this session yet.";
   }
 
   function setConsole(open) {
@@ -447,11 +358,11 @@ var NEWLINE = String.fromCharCode(10);
   }
 
   function pendingFeature(name) {
-    toast(name + t(" is planned for a later stage"));
+    toast(name + " is planned for a later stage");
   }
 
   function reportError(error) {
-    var message = error && error.message ? tr(error.message) : String(error);
+    var message = error && error.message ? (error.message) : String(error);
     addLog(message, "error");
     toast(message);
     return message;
@@ -460,7 +371,7 @@ var NEWLINE = String.fromCharCode(10);
   function logLine(text) {
     var value = String(text == null ? "" : text);
     var level = "info";
-    if (/^(ERROR|GAGAL)/i.test(value)) level = "error";
+    if (/^(ERROR|FAILED)/i.test(value)) level = "error";
     else if (/^(CATATAN|PERINGATAN|WARN)/i.test(value)) level = "warn";
     addLog(value, level);
   }
@@ -488,13 +399,13 @@ var NEWLINE = String.fromCharCode(10);
     api().get("/api/system/state").then(function (data) {
       state.system = data;
       $("#brandVersion").textContent = data.version;
-      $("#appVersion").textContent = t("Version ") + data.version;
+      $("#appVersion").textContent = "Version " + data.version;
       $("#serverUrl").value = window.location.origin + "/";
-      $("#serverMeta").textContent = "Data: " + data.data_dir + " \u00b7 " + t("Preferences: ") + data.settings.path;
+      $("#serverMeta").textContent = "Data: " + data.data_dir + " \u00b7 " + "Preferences: " + data.settings.path;
       document.title = "BI Tools " + data.version + " - Metadata Power BI";
-      addLog("BI Tools " + data.version + t(" ready at ") + window.location.origin, "ok");
+      addLog("BI Tools " + data.version + " ready at " + window.location.origin, "ok");
     }).catch(function (error) {
-      addLog(t("The local server did not respond: ") + error.message, "error");
+      addLog("The local server did not respond: " + error.message, "error");
     });
   }
 
@@ -504,7 +415,7 @@ var NEWLINE = String.fromCharCode(10);
       renderSettings(data);
       state.ready = true;
     }).catch(function (error) {
-      addLog(t("Preferences could not be loaded: ") + error.message, "error");
+      addLog("Preferences could not be loaded: " + error.message, "error");
     });
   }
 
@@ -516,16 +427,16 @@ var NEWLINE = String.fromCharCode(10);
       $("#rlsRoles").value = data.rls.roles;
       $("#dbPath").value = data.paths.lineage_db;
     }
-    $("#authStatus").textContent = tr(data.auth.status) || "";
+    $("#authStatus").textContent = (data.auth.status) || "";
     $("#authStatus").className = "helper";
     $("#authAccount").textContent = data.auth.account
-      ? t("Signed in as ") + data.auth.account
+      ? "Signed in as " + data.auth.account
       : "";
     $("#authTenant").value = data.auth.tenant_id || "";
     setChip(
       $("#authChip"),
       data.auth.signed_in ? "ok" : (data.auth.tone === "warn" ? "warn" : "idle"),
-      data.auth.signed_in ? t("Signed in") : t("Not signed in")
+      data.auth.signed_in ? "Signed in" : "Not signed in"
     );
     $("#signIn").disabled = data.auth.signed_in;
     $("#signOut").disabled = !data.auth.signed_in;
@@ -533,27 +444,17 @@ var NEWLINE = String.fromCharCode(10);
       $("#snapshotSource").value = data.snapshot.source || "";
       $("#snapshotLocal").value = data.snapshot.local || "";
       $("#snapshotStatus").textContent = data.snapshot.exists
-        ? t("Snapshot: ") + (data.snapshot.generated_at || "-") +
+        ? "Snapshot: " + (data.snapshot.generated_at || "-") +
           " - " + (data.snapshot.local || "")
-        : t("No shared snapshot loaded.");
+        : "No shared snapshot loaded.";
       setChip(
         $("#snapshotChip"),
         data.snapshot.exists ? "ok" : "idle",
-        data.snapshot.exists ? t("Loaded") : t("Not loaded")
+        data.snapshot.exists ? "Loaded" : "Not loaded"
       );
     }
-    $("#connResult").textContent = tr(data.auth.status);
+    $("#connResult").textContent = (data.auth.status);
     $("#showConsole").checked = data.ui.show_console;
-    if (data.ui.language && data.ui.language !== state.language) {
-      applyLanguage(data.ui.language, { rerender: false });
-    } else {
-      $$(".theme-card[data-language]").forEach(function (card) {
-        card.setAttribute(
-          "aria-checked",
-          card.dataset.language === state.language ? "true" : "false"
-        );
-      });
-    }
     if (data.ui.theme !== state.theme) applyTheme(data.ui.theme, false);
     if (data.ui.motion !== state.motion) applyMotion(data.ui.motion, false);
     setSource(data.extraction.active_tab === "service" ? "service" : "desktop");
@@ -564,22 +465,22 @@ var NEWLINE = String.fromCharCode(10);
     setChip(
       $("#syncChip"),
       data.tone === "ok" ? "ok" : (data.tone === "error" ? "error" : "idle"),
-      data.tone === "ok" ? t("In sync") : (data.tone === "error" ? t("Problem") : t("Not in sync"))
+      data.tone === "ok" ? "In sync" : (data.tone === "error" ? "Problem" : "Not in sync")
     );
-    $("#syncStatus").textContent = tr(data.text) || t("No saved workspace catalog");
+    $("#syncStatus").textContent = (data.text) || "No saved workspace catalog";
     $("#catalogCount").textContent = data.selectable
       ? fmtInt(data.selectable)
       : (data.total ? fmtInt(data.total) : "-");
     $("#catalogCount").title = data.total
-      ? data.total + t(" workspaces saved")
-      : t("No catalog yet");
+      ? data.total + " workspaces saved"
+      : "No catalog yet";
     $("#catalogSync").textContent = data.last_sync || "-";
   }
 
   function loadCatalogStatus() {
     if (!apiReady()) return;
     api().get("/api/catalog/status").then(renderCatalogStatus).catch(function (error) {
-      addLog(t("Catalog status could not be read: ") + error.message, "warn");
+      addLog("Catalog status could not be read: " + error.message, "warn");
     });
   }
 
@@ -596,14 +497,14 @@ var NEWLINE = String.fromCharCode(10);
   function loadOutputs() {
     if (!apiReady()) return;
     api().get("/api/files/outputs").then(renderOutputs).catch(function (error) {
-      addLog(t("Output status could not be read: ") + error.message, "warn");
+      addLog("Output status could not be read: " + error.message, "warn");
     });
   }
 
   function openOutput(which) {
     var entry = state.outputs && state.outputs[which];
     if (!entry || !entry.exists) {
-      toast(t("File not created yet"));
+      toast("File not created yet");
       return;
     }
     api().post("/api/files/open", { path: entry.path, mode: "open" }).catch(reportError);
@@ -630,11 +531,11 @@ var NEWLINE = String.fromCharCode(10);
     }
     if (options.kind === "metadata") {
       if (status === "error") {
-        setChip($("#outputState"), "error", t("Failed"));
-        $("#stepStateExtract").textContent = t("Not run yet");
+        setChip($("#outputState"), "error", "Failed");
+        $("#stepStateExtract").textContent = "Not run yet";
       } else if (status === "cancelled") {
-        setChip($("#outputState"), "idle", t("Cancelled"));
-        $("#stepStateExtract").textContent = t("Not run yet");
+        setChip($("#outputState"), "idle", "Cancelled");
+        $("#stepStateExtract").textContent = "Not run yet";
       }
       window.setTimeout(function () { $("#extractRun").hidden = true; }, 900);
     }
@@ -656,14 +557,14 @@ var NEWLINE = String.fromCharCode(10);
       if (status === "done") inspectTsd();
     }
     if (status === "error") {
-      var message = (snapshot && snapshot.error) || t("Job failed.");
+      var message = (snapshot && snapshot.error) || "Job failed.";
       addLog(message, "error");
       toast(message);
       if (options.onError) options.onError(snapshot || {}, message);
     } else if (status === "cancelled") {
-      addLog(t("Job cancelled."), "warn");
-      toast(t("Job cancelled"));
-      if (options.onError) options.onError(snapshot || {}, t("Job cancelled"));
+      addLog("Job cancelled.", "warn");
+      toast("Job cancelled");
+      if (options.onError) options.onError(snapshot || {}, "Job cancelled");
     } else if (options.onDone) {
       options.onDone(snapshot || {});
     }
@@ -696,7 +597,7 @@ var NEWLINE = String.fromCharCode(10);
 
   function startJob(options) {
     if (!apiReady()) {
-      pendingFeature(options.label || t("This job"));
+      pendingFeature(options.label || "This job");
       return;
     }
     if (state.jobId) {
@@ -704,7 +605,7 @@ var NEWLINE = String.fromCharCode(10);
       api().get("/api/jobs/" + encodeURIComponent(pending)).then(function (snapshot) {
         if (snapshot.status === "running") {
           if (options.onBusy) options.onBusy();
-          else toast(t("Another job is still running"));
+          else toast("Another job is still running");
           return;
         }
         if (state.jobStream && state.jobStream.close) state.jobStream.close();
@@ -722,12 +623,12 @@ var NEWLINE = String.fromCharCode(10);
     }
     if (state.jobPending) {
       if (options.onBusy) options.onBusy();
-      else toast(t("Another job is still running"));
+      else toast("Another job is still running");
       return;
     }
     state.jobLogCount = 0;
     if (!options.silent) setConsole(true);
-    addLog((options.label || t("Job")) + t(" started."), "info");
+    addLog((options.label || "Job") + " started.", "info");
     if (options.button) options.button.disabled = true;
     state.jobPending = true;
     api().post(options.path, options.body || {}).then(function (data) {
@@ -748,7 +649,7 @@ var NEWLINE = String.fromCharCode(10);
           finishJob(options, snapshot);
         },
         onError: function (error) {
-          addLog(t("Live log disconnected (") + error.message + t("); switching to polling."), "warn");
+          addLog("Live log disconnected (" + error.message + "); switching to polling.", "warn");
           pollJob(data.job_id, options);
         }
       });
@@ -770,26 +671,26 @@ var NEWLINE = String.fromCharCode(10);
       '" type="button" role="option" data-path="' + escapeHtml(target) +
       '" data-dir="' + (isDir ? "1" : "0") + '">' +
       '<span class="name">' + escapeHtml(name) + "</span>" +
-      '<span class="helper">' + (isDir ? t("folder") : t("file")) + "</span></button>";
+      '<span class="helper">' + (isDir ? "folder" : "file") + "</span></button>";
   }
 
   function renderBrowse(data) {
     state.pickDir = data.path || "";
-    $("#folderDialogPath").textContent = data.path || t("Choose a drive");
+    $("#folderDialogPath").textContent = data.path || "Choose a drive";
     $("#folderPathInput").value = data.path || "";
     var choosingFile = state.pickKind === "file";
-    $("#chooseFolder").textContent = choosingFile ? t("Choose this file") : t("Choose this folder");
+    $("#chooseFolder").textContent = choosingFile ? "Choose this file" : "Choose this folder";
     $("#chooseFolder").disabled = choosingFile ? !state.pickFile : !state.pickDir;
     $("#folderDialogTitle").textContent = choosingFile
-      ? t("Choose file ") + (state.pickExt || "")
-      : t("Choose folder");
+      ? "Choose file " + (state.pickExt || "")
+      : "Choose folder";
     var html = "";
     if (data.parent) html += browseRow("..", data.parent, true, false);
     html += (data.entries || []).map(function (entry) {
       var selected = !entry.is_dir && state.pickFile === entry.path;
       return browseRow(entry.name, entry.path, entry.is_dir, selected);
     }).join("");
-    if (!html) html = '<div class="browse-empty">Folder kosong.</div>';
+    if (!html) html = '<div class="browse-empty">Folder is empty.</div>';
     var list = $("#folderList");
     list.innerHTML = html;
     $$(".browse-item", list).forEach(function (button) {
@@ -840,7 +741,7 @@ var NEWLINE = String.fromCharCode(10);
 
   function bootstrap() {
     if (!apiReady()) {
-      addLog("Klien API tidak termuat; antarmuka berjalan dalam mode pratinjau.", "warn");
+      addLog("API client did not load; the interface runs in preview mode.", "warn");
       return;
     }
     loadSystem();
@@ -861,7 +762,6 @@ var NEWLINE = String.fromCharCode(10);
     enhanceAllSelects();
     initCompareEvents();
     initBackupEvents();
-    applyLanguage(state.language, { rerender: false });
     applyTheme(state.theme, false);
     applyMotion(state.motion, false);
     setSource(state.source);
@@ -891,22 +791,6 @@ var NEWLINE = String.fromCharCode(10);
       applyMotion(event.target.checked, true);
     });
 
-    $$(".theme-card[data-language]").forEach(function (card) {
-      card.addEventListener("click", function () {
-        applyLanguage(card.dataset.language, { persist: true, announce: true });
-      });
-      card.addEventListener("keydown", function (event) {
-        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-        event.preventDefault();
-        var next = state.language === "en" ? "id" : "en";
-        applyLanguage(next, { persist: true });
-        var target = $$(".theme-card[data-language]").filter(function (item) {
-          return item.dataset.language === next;
-        })[0];
-        if (target) target.focus();
-      });
-    });
-
     $("#consoleToggle").addEventListener("click", function () {
       setConsole($("#consoleBody").hidden);
     });
@@ -914,30 +798,30 @@ var NEWLINE = String.fromCharCode(10);
     $("#clearLog").addEventListener("click", function () {
       state.logs = [];
       renderLog();
-      toast(t("Console log cleared"));
+      toast("Console log cleared");
     });
 
     $("#srcBtnDesktop").addEventListener("click", function () { setSource("desktop"); });
     $("#srcBtnService").addEventListener("click", function () { setSource("service"); });
 
     $("#reloadDesktop").addEventListener("click", function () {
-      loadInstances().then(function () { toast(t("Instance list refreshed")); });
+      loadInstances().then(function () { toast("Instance list refreshed"); });
     });
 
     $("#reloadWorkspaces").addEventListener("click", function () {
       loadWorkspaces().then(function () {
         if (getSelectValue("modelWorkspace")) loadModelContents();
         if (getSelectValue("reportWorkspace")) loadReportContents();
-        toast(t("Workspace catalog loaded"));
+        toast("Workspace catalog loaded");
       });
     });
 
     $("#reloadReport").addEventListener("click", function () {
       if (!getSelectValue("reportWorkspace")) {
-        toast(t("Choose a report workspace first"));
+        toast("Choose a report workspace first");
         return;
       }
-      loadReportContents().then(function () { toast(t("Report list loaded")); });
+      loadReportContents().then(function () { toast("Report list loaded"); });
     });
 
     $("#pickPbix").addEventListener("click", function () {
@@ -1014,7 +898,7 @@ var NEWLINE = String.fromCharCode(10);
       openFolderPicker($("#outFolder").value, function (folder) {
         savePreference("extraction", { out_dir: folder }).then(function () {
           loadOutputs();
-          toast(t("Output folder saved"));
+          toast("Output folder saved");
         });
       });
     });
@@ -1061,20 +945,20 @@ var NEWLINE = String.fromCharCode(10);
     $("#openTsdFile").addEventListener("click", openTsdDocument);
     $("#openTsdFolder").addEventListener("click", openTsdFolder);
     $("#reloadShotWorkspace").addEventListener("click", function () {
-      loadWorkspaces().then(function () { toast(t("Workspace catalog loaded")); });
+      loadWorkspaces().then(function () { toast("Workspace catalog loaded"); });
     });
     $("#reloadShotReport").addEventListener("click", function () {
       if (!getSelectValue("shotWorkspace")) {
-        toast(t("Choose a screenshot workspace first"));
+        toast("Choose a screenshot workspace first");
         return;
       }
-      loadTsdReports().then(function () { toast(t("Report list loaded")); });
+      loadTsdReports().then(function () { toast("Report list loaded"); });
     });
     $("#shotEnabled").addEventListener("change", function (event) {
       setChip(
         $("#shotChip"),
         event.target.checked ? "ok" : "idle",
-        event.target.checked ? t("Active") : t("Inactive")
+        event.target.checked ? "Active" : "Inactive"
       );
       scheduleTsdInspect();
     });
@@ -1116,11 +1000,11 @@ var NEWLINE = String.fromCharCode(10);
     $("#stopAnalyze").addEventListener("click", analysisStop);
     $("#reloadModelAnalisa").addEventListener("click", function () {
       if (!getSelectValue("wsSelect")) {
-        toast(t("Choose a workspace first"));
+        toast("Choose a workspace first");
         return;
       }
       analysisLoadDatasets().then(function () {
-        toast(t("Semantic model list reloaded"));
+        toast("Semantic model list reloaded");
       });
     });
     $("#wsSelect").addEventListener("change", function () {
@@ -1136,7 +1020,7 @@ var NEWLINE = String.fromCharCode(10);
       analysisSyncReportOptions();
       analysisSavePrefs();
       if (state.analysis) {
-        toast(t("Run analysis again to apply the new report usage setting."));
+        toast("Run analysis again to apply the new report usage setting.");
       }
       analysisRender();
     });
@@ -1162,7 +1046,7 @@ var NEWLINE = String.fromCharCode(10);
     });
     $("#expandRows").addEventListener("click", function () {
       if (!state.analysis) {
-        toast(t("Run the analysis first"));
+        toast("Run the analysis first");
         return;
       }
       state.analysisForceOpen = true;
@@ -1171,7 +1055,7 @@ var NEWLINE = String.fromCharCode(10);
     });
     $("#collapseRows").addEventListener("click", function () {
       if (!state.analysis) {
-        toast(t("Run the analysis first"));
+        toast("Run the analysis first");
         return;
       }
       state.analysisForceOpen = false;
@@ -1185,11 +1069,11 @@ var NEWLINE = String.fromCharCode(10);
     $("#processSelectedPartitions").addEventListener("click", partitionOpenConfirm);
     $("#reloadPartitionDatasets").addEventListener("click", function () {
       if (!getSelectValue("partitionWsSelect")) {
-        toast(t("Choose a workspace first"));
+        toast("Choose a workspace first");
         return;
       }
       partitionLoadDatasets().then(function () {
-        toast(t("Semantic model list reloaded"));
+        toast("Semantic model list reloaded");
       });
     });
     $("#partitionWsSelect").addEventListener("change", function () {
@@ -1626,7 +1510,7 @@ var NEWLINE = String.fromCharCode(10);
       var dialog = $("#analysisDetailsDialog");
       var expanded = dialog.classList.toggle("is-max");
       var button = $("#expandAnalysisDetails");
-      var label = t(expanded ? "Restore" : "Maximize");
+      var label = (expanded ? "Restore" : "Maximize");
       button.setAttribute("aria-label", label);
       button.setAttribute("title", label);
     });
@@ -2077,7 +1961,7 @@ var NEWLINE = String.fromCharCode(10);
       state.visual = !state.visual;
       $("#lineageLayout").classList.toggle("is-visual", state.visual);
       $("#visualLineage").setAttribute("aria-pressed", String(state.visual));
-      toast(t(state.visual ? "Lineage visual mode on" : "Lineage visual mode off"));
+      toast((state.visual ? "Lineage visual mode on" : "Lineage visual mode off"));
     });
     $("#exportCsv").addEventListener("click", lineageExport);
     $("#exportSvg").addEventListener("click", function () {
@@ -2131,7 +2015,7 @@ var NEWLINE = String.fromCharCode(10);
       var node = event.target.closest(".node");
       if (!node) return;
       lineageOpen(node.dataset.id);
-      toast(t("Lineage root updated"));
+      toast("Lineage root updated");
     });
     $("#lineageLayer").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
@@ -2150,15 +2034,15 @@ var NEWLINE = String.fromCharCode(10);
     $("#signIn").addEventListener("click", function () {
       var button = $("#signIn");
       button.disabled = true;
-      addLog(t("Opening sign-in..."), "info");
+      addLog("Opening sign-in...", "info");
       api().put("/api/settings/tenant", {
         tenant_id: $("#authTenant").value.trim()
       }).then(function () {
         return api().post("/api/settings/sign-in", {});
       }).then(function (data) {
         renderSettings(data);
-        addLog(t("Sign-in completed."), "ok");
-        toast(t("Signed in"));
+        addLog("Sign-in completed.", "ok");
+        toast("Signed in");
       }).catch(function (error) {
         button.disabled = false;
         reportError(error);
@@ -2168,7 +2052,7 @@ var NEWLINE = String.fromCharCode(10);
     $("#signOut").addEventListener("click", function () {
       api().post("/api/settings/sign-out", {}).then(function (data) {
         renderSettings(data);
-        toast(t("Signed out"));
+        toast("Signed out");
       }).catch(reportError);
     });
 
@@ -2179,8 +2063,8 @@ var NEWLINE = String.fromCharCode(10);
       }).then(function (data) {
         state.formDirty = false;
         renderSettings(data);
-        addLog(t("Default RLS saved."), "ok");
-        toast(t("Settings saved"));
+        addLog("Default RLS saved.", "ok");
+        toast("Settings saved");
       }).catch(reportError);
     });
 
@@ -2191,14 +2075,14 @@ var NEWLINE = String.fromCharCode(10);
       }).then(function (data) {
         if (!data) return;
         renderSettings(data);
-        toast(t("Snapshot source saved"));
+        toast("Snapshot source saved");
       });
     });
     $("#downloadSnapshot").addEventListener("click", function () {
       api().post("/api/settings/snapshot/download", {}).then(function (data) {
         return api().get("/api/settings").then(function (settings) {
           renderSettings(settings);
-          toast(t("Snapshot downloaded"));
+          toast("Snapshot downloaded");
           return data;
         });
       }).catch(reportError);
@@ -2220,7 +2104,7 @@ var NEWLINE = String.fromCharCode(10);
         if (!data) return;
         state.formDirty = false;
         renderSettings(data);
-        toast(t("Database path saved"));
+        toast("Database path saved");
       });
     });
     $("#pickDb").addEventListener("click", function () {
@@ -2228,7 +2112,7 @@ var NEWLINE = String.fromCharCode(10);
         var target = folder.replace(/[\\/]+$/, "") + "\\bi_tools.db";
         $("#dbPath").value = target;
         savePreference("paths", { lineage_db: target }).then(function (data) {
-          if (data) toast(t("Database path saved"));
+          if (data) toast("Database path saved");
         });
       });
     });
@@ -2250,7 +2134,7 @@ var NEWLINE = String.fromCharCode(10);
       savePreference("extraction", payload);
     });
     $("#shutdownServer").addEventListener("click", function () {
-      if (!window.confirm(t("Stop the local server? This tab cannot be used again until the application is restarted."))) return;
+      if (!window.confirm("Stop the local server? This tab cannot be used again until the application is restarted.")) return;
       api().post("/api/system/shutdown", {}).catch(function () {}).then(function () {
         window.setTimeout(function () {
           document.body.innerHTML =
@@ -2258,9 +2142,9 @@ var NEWLINE = String.fromCharCode(10);
             'min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0">' +
             '<div style="max-width:32rem;padding:2rem;border:1px solid #28303d;border-radius:8px;background:#151a22">' +
             "<h1 style=\"font-size:1.1rem;margin:0 0 .5rem\">" +
-            t("Server stopped") + "</h1>" +
+            "Server stopped" + "</h1>" +
             '<p style="color:#b9c2d0;line-height:1.6;margin:0">' +
-            t("Run BI Tools again to open the web interface.") + "</p>" +
+            "Run BI Tools again to open the web interface." + "</p>" +
             "</div></main>";
         }, 400);
       });
@@ -2269,7 +2153,7 @@ var NEWLINE = String.fromCharCode(10);
       var value = $("#serverUrl").value;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(value).then(function () {
-          toast(t("Server address copied"));
+          toast("Server address copied");
         }).catch(function () {
           toast("Salin manual: " + value);
         });

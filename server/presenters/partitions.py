@@ -66,19 +66,19 @@ def _base_request(
     workspace_id = str(payload.get("workspace_id") or "").strip()
     dataset_id = str(payload.get("dataset_id") or "").strip()
     if not workspace_id or not dataset_id:
-        raise ExtractionError("Pilih workspace dan semantic model dulu.")
+        raise ExtractionError("Choose a workspace and semantic model first.")
     workspace_name, dataset_name = resolve_names(
         database_path(store), workspace_id, dataset_id
     )
     if not workspace_name:
         raise ExtractionError(
-            "Nama workspace tidak ditemukan di katalog SQLite. Jalankan "
-            "Sinkronisasi katalog workspace di Pengaturan."
+            "Workspace name was not found in the SQLite catalog. Run workspace "
+            "catalog sync in Settings."
         )
     if not dataset_name:
         raise ExtractionError(
-            "Nama semantic model tidak ditemukan di katalog SQLite. Muat ulang "
-            "daftar semantic model."
+            "Semantic model name was not found in the SQLite catalog. Reload "
+            "the semantic model list."
         )
     return PartitionRequest(
         workspace_id=workspace_id,
@@ -97,7 +97,7 @@ def build_inventory_request(
 
 def _targets(value: Any) -> tuple[tuple[str, str], ...]:
     if not isinstance(value, (list, tuple)):
-        raise ExtractionError("Target partisi harus berupa daftar table/partition.")
+        raise ExtractionError("Partition targets must be a list of table/partition.")
     pairs: list[tuple[str, str]] = []
     for item in value:
         if isinstance(item, Mapping):
@@ -108,10 +108,10 @@ def _targets(value: Any) -> tuple[tuple[str, str], ...]:
             partition = str(item[1] or "").strip()
         else:
             raise ExtractionError(
-                "Setiap target partisi harus berisi tabel dan nama partisi."
+                "Each partition target must contain a table and partition name."
             )
         if not table or not partition:
-            raise ExtractionError("Nama tabel dan partisi tidak boleh kosong.")
+            raise ExtractionError("Table and partition names cannot be empty.")
         pairs.append((table, partition))
     return tuple(pairs)
 

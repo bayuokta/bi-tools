@@ -34,50 +34,50 @@ from core.usage_service import (
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Analisa semantic model Power BI Service: ukuran kolom (DMV), "
-            "pemakaian di semua report pemakai dataset, dan verdict aman dihapus."
+            "Analyze a Power BI Service semantic model: column sizes (DMV), "
+            "usage across all reports using the dataset, and a safe-to-remove verdict."
         ),
         allow_abbrev=False,
     )
     parser.add_argument("--workspace-id", required=True, help="Workspace ID (GUID).")
     parser.add_argument("--dataset-id", required=True, help="Semantic model ID (GUID).")
-    parser.add_argument("--workspace-name", help="Nama workspace (default: katalog SQLite).")
-    parser.add_argument("--dataset-name", help="Nama semantic model (default: katalog SQLite).")
-    parser.add_argument("--out", help="Path workbook output (default: Analisa_Semantic_Model_<nama>_<id8>.xlsx).")
+    parser.add_argument("--workspace-name", help="Workspace name (default: SQLite catalog).")
+    parser.add_argument("--dataset-name", help="Semantic model name (default: SQLite catalog).")
+    parser.add_argument("--out", help="Output workbook path (default: Analysis_<name>_<id8>.xlsx).")
     parser.add_argument("--db", help=f"Database SQLite (default: {DEFAULT_DB}).")
     parser.add_argument(
         "--workspace-only",
         action="store_true",
-        help="Hanya report di workspace dataset; jangan pakai admin API lintas workspace.",
+        help="Only reports in the dataset workspace; do not use the cross-workspace admin API.",
     )
     parser.add_argument(
         "--include-personal",
         action="store_true",
         help=(
-            "Ikutkan report di My Workspace (personal). Default dilewati karena "
-            "service principal tidak punya akses ke sana."
+            "Include reports in My Workspace (personal). Skipped by default because "
+            "the service principal has no access there."
         ),
     )
-    parser.add_argument("--refresh", action="store_true", help="Paksa unduh ulang semua definisi report.")
+    parser.add_argument("--refresh", action="store_true", help="Force download of all report definitions.")
     parser.add_argument(
         "--model-only",
         action="store_true",
         help=(
-            "Analisa metadata model saja (kolom, ukuran, measure, relasi, M). "
-            "Report tidak diunduh; kolom tanpa referensi menjadi 'Perlu dicek'."
+            "Analyze model metadata only (columns, sizes, measures, relationships, M). "
+            "Reports are not downloaded; unreferenced columns become 'Needs review'."
         ),
     )
-    parser.add_argument("--max-reports", type=int, help="Batas jumlah report baru yang dipindai sekali jalan.")
+    parser.add_argument("--max-reports", type=int, help="Maximum number of new reports scanned per run.")
     parser.add_argument(
         "--scan-workers",
         type=int,
         default=2,
         help=(
-            "Jumlah definisi report yang diunduh bersamaan (1-4, bawaan 2). "
-            "Turun otomatis ke 1 bila Fabric mengembalikan 429."
+            "Number of report definitions downloaded concurrently (1-4, default 2). "
+            "Falls back to 1 when Fabric returns 429."
         ),
     )
-    parser.add_argument("--list-reports", action="store_true", help="Hanya tampilkan daftar report pemakai dataset.")
+    parser.add_argument("--list-reports", action="store_true", help="Only list reports using the dataset.")
     return parser.parse_args(argv)
 
 
@@ -123,16 +123,16 @@ def main(argv: list[str] | None = None) -> int:
                 database=request.database or DEFAULT_DB,
                 log=print,
             )
-            print(f"Sumber daftar : {method}")
-            print(f"Jumlah report : {len(entries)}")
+            print(f"List source    : {method}")
+            print(f"Report count   : {len(entries)}")
             for index, entry in enumerate(entries, start=1):
-                status = "" if entry.supported else "  [tidak dianalisa]"
+                status = "" if entry.supported else "  [not analyzed]"
                 print(
                     f"  {index:3d}. {entry.label}  {entry.report_format or '?'}"
                     f"{status}"
                 )
             for note in notes:
-                print(f"CATATAN: {note}")
+                print(f"NOTE: {note}")
             return 0
 
         result = analyze_dataset(
@@ -140,19 +140,19 @@ def main(argv: list[str] | None = None) -> int:
             principal=principal,
             log=print,
             progress=lambda index, total, name: print(
-                f"  memindai {index}/{total}: {name}"
+                f"  scanning {index}/{total}: {name}"
             ),
         )
         target = request.output or (ROOT / output_file_name(dataset_name, request.dataset_id))
         path = write_workbook(result, target)
 
         print()
-        print(f"Ukuran model      : {format_bytes(result.dataset_bytes)}")
-        print(f"Kolom             : {len(result.columns)}")
-        print(f"Tidak dipakai     : {len(result.unused)} ({format_bytes(result.unused_bytes)})")
+        print(f"Model size        : {format_bytes(result.dataset_bytes)}")
+        print(f"Columns           : {len(result.columns)}")
+        print(f"Unused            : {len(result.unused)} ({format_bytes(result.unused_bytes)})")
         for status, count in sorted(result.status_counts.items()):
             print(f"  {status:<24}: {count}")
-        print(f"Cakupan report    : {result.coverage} ({result.method})")
+        print(f"Report coverage   : {result.coverage} ({result.method})")
         health = build_health(result)
         print(
             "Health            : "

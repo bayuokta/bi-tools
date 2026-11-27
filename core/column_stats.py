@@ -1,6 +1,6 @@
 """Ukuran kolom/tabel semantic model dari DMV VertiPaq (read-only).
 
-Dipakai tab **Analisa Semantic Model** dan CLI. Modul ini tidak menulis apa pun
+Used tab **Analisa Semantic Model** dan CLI. Modul ini tidak menulis apa pun
 ke model; hanya SELECT ke DMV dan TMSCHEMA.
 
 Sumber angka:
@@ -542,7 +542,7 @@ def read_model_stats(
             "yang belum resident memang tidak punya segmen VertiPaq."
         )
     log(
-        f"Model: {len(model.column_by_id)} kolom mentah, "
+        f"Model: {len(model.column_by_id)} raw columns, "
         f"{len(segments)} segmen storage."
     )
     return build_model_stats(

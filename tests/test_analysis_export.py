@@ -22,7 +22,7 @@ def analysis_fixture() -> SimpleNamespace:
     column = SimpleNamespace(column="Amount", table="Sales")
     column_item = SimpleNamespace(
         column=column,
-        status="Dipakai",
+        status="Used",
         model_refs=[
             SimpleNamespace(
                 kind="measure",
@@ -55,7 +55,7 @@ def analysis_fixture() -> SimpleNamespace:
     measure = SimpleNamespace(measure="Total", table="KPI")
     measure_item = SimpleNamespace(
         measure=measure,
-        status="Dipakai",
+        status="Used",
         model_refs=[],
         report_records=[],
     )
@@ -79,7 +79,7 @@ class LineageExportTests(unittest.TestCase):
                     "kind": "column",
                     "label": "Amount",
                     "context": "Sales",
-                    "status": "Dipakai",
+                    "status": "Used",
                     "side": "root",
                     "column": 0,
                     "x": 10,

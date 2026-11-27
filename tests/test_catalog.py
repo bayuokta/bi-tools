@@ -579,7 +579,7 @@ class WorkspaceCliTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(code, 1)
-        self.assertIn("tidak ditemukan", err)
+        self.assertIn("not found", err)
 
 
 if __name__ == "__main__":

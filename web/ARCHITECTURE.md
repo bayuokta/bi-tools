@@ -19,12 +19,10 @@ pekerjaan pada UI web tidak perlu membaca seluruh file JS.
 |---|---|
 | `web\index.html` | Seluruh markup view, dialog, tooltip, dan id DOM. Tanpa logika bisnis. |
 | `web\styles.css` | Semua gaya: combo, tabel analisa, kanvas lineage, dialog. |
-| `web\locales.js` | Kamus `en`/`id` (`window.BIToolsI18n`). Classic script, dimuat sebelum `app.js`. |
 | `web\api.js` | Klien HTTP (`window.BIToolsApi`). Satu-satunya jalur aksi dari UI. |
 | `web\app.js` | Entry module. Impor core + view, `init()`, `bootstrap()`, event wiring. |
 | `web\js\core\state.js` | Objek `state` global + `store` localStorage. |
 | `web\js\core\dom.js` | `$`, `$$`, `escapeHtml`. |
-| `web\js\core\i18n.js` | `i18n`, `t`, `tr`, `currentLanguage`. |
 | `web\js\core\format.js` | `decimalText`, `fmtInt`, `sizeText`, `fileMeta`. |
 | `web\js\core\combo.js` | Komponen combo: enhance select, popup, pencarian, set/get options. |
 | `web\js\core\highlight.js` | Prism DAX/JSON + grammar TMDL lexical; `highlightCode`, `highlightLine`, `compareLanguage`. |
@@ -44,15 +42,14 @@ perubahan `server\app.py` atau `packaging\bi_tools.spec`.
 ## Titik masuk
 
 - `app.js` adalah **ES module** (`<script type="module" src="app.js">`).
-  `locales.js` dan `api.js` tetap classic script sehingga dieksekusi lebih dulu.
+  `api.js` tetap classic script sehingga dieksekusi lebih dulu.
 - `init()` (bagian bawah `app.js`): memasang event listener, memanggil
-  `initComboEvents()`, `enhanceAllSelects()`, `applyLanguage()`, `applyTheme()`,
+  `initComboEvents()`, `enhanceAllSelects()`, `applyTheme()`,
   `applyMotion()`, `setSource()`, lalu `renderLog()` dan `analysisRender()`.
 - `bootstrap()`: memuat system/settings/catalog/outputs/instances/workspaces,
   state TSD, analisa, partisi, dan lineage.
 - `showView(name)`: menampilkan `#view-<name>`, mengatur `aria-current`,
   `applyMetaSteps()`, lalu memuat state lineage/partisi/compare/backup bila perlu.
-- `rerenderLanguage()`: render ulang view aktif setelah bahasa berganti.
 
 ## Peta `app.js` (core, preferensi, event wiring)
 
@@ -61,7 +58,7 @@ Cari dengan `grep "function <nama>("`.
 ### Kerangka dan preferensi
 
 `showView`, `tsdUnlocked`, `applyMetaSteps`, `setMetaStep`, `setSource`,
-`applyLanguage`, `applyComboLanguage`, `rerenderLanguage`, `applyTheme`,
+`applyTheme`,
 `applyMotion`, `applySidebar`, `showSettingsTab`, `savePreference`,
 `loadSystem`, `loadSettings`, `renderSettings`, `loadCatalogStatus`,
 `renderCatalogStatus`, `loadOutputs`, `renderOutputs`, `openOutput`,
@@ -239,21 +236,18 @@ Satu objek `state` dimutasi in-place. Kelompok penting:
 - Halaman Lineage: id `#lineage*`; kanvas SVG dan detail node.
 - Dialog berkas: `#folderDialog`, `#folderPathInput`, `#chooseFolder`.
 
-## i18n
+## Bahasa
 
-- Bahasa dasar Inggris di `index.html`, `app.js`, dan modul `js/**`.
-- Kamus Indonesia di `locales.js` (`messages.id`).
-- Markup statis memakai `data-i18n`, `data-i18n-title`,
-  `data-i18n-placeholder`, `data-i18n-aria-label`.
-- Teks dinamis memakai `t()`; pesan server memakai `tr()`.
-- Jangan menulis teks UI Indonesia langsung di JS/HTML; tambahkan kunci kamus.
-- Nilai kanonik (status verdict, kunci filter/sort, tipe field) tetap Bahasa
-  Indonesia di data; tampilan memakai `tStatus()`.
+- Antarmuka **English-only**: tidak ada kamus, pemilih bahasa, `t()`, atau `tr()`.
+- Tulis teks UI langsung dalam Bahasa Inggris di `index.html`, `app.js`, dan
+  modul `js/**`.
+- Nilai status verdict dan label data memakai Bahasa Inggris (`Unused`, `Used`,
+  `Must keep`, `Needs review`).
 
 ## Tes penjaga
 
-- `tests\test_i18n.py`: kunci `data-i18n`/`t()`, frasa Indonesia tersisa,
-  blok `HEALTH_RULE_HELP`, urutan `locales.js` sebelum `app.js`.
+- `tests\test_english_only.py`: tidak ada `locales.js`, `data-i18n`, `t()`/`tr()`,
+  atau preferensi `ui/language`; status verdict berbahasa Inggris.
 - `tests\test_architecture.py`: helper inti satu deklarasi, `app.js` memuat
   `api.js`, tidak ada framework/CDN/build step di `web\`, dan aturan
   arsitektur lain.

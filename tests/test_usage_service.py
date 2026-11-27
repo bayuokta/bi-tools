@@ -152,8 +152,8 @@ class FormatTests(unittest.TestCase):
     def test_format_bytes(self) -> None:
         self.assertEqual(format_bytes(0), "0 B")
         self.assertEqual(format_bytes(512), "512 B")
-        self.assertEqual(format_bytes(2048), "2,0 KB")
-        self.assertEqual(format_bytes(20 * 1024 * 1024), "20,0 MB")
+        self.assertEqual(format_bytes(2048), "2.0 KB")
+        self.assertEqual(format_bytes(20 * 1024 * 1024), "20.0 MB")
         self.assertEqual(format_bytes(None), "0 B")
 
     def test_output_file_name(self) -> None:
@@ -173,9 +173,9 @@ class FormatTests(unittest.TestCase):
             )
         )
 
-        self.assertIn("2 personal dilewati", text)
-        self.assertIn("1 App dilewati", text)
-        self.assertIn("1 tidak dapat diakses", text)
+        self.assertIn("2 personal skipped", text)
+        self.assertIn("1 App skipped", text)
+        self.assertIn("1 inaccessible", text)
 
 
 class FormatNormalizationTests(unittest.TestCase):
@@ -244,7 +244,7 @@ class VerdictTests(unittest.TestCase):
         status, reason = verdict(column("Customer"), [], records, coverage_complete=True)
 
         self.assertEqual(status, STATUS_USED)
-        self.assertIn("3 titik", reason)
+        self.assertIn("3 points", reason)
         self.assertIn("2 report", reason)
 
     def test_measure_only_usage_is_not_blocking(self) -> None:
@@ -257,7 +257,7 @@ class VerdictTests(unittest.TestCase):
         status, reason = verdict(column("Customer"), [], [], coverage_complete=False)
 
         self.assertEqual(status, STATUS_UNKNOWN)
-        self.assertIn("cakupan", reason)
+        self.assertIn("coverage", reason)
 
     def test_clean_column_is_unused(self) -> None:
         status, _reason = verdict(column("Customer"), [], [], coverage_complete=True)
@@ -328,7 +328,7 @@ class DiscoverReportsTests(unittest.TestCase):
         self.assertEqual(method, "workspace")
         self.assertEqual([entry.report_id for entry in entries], ["r2"])
         self.assertEqual(entries[0].source, "lineage")
-        self.assertTrue(any("tidak bisa dibaca" in note for note in notes))
+        self.assertTrue(any("could not be read" in note for note in notes))
 
     def test_workspace_only_skips_admin_and_lineage(self) -> None:
         principal = ServicePrincipal.from_values("t", "c", "s")
@@ -608,7 +608,7 @@ class ScanReportsTests(unittest.TestCase):
         rows = stored_unresolved(self.conn, "ds")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["query_ref"], "tanpa-titik")
-        self.assertEqual(rows[0]["visual_title"].startswith("(tanpa judul)"), True)
+        self.assertEqual(rows[0]["visual_title"].startswith("(untitled)"), True)
 
     def test_rdl_report_is_skipped_without_download(self) -> None:
         calls: list[str] = []
@@ -960,7 +960,7 @@ class MeasureAnalysisTests(unittest.TestCase):
         helper = self.by_name(result)["Helper"]
 
         self.assertEqual(helper.status, STATUS_USED)
-        self.assertIn("tidak langsung", helper.reason)
+        self.assertIn("indirectly", helper.reason)
         self.assertTrue(helper.indirect)
 
     def test_measure_referenced_only_by_unused_measure(self) -> None:
@@ -980,7 +980,7 @@ class MeasureAnalysisTests(unittest.TestCase):
         orphan = self.by_name(result)["Orphan"]
 
         self.assertEqual(orphan.status, STATUS_UNUSED)
-        self.assertIn("juga tidak dipakai", orphan.reason)
+        self.assertIn("unused measures", orphan.reason)
 
     def test_calculation_item_keeps_measure(self) -> None:
         refs = {
@@ -1266,7 +1266,7 @@ class MetadataRowsTests(unittest.TestCase):
         )
 
         by_name = {row["name"]: row for row in rows}
-        self.assertEqual(by_name["Sales"]["kind"], "Tabel")
+        self.assertEqual(by_name["Sales"]["kind"], "Table")
         self.assertEqual(by_name["Sales"]["detail"], "2 partisi")
         self.assertIn("let Source", by_name["Sales"]["expression"])
         self.assertEqual(by_name["Sales"]["warning"], "evaluationError")
@@ -1274,7 +1274,7 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertEqual(by_name["ServerURL"]["source"], "Param")
         self.assertEqual(by_name["Helper"]["kind"], "Expression")
         self.assertNotIn("CalcTable", by_name)
-        self.assertEqual(rows[0]["kind"], "Tabel")
+        self.assertEqual(rows[0]["kind"], "Table")
 
     def test_m_query_rows_reads_incremental_source_expression(self) -> None:
         rows = m_query_rows(
@@ -1381,7 +1381,7 @@ class WriteWorkbookTests(unittest.TestCase):
                         expression="SUM(Sales[Qty])",
                     ),
                     status=STATUS_USED,
-                    reason="Dipakai di 1 titik pada 1 report.",
+                    reason="Used di 1 titik pada 1 report.",
                 )
             ],
         )
@@ -1627,7 +1627,7 @@ class ModelReferenceTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(refresh), 1)
-        self.assertEqual(refresh[0].detail, "incremental refresh kolom 'Qty'")
+        self.assertEqual(refresh[0].detail, "incremental refresh column 'Qty'")
 
     def test_field_parameter_is_detected_once(self) -> None:
         refs = model_references(self.model())
@@ -1878,7 +1878,7 @@ class SnapshotTests(unittest.TestCase):
                 [
                     {
                         "name": "Sales",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": "let Source = ... in Source",
                         "warning": "",

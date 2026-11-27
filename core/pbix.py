@@ -76,13 +76,13 @@ def _validate_pbix_path(pbix_path: Path) -> Path:
     path = Path(pbix_path)
     if path.is_dir():
         raise ExtractionError(
-            f"Sumber report harus file .pbix, bukan folder: {path}. "
-            "Dukungan folder PBIR sudah dihapus."
+            f"Report source must be a .pbix file, not a folder: {path}. "
+            "PBIR folder support has been removed."
         )
     if path.suffix.lower() != ".pbix":
-        raise ExtractionError(f"Sumber report tidak dikenali: {path}. Gunakan file .pbix.")
+        raise ExtractionError(f"Unrecognized report source: {path}. Use a .pbix file.")
     if not path.exists():
-        raise ExtractionError(f"File .pbix tidak ditemukan: {path}")
+        raise ExtractionError(f".pbix file not found: {path}")
     return path
 
 
@@ -97,7 +97,7 @@ def detect_pbix_source(pbix_path: Path) -> PbixSourceInfo:
     try:
         archive = zipfile.ZipFile(path)
     except zipfile.BadZipFile as exc:
-        raise ExtractionError(f"File bukan .pbix/ZIP yang valid: {path} ({exc})") from exc
+        raise ExtractionError(f"The file is not a valid .pbix/ZIP: {path} ({exc})") from exc
 
     with archive:
         members = set(archive.namelist())
@@ -150,7 +150,7 @@ def extract_pbix_definition(pbix_path: Path, target_root: Path) -> Path:
     try:
         archive = zipfile.ZipFile(pbix_path)
     except zipfile.BadZipFile as exc:
-        raise ExtractionError(f"File bukan .pbix/ZIP yang valid: {pbix_path} ({exc})") from exc
+        raise ExtractionError(f"The file is not a valid .pbix/ZIP: {pbix_path} ({exc})") from exc
 
     with archive:
         members = [
@@ -160,9 +160,9 @@ def extract_pbix_definition(pbix_path: Path, target_root: Path) -> Path:
         ]
         if f"{PBIR_PREFIX}report.json" not in members or f"{PBIR_PREFIX}pages/pages.json" not in members:
             raise ExtractionError(
-                "PBIR definition tidak ditemukan di dalam .pbix. "
-                "File ini kemungkinan masih memakai Report/Layout legacy; "
-                "simpan ulang dengan Power BI Desktop yang mendukung PBIR GA."
+                "PBIR definition was not found inside the .pbix. "
+                "This file probably still uses legacy Report/Layout; "
+                "save it again with a Power BI Desktop version that supports PBIR GA."
             )
 
         for member in members:
@@ -184,7 +184,7 @@ def resolve_pbix(report_path: Path | None, workdir: Path) -> tuple[Path, str]:
     """
     if report_path is None:
         raise ExtractionError(
-            "File .pbix wajib ditentukan (--report). Tidak ada file bawaan."
+            "A .pbix file is required (--report). There is no default file."
         )
 
     report_path = _validate_pbix_path(report_path.resolve())

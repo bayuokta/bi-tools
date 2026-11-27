@@ -81,7 +81,7 @@ class CompareEndpointTests(unittest.TestCase):
         }
         response = self.client.post("/api/compare/run", json=same)
         self.assertEqual(response.status_code, 400)
-        self.assertIn("tidak boleh", response.json()["detail"])
+        self.assertIn("cannot", response.json()["detail"])
 
     def test_run_submits_job(self) -> None:
         fake = {

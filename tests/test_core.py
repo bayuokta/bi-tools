@@ -852,7 +852,7 @@ class ExtractionScopeTests(unittest.TestCase):
             )
             self.assertEqual(tables, {})
             self.assertEqual(inventory, [])
-            self.assertIn("validasi", source.lower())
+            self.assertIn("validation", source.lower())
 
 
 class DesktopInstanceSelectionTests(unittest.TestCase):

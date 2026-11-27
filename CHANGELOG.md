@@ -9,6 +9,17 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ## Belum dirilis
 
+### Perubahan
+
+- Antarmuka menjadi **English-only**: `web/locales.js`, `web/js/core/i18n.js`,
+  pemanggilan `t()`/`tr()`, atribut `data-i18n*`, pemilih bahasa, dan preferensi
+  `ui/language` dihapus. Teks UI, log job, pesan error/validasi, dan bantuan CLI
+  kini ditulis langsung dalam Bahasa Inggris.
+- Status verdict memakai Bahasa Inggris: `Unused`, `Used`, `Must keep`,
+  `Needs review`. Nilai `ui/language=id` dari versi lama diabaikan.
+- Angka memakai format `en-US`; `format_bytes()` kini memakai titik desimal.
+- Tes `tests/test_i18n.py` diganti `tests/test_english_only.py`.
+
 ### Perbaikan
 
 - Aset statis (`/index.html`, `/app.js`, `styles.css`, modul `js/`) dikirim dengan

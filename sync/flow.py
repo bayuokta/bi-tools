@@ -48,14 +48,14 @@ class SyncOptions:
 
     def validate(self) -> None:
         if self.mode not in MODES:
-            raise ExtractionError(f"Mode sinkronisasi tidak dikenal: {self.mode}")
+            raise ExtractionError(f"Unknown sync mode: {self.mode}")
         if self.skip_catalog and self.skip_lineage and self.skip_reports:
             raise ExtractionError(
-                "Semua langkah sync dilewati; tidak ada yang bisa diterbitkan."
+                "All sync steps were skipped; nothing can be published."
             )
         if self.upload and self.sharepoint is None:
             raise ExtractionError(
-                "Upload diminta tetapi target SharePoint belum diisi."
+                "Upload requested but the SharePoint target is not set."
             )
 
 
@@ -104,7 +104,7 @@ def run_sync(
 
     if not options.skip_catalog:
         catalog = run_workspace_sync(database, principal, mode=options.mode, log=log)
-        log(f"Katalog: {catalog.workspace_count} workspace (mode {catalog.mode})")
+        log(f"Catalog: {catalog.workspace_count} workspace (mode {catalog.mode})")
 
     if not options.skip_lineage:
         lineage = run_lineage_scan(
@@ -125,9 +125,9 @@ def run_sync(
             report_count = sync_report_catalog(principal, database, log=log)
         except Exception as exc:  # noqa: BLE001 - katalog report opsional
             report_error = str(exc)
-            log(f"Katalog report dilewati: {exc}")
+            log(f"Report catalog skipped: {exc}")
         else:
-            log(f"Katalog report: {report_count} report")
+            log(f"Report catalog: {report_count} report")
 
     summary = publish_snapshot(
         database,

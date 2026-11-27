@@ -109,21 +109,21 @@ class ReportDefinition:
 def _validate_uuid(value: str, label: str) -> str:
     text = (value or "").strip()
     if not text:
-        raise ExtractionError(f"{label} masih kosong.")
+        raise ExtractionError(f"{label} is still empty.")
     try:
         return str(UUID(text))
     except ValueError as exc:
         hint = ""
         if text.lower() == "me":
             hint = " URL menunjuk ke My workspace; gunakan URL workspace biasa."
-        raise ExtractionError(f"{label} bukan GUID yang valid: {text}.{hint}") from exc
+        raise ExtractionError(f"{label} is not a valid GUID: {text}.{hint}") from exc
 
 
 def parse_report_url(text: str) -> ServiceReportRef:
     """Ambil workspace dan report ID dari URL report Power BI/Fabric."""
     raw = (text or "").strip()
     if not raw:
-        raise ExtractionError("URL report Power BI Service masih kosong.")
+        raise ExtractionError("The Power BI Service report URL is still empty.")
 
     parsed = urlparse(raw)
     segments = [unquote(segment) for segment in parsed.path.split("/") if segment]
@@ -131,12 +131,12 @@ def parse_report_url(text: str) -> ServiceReportRef:
     if "groups" in lowered:
         group_index = lowered.index("groups")
         if group_index + 1 >= len(segments):
-            raise ExtractionError("URL report tidak memuat workspace ID.")
+            raise ExtractionError("The report URL does not contain a workspace ID.")
         if "reports" not in lowered[group_index + 1 :]:
-            raise ExtractionError("URL report tidak memuat bagian /reports/<reportId>.")
+            raise ExtractionError("The report URL does not contain the /reports/<reportId> segment.")
         report_index = lowered.index("reports", group_index + 1)
         if report_index + 1 >= len(segments):
-            raise ExtractionError("URL report tidak memuat report ID.")
+            raise ExtractionError("The report URL does not contain a report ID.")
         return ServiceReportRef.from_ids(segments[group_index + 1], segments[report_index + 1])
 
     tokens = [token for token in raw.replace(",", " ").split() if token]
@@ -144,7 +144,7 @@ def parse_report_url(text: str) -> ServiceReportRef:
         return ServiceReportRef.from_ids(tokens[0], tokens[1])
 
     raise ExtractionError(
-        "Format URL report tidak dikenali. Contoh: "
+        "Unrecognized report URL format. Example: "
         "https://app.powerbi.com/groups/<workspaceId>/reports/<reportId>"
     )
 
@@ -153,15 +153,15 @@ def _decode_payload(path: str, item: dict[str, Any]) -> bytes:
     payload_type = str(item.get("payloadType") or "InlineBase64")
     if payload_type != "InlineBase64":
         raise ExtractionError(
-            f"Part definition {path} memakai payloadType {payload_type} yang belum didukung."
+            f"Part definition {path} uses payloadType {payload_type} which is not supported yet."
         )
     encoded = str(item.get("payload") or "").strip()
     if not encoded:
-        raise ExtractionError(f"Part definition {path} tidak memuat payload.")
+        raise ExtractionError(f"Part definition {path} has no payload.")
     try:
         return base64.b64decode(encoded, validate=True)
     except (ValueError, binascii.Error) as exc:
-        raise ExtractionError(f"Payload base64 tidak valid untuk part {path}.") from exc
+        raise ExtractionError(f"Invalid base64 payload for part {path}.") from exc
 
 
 def _detect_format(paths: set[str]) -> str:
@@ -203,7 +203,7 @@ def parse_definition_response(payload: dict[str, Any]) -> ReportDefinition:
             continue
         parts.append(DefinitionPart(path=path, payload=_decode_payload(path, item)))
     if not parts:
-        raise ExtractionError("Respons getDefinition tidak memuat part definition.")
+        raise ExtractionError("The getDefinition response contains no definition parts.")
 
     unique = tuple(parts)
     return ReportDefinition(
@@ -216,7 +216,7 @@ def parse_definition_response(payload: dict[str, Any]) -> ReportDefinition:
 def _safe_relative_path(value: str) -> PurePosixPath:
     path = PurePosixPath(value.replace("\\", "/").strip())
     if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
-        raise ExtractionError(f"Path part definition tidak aman: {value}")
+        raise ExtractionError(f"Unsafe definition part path: {value}")
     return path
 
 
@@ -226,13 +226,13 @@ def materialize_definition(definition: ReportDefinition, target_root: Path) -> P
     if not any(path.startswith("definition/") for path in paths):
         if "report.json" in paths:
             raise ExtractionError(
-                "Report di Power BI Service masih memakai format PBIR-Legacy "
-                "(satu file report.json). Buka report di Power BI Desktop, simpan "
-                "ulang sebagai PBIR, lalu publish lagi sebelum ekstraksi."
+                "The Power BI Service report still uses PBIR-Legacy "
+                "(a single report.json). Open it in Power BI Desktop, save it "
+                "again as PBIR, then publish again before extraction."
             )
         raise ExtractionError(
-            "Definition report tidak memuat folder definition/ (PBIR). "
-            "Format report dari service tidak dikenali."
+            "The report definition has no definition/ folder (PBIR). "
+            "The report format from the service was not recognized."
         )
 
     root = Path(target_root)
@@ -246,7 +246,7 @@ def materialize_definition(definition: ReportDefinition, target_root: Path) -> P
     report_def = root / "definition"
     if not (report_def / "pages" / "pages.json").exists():
         raise ExtractionError(
-            "Definition PBIR tidak lengkap: definition/pages/pages.json tidak ditemukan."
+            "Incomplete PBIR definition: definition/pages/pages.json was not found."
         )
     return report_def
 
@@ -315,10 +315,10 @@ class FabricReportClient:
             data = response.json()
         except ValueError as exc:
             raise ExtractionError(
-                f"Respons Fabric API untuk {action} bukan JSON yang valid."
+                f"Fabric API response for {action} is not valid JSON."
             ) from exc
         if not isinstance(data, dict):
-            raise ExtractionError(f"Respons Fabric API untuk {action} tidak dikenali.")
+            raise ExtractionError(f"Fabric API response for {action} was not recognized.")
         return data
 
     def _poll_operation(
@@ -329,8 +329,8 @@ class FabricReportClient:
         )
         if not location:
             raise ExtractionError(
-                "Fabric API menerima permintaan tetapi tidak memberi header Location "
-                "untuk memantau operasi."
+                "The Fabric API accepted the request but did not return a Location "
+                "header to monitor the operation."
             )
         if not location.lower().startswith("http"):
             location = f"{FABRIC_API}/operations/{location}"
@@ -357,7 +357,7 @@ class FabricReportClient:
             "GET", location.rstrip("/") + "/result"
         )
         if not isinstance(result, dict):
-            raise ExtractionError("Hasil getDefinition bukan object JSON.")
+            raise ExtractionError("The getDefinition result is not a JSON object.")
         return result
 
     # -- API --------------------------------------------------------------

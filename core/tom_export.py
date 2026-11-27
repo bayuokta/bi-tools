@@ -23,7 +23,7 @@ def _database(server: Any, catalog: str) -> Any:
             available = []
         detail = f" Dataset tersedia: {', '.join(available)}." if available else ""
         raise ExtractionError(
-            f"Dataset '{catalog}' tidak ditemukan di server TOM.{detail}"
+            f"Dataset '{catalog}' was not found on the TOM server.{detail}"
         ) from exc
 
 
@@ -45,12 +45,12 @@ def export_model(server: Any, catalog: str, target: Path | str) -> dict[str, Any
     try:
         TmdlSerializer.SerializeDatabaseToFolder(database, str(tmdl_dir))
     except Exception as exc:  # noqa: BLE001 - serializer melempar .NET exception
-        raise ExtractionError(f"Serialisasi TMDL gagal: {exc}") from exc
+        raise ExtractionError(f"TMDL serialization failed: {exc}") from exc
 
     try:
         text = str(JsonSerializer.SerializeDatabase(database, SerializeOptions()))
     except Exception as exc:  # noqa: BLE001
-        raise ExtractionError(f"Serialisasi TMSL gagal: {exc}") from exc
+        raise ExtractionError(f"TMSL serialization failed: {exc}") from exc
     (root / "model.bim").write_text(text, encoding="utf-8")
 
     files = [path for path in root.rglob("*") if path.is_file()]

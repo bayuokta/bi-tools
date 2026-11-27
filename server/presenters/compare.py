@@ -64,14 +64,14 @@ def _read_side(
 ) -> tuple[dict[str, Any], str]:
     """Baca snapshot TOM satu sisi lewat proses CLI anak (tanpa ADOMD)."""
     if side.kind == "desktop":
-        log(f"Membaca Desktop localhost:{side.port} lewat TOM…")
+        log(f"Reading Desktop localhost:{side.port} via TOM…")
         snapshot = read_snapshot(
             port=side.port,
             catalog=side.catalog,
             options=options,
         )
         label = _side_label(side, snapshot)
-        log(f"Desktop dibaca: {label}")
+        log(f"Desktop read: {label}")
         return snapshot, label
 
     principal: Any = store.auth()
@@ -86,7 +86,7 @@ def _read_side(
         )
     endpoint = workspace_endpoint(principal.tenant_id or "myorg", workspace_name)
     tokens = EntraTokens(principal)
-    log(f"Membaca dataset '{dataset_name}' lewat TOM…")
+    log(f"Reading dataset '{dataset_name}' via TOM…")
     snapshot = read_snapshot(
         endpoint=endpoint,
         catalog=dataset_name,
@@ -104,7 +104,7 @@ def _read_side(
         ),
         snapshot,
     )
-    log(f"Dataset dibaca: {label}")
+    log(f"Dataset read: {label}")
     return snapshot, label
 
 def run_job(
@@ -114,12 +114,12 @@ def run_job(
     request = CompareRequest.from_payload(payload)
     options = normalize_options(request.options)
     if cancel.is_set():
-        raise ExtractionError("Perbandingan dibatalkan.")
+        raise ExtractionError("Comparison cancelled.")
     log(f"Sumber: {_side_label(request.source)}")
     log(f"Target: {_side_label(request.target)}")
     source, source_label = _read_side(store, request.source, options, log)
     if cancel.is_set():
-        raise ExtractionError("Perbandingan dibatalkan.")
+        raise ExtractionError("Comparison cancelled.")
     target, target_label = _read_side(store, request.target, options, log)
     result = compare_snapshots(source, target, options)
     result.update(
@@ -132,10 +132,10 @@ def run_job(
     )
     stats = result.get("stats") or {}
     log(
-        "Perbandingan selesai: "
-        f"{stats.get('same', 0)} sama · {stats.get('different', 0)} beda · "
-        f"{stats.get('source_only', 0)} hanya sumber · "
-        f"{stats.get('target_only', 0)} hanya target."
+        "Comparison finished: "
+        f"{stats.get('same', 0)} same · {stats.get('different', 0)} different · "
+        f"{stats.get('source_only', 0)} source only · "
+        f"{stats.get('target_only', 0)} target only."
     )
     with _LOCK:
         _LAST_RESULT.clear()
@@ -147,7 +147,7 @@ def _last_result() -> dict[str, Any]:
     with _LOCK:
         if not _LAST_RESULT:
             raise ExtractionError(
-                "Belum ada hasil perbandingan. Jalankan perbandingan dulu."
+                "No comparison results yet. Run a comparison first."
             )
         return dict(_LAST_RESULT)
 

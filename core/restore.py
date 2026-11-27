@@ -84,9 +84,9 @@ def inspect_archive(path: Path | str, *, strict: bool = True) -> ArchiveInfo:
     """Baca dan validasi ZIP backup; tidak menulis apa pun."""
     source = Path(path).expanduser()
     if not source.is_file():
-        raise ExtractionError(f"File backup tidak ditemukan: {source}")
+        raise ExtractionError(f"Backup file not found: {source}")
     if source.suffix.lower() != ".zip":
-        raise ExtractionError("File backup harus berformat .zip.")
+        raise ExtractionError("The backup file must be a .zip file.")
     parts: list[DefinitionPart] = []
     paths: set[str] = set()
     total = 0
@@ -94,12 +94,12 @@ def inspect_archive(path: Path | str, *, strict: bool = True) -> ArchiveInfo:
         with zipfile.ZipFile(source) as archive:
             infos = [info for info in archive.infolist() if not info.is_dir()]
             if len(infos) > MAX_ENTRIES:
-                raise ExtractionError("ZIP backup memuat terlalu banyak file.")
+                raise ExtractionError("The backup ZIP contains too many files.")
             for info in infos:
                 relative = PurePosixPath(info.filename.replace("\\", "/"))
                 if relative.is_absolute() or ".." in relative.parts:
                     raise ExtractionError(
-                        f"Path di ZIP tidak aman: {info.filename!r}."
+                        f"Unsafe path in ZIP: {info.filename!r}."
                     )
                 total += int(info.file_size or 0)
                 if total > MAX_UNCOMPRESSED:
@@ -111,25 +111,25 @@ def inspect_archive(path: Path | str, *, strict: bool = True) -> ArchiveInfo:
                 paths.add(clean)
                 parts.append(DefinitionPart(clean, payload))
     except zipfile.BadZipFile as exc:
-        raise ExtractionError(f"File backup bukan ZIP yang valid: {exc}") from exc
+        raise ExtractionError(f"The backup file is not a valid ZIP: {exc}") from exc
 
     kind = _guess_kind(paths)
     if not kind:
         raise ExtractionError(
-            "Jenis backup tidak dikenali (bukan semantic model atau report)."
+            "Unrecognized backup type (not a semantic model or report)."
         )
 
     if strict and kind == KIND_MODEL and not (
         "definition/model.tmdl" in paths or "model.bim" in paths
     ):
         raise ExtractionError(
-            "ZIP model tidak memuat definition/model.tmdl atau model.bim."
+            "The model ZIP contains neither definition/model.tmdl nor model.bim."
         )
     if strict and kind == KIND_REPORT and not (
         "definition.pbir" in paths or "report.json" in paths
     ):
         raise ExtractionError(
-            "ZIP report tidak memuat definition.pbir atau report.json."
+            "The report ZIP contains neither definition.pbir nor report.json."
         )
 
     payloads = {part.path: part.payload for part in parts}
@@ -138,7 +138,7 @@ def inspect_archive(path: Path | str, *, strict: bool = True) -> ArchiveInfo:
             json.loads(payloads["model.bim"].decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
             raise ExtractionError(
-                f"model.bim di ZIP bukan JSON yang valid: {exc}"
+                f"model.bim in the ZIP is not valid JSON: {exc}"
             ) from exc
     name = _platform_name(payloads) or _base_name(source)
     return ArchiveInfo(
@@ -204,12 +204,12 @@ class RestoreOptions:
     def __post_init__(self) -> None:
         path = Path(self.file).expanduser()
         if not path.is_absolute():
-            raise ExtractionError("Path file backup harus absolut.")
+            raise ExtractionError("Backup file path must be absolute.")
         object.__setattr__(self, "file", path)
         if self.overwrite and not str(self.target_id or "").strip():
-            raise ExtractionError("Pilih item tujuan yang akan ditimpa.")
+            raise ExtractionError("Select the target item to overwrite.")
         if not self.overwrite and str(self.target_id or "").strip():
-            raise ExtractionError("Target item hanya dipakai saat menimpa.")
+            raise ExtractionError("A target item is only used when overwriting.")
 
 
 @dataclass
@@ -290,7 +290,7 @@ def run_restore(
     info = inspect_archive(options.file, strict=options.validate)
     workspace = str(options.workspace_name or "").strip()
     if not workspace:
-        raise ExtractionError("Nama workspace tujuan belum diketahui.")
+        raise ExtractionError("The target workspace name is unknown.")
 
     started_at = datetime.now().isoformat(timespec="seconds")
     clock = time.perf_counter()
@@ -309,7 +309,7 @@ def run_restore(
     parts = _restore_parts(info, create=not options.overwrite)
     log(
         f"Restore {info.kind} '{info.name}' -> {workspace} "
-        f"({'timpa' if options.overwrite else 'baru'})"
+        f"({'overwrite' if options.overwrite else 'new'})"
     )
     item_id = str(options.target_id or "").strip()
     try:
@@ -337,7 +337,7 @@ def run_restore(
         raise
     except Exception as exc:  # noqa: BLE001 - pesan API tidak seragam
         raise ExtractionError(
-            f"Restore {info.kind} '{info.name}' gagal: {exc}"
+            f"Restore {info.kind} '{info.name}' failed: {exc}"
         ) from exc
     finally:
         client.close()
@@ -357,7 +357,7 @@ def run_restore(
         duration_seconds=time.perf_counter() - clock,
     )
     log(
-        f"Selesai: {info.kind} {action} "
+        f"Done: {info.kind} {action} "
         f"({info.size} byte, {result.duration_seconds:.1f} detik)."
     )
     return result

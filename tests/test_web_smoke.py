@@ -3,7 +3,7 @@
 Uji unit lain memakai ``TestClient`` yang tidak menjalankan JavaScript, jadi
 kesalahan boot ``app.js`` (sintaks, elemen hilang, handler null) tidak tertangkap.
 Uji ini menjalankan server uvicorn sungguhan di port acak, membuka halaman
-dengan Chromium, lalu memeriksa semua view, pergantian bahasa, dan aset.
+dengan Chromium, lalu memeriksa semua view dan aset.
 
 Dijalankan hanya bila diminta karena membutuhkan Chromium::
 
@@ -305,30 +305,11 @@ class WebSmokeTests(unittest.TestCase):
             self.assertTrue(page.is_visible("#tsdLock"))
             self.assertFalse(page.is_visible("#view-tsd"))
 
-    def test_language_switch_persists_after_reload(self) -> None:
+    def test_interface_is_english_only(self) -> None:
         page = self.open_page()
         self.show_view(page, "pengaturan")
-        page.click("#tab-tampilan")
-        page.wait_for_selector("#set-tampilan:not([hidden])", state="visible")
-        page.click('.theme-card[data-language="id"]')
-        page.wait_for_function("document.documentElement.lang === 'id'")
-        self.assertEqual(page.inner_text("#titlePengaturan").strip(), "Pengaturan")
-        self.assertEqual(
-            page.inner_text("#titleEkstraksi").strip(), "Ekstraksi & TSD"
-        )
-
-        page.reload(wait_until="load")
-        page.wait_for_selector("#view-analisa", state="visible")
-        page.wait_for_function("document.documentElement.lang === 'id'")
-        self.assertEqual(
-            page.inner_text("#titleEkstraksi").strip(), "Ekstraksi & TSD"
-        )
-
-        self.show_view(page, "pengaturan")
-        page.click("#tab-tampilan")
-        page.wait_for_selector("#set-tampilan:not([hidden])", state="visible")
-        page.click('.theme-card[data-language="en"]')
-        page.wait_for_function("document.documentElement.lang === 'en'")
+        self.assertEqual(page.get_attribute("html", "lang"), "en")
+        self.assertEqual(page.locator(".theme-card[data-language]").count(), 0)
         self.assertEqual(page.inner_text("#titlePengaturan").strip(), "Settings")
 
     def test_analysis_view_without_credentials_shows_empty_state(self) -> None:
@@ -353,7 +334,7 @@ class WebSmokeTests(unittest.TestCase):
                 relationships: [{
                   from_table: 'Fact', to_table: 'Dim', is_active: true,
                   type: 'Many to one', cross: 'Single', cardinality: '*:1',
-                  auto: 'No', status: 'Dipakai'
+                  auto: 'No', status: 'Used'
                 }],
                 measures: [], columns: [], m_queries: [], roles: [],
                 totals: {}, coverage_complete: true, coverage: '',

@@ -161,7 +161,7 @@ class CheckTests(unittest.TestCase):
         )
         with self.assertRaises(ExtractionError) as ctx:
             client.drive()
-        self.assertIn("tidak ditemukan", str(ctx.exception))
+        self.assertIn("not found", str(ctx.exception))
 
 
 class UploadTests(unittest.TestCase):
@@ -242,7 +242,7 @@ class UploadTests(unittest.TestCase):
             uploader(session).site()
         message = str(ctx.exception)
         self.assertIn("Sites.Selected", message)
-        self.assertIn("di-grant", message)
+        self.assertIn("granted", message)
 
 
 class FlowUploadTests(unittest.TestCase):

@@ -44,7 +44,7 @@ Pemakaian:
 Opsi umum:
   --database PATH       database kerja SQLite
   --mode auto|admin|member
-  --env-file PATH       berkas .env kredensial service principal
+  --env-file PATH       credentials .env file service principal
   -h, --help            bantuan per perintah
 """
 
@@ -57,7 +57,7 @@ def _principal(args: argparse.Namespace) -> ServicePrincipal:
     if getattr(args, "env_file", ""):
         env_file = Path(args.env_file).expanduser()
         if not env_file.exists():
-            raise ExtractionError(f"Berkas .env tidak ditemukan: {env_file}")
+            raise ExtractionError(f".env file not found: {env_file}")
     else:
         default_env = Path.cwd() / ".env"
         env_file = default_env if default_env.exists() else None
@@ -82,22 +82,22 @@ def _run_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bi-tools-sync run",
         description=(
-            "Sinkronisasi katalog/lineage dengan service principal lalu "
-            "menerbitkan snapshot SQLite untuk aplikasi interaktif."
+            "Sync the catalog/lineage with the service principal, then "
+            "publish a SQLite snapshot for the interactive app."
         ),
     )
     parser.add_argument("--database", default="", help="database kerja lokal")
     parser.add_argument(
         "--snapshot-out",
         default="",
-        help="file snapshot tujuan (folder share); default di samping database",
+        help="target snapshot file (shared folder); default next to the database",
     )
     parser.add_argument("--mode", choices=MODES, default="auto")
     parser.add_argument("--full", action="store_true", help="lineage scan penuh")
     parser.add_argument(
         "--include-personal",
         action="store_true",
-        help="sertakan My Workspace (hanya mode admin)",
+        help="include My Workspace (admin mode only)",
     )
     parser.add_argument("--skip-catalog", action="store_true")
     parser.add_argument("--skip-lineage", action="store_true")
@@ -105,20 +105,20 @@ def _run_parser() -> argparse.ArgumentParser:
     parser.add_argument("--upload", action="store_true", help="upload snapshot ke SharePoint")
     parser.add_argument("--sharepoint-host", default="", help="hostname SharePoint")
     parser.add_argument("--sharepoint-site", default="", help="path site (mis. /teams/Data)")
-    parser.add_argument("--sharepoint-library", default="", help="nama document library")
-    parser.add_argument("--sharepoint-folder", default="", help="folder tujuan di library")
-    parser.add_argument("--env-file", default="", help="berkas .env kredensial")
+    parser.add_argument("--sharepoint-library", default="", help="document library name")
+    parser.add_argument("--sharepoint-folder", default="", help="destination folder in the library")
+    parser.add_argument("--env-file", default="", help="credentials .env file")
     return parser
 
 
 def _workspaces_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bi-tools-sync workspaces",
-        description="Sinkronkan daftar workspace ke SQLite (tanpa snapshot).",
+        description="Sync the workspace list to SQLite (no snapshot).",
     )
     parser.add_argument("--database", default="", help="database SQLite tujuan")
     parser.add_argument("--mode", choices=MODES, default="auto")
-    parser.add_argument("--env-file", default="", help="berkas .env kredensial")
+    parser.add_argument("--env-file", default="", help="credentials .env file")
     parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
     return parser
 
@@ -126,7 +126,7 @@ def _workspaces_parser() -> argparse.ArgumentParser:
 def _lineage_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bi-tools-sync lineage",
-        description="Scan lineage Power BI Service ke SQLite (tanpa snapshot).",
+        description="Scan Power BI Service lineage to SQLite (no snapshot).",
     )
     parser.add_argument("--database", default="", help="database SQLite tujuan")
     parser.add_argument("--mode", choices=MODES, default="auto")
@@ -134,9 +134,9 @@ def _lineage_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--include-personal",
         action="store_true",
-        help="sertakan My Workspace (hanya mode admin)",
+        help="include My Workspace (admin mode only)",
     )
-    parser.add_argument("--env-file", default="", help="berkas .env kredensial")
+    parser.add_argument("--env-file", default="", help="credentials .env file")
     parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
     return parser
 
@@ -185,7 +185,7 @@ def _cmd_run(argv: list[str]) -> int:
         principal,
         log=_log,
     )
-    _log(f"Selesai dalam {result.duration_seconds:.1f} detik.")
+    _log(f"Done in {result.duration_seconds:.1f} seconds.")
     return 0
 
 
@@ -212,9 +212,9 @@ def _cmd_workspaces(argv: list[str]) -> int:
         )
     else:
         print(
-            f"\nSelesai: {result.workspace_count} workspace "
-            f"({result.added} baru, {result.updated} diperbarui) "
-            f"dalam {result.duration_seconds:.1f} detik."
+            f"\nDone: {result.workspace_count} workspaces "
+            f"({result.added} new, {result.updated} updated) "
+            f"in {result.duration_seconds:.1f} seconds."
         )
     return 0
 
@@ -250,9 +250,9 @@ def _cmd_lineage(argv: list[str]) -> int:
         )
     else:
         print(
-            f"\nSelesai: {result.workspace_count} workspace, "
+            f"\nDone: {result.workspace_count} workspaces, "
             f"{result.node_count} node, {result.edge_count} edge "
-            f"dalam {result.duration_seconds:.1f} detik."
+            f"in {result.duration_seconds:.1f} seconds."
         )
     return 0
 
@@ -260,14 +260,14 @@ def _cmd_lineage(argv: list[str]) -> int:
 def _check_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bi-tools-sync check",
-        description="Verifikasi site, document library, dan isi folder SharePoint.",
+        description="Verify the SharePoint site, document library, and folder contents.",
     )
     parser.add_argument("--sharepoint-host", default="", help="hostname SharePoint")
     parser.add_argument("--sharepoint-site", default="", help="path site")
-    parser.add_argument("--sharepoint-library", default="", help="nama document library")
-    parser.add_argument("--sharepoint-folder", default="", help="folder tujuan")
-    parser.add_argument("--env-file", default="", help="berkas .env kredensial")
-    parser.add_argument("--limit", type=int, default=20, help="jumlah file ditampilkan")
+    parser.add_argument("--sharepoint-library", default="", help="document library name")
+    parser.add_argument("--sharepoint-folder", default="", help="destination folder")
+    parser.add_argument("--env-file", default="", help="credentials .env file")
+    parser.add_argument("--limit", type=int, default=20, help="number of files to show")
     parser.add_argument("--json", action="store_true", help="cetak ringkasan JSON")
     return parser
 
@@ -277,8 +277,8 @@ def _cmd_check(argv: list[str]) -> int:
     target = _target(args)
     if target is None:
         raise ExtractionError(
-            "Target SharePoint belum diisi (--sharepoint-host/--sharepoint-site "
-            "atau SP_HOSTNAME/SP_SITE_PATH)."
+            "The SharePoint target is not set (--sharepoint-host/--sharepoint-site "
+            "or SP_HOSTNAME/SP_SITE_PATH)."
         )
     principal = _principal(args)
     with GraphUploader(principal, target, log=_log) as uploader:
@@ -292,7 +292,7 @@ def _cmd_check(argv: list[str]) -> int:
     print(f"Library : {data['library']} ({data['library_url']})")
     print(f"Folder  : {data['path'] or '/'}")
     if not data["files"]:
-        print("Folder kosong.")
+        print("Folder is empty.")
         return 0
     print(f"{len(data['files'])} file:")
     for row in data["files"]:
@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return HANDLERS[command](args)
     except ExtractionError as exc:
-        print(f"Sync gagal: {exc}", file=sys.stderr)
+        print(f"Sync failed: {exc}", file=sys.stderr)
         return 1
 
 

@@ -77,7 +77,6 @@ SETTINGS_ANALYSIS_UNUSED_ONLY_KEY = "analysis/unused_only"
 SETTINGS_UI_THEME_KEY = "ui/theme"
 SETTINGS_UI_MOTION_KEY = "ui/motion"
 SETTINGS_UI_CONSOLE_KEY = "ui/show_console"
-SETTINGS_UI_LANGUAGE_KEY = "ui/language"
 
 # Pilihan yang dikosongkan setiap aplikasi dibuka: sesi selalu mulai bersih.
 # Preferensi (kredensial, RLS, path, cakupan, filter, sort, opsi TSD, tema)

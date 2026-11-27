@@ -2,7 +2,6 @@ import { app } from "../core/app_api.js";
 import { getSelectValue, setSelectOptions } from "../core/combo.js";
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
-import { t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
   var PARTITION_CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -103,22 +102,22 @@ import { state } from "../core/state.js";
   function partitionGroupRow(group, summary, selectedCount, open) {
     var checked = selectedCount === summary.count;
     var indeterminate = selectedCount > 0 && !checked;
-    var badge = summary.count + " " + t(summary.count === 1 ? "partition" : "partitions");
+    var badge = summary.count + " " + (summary.count === 1 ? "partition" : "partitions");
     var incremental = summary.incremental
-      ? '<span class="chip chip-accent partition-badge">' + t("Incremental") + "</span>"
+      ? '<span class="chip chip-accent partition-badge">' + "Incremental" + "</span>"
       : "";
     return '<tr class="group-row partition-group" data-part-table="' +
       escapeHtml(group.table) + '">' +
       '<td><input type="checkbox" class="partition-group-check" data-part-table="' +
       escapeHtml(group.table) + '" aria-label="' +
-      escapeHtml(t("Select all partitions of ") + group.table) + '"' +
+      escapeHtml("Select all partitions of " + group.table) + '"' +
       (checked ? " checked" : "") +
       (indeterminate ? ' data-indeterminate="1"' : "") + "></td>" +
       '<td class="cell-name"><div class="partition-group-name" data-part-toggle="' +
       escapeHtml(group.table) + '">' +
       '<button type="button" class="row-toggle" data-part-toggle="' +
       escapeHtml(group.table) + '" aria-expanded="' + (open ? "true" : "false") +
-      '" aria-label="' + escapeHtml(open ? t("Collapse ") : t("Expand ")) +
+      '" aria-label="' + escapeHtml(open ? "Collapse " : "Expand ") +
       escapeHtml(group.table) + '">' + PARTITION_CHEVRON + "</button>" +
       "<span>" + escapeHtml(group.table) + "</span>" + incremental +
       '<span class="partition-count">' + escapeHtml(badge) + "</span>" +
@@ -139,13 +138,13 @@ import { state } from "../core/state.js";
     var rowsText = row.rows == null ? "-" : fmtInt(row.rows);
     var range = row.range || "-";
     var rangeTitle = row.range_source
-      ? t("Range source: ") + row.range_source
+      ? "Range source: " + row.range_source
       : "";
     return '<tr class="partition-item' + (child ? " partition-child" : "") +
       (selected ? " is-selected" : "") + '" data-part-index="' + index +
       '" data-level="' + (child ? 1 : 0) + '">' +
       '<td><input type="checkbox" class="partition-check" data-index="' + index +
-      '" aria-label="' + escapeHtml(t("Select partition ") + row.table + " / " + row.partition) +
+      '" aria-label="' + escapeHtml("Select partition " + row.table + " / " + row.partition) +
       '"' + (selected ? " checked" : "") + "></td>" +
       '<td class="cell-name" title="' + escapeHtml(row.table || "") + '">' +
       escapeHtml(child ? "" : (row.table || "")) + "</td>" +
@@ -179,14 +178,14 @@ import { state } from "../core/state.js";
         $("#partitionSourceChip"),
         missing.length ? "warn" : "idle",
         missing.length
-          ? t("Not signed in")
-          : t("Not loaded")
+          ? "Not signed in"
+          : "Not loaded"
       );
-      $("#partitionHint").textContent = tr(data.hint) || "";
+      $("#partitionHint").textContent = (data.hint) || "";
       partitionRender();
       return data;
     }).catch(function (error) {
-      app.addLog(t("Partition catalog could not be read: ") + error.message, "warn");
+      app.addLog("Partition catalog could not be read: " + error.message, "warn");
     });
   }
 
@@ -233,13 +232,13 @@ import { state } from "../core/state.js";
     });
     var stamp = partitionTime(result.loaded_at);
     $("#partitionSummary").textContent =
-      fmtInt(rows.length) + t(" partitions · ") +
-      fmtInt(Object.keys(tables).length) + t(" tables · ") + stamp;
-    app.setChip($("#partitionSourceChip"), "ok", t("Loaded via XMLA"));
+      fmtInt(rows.length) + " partitions · " +
+      fmtInt(Object.keys(tables).length) + " tables · " + stamp;
+    app.setChip($("#partitionSourceChip"), "ok", "Loaded via XMLA");
     var warnings = result.warnings || [];
     $("#partitionHint").textContent = warnings.length
       ? warnings.map(tr).join(" · ")
-      : t("Inventory loaded. Select partitions, choose a refresh type, then process.");
+      : "Inventory loaded. Select partitions, choose a refresh type, then process.";
     partitionRender();
   }
 
@@ -250,16 +249,16 @@ import { state } from "../core/state.js";
     var count = partitionSelectedRows().length;
     $("#processSelectedPartitions").disabled = count === 0;
     $("#partitionSelectionSummary").textContent = count
-      ? fmtInt(count) + t(count === 1 ? " partition selected" : " partitions selected")
-      : t("No partitions selected");
+      ? fmtInt(count) + (count === 1 ? " partition selected" : " partitions selected")
+      : "No partitions selected";
     $("#partitionSelectAll").checked = rows.length > 0 && count === rows.length;
     $("#partitionSelectAll").indeterminate = count > 0 && count < rows.length;
     if (!rows.length) {
       wrap.hidden = true;
       empty.hidden = false;
       $("#partitionSummary").textContent = state.partitionLoaded
-        ? t("No partitions found")
-        : t("Not loaded yet");
+        ? "No partitions found"
+        : "Not loaded yet";
       return;
     }
     wrap.hidden = false;
@@ -285,7 +284,7 @@ import { state } from "../core/state.js";
       input.indeterminate = input.getAttribute("data-indeterminate") === "1";
     });
     if (!state.partitionLoaded) {
-      $("#partitionSummary").textContent = t("Not loaded yet");
+      $("#partitionSummary").textContent = "Not loaded yet";
     }
   }
 
@@ -328,19 +327,19 @@ import { state } from "../core/state.js";
   export function partitionOpenConfirm() {
     var selected = partitionSelectedRows();
     if (!selected.length) {
-      app.toast(t("Select at least one partition first"));
+      app.toast("Select at least one partition first");
       return;
     }
     $("#partitionDialogCount").textContent =
       fmtInt(selected.length) +
-      t(selected.length === 1
+      (selected.length === 1
         ? " partition will be processed."
         : " partitions will be processed.");
     $("#partitionDialogTargets").innerHTML = selected.map(function (row) {
       return "<div>" + escapeHtml(row.table + " / " + row.partition) + "</div>";
     }).join("");
     $("#partitionDialogType").textContent =
-      t("Refresh type: ") + partitionRefreshLabel(getSelectValue("partitionRefreshType"));
+      "Refresh type: " + partitionRefreshLabel(getSelectValue("partitionRefreshType"));
     $("#partitionConfirmCheck").checked = false;
     $("#partitionConfirmText").value = "";
     $("#partitionConfirmError").hidden = true;
@@ -357,19 +356,19 @@ import { state } from "../core/state.js";
   export function partitionConfirmProcess() {
     if (!$("#partitionConfirmCheck").checked) {
       $("#partitionConfirmError").textContent =
-        t("Check the acknowledgement first.");
+        "Check the acknowledgement first.";
       $("#partitionConfirmError").hidden = false;
       return;
     }
     if ($("#partitionConfirmText").value.trim().toUpperCase() !== "PROCESS") {
-      $("#partitionConfirmError").textContent = t("Type PROCESS to confirm.");
+      $("#partitionConfirmError").textContent = "Type PROCESS to confirm.";
       $("#partitionConfirmError").hidden = false;
       return;
     }
     var selected = partitionSelectedRows();
     if (!selected.length) {
       partitionCloseDialog();
-      app.toast(t("Select at least one partition first"));
+      app.toast("Select at least one partition first");
       return;
     }
     partitionCloseDialog();
@@ -386,14 +385,14 @@ import { state } from "../core/state.js";
           return { table: row.table, partition: row.partition };
         })
       },
-      label: t("Refresh partitions"),
+      label: "Refresh partitions",
       button: $("#processSelectedPartitions"),
       onDone: function (snapshot) {
         state.partitionRunning = false;
         if (snapshot.result) {
           partitionApply(snapshot.result);
-          app.toast(tr((snapshot.result.refresh || {}).message) ||
-            t("Partition refresh completed."));
+          app.toast(((snapshot.result.refresh || {}).message) ||
+            "Partition refresh completed.");
         }
       }
     });
@@ -403,7 +402,7 @@ import { state } from "../core/state.js";
     var workspaceId = getSelectValue("partitionWsSelect");
     var datasetId = getSelectValue("partitionDatasetSelect");
     if (!workspaceId || !datasetId) {
-      app.toast(t("Choose a workspace and semantic model first"));
+      app.toast("Choose a workspace and semantic model first");
       return;
     }
     state.partitionRunning = true;
@@ -411,7 +410,7 @@ import { state } from "../core/state.js";
       kind: "partitions-inventory",
       path: "/api/partitions/inventory",
       body: { workspace_id: workspaceId, dataset_id: datasetId },
-      label: t("Load partition inventory"),
+      label: "Load partition inventory",
       button: $("#reloadPartitions"),
       onDone: function (snapshot) {
         if (snapshot.result) partitionApply(snapshot.result);
@@ -478,7 +477,7 @@ import { state } from "../core/state.js";
       state.lineageStateReady = true;
       state.depth = Number(data.depth || 3);
       state.direction = data.direction || "upstream";
-      var types = [{ value: "", label: t("All types") }].concat(
+      var types = [{ value: "", label: "All types" }].concat(
         (data.node_types || []).map(function (item) {
           return { value: item, label: item };
         })
@@ -489,7 +488,7 @@ import { state } from "../core/state.js";
       });
       setSelectOptions(
         "lineageNodeType",
-        [{ value: "", label: t("All types") }].concat(nodeTypes),
+        [{ value: "", label: "All types" }].concat(nodeTypes),
         null
       );
       state.lineageNodeType = getSelectValue("lineageNodeType") || "";
@@ -498,17 +497,17 @@ import { state } from "../core/state.js";
       $("#lineageWorkspace").disabled = !data.readable;
       $("#lineageType").disabled = !data.readable;
       $("#lineageNodeType").disabled = !data.readable;
-      $("#depthVal").textContent = state.depth + t(" levels");
+      $("#depthVal").textContent = state.depth + " levels";
       $("#depthMinus").disabled = true;
       $("#depthPlus").disabled = false;
       $("#dirUpstream").setAttribute("aria-pressed", String(state.direction === "upstream"));
       $("#dirDownstream").setAttribute("aria-pressed", String(state.direction === "downstream"));
       if (!data.readable) {
         $("#lineageResults").innerHTML =
-          '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + t("Database is not ready") + "</div>" +
+          '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + "Database is not ready" + "</div>" +
           '<p class="empty-text">' + escapeHtml(data.status || "") + "</p></div>";
         $("#lineageCount").textContent = "";
-        $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + t("No root selected");
+        $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + "No root selected";
         $("#lineageDetail").innerHTML =
           '<p class="helper">' + escapeHtml(data.status || "") + "</p>";
         $("#exportCsv").disabled = true;
@@ -524,20 +523,20 @@ import { state } from "../core/state.js";
       $("#lineageSearch").value = "";
       $("#lineageResults").innerHTML =
         '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
-        t("No search yet") + '</div>' +
+        "No search yet" + '</div>' +
         '<p class="empty-text">' +
-        t("Search for a report, semantic model, table, or measure.") + "</p></div>";
+        "Search for a report, semantic model, table, or measure." + "</p></div>";
       $("#lineageCount").textContent =
-        (data.items || 0) + " item \u00b7 " + (data.workspaces || 0) + t(" workspaces");
-      $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + t("No root selected");
+        (data.items || 0) + " item \u00b7 " + (data.workspaces || 0) + " workspaces";
+      $("#lineageRootChip").innerHTML = '<span class="dot"></span>' + "No root selected";
       $("#lineageDetail").innerHTML =
-        '<p class="helper">' + t("Choose a search result to view its lineage.") + "</p>";
+        '<p class="helper">' + "Choose a search result to view its lineage." + "</p>";
       $("#exportCsv").disabled = true;
       $("#exportSvg").disabled = true;
       $("#exportPng").disabled = true;
       return data;
     }).catch(function (error) {
-      app.addLog(t("Lineage status could not be read: ") + error.message, "warn");
+      app.addLog("Lineage status could not be read: " + error.message, "warn");
     }).finally(function () {
       state.lineageStatePromise = null;
     });
@@ -546,11 +545,11 @@ import { state } from "../core/state.js";
 
   function lineageSearchQuery(query, workspace, type) {
     if (!state.lineageHasDb) {
-      app.toast(t("The lineage database is not ready; run Data sync first"));
+      app.toast("The lineage database is not ready; run Data sync first");
       return Promise.resolve();
     }
     if (!query && !workspace && !type) {
-      app.toast(t("Enter a keyword or filter first"));
+      app.toast("Enter a keyword or filter first");
       return Promise.resolve();
     }
     return app.api().get(
@@ -560,7 +559,7 @@ import { state } from "../core/state.js";
       "&limit=100"
     ).then(function (data) {
       lineageRenderResults(data.results || []);
-      if (data.message) $("#lineageCount").textContent = tr(data.message);
+      if (data.message) $("#lineageCount").textContent = (data.message);
       return data;
     }).catch(app.reportError);
   }
@@ -586,9 +585,9 @@ import { state } from "../core/state.js";
     var box = $("#lineageResults");
     if (!rows.length) {
       box.innerHTML =
-        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + t("No items") + "</div>" +
-        '<p class="empty-text">' + t("Change the keyword or workspace filter.") + "</p></div>";
-      $("#lineageCount").textContent = t("0 results");
+        '<div class="empty" style="padding:18px 8px"><div class="empty-title">' + "No items" + "</div>" +
+        '<p class="empty-text">' + "Change the keyword or workspace filter." + "</p></div>";
+      $("#lineageCount").textContent = "0 results";
       return;
     }
     box.innerHTML = rows.map(function (item) {
@@ -602,7 +601,7 @@ import { state } from "../core/state.js";
         '<span class="result-meta">' + escapeHtml(workspace) + "</span>" +
         '<span class="result-type chip chip-idle">' + escapeHtml(type) + "</span></button>";
     }).join("");
-    $("#lineageCount").textContent = rows.length + t(" results");
+    $("#lineageCount").textContent = rows.length + " results";
   }
 
   export function lineageOpen(nodeId) {
@@ -626,12 +625,12 @@ import { state } from "../core/state.js";
       lineageRenderGraph();
       lineageRenderDetail(data.node || {});
       $("#lineageRootChip").innerHTML =
-        '<span class="dot"></span>' + t("Root: ") + escapeHtml((data.node && data.node.name) || nodeId);
+        '<span class="dot"></span>' + "Root: " + escapeHtml((data.node && data.node.name) || nodeId);
       $("#lineageRootChip").title =
         "Upstream " + (data.upstream_count || 0) + " item \u00b7 downstream " +
-        (data.downstream_count || 0) + t(" items") +
-        (data.truncated ? " \u00b7 " + data.truncated + t(" nodes truncated") : "");
-      $("#depthVal").textContent = state.depth + t(" levels");
+        (data.downstream_count || 0) + " items" +
+        (data.truncated ? " \u00b7 " + data.truncated + " nodes truncated" : "");
+      $("#depthVal").textContent = state.depth + " levels";
       $("#depthMinus").disabled = state.depth <= 1;
       $("#depthPlus").disabled = state.depth >= 15;
       $("#exportCsv").disabled = false;
@@ -845,7 +844,7 @@ import { state } from "../core/state.js";
   export function lineageRenderDetail(node) {
     var selected = state.lineageNodesLive[state.selectedId] || {};
     var payload = selected.payload || node || {};
-    var name = payload.name || node.name || t("(unnamed)");
+    var name = payload.name || node.name || "(unnamed)";
     var type = payload.node_type || selected.type || node.node_type || "";
     var workspace = payload.workspace_name || selected.workspace || node.workspace_name || "";
     var neighbours = [];
@@ -862,29 +861,29 @@ import { state } from "../core/state.js";
       if (value === undefined || value === null || value === "") return;
       rows.push("<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(String(value)) + "</dd>");
     }
-    add(t("Type"), type);
+    add("Type", type);
     add("Workspace", workspace);
-    add(t("Owner"), payload.owner);
+    add("Owner", payload.owner);
     var modified = String(payload.last_modified_at || "").replace("T", " ").slice(0, 16);
-    add(t("Modified"), modified);
+    add("Modified", modified);
     add("Endorsement", payload.endorsement && payload.endorsement !== "None" ? payload.endorsement : "");
-    add(t("Sensitivity"), payload.sensitivity_label);
-    add(t("Depth"), payload.depth);
-    add(t("Relationships"), payload.edge_type);
-    add(t("Source type"), payload.datasource_type);
+    add("Sensitivity", payload.sensitivity_label);
+    add("Depth", payload.depth);
+    add("Relationships", payload.edge_type);
+    add("Source type", payload.datasource_type);
     add("Server", payload.server);
     add("Database", payload.database_name);
     add("Path/URL", payload.path_or_url);
     add("Node ID", payload.node_id || state.selectedId);
     if (payload.is_active === 0 || payload.is_active === false) {
-      add("Status", t("inactive (not seen in the last scan)"));
+      add("Status", "inactive (not seen in the last scan)");
     }
     var chips = neighbours.length
       ? neighbours.map(function (item) {
           return '<button class="chip chip-idle analysis-link" type="button" data-lineage-node="' +
             escapeHtml(item.id) + '">' + escapeHtml(item.name || item.id) + "</button>";
         }).join(" ")
-      : '<span class="helper">' + t("No direct relationship.") + "</span>";
+      : '<span class="helper">' + "No direct relationship." + "</span>";
     var url = "";
     if ((type || "").toLowerCase().indexOf("report") !== -1 && payload.workspace_id) {
       var reportId = payload.report_id || payload.node_id || "";
@@ -900,17 +899,17 @@ import { state } from "../core/state.js";
       "</div></div>" +
       '<span class="row-inline">' +
       (url ? '<a class="btn btn-sm" href="' + escapeHtml(url) +
-        '" target="_blank" rel="noopener">' + t("Open report") + "</a>" : "") +
+        '" target="_blank" rel="noopener">' + "Open report" + "</a>" : "") +
       '<button class="btn btn-sm" type="button" id="makeRoot"' +
       (state.selectedId === state.rootId ? " disabled" : "") + ">" +
-      t("Make root") + "</button></span></div>" +
+      "Make root" + "</button></span></div>" +
       '<dl class="kv">' + rows.join("") + "</dl>" +
       '<div class="dep-chips">' + chips + "</div>";
     var makeRoot = $("#makeRoot");
     if (makeRoot) {
       makeRoot.addEventListener("click", function () {
         lineageOpen(state.selectedId);
-        app.toast(t("Lineage root updated"));
+        app.toast("Lineage root updated");
       });
     }
     $$("#lineageDetail [data-lineage-node]").forEach(function (button) {
@@ -940,7 +939,7 @@ import { state } from "../core/state.js";
     var value = Math.max(1, Math.min(15, state.depth + delta));
     if (value === state.depth) return;
     state.depth = value;
-    $("#depthVal").textContent = state.depth + t(" levels");
+    $("#depthVal").textContent = state.depth + " levels";
     $("#depthMinus").disabled = state.depth <= 1;
     $("#depthPlus").disabled = state.depth >= 15;
     if (state.rootId) lineageOpen(state.rootId);
@@ -1051,16 +1050,16 @@ import { state } from "../core/state.js";
 
   export function lineageExportImage(format) {
     if (!state.rootId) {
-      app.toast(t("Choose a lineage node first"));
+      app.toast("Choose a lineage node first");
       return;
     }
     if (!lineageVisibleNodes(state.lineageGraph).length) {
-      app.toast(t("No nodes match the current filter"));
+      app.toast("No nodes match the current filter");
       return;
     }
     var svg = lineageSvgDocument();
     if (!svg) {
-      app.toast(t("No lineage data"));
+      app.toast("No lineage data");
       return;
     }
     var send = function (payload) {
@@ -1085,7 +1084,7 @@ import { state } from "../core/state.js";
 
   export function lineageExport() {
     if (!state.rootId) {
-      app.toast(t("Choose a lineage node first"));
+      app.toast("Choose a lineage node first");
       return;
     }
     app.api().post("/api/lineage/export", {

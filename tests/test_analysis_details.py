@@ -34,8 +34,8 @@ def column_fixture() -> tuple[SimpleNamespace, SimpleNamespace]:
     )
     analysis = SimpleNamespace(
         column=column,
-        status="Dipakai",
-        reason="Dipakai di 2 titik.",
+        status="Used",
+        reason="Used di 2 titik.",
         model_refs=[
             ref("measure", "'KPI'[Total]"),
             ref("relationship", "'Dim Date'[Date]"),
@@ -168,7 +168,7 @@ class MeasureDetailsTests(unittest.TestCase):
         )
         analysis = SimpleNamespace(
             measure=measure,
-            status="Wajib dipertahankan",
+            status="Must keep",
             reason="Dirujuk objek model.",
             model_refs=[
                 ref("measure", "'KPI'[Other]"),

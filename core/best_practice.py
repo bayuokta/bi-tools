@@ -37,55 +37,55 @@ REPORT_USAGE_RULES = {
 
 UNSUPPORTED_REASONS = {
     "DATA_COLUMNS_MUST_HAVE_A_SOURCE_COLUMN": (
-        "SourceColumn sering kosong pada model Power BI/PBIP; tidak cukup andal."
+        "SourceColumn is often empty in Power BI/PBIP models; not reliable enough."
     ),
     "SPLIT_DATE_AND_TIME": (
-        "Butuh annotation DateTimeWithHourMinSec dari VertiPaq Analyzer."
+        "Requires the DateTimeWithHourMinSec annotation from VertiPaq Analyzer."
     ),
     "ISAVAILABLEINMDX_FALSE_NONATTRIBUTE_COLUMNS": (
-        "Pemakaian hierarki/variasi kolom belum dikumpulkan analisa ini."
+        "Hierarchy/column variation usage was not collected by this analysis."
     ),
     "SET_ISAVAILABLEINMDX_TO_TRUE_ON_NECESSARY_COLUMNS": (
-        "Pemakaian hierarki/variasi kolom belum dikumpulkan analisa ini."
+        "Hierarchy/column variation usage was not collected by this analysis."
     ),
     "REDUCE_USAGE_OF_LONG-LENGTH_COLUMNS_WITH_HIGH_CARDINALITY": (
-        "Butuh annotation LongLengthRowCount dari VertiPaq Analyzer."
+        "Requires the LongLengthRowCount annotation from VertiPaq Analyzer."
     ),
     "LIMIT_ROW_LEVEL_SECURITY_(RLS)_LOGIC": (
-        "Ekspresi RLS/role tidak dikumpulkan analisa ini."
+        "RLS/role expressions were not collected by this analysis."
     ),
     "AVOID_USING_MANY-TO-MANY_RELATIONSHIPS_ON_TABLES_USED_FOR_DYNAMIC_ROW_LEVEL_SECURITY": (
-        "Ekspresi RLS/role tidak dikumpulkan analisa ini."
+        "RLS/role expressions were not collected by this analysis."
     ),
     "CHECK_IF_DYNAMIC_ROW_LEVEL_SECURITY_(RLS)_IS_NECESSARY": (
-        "Ekspresi RLS/role tidak dikumpulkan analisa ini."
+        "RLS/role expressions were not collected by this analysis."
     ),
     "AVOID_THE_USERELATIONSHIP_FUNCTION_AND_RLS_AGAINST_THE_SAME_TABLE": (
-        "Ekspresi RLS/role tidak dikumpulkan analisa ini."
+        "RLS/role expressions were not collected by this analysis."
     ),
     "MODEL_USING_DIRECT_QUERY_AND_NO_AGGREGATIONS": (
-        "Metadata aggregation belum dikumpulkan analisa ini."
+        "Aggregation metadata was not collected by this analysis."
     ),
     "AVOID_STRUCTURED_DATA_SOURCES_WITH_PROVIDER_PARTITIONS": (
-        "Metadata data source/provider partition belum dikumpulkan."
+        "Data source/provider partition metadata was not collected."
     ),
     "FIX_REFERENTIAL_INTEGRITY_VIOLATIONS": (
         "Butuh pemindaian data, bukan metadata model."
     ),
     "REMOVE_DATA_SOURCES_NOT_REFERENCED_BY_ANY_PARTITIONS": (
-        "Metadata data source belum dikumpulkan analisa ini."
+        "Data source metadata was not collected by this analysis."
     ),
     "REMOVE_ROLES_WITH_NO_MEMBERS": (
-        "Metadata role dan member belum dikumpulkan analisa ini."
+        "Role and member metadata was not collected by this analysis."
     ),
     "PERSPECTIVES_WITH_NO_OBJECTS": (
-        "Metadata perspective belum dikumpulkan analisa ini."
+        "Perspective metadata was not collected by this analysis."
     ),
     "CALCULATION_GROUPS_WITH_NO_CALCULATION_ITEMS": (
-        "Metadata calculation group/item belum dikumpulkan analisa ini."
+        "Calculation group/item metadata was not collected by this analysis."
     ),
     "PARTITION_NAME_SHOULD_MATCH_TABLE_NAME_FOR_SINGLE_PARTITION_TABLES": (
-        "Nama partisi belum ada di hasil analisa."
+        "Partition names are not in the analysis results yet."
     ),
 }
 
@@ -194,7 +194,7 @@ def build_best_practice(
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         return {
             "available": False,
-            "error": f"Katalog best practice tidak bisa dibaca: {exc}",
+            "error": f"Best practice catalog could not be read: {exc}",
             "rule_count": 0,
             "evaluated": 0,
             "not_evaluated": 0,
@@ -220,7 +220,7 @@ def build_best_practice(
         evaluator = _EVALUATORS.get(rule.id)
         if evaluator is None:
             rule_rows.append(_rule_row(rule, "not_evaluated", 0, 0, UNSUPPORTED_REASONS.get(
-                rule.id, "Aturan belum punya evaluator di tool ini."
+                rule.id, "This rule has no evaluator in this tool yet."
             )))
             continue
         if rule.id in REPORT_USAGE_RULES and not usage_ok:
@@ -229,7 +229,7 @@ def build_best_practice(
                 "needs_coverage",
                 0,
                 0,
-                "Butuh cakupan report yang lengkap; jalankan analisa dengan report.",
+                "Requires complete report coverage; run the analysis with reports.",
             ))
             continue
         try:
@@ -240,7 +240,7 @@ def build_best_practice(
                 "not_evaluated",
                 0,
                 0,
-                f"Evaluator gagal: {str(exc).splitlines()[0]}",
+                f"Evaluator failed: {str(exc).splitlines()[0]}",
             ))
             continue
         score = round(rule.severity * len(found) * scale)
@@ -555,7 +555,7 @@ def _bi_directional_high_cardinality(result: Any, rule: BpaRule) -> list[Finding
                     _column_finding(
                         rule,
                         column,
-                        f"cardinality {cardinality:,} · relasi dua arah",
+                        f"cardinality {cardinality:,} · bidirectional relationship",
                     )
                 )
     return found
@@ -589,7 +589,7 @@ def _snowflake(result: Any, rule: BpaRule) -> list[Finding]:
     }
     tables = _table_map(result)
     return [
-        _table_finding(rule, table, "tabel menjadi sisi from dan to relasi")
+        _table_finding(rule, table, "table is on both sides of a relationship")
         for key, table in tables.items()
         if key in from_tables and key in to_tables
     ]
@@ -608,7 +608,7 @@ def _date_table_missing(result: Any, rule: BpaRule) -> list[Finding]:
             for column in columns_by_table.get(str(getattr(table, "table", "")).casefold(), [])
         ):
             return []
-    return [_model_finding(rule, result, "tidak ada tabel DataCategory=Time dengan key DateTime")]
+    return [_model_finding(rule, result, "no table with DataCategory=Time and a DateTime key")]
 
 
 def _date_table_not_marked(result: Any, rule: BpaRule) -> list[Finding]:
@@ -627,14 +627,14 @@ def _date_table_not_marked(result: Any, rule: BpaRule) -> list[Finding]:
             for column in columns_by_table.get(name.casefold(), [])
         )
         if str(getattr(table, "data_category", "") or "").casefold() != "time" or not has_key:
-            found.append(_table_finding(rule, table, "belum ditandai sebagai date table"))
+            found.append(_table_finding(rule, table, "not marked as a date table"))
     return found
 
 
 def _auto_date_table(result: Any, rule: BpaRule) -> list[Finding]:
     prefixes = ("DateTableTemplate_", "LocalDateTable_")
     return [
-        _table_finding(rule, table, "tabel tanggal otomatis")
+        _table_finding(rule, table, "automatic date table")
         for table in _tables(result)
         if str(getattr(table, "table", "") or "").startswith(prefixes)
     ]
@@ -658,7 +658,7 @@ def _excessive_relationships(result: Any, rule: BpaRule) -> list[Finding]:
             _model_finding(
                 rule,
                 result,
-                f"{complex_count} dari {len(relationships)} relasi kompleks",
+                f"{complex_count} of {len(relationships)} complex relationships",
             )
         ]
     return []
@@ -685,7 +685,7 @@ def _power_query_transformations(result: Any, rule: BpaRule) -> list[Finding]:
     for item in getattr(result, "m_queries", []) or []:
         if not isinstance(item, Mapping):
             continue
-        if str(item.get("kind") or "") != "Tabel":
+        if str(item.get("kind") or "") != "Table":
             continue
         name = str(item.get("name") or "")
         if not name or name.casefold() in seen:
@@ -721,7 +721,7 @@ def _unpivot_months(result: Any, rule: BpaRule) -> list[Finding]:
             months[table] = months.get(table, 0) + 1
     tables = _table_map(result)
     return [
-        _table_finding(rule, tables[table], "kolom bulan ter-pivot")
+        _table_finding(rule, tables[table], "pivoted month columns")
         for table, count in months.items()
         if count >= 3 and table.casefold() in tables
     ]
@@ -729,7 +729,7 @@ def _unpivot_months(result: Any, rule: BpaRule) -> list[Finding]:
 
 def _m2m_both_directions(result: Any, rule: BpaRule) -> list[Finding]:
     return [
-        _relationship_finding(rule, row, "many-to-many dan bothDirections")
+        _relationship_finding(rule, row, "many-to-many and bothDirections")
         for row in _relationships(result)
         if str(row.get("from_cardinality") or "").casefold() == "many"
         and str(row.get("to_cardinality") or "").casefold() == "many"
@@ -782,7 +782,7 @@ def _redundant_columns(result: Any, rule: BpaRule) -> list[Finding]:
                 for row in _relationships(result)
                 if str(row.get("to_table") or "").casefold() == table.casefold()
             }:
-                found.append(_column_finding(rule, column, f"duplikat di {other_table}"))
+                found.append(_column_finding(rule, column, f"duplicate in {other_table}"))
                 break
     return found
 
@@ -811,7 +811,7 @@ def _many_calculated_columns(result: Any, rule: BpaRule) -> list[Finding]:
 
 def _check_relationships(result: Any, rule: BpaRule) -> list[Finding]:
     return [
-        _relationship_finding(rule, row, "perlu diverifikasi")
+        _relationship_finding(rule, row, "needs verification")
         for row in _relationships(result)
         if str(row.get("cross_filtering") or "").casefold() == "bothdirections"
         or (
@@ -882,7 +882,7 @@ def _duplicate_measures(result: Any, rule: BpaRule) -> list[Finding]:
                 _measure_finding(
                     rule,
                     measure,
-                    f"definisi sama dengan {getattr(seen[expression], 'measure', '')}",
+                    f"definition matches {getattr(seen[expression], 'measure', '')}",
                 )
             )
         else:
@@ -922,7 +922,7 @@ def _direct_measure_reference(result: Any, rule: BpaRule) -> list[Finding]:
             if name and expression in {f"[{name}]", f"'{getattr(names[name], 'table', '')}'[{name}]"}:
                 if measure is not names[name]:
                     found.append(
-                        _measure_finding(rule, measure, f"hanya merujuk {name}")
+                        _measure_finding(rule, measure, f"only references {name}")
                     )
                 break
     return found
@@ -946,7 +946,7 @@ def _inactive_never_activated(result: Any, rule: BpaRule) -> list[Finding]:
             all(re.search(pattern, strip_dax_literals(expression), re.IGNORECASE) for pattern in patterns)
             for expression in expressions
         ):
-            found.append(_relationship_finding(rule, relationship, "tidak pernah diaktifkan"))
+            found.append(_relationship_finding(rule, relationship, "never activated"))
     return found
 
 
@@ -999,13 +999,13 @@ def _invalid_name_characters(result: Any, rule: BpaRule) -> list[Finding]:
     found: list[Finding] = []
     for table in _tables(result):
         if _has_control(str(getattr(table, "table", "") or "")):
-            found.append(_table_finding(rule, table, "karakter kontrol"))
+            found.append(_table_finding(rule, table, "control characters"))
     for column in _columns(result):
         if _has_control(str(getattr(column, "column", "") or "")):
-            found.append(_column_finding(rule, column, "karakter kontrol"))
+            found.append(_column_finding(rule, column, "control characters"))
     for measure in _measures(result):
         if _has_control(str(getattr(measure, "measure", "") or "")):
-            found.append(_measure_finding(rule, measure, "karakter kontrol"))
+            found.append(_measure_finding(rule, measure, "control characters"))
     return found
 
 
@@ -1013,13 +1013,13 @@ def _invalid_description_characters(result: Any, rule: BpaRule) -> list[Finding]
     found: list[Finding] = []
     for table in _tables(result):
         if _has_control(str(getattr(table, "description", "") or "")):
-            found.append(_table_finding(rule, table, "karakter kontrol pada deskripsi"))
+            found.append(_table_finding(rule, table, "control characters in the description"))
     for column in _columns(result):
         if _has_control(str(getattr(column, "description", "") or "")):
-            found.append(_column_finding(rule, column, "karakter kontrol pada deskripsi"))
+            found.append(_column_finding(rule, column, "control characters in the description"))
     for measure in _measures(result):
         if _has_control(str(getattr(measure, "description", "") or "")):
-            found.append(_measure_finding(rule, measure, "karakter kontrol pada deskripsi"))
+            found.append(_measure_finding(rule, measure, "control characters in the description"))
     return found
 
 
@@ -1033,7 +1033,7 @@ def _unnecessary_columns(result: Any, rule: BpaRule) -> list[Finding]:
             continue
         if not bool(getattr(column, "is_hidden", False)):
             continue
-        found.append(_column_finding(rule, column, "tersembunyi dan tanpa referensi"))
+        found.append(_column_finding(rule, column, "hidden and unreferenced"))
     return found
 
 
@@ -1051,7 +1051,7 @@ def _unnecessary_measures(result: Any, rule: BpaRule) -> list[Finding]:
             table is not None and bool(getattr(table, "is_hidden", False))
         ):
             continue
-        found.append(_measure_finding(rule, measure, "tersembunyi dan tanpa referensi"))
+        found.append(_measure_finding(rule, measure, "hidden and unreferenced"))
     return found
 
 
@@ -1061,7 +1061,7 @@ def _tables_without_relationship(result: Any, rule: BpaRule) -> list[Finding]:
         related.add(str(relationship.get("from_table") or "").casefold())
         related.add(str(relationship.get("to_table") or "").casefold())
     return [
-        _table_finding(rule, table, "tanpa relasi")
+        _table_finding(rule, table, "no relationships")
         for table in _tables(result)
         if str(getattr(table, "table", "") or "").casefold() not in related
         and not bool(getattr(table, "is_calculation_group", False))
@@ -1075,12 +1075,12 @@ def _no_description(result: Any, rule: BpaRule) -> list[Finding]:
         if not bool(getattr(table, "is_hidden", False)) and not str(
             getattr(table, "description", "") or ""
         ).strip():
-            found.append(_table_finding(rule, table, "tanpa deskripsi"))
+            found.append(_table_finding(rule, table, "no description"))
     for column in _columns(result):
         if _visible_column(column, tables) and not str(
             getattr(column, "description", "") or ""
         ).strip():
-            found.append(_column_finding(rule, column, "tanpa deskripsi"))
+            found.append(_column_finding(rule, column, "no description"))
     for measure in _measures(result):
         table = tables.get(str(getattr(measure, "table", "")).casefold())
         if bool(getattr(measure, "is_hidden", False)) or (
@@ -1088,7 +1088,7 @@ def _no_description(result: Any, rule: BpaRule) -> list[Finding]:
         ):
             continue
         if not str(getattr(measure, "description", "") or "").strip():
-            found.append(_measure_finding(rule, measure, "tanpa deskripsi"))
+            found.append(_measure_finding(rule, measure, "no description"))
     return found
 
 
@@ -1113,13 +1113,13 @@ def _trim_names(result: Any, rule: BpaRule) -> list[Finding]:
     found: list[Finding] = []
     for table in _tables(result):
         if _needs_trim(str(getattr(table, "table", "") or "")):
-            found.append(_table_finding(rule, table, "spasi di awal/akhir"))
+            found.append(_table_finding(rule, table, "leading/trailing spaces"))
     for column in _columns(result):
         if _needs_trim(str(getattr(column, "column", "") or "")):
-            found.append(_column_finding(rule, column, "spasi di awal/akhir"))
+            found.append(_column_finding(rule, column, "leading/trailing spaces"))
     for measure in _measures(result):
         if _needs_trim(str(getattr(measure, "measure", "") or "")):
-            found.append(_measure_finding(rule, measure, "spasi di awal/akhir"))
+            found.append(_measure_finding(rule, measure, "leading/trailing spaces"))
     return found
 
 
@@ -1167,7 +1167,7 @@ def _date_format(result: Any, rule: BpaRule) -> list[Finding]:
             continue
         if str(getattr(column, "format_string", "") or "") != "mm/dd/yyyy":
             found.append(
-                _column_finding(rule, column, str(getattr(column, "format_string", "") or "(kosong)"))
+                _column_finding(rule, column, str(getattr(column, "format_string", "") or "(empty)"))
             )
     return found
 
@@ -1181,7 +1181,7 @@ def _month_format(result: Any, rule: BpaRule) -> list[Finding]:
             continue
         if str(getattr(column, "format_string", "") or "") != "MMMM yyyy":
             found.append(
-                _column_finding(rule, column, str(getattr(column, "format_string", "") or "(kosong)"))
+                _column_finding(rule, column, str(getattr(column, "format_string", "") or "(empty)"))
             )
     return found
 
@@ -1198,7 +1198,7 @@ def _measure_format(result: Any, rule: BpaRule) -> list[Finding]:
         if not _is_numeric(getattr(measure, "data_type", "")):
             continue
         if not str(getattr(measure, "format_string", "") or "").strip():
-            found.append(_measure_finding(rule, measure, "tanpa format string"))
+            found.append(_measure_finding(rule, measure, "no format string"))
     return found
 
 
@@ -1240,7 +1240,7 @@ def _integer_format(result: Any, rule: BpaRule) -> list[Finding]:
         if "$" in value or "%" in value:
             continue
         if value not in {"#,0", "#,0.0"}:
-            found.append(_measure_finding(rule, measure, value or "(kosong)"))
+            found.append(_measure_finding(rule, measure, value or "(empty)"))
     return found
 
 
@@ -1324,7 +1324,7 @@ def _mark_primary_keys(result: Any, rule: BpaRule) -> list[Finding]:
         table = tables.get(str(getattr(column, "table", "")).casefold())
         if table is not None and str(getattr(table, "data_category", "") or "").casefold() == "time":
             continue
-        found.append(_column_finding(rule, column, "belum IsKey"))
+        found.append(_column_finding(rule, column, "not IsKey"))
     return found
 
 
@@ -1347,7 +1347,7 @@ def _hide_fact_columns(result: Any, rule: BpaRule) -> list[Finding]:
             str(getattr(column, "column", "") or "").casefold(),
         )
         if key in referenced:
-            found.append(_column_finding(rule, column, "dipakai agregasi measure"))
+            found.append(_column_finding(rule, column, "used by measure aggregation"))
     return found
 
 
@@ -1360,7 +1360,7 @@ def _month_string_sort(result: Any, rule: BpaRule) -> list[Finding]:
         if str(getattr(column, "data_type", "") or "").casefold() != "string":
             continue
         if not str(getattr(column, "sort_by_column", "") or "").strip():
-            found.append(_column_finding(rule, column, "tanpa Sort by column"))
+            found.append(_column_finding(rule, column, "no Sort by column"))
     return found
 
 
@@ -1411,7 +1411,7 @@ _EVALUATORS: dict[str, Evaluator] = {
         r"INTERSECT\s*\(", "INTERSECT("
     ),
     "USE_THE_DIVIDE_FUNCTION_FOR_DIVISION": _regex_expression_rule(
-        r"(?:\]|\))\s*/(?!/)(?!\*)", "pembagian dengan /"
+        r"(?:\]|\))\s*/(?!/)(?!\*)", "division by /"
     ),
     "AVOID_USING_THE_IFERROR_FUNCTION": _regex_expression_rule(
         r"IFERROR\s*\(", "IFERROR("
@@ -1420,11 +1420,11 @@ _EVALUATORS: dict[str, Evaluator] = {
     "FILTER_COLUMN_VALUES": _regex_expression_rule(
         r"(?:CALCULATE|CALCULATETABLE)\s*\([^,]*,\s*FILTER\s*\(\s*'?[\w ]+'?\s*,"
         r"\s*'?[\w ]+'?\s*\[",
-        "FILTER pada nilai kolom",
+        "FILTER on column values",
     ),
     "FILTER_MEASURE_VALUES_BY_COLUMNS": _regex_expression_rule(
         r"(?:CALCULATE|CALCULATETABLE)\s*\([^,]*,\s*FILTER\s*\(\s*'?[\w ]+'?\s*,\s*\[",
-        "FILTER pada measure",
+        "FILTER on a measure",
     ),
     "INACTIVE_RELATIONSHIPS_THAT_ARE_NEVER_ACTIVATED": _inactive_never_activated,
     "AVOID_USING_'1-(X/Y)'_SYNTAX": _regex_expression_rule(

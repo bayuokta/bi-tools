@@ -66,7 +66,7 @@ class LocalGuardTests(unittest.TestCase):
         self.addCleanup(client._tmp.cleanup)  # type: ignore[attr-defined]
         response = client.get("/?t=salah", follow_redirects=False)
         self.assertEqual(response.status_code, 401)
-        self.assertIn("Sesi server", response.text)
+        self.assertIn("Unknown server session", response.text)
 
     def test_foreign_host_is_rejected(self) -> None:
         client = build_client()

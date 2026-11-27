@@ -244,7 +244,7 @@ class PartitionCliTests(unittest.TestCase):
         body = json.loads(seen["tmsl"])
         self.assertEqual(body["refresh"]["type"], "dataOnly")
         self.assertEqual(len(body["refresh"]["objects"]), 2)
-        self.assertIn("Mengirim refresh TMSL", errors.getvalue())
+        self.assertIn("Sending TMSL refresh", errors.getvalue())
         self.assertEqual(len(json.loads(buffer.getvalue())), 2)
 
     def test_refresh_json_rejects_missing_and_calculated_add(self) -> None:
@@ -273,7 +273,7 @@ class PartitionCliTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(code, 2)
-        self.assertIn("tidak ditemukan", errors.getvalue())
+        self.assertIn("not found", errors.getvalue())
 
         calculated = _cli_partition("Calc", "P", is_calculated=True)
         errors = io.StringIO()

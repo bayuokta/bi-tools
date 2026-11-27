@@ -36,38 +36,38 @@ from core.xmla_client import open_client
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Inventaris partisi semantic model Power BI Service dan refresh "
-            "partisi terpilih lewat XMLA/TOM."
+            "Partition inventory for a Power BI Service semantic model and refresh "
+            "of selected partitions via XMLA/TOM."
         ),
         allow_abbrev=False,
     )
     parser.add_argument("--workspace-id", help="Workspace ID (GUID).")
     parser.add_argument("--dataset-id", help="Semantic model ID (GUID).")
-    parser.add_argument("--workspace-name", help="Nama workspace (default: katalog SQLite).")
-    parser.add_argument("--dataset-name", help="Nama semantic model (default: katalog SQLite).")
+    parser.add_argument("--workspace-name", help="Workspace name (default: SQLite catalog).")
+    parser.add_argument("--dataset-name", help="Semantic model name (default: SQLite catalog).")
     parser.add_argument("--db", help=f"Database SQLite (default: {DEFAULT_DB}).")
     parser.add_argument(
         "--list",
         action="store_true",
-        help="Hanya tampilkan inventaris partisi (tanpa refresh).",
+        help="Only list the partition inventory (no refresh).",
     )
     parser.add_argument(
         "--table",
         action="append",
         default=[],
-        help="Nama tabel target; ulangi berpasangan dengan --partition.",
+        help="Target table name; repeat paired with --partition.",
     )
     parser.add_argument(
         "--partition",
         action="append",
         default=[],
-        help="Nama partisi target; ulangi berpasangan dengan --table.",
+        help="Target partition name; repeat paired with --table.",
     )
     parser.add_argument(
         "--target",
         action="append",
         default=[],
-        help="Target alternatif 'Table|Partition'; boleh diulang.",
+        help="Alternative target 'Table|Partition'; may be repeated.",
     )
     parser.add_argument(
         "--refresh-type",
@@ -80,7 +80,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--yes",
         action="store_true",
-        help=f"Wajib untuk refresh; setara mengetik {PARTITION_CONFIRMATION}.",
+        help=f"Required for refresh; equivalent to typing {PARTITION_CONFIRMATION}.",
     )
     # Mode internal: TOM dan ADOMD dipisah ke proses berbeda agar dua assembly
     # Microsoft.AnalysisServices tidak bentrok. Token dan target lewat stdin.
@@ -107,12 +107,12 @@ def _read_stdin(args: argparse.Namespace, mode: str) -> tuple[str, str, _StaticT
     catalog = str(args.catalog or "").strip()
     if not endpoint or not catalog:
         raise ExtractionError(
-            f"Mode {mode} membutuhkan --endpoint dan --catalog."
+            f"Mode {mode} requires --endpoint and --catalog."
         )
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError as exc:
-        raise ExtractionError(f"Payload token {mode} tidak valid: {exc}") from exc
+        raise ExtractionError(f"Payload token {mode} is not valid: {exc}") from exc
     if bool((payload or {}).get("interactive")):
         return endpoint, catalog, None, payload
     token = str((payload or {}).get("token") or "").strip()
@@ -156,10 +156,10 @@ def _refresh_json(args: argparse.Namespace) -> int:
         table = str((item or {}).get("table") or "").strip()
         partition = str((item or {}).get("partition") or "").strip()
         if not table or not partition:
-            raise ExtractionError("Nama tabel dan partisi tidak boleh kosong.")
+            raise ExtractionError("Table and partition names cannot be empty.")
         targets.append((table, partition))
     if not targets:
-        raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
+        raise ExtractionError("Select at least one partition to process.")
     refresh_type = normalize_refresh_type(str(payload.get("refresh_type") or "full"))
 
     with connect_server(
@@ -171,21 +171,21 @@ def _refresh_json(args: argparse.Namespace) -> int:
         if missing:
             listing = ", ".join(f"{table}/{name}" for table, name in missing)
             raise ExtractionError(
-                f"Partisi tidak ditemukan di model: {listing}. Muat ulang inventaris."
+                f"Partition not found in the model: {listing}. Reload the inventory."
             )
         refresh_type = validate_refresh_targets(
             refresh_type, [by_key[key] for key in targets]
         )
         tmsl = build_refresh_tmsl(catalog, targets, refresh_type)
         print(
-            f"Mengirim refresh TMSL untuk {len(targets)} partisi; "
-            "perintah tidak bisa dibatalkan setelah dikirim.",
+            f"Sending TMSL refresh for {len(targets)} partitions; "
+            "the command cannot be cancelled once sent.",
             file=sys.stderr,
             flush=True,
         )
         execute_refresh(server, tmsl)
         print(
-            "Perintah refresh selesai; membaca ulang status partisi.",
+            "Refresh completed; re-reading partition status.",
             file=sys.stderr,
             flush=True,
         )
@@ -211,19 +211,19 @@ def _targets(args: argparse.Namespace) -> tuple[tuple[str, str], ...]:
     partitions = [str(item).strip() for item in args.partition]
     if len(tables) != len(partitions):
         raise ExtractionError(
-            "Jumlah --table dan --partition harus sama dan berpasangan."
+            "The number of --table and --partition values must match and be paired."
         )
     pairs = list(zip(tables, partitions))
     for item in args.target:
         text = str(item or "")
         if "|" not in text:
             raise ExtractionError(
-                f"Format --target harus 'Table|Partition': {text!r}"
+                f"The --target format must be 'Table|Partition': {text!r}"
             )
         table, partition = text.split("|", 1)
         pairs.append((table.strip(), partition.strip()))
     if not pairs:
-        raise ExtractionError("Sebutkan --table/--partition atau --target untuk refresh.")
+        raise ExtractionError("Specify --table/--partition or --target to refresh.")
     return tuple(pairs)
 
 
@@ -260,12 +260,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.refresh_json:
             return _refresh_json(args)
         if not args.workspace_id or not args.dataset_id:
-            raise ExtractionError("--workspace-id dan --dataset-id wajib diisi.")
+            raise ExtractionError("--workspace-id and --dataset-id are required.")
         workspace_name, dataset_name = _names(args)
         if not workspace_name or not dataset_name:
             raise ExtractionError(
-                "Nama workspace/model tidak ditemukan di katalog SQLite; isi "
-                "--workspace-name dan --dataset-name."
+                "Workspace/model names were not found in the SQLite catalog; fill in "
+                "--workspace-name and --dataset-name."
             )
         principal = ServicePrincipal.from_env()
         if args.list:
@@ -283,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.yes:
             raise ExtractionError(
                 f"Refresh mengubah data model. Tambahkan --yes (konfirmasi "
-                f"{PARTITION_CONFIRMATION}) untuk melanjutkan."
+                f"{PARTITION_CONFIRMATION}) to continue."
             )
         request = PartitionRefreshRequest(
             workspace_id=args.workspace_id,
@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
             log=print,
         )
         print()
-        print(payload.get("refresh", {}).get("message", "Refresh selesai."))
+        print(payload.get("refresh", {}).get("message", "Refresh completed."))
         _print_inventory(payload)
         return 0
     except ExtractionError as exc:

@@ -27,7 +27,7 @@ SEVERITY_RANK = {
 
 # Nilai kanonik sama dengan ``core.usage_service.STATUS_UNUSED``. Sengaja
 # ditulis ulang agar modul ini tidak mengimpor modul analisa yang berat.
-UNUSED_STATUS = "Tidak dipakai"
+UNUSED_STATUS = "Unused"
 HELPER_TABLES = {"_measures"}
 NON_TABLE_STORAGE = {"calculationgroup", "calculation group"}
 
@@ -505,7 +505,7 @@ def _item(**values: Any) -> dict[str, Any]:
         "target": values.pop("target", {}) or {},
     }
     if values:
-        raise TypeError(f"nilai health tidak dikenal: {sorted(values)}")
+        raise TypeError(f"unknown health value: {sorted(values)}")
     return item
 
 

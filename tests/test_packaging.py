@@ -74,7 +74,7 @@ class CliDispatcherTests(unittest.TestCase):
         buffer = io.StringIO()
         with contextlib.redirect_stderr(buffer):
             self.assertEqual(cli_main.main(["tidak-ada"]), 2)
-        self.assertIn("tidak dikenal", buffer.getvalue())
+        self.assertIn("Unknown command", buffer.getvalue())
 
     def test_commands_point_to_modules_with_main(self) -> None:
         import importlib

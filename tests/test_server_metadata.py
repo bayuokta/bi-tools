@@ -65,7 +65,7 @@ class MetadataPresenterTests(unittest.TestCase):
         with patch.object(presenter, "list_instances", return_value=[]):
             payload = presenter.instances_payload()
         self.assertEqual(payload["instances"], [])
-        self.assertIn("Tidak ada instance", payload["hint"])
+        self.assertIn("No Power BI Desktop instance", payload["hint"])
 
     def test_instances_serialized(self) -> None:
         item = SimpleNamespace(
@@ -79,13 +79,13 @@ class MetadataPresenterTests(unittest.TestCase):
         with patch.object(presenter, "list_instances", return_value=[item]):
             payload = presenter.instances_payload()
         self.assertEqual(payload["instances"][0]["port"], 1234)
-        self.assertIn("Satu instance", payload["hint"])
+        self.assertIn("One instance", payload["hint"])
 
     def test_pbix_missing_and_empty(self) -> None:
-        self.assertEqual(presenter.pbix_payload("")["label"], "Belum ada file .pbix dipilih.")
+        self.assertEqual(presenter.pbix_payload("")["label"], "No .pbix file selected yet.")
         missing = presenter.pbix_payload(str(self.root / "tidak-ada.pbix"))
         self.assertFalse(missing["exists"])
-        self.assertIn("tidak ditemukan", missing["label"])
+        self.assertIn("not found", missing["label"])
 
     def test_pbix_reads_source_info(self) -> None:
         with patch.object(presenter, "detect_pbix_source", side_effect=fake_info):
@@ -93,18 +93,18 @@ class MetadataPresenterTests(unittest.TestCase):
         self.assertTrue(payload["exists"])
         self.assertTrue(payload["has_pbir"])
         self.assertTrue(payload["has_local_model"])
-        self.assertIn("Desktop harus terbuka", payload["detail"])
+        self.assertIn("Desktop must be open", payload["detail"])
 
     def test_workspaces_without_catalog(self) -> None:
         payload = presenter.workspaces_payload(self.store)
         self.assertEqual(payload["workspaces"], [])
-        self.assertIn("Sinkronisasi", payload["hint"])
+        self.assertIn("catalog sync", payload["hint"])
 
     def test_contents_requires_known_workspace(self) -> None:
         with patch.object(presenter, "workspace_detail", return_value=None):
             with self.assertRaises(ExtractionError) as ctx:
                 presenter.contents_payload(self.store, WORKSPACE)
-        self.assertIn("katalog SQLite", str(ctx.exception))
+        self.assertIn("SQLite catalog", str(ctx.exception))
 
     def test_contents_lists_items_and_endpoint(self) -> None:
         option = WorkspaceOption(WORKSPACE, "Contoh - SO")
@@ -172,7 +172,7 @@ class MetadataPresenterTests(unittest.TestCase):
                     self.store,
                     {"source": "local", "scope": "model", "pbix": str(self.pbix)},
                 )
-        self.assertIn("instance Power BI Desktop", str(ctx.exception))
+        self.assertIn("Power BI Desktop instance", str(ctx.exception))
 
     def test_build_request_local_report_requires_pbir(self) -> None:
         info = PbixSourceInfo(
@@ -216,7 +216,7 @@ class MetadataPresenterTests(unittest.TestCase):
                     "report_type": "PaginatedReport",
                 },
             )
-        self.assertIn("paginated", str(ctx.exception))
+        self.assertIn("Paginated", str(ctx.exception))
 
     def test_build_request_service_requires_credentials(self) -> None:
         store = SettingsStore(
@@ -233,7 +233,7 @@ class MetadataPresenterTests(unittest.TestCase):
                     "report_id": REPORT,
                 },
             )
-        self.assertIn("Kredensial", str(ctx.exception))
+        self.assertIn("Credentials", str(ctx.exception))
 
     def test_build_request_service_separate_report_workspace(self) -> None:
         report_workspace = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"

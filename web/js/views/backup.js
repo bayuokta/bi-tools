@@ -8,7 +8,6 @@ import {
 } from "../core/combo.js";
 import { $, escapeHtml } from "../core/dom.js";
 import { fmtInt, sizeText } from "../core/format.js";
-import { t } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
 var multi = { kind: "model", trigger: null, bound: false };
@@ -73,10 +72,10 @@ function backupSelectedCount(kind) {
 function backupLabel(kind) {
   var items = backupItems(kind);
   var selected = backupSelectedCount(kind);
-  if (!items.length) return t("No items");
-  if (selected === items.length) return t("Select all");
-  if (selected === 0) return t("Choose items…");
-  return fmtInt(selected) + " " + t("selected");
+  if (!items.length) return "No items";
+  if (selected === items.length) return "Select all";
+  if (selected === 0) return "Choose items…";
+  return fmtInt(selected) + " " + "selected";
 }
 
 function backupSelectAll(kind, value) {
@@ -92,7 +91,7 @@ function backupRenderScope() {
   var total = backupSelectedCount("model") + backupSelectedCount("report");
   var all = data.models.length + data.reports.length;
   var scope = $("#bakScopeText");
-  if (scope) scope.textContent = fmtInt(total) + " / " + fmtInt(all) + " " + t("selected");
+  if (scope) scope.textContent = fmtInt(total) + " / " + fmtInt(all) + " " + "selected";
   var modelLabel = $("#bakModelLabel");
   var reportLabel = $("#bakReportLabel");
   if (modelLabel) modelLabel.textContent = backupLabel("model");
@@ -142,7 +141,7 @@ function renderMulti(query) {
   var count = multiItems().filter(function (item) {
     return selected[backupKey(item)];
   }).length;
-  $("#bakMultiCount").textContent = fmtInt(count) + " " + t("selected");
+  $("#bakMultiCount").textContent = fmtInt(count) + " " + "selected";
 }
 
 function openMulti(kind) {
@@ -174,7 +173,7 @@ function multiToggle(id, checked) {
   var count = multiItems().filter(function (item) {
     return selected[backupKey(item)];
   }).length;
-  $("#bakMultiCount").textContent = fmtInt(count) + " " + t("selected");
+  $("#bakMultiCount").textContent = fmtInt(count) + " " + "selected";
   backupRenderScope();
 }
 
@@ -280,7 +279,7 @@ function backupApplyState(data) {
     setSelectValue("rstWorkspace", target.restore.workspaceId || target.workspaceId);
   }
   $("#bakSourceHint").textContent =
-    data.hint || t("The workspace list comes from the shared catalog.");
+    data.hint || "The workspace list comes from the shared catalog.";
   $("#bakFolder").value = target.folder;
   $("#bakName").value = target.prefix;
   restoreRenderFiles();
@@ -305,7 +304,7 @@ export function backupLoadItems() {
     backupRenderScope();
     return Promise.resolve();
   }
-  $("#bakSourceHint").textContent = t("Loading items...");
+  $("#bakSourceHint").textContent = "Loading items...";
   return app.api().get(
     "/api/backup/workspaces/" + encodeURIComponent(workspaceId) + "/items"
   ).then(function (payload) {
@@ -318,8 +317,8 @@ export function backupLoadItems() {
       data.selectedReports[backupKey(item)] = true;
     });
     $("#bakSourceHint").textContent = fmtInt(data.models.length) + " " +
-      t("semantic models") + " · " + fmtInt(data.reports.length) + " " + t("reports") +
-      ". " + t("Click a field to search and check one or more items.");
+      "semantic models" + " · " + fmtInt(data.reports.length) + " " + "reports" +
+      ". " + "Click a field to search and check one or more items.";
     backupRenderScope();
   }).catch(app.reportError);
 }
@@ -328,7 +327,7 @@ export function backupPayload() {
   var data = backupState();
   var workspaceId = getSelectValue("bakWorkspace");
   if (!workspaceId) {
-    app.toast(t("Choose a workspace first."));
+    app.toast("Choose a workspace first.");
     return null;
   }
   var items = [];
@@ -350,12 +349,12 @@ export function backupPayload() {
     }
   });
   if (!items.length) {
-    app.toast(t("Select at least one item."));
+    app.toast("Select at least one item.");
     return null;
   }
   var folder = $("#bakFolder").value.trim();
   if (!folder) {
-    app.toast(t("Choose a destination folder."));
+    app.toast("Choose a destination folder.");
     return null;
   }
   var workspace = data.workspaces.filter(function (row) {
@@ -374,20 +373,20 @@ export function runBackup() {
   var payload = backupPayload();
   if (!payload) return;
   $("#bakRun").hidden = false;
-  $("#bakRunLabel").textContent = t("Running backup...");
+  $("#bakRunLabel").textContent = "Running backup...";
   $("#bakRunPct").textContent = "0%";
   $("#bakBar").style.width = "0%";
   app.startJob({
     path: "/api/backup/run",
     body: payload,
-    label: t("Backup model & report"),
+    label: "Backup model & report",
     button: $("#runBackup"),
     onDone: function (snapshot) {
       $("#bakRun").hidden = true;
       if (snapshot && snapshot.status === "done" && snapshot.result) {
         backupRenderResult(snapshot.result);
         backupLoadState(payload.folder);
-        app.toast(t("Backup finished."));
+        app.toast("Backup finished.");
       }
     }
   });
@@ -407,17 +406,17 @@ function backupRenderFiles() {
       backupStatusChip(item) + "</div>" +
       '<div class="helper">' + meta + "</div></div>";
   }).join("") || '<div class="empty"><p class="empty-text">' +
-    escapeHtml(t("No files")) + "</p></div>";
+    escapeHtml("No files") + "</p></div>";
   $("#bakFileSummary").textContent = fmtInt(data.result.ok || 0) + " " +
-    t("saved") + " · " + fmtInt(data.result.failed || 0) + " " + t("failed") +
-    " · " + fmtInt(data.result.skipped || 0) + " " + t("skipped");
+    "saved" + " · " + fmtInt(data.result.failed || 0) + " " + "failed" +
+    " · " + fmtInt(data.result.skipped || 0) + " " + "skipped";
 }
 
 function backupStatusChip(item) {
   var tone = item.status === "ok" ? "chip-ok" : (item.status === "failed" ? "chip-error" : "chip-idle");
   var label = item.status === "ok"
-    ? t("Saved")
-    : (item.status === "failed" ? t("Failed") : t("Skipped"));
+    ? "Saved"
+    : (item.status === "failed" ? "Failed" : "Skipped");
   return '<span class="chip ' + tone + '"><span class="dot"></span>' +
     escapeHtml(label) + "</span>";
 }
@@ -426,7 +425,7 @@ function backupRenderResult(result) {
   var data = backupState();
   data.result = result;
   $("#bakOutputState").className = "chip chip-ok";
-  $("#bakOutputState").innerHTML = '<span class="dot"></span>' + escapeHtml(t("Done"));
+  $("#bakOutputState").innerHTML = '<span class="dot"></span>' + escapeHtml("Done");
   $("#bakOpenFolder").disabled = false;
   backupRenderFiles();
   backupRenderSummary();
@@ -453,12 +452,12 @@ function backupRenderHistory() {
   if (!box) return;
   if (!data.history.length) {
     box.innerHTML = '<div class="empty" style="padding:6px 2px"><p class="empty-text">' +
-      escapeHtml(t("No backup history.")) + "</p></div>";
+      escapeHtml("No backup history.") + "</p></div>";
     return;
   }
   box.innerHTML = data.history.map(function (row) {
-    var summary = fmtInt(row.ok) + " " + t("saved") + " · " + sizeText(row.size);
-    if (row.failed) summary += " · " + fmtInt(row.failed) + " " + t("failed");
+    var summary = fmtInt(row.ok) + " " + "saved" + " · " + sizeText(row.size);
+    if (row.failed) summary += " · " + fmtInt(row.failed) + " " + "failed";
     return '<button class="bak-history-row" type="button" data-path="' + escapeHtml(row.path) + '">' +
       '<span class="bak-history-time">' + escapeHtml(backupTime(row.finished_at)) + "</span>" +
       '<span class="helper">' + escapeHtml(summary) + "</span></button>";
@@ -491,7 +490,7 @@ function restoreRenderFiles() {
   setSelectOptions(
     "rstFile",
     restore.files.map(function (row) {
-      var label = (row.kind === "model" ? t("Model") : t("Report")) +
+      var label = (row.kind === "model" ? "Model" : "Report") +
         " · " + row.name + " · " + row.workspace + " · " + backupTime(row.finished_at);
       return { value: row.path, label: label };
     }),
@@ -544,25 +543,25 @@ export function runRestore() {
   var restore = restoreData();
   var file = restoreSelectedFile();
   if (!file) {
-    app.toast(t("Choose a backup file first."));
+    app.toast("Choose a backup file first.");
     return;
   }
   var workspaceId = getSelectValue("rstWorkspace");
   if (!workspaceId) {
-    app.toast(t("Choose a target workspace first."));
+    app.toast("Choose a target workspace first.");
     return;
   }
   var overwrite = $("#rstOverwrite").checked;
   var targetId = overwrite ? getSelectValue("rstTarget") : "";
   if (overwrite && !targetId) {
-    app.toast(t("Choose the target item to overwrite."));
+    app.toast("Choose the target item to overwrite.");
     return;
   }
   if (overwrite) {
-    var label = file.kind === "model" ? t("Model") : t("Report");
+    var label = file.kind === "model" ? "Model" : "Report";
     if (!window.confirm(
-      t("Replace the entire definition of the selected ") + label.toLowerCase() +
-      "? " + t("This cannot be undone.")
+      "Replace the entire definition of the selected " + label.toLowerCase() +
+      "? " + "This cannot be undone."
     )) return;
   }
   var workspace = data.workspaces.filter(function (row) {
@@ -586,20 +585,20 @@ export function runRestore() {
     validate: $("#rstValidate").checked
   };
   $("#rstRun").hidden = false;
-  $("#rstRunLabel").textContent = t("Running restore...");
+  $("#rstRunLabel").textContent = "Running restore...";
   $("#rstRunPct").textContent = "0%";
   $("#rstBar").style.width = "0%";
   app.startJob({
     path: "/api/backup/restore/run",
     body: payload,
-    label: t("Restore model & report"),
+    label: "Restore model & report",
     button: $("#runRestore"),
     onDone: function (snapshot) {
       $("#rstRun").hidden = true;
       if (snapshot && snapshot.status === "done" && snapshot.result) {
         restoreRenderResult(snapshot.result);
         backupLoadState(data.folder);
-        app.toast(t("Restore finished."));
+        app.toast("Restore finished.");
       }
     }
   });
@@ -610,16 +609,16 @@ function restoreRenderResult(result) {
   restore.result = result;
   $("#rstResult").hidden = false;
   $("#rstStateChip").className = "chip chip-ok";
-  $("#rstStateChip").innerHTML = '<span class="dot"></span>' + escapeHtml(t("Done"));
+  $("#rstStateChip").innerHTML = '<span class="dot"></span>' + escapeHtml("Done");
   $("#rstResultBody").innerHTML =
     '<div class="stat-list">' +
-    '<div class="stat-row"><span class="stat-key">' + escapeHtml(t("File")) +
+    '<div class="stat-row"><span class="stat-key">' + escapeHtml("File") +
     '</span><span class="stat-val">' + escapeHtml(result.file_name || result.file || "-") + "</span></div>" +
-    '<div class="stat-row"><span class="stat-key">' + escapeHtml(t("Action")) +
+    '<div class="stat-row"><span class="stat-key">' + escapeHtml("Action") +
     '</span><span class="stat-val">' + escapeHtml(result.action || "-") + "</span></div>" +
-    '<div class="stat-row"><span class="stat-key">' + escapeHtml(t("Item")) +
+    '<div class="stat-row"><span class="stat-key">' + escapeHtml("Item") +
     '</span><span class="stat-val">' + escapeHtml(result.name || "-") + "</span></div>" +
-    '<div class="stat-row"><span class="stat-key">' + escapeHtml(t("ID")) +
+    '<div class="stat-row"><span class="stat-key">' + escapeHtml("ID") +
     '</span><span class="stat-val mono">' + escapeHtml(result.id || "-") + "</span></div>" +
     "</div>";
   $("#rstSummaryBody").hidden = false;

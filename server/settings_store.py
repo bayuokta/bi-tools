@@ -188,7 +188,7 @@ class SettingsStore:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise SettingsError(
-                f"Preferensi tidak bisa dibaca: {self.path} ({exc})"
+                f"Preferences could not be read: {self.path} ({exc})"
             ) from exc
         values = data.get("values") if isinstance(data, dict) else None
         if not isinstance(values, dict):
@@ -224,7 +224,7 @@ class SettingsStore:
                 except OSError:
                     pass
             raise SettingsError(
-                f"Preferensi tidak bisa disimpan: {self.path} ({exc})"
+                f"Preferences could not be saved: {self.path} ({exc})"
             ) from exc
 
     # -- migrasi -----------------------------------------------------------

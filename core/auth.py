@@ -95,9 +95,9 @@ class ServicePrincipal:
     def validate(self) -> None:
         if self.missing:
             raise ExtractionError(
-                "Kredensial service principal belum lengkap. Isi "
+                "Service principal credentials are incomplete. Fill "
                 + ", ".join(self.missing)
-                + " di dialog Kredensial API (GUI) atau environment/.env (CLI)."
+                + " in the API credentials dialog (GUI) or environment/.env (CLI)."
             )
 
 
@@ -120,7 +120,7 @@ def _read_token_result(result: Any, scope: str) -> Token:
         if isinstance(result, dict):
             detail = result.get("error_description") or result.get("error") or ""
         raise ExtractionError(
-            f"Gagal mengambil token Microsoft Entra untuk {scope}"
+            f"Failed to get a Microsoft Entra token for {scope}"
             + (f": {detail}" if detail else ".")
         )
     expires_in = int(result.get("expires_in") or 3600)
@@ -182,7 +182,7 @@ class UserSession:
     def validate(self) -> None:
         if not self.signed_in:
             raise ExtractionError(
-                "Belum login. Buka Pengaturan lalu klik Sign in dengan akun 365."
+                "Not signed in. Open Settings and click Sign in with a Microsoft 365 account."
             )
 
     def configure(self, tenant_id: str = "", cache_name: str = "") -> None:
@@ -212,7 +212,7 @@ class UserSession:
                     )
                 except ImportError as exc:  # pragma: no cover - dependensi paket
                     raise ExtractionError(
-                        "azure-identity belum terpasang; jalankan pip install azure-identity."
+                        "azure-identity is not installed; run pip install azure-identity."
                     ) from exc
                 options: dict[str, Any] = {
                     "cache_persistence_options": TokenCachePersistenceOptions(
@@ -227,7 +227,7 @@ class UserSession:
     def get(self, scope: str = POWERBI_SCOPE, *, force: bool = False) -> Token:
         if not self.signed_in and not self._signing_in:
             raise ExtractionError(
-                "Belum login. Buka Pengaturan lalu klik Sign in dengan akun 365."
+                "Not signed in. Open Settings and click Sign in with a Microsoft 365 account."
             )
         with self._lock:
             if not force:
@@ -327,8 +327,8 @@ class EntraTokens:
                 )
             except ValueError as exc:
                 raise ExtractionError(
-                    "Konfigurasi tenant Microsoft Entra tidak valid: "
-                    f"{exc}. Periksa Tenant ID (GUID atau domain tenant)."
+                    "Invalid Microsoft Entra tenant configuration: "
+                    f"{exc}. Check the Tenant ID (GUID or tenant domain)."
                 ) from exc
         return self._app
 
@@ -376,7 +376,7 @@ class MsalTokenProvider:
 class DeferredTokenProvider:
     """Token provider yang baru dibuat saat token pertama diminta.
 
-    Dipakai capture screenshot: generate ulang dari cache tidak boleh meminta
+    Used capture screenshot: generate ulang dari cache tidak boleh meminta
     kredensial atau membuka koneksi apa pun.
     """
 

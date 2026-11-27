@@ -64,32 +64,32 @@ class TomWorkerClient:
             if self._process.poll() is not None:
                 raise ExtractionError(
                     "Worker TOM berhenti. "
-                    + (self._stderr[-1] if self._stderr else "Tidak ada detail.")
+                    + (self._stderr[-1] if self._stderr else "No details.")
                 )
             assert self._process.stdin is not None
             try:
                 self._process.stdin.write(json.dumps(payload) + "\n")
                 self._process.stdin.flush()
             except OSError as exc:
-                raise ExtractionError(f"Worker TOM tidak bisa ditulis: {exc}") from exc
+                raise ExtractionError(f"The TOM worker could not be written to: {exc}") from exc
             deadline = time.monotonic() + float(timeout)
             response: dict[str, Any] | None = None
             while response is None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ExtractionError(
-                        "Worker TOM tidak menjawab dalam batas waktu."
+                        "The TOM worker did not respond in time."
                     )
                 try:
                     line = self._lines.get(timeout=remaining)
                 except queue.Empty as exc:
                     raise ExtractionError(
-                        "Worker TOM tidak menjawab dalam batas waktu."
+                        "The TOM worker did not respond in time."
                     ) from exc
                 if line is None:
                     raise ExtractionError(
                         "Worker TOM berhenti. "
-                        + (self._stderr[-1] if self._stderr else "Tidak ada detail.")
+                        + (self._stderr[-1] if self._stderr else "No details.")
                     )
                 try:
                     value = json.loads(line)
@@ -99,7 +99,7 @@ class TomWorkerClient:
                 if isinstance(value, dict):
                     response = value
             if not response.get("ok"):
-                raise ExtractionError(str(response.get("error") or "Worker TOM gagal."))
+                raise ExtractionError(str(response.get("error") or "The TOM worker failed."))
             return response
 
     def inventory(self) -> list[dict[str, Any]]:
@@ -134,9 +134,9 @@ class TomWorkerClient:
         try:
             data = json.loads(value) if isinstance(value, str) else value
         except ValueError as exc:
-            raise ExtractionError(f"Snapshot TOM tidak valid: {exc}") from exc
+            raise ExtractionError(f"Invalid TOM snapshot: {exc}") from exc
         if not isinstance(data, dict):
-            raise ExtractionError("Snapshot TOM tidak berisi objek yang bisa dibandingkan.")
+            raise ExtractionError("The TOM snapshot contains no comparable objects.")
         return data
 
     def close(self) -> None:

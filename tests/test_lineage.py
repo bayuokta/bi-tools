@@ -586,7 +586,7 @@ class ApiTest(unittest.TestCase):
         with self.assertRaises(LineageApiError) as caught:
             client.member_workspaces()
         self.assertEqual(caught.exception.status_code, 403)
-        self.assertIn("izin service principal", str(caught.exception))
+        self.assertIn("service principal permissions", str(caught.exception))
 
         client, _ = client_with(FakeSession([FakeResponse(403, text="Forbidden")]))
         self.assertFalse(client.probe_admin())
@@ -988,7 +988,7 @@ class ScanTest(unittest.TestCase):
         self.assertFalse(result.include_personal)
         self.assertEqual(client.member_calls, ["list", ("ws-1", "Sales Workspace")])
         self.assertTrue(
-            any("Mode member tidak dapat memindai My Workspace" in line for line in lines)
+            any("Member mode cannot scan My Workspace" in line for line in lines)
         )
         self.assertEqual(self.scan_rows()[-1]["include_personal"], 0)
 
@@ -1021,7 +1021,7 @@ class ScanTest(unittest.TestCase):
         client = FakeLineageClient(fail="modified")
         with self.assertRaises(ExtractionError) as caught:
             self.run_scan(client, mode="admin")
-        self.assertIn("Scan lineage gagal", str(caught.exception))
+        self.assertIn("Lineage scan failed", str(caught.exception))
         self.assertTrue(client.closed)
         rows = self.scan_rows()
         self.assertTrue(any(row["status"] == "Failed" for row in rows))
@@ -1047,7 +1047,7 @@ class ScanTest(unittest.TestCase):
                 mode="admin",
                 client_factory=lambda settings, log=None: FakeLineageClient(),
             )
-        self.assertIn("Scan lineage gagal", str(caught.exception))
+        self.assertIn("Lineage scan failed", str(caught.exception))
 
 
 class ExportTest(unittest.TestCase):
@@ -1200,11 +1200,11 @@ class CliTest(unittest.TestCase):
                 ]
             )
         self.assertEqual(code, 1)
-        self.assertIn("tidak ditemukan", err)
+        self.assertIn("not found", err)
 
         code, _, err = self.run_cli(["--db", str(self.db), "--impact", "tidak-ada"])
         self.assertEqual(code, 2)
-        self.assertIn("tidak ditemukan", err)
+        self.assertIn("not found", err)
 
         code, _, _ = self.run_cli(["--db", str(self.db)])
         self.assertEqual(code, 2)

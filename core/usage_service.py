@@ -103,10 +103,10 @@ from .xmla_client import XmlaError, open_client, workspace_endpoint
 Log = Callable[[str], None]
 Progress = Callable[[int, int, str], None]
 
-STATUS_UNUSED = "Tidak dipakai"
-STATUS_USED = "Dipakai"
-STATUS_BLOCKER = "Wajib dipertahankan"
-STATUS_UNKNOWN = "Perlu dicek"
+STATUS_UNUSED = "Unused"
+STATUS_USED = "Used"
+STATUS_BLOCKER = "Must keep"
+STATUS_UNKNOWN = "Needs review"
 COVERAGE_MODEL_ONLY = "report tidak disertakan · metadata model saja"
 
 BLOCKING_KINDS = {
@@ -169,7 +169,7 @@ def _silent(message: str) -> None:
 
 
 def format_bytes(value: Any) -> str:
-    """Ukuran biner ringkas: 0 B, 1,4 KB, 20,3 MB."""
+    """Ringkas binary size: 0 B, 1.4 KB, 20.3 MB."""
     try:
         size = float(value or 0)
     except (TypeError, ValueError):
@@ -183,7 +183,7 @@ def format_bytes(value: Any) -> str:
         index += 1
     if index == 0:
         return f"{int(size)} B"
-    return f"{size:.1f} {units[index]}".replace(".", ",")
+    return f"{size:.1f} {units[index]}"
 
 
 def normalize_report_format(value: Any) -> str:
@@ -309,8 +309,8 @@ def discover_reports(
         except ApiError as exc:
             workspace_reports = []
             notes.append(
-                f"Daftar report workspace tidak bisa dibaca ({exc.status_code}); "
-                "memakai katalog snapshot."
+                f"Workspace report list could not be read ({exc.status_code}); "
+                "using the catalog snapshot."
             )
             log(notes[-1])
         for row in workspace_reports:
@@ -337,8 +337,8 @@ def discover_reports(
                     method = "catalog"
             if entries:
                 notes.append(
-                    "Daftar report memakai snapshot hasil sync dan lineage; "
-                    "report baru atau perubahan terakhir bisa belum terlihat."
+                    "The report list uses the synced snapshot and lineage; "
+                    "new reports or recent changes may not be visible."
                 )
             for row in reports_using_dataset(database, dataset_id):
                 entry = _entry_from_rest(row, source="lineage")
@@ -351,8 +351,8 @@ def discover_reports(
     personal = sum(1 for entry in ordered if entry.personal)
     if personal:
         log(
-            f"Report di My Workspace (personal): {personal}; dilewati secara "
-            "default karena service principal tidak punya akses ke sana."
+            f"Reports in My Workspace (personal): {personal}; skipped by default "
+            "because the service principal has no access there."
         )
     return ordered, method, notes
 
@@ -830,7 +830,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             name,
             "default label",
             f"'{table}'[{name}]",
-            f"label default tabel '{table}'",
+            f"default label for table '{table}'",
             blocking=False,
         )
 
@@ -847,7 +847,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
             name,
             "key column",
             f"'{table}'[{name}]",
-            f"kolom kunci tabel '{table}'",
+            f"key column of table '{table}'",
         )
 
     for column_id, column in model.column_by_id.items():
@@ -887,7 +887,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 ref_column,
                 "RLS",
                 f"role '{role_name}'",
-                f"filter RLS role '{role_name}' pada tabel '{table}'",
+                f"RLS filter for role '{role_name}' on table '{table}'",
             )
         # Kolom tanpa kualifikasi tabel (mis. [Email] = USERPRINCIPALNAME())
         # berlaku pada tabel permission itu sendiri.
@@ -900,7 +900,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 name,
                 "RLS",
                 f"role '{role_name}'",
-                f"filter RLS role '{role_name}' pada tabel '{table}'",
+                f"RLS filter for role '{role_name}' on table '{table}'",
             )
 
     for row in model.raw["TMSCHEMA_COLUMN_PERMISSIONS"]:
@@ -964,7 +964,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 name,
                 "langkah M",
                 f"query '{table}'",
-                f"langkah Power Query tabel '{table}' (indikatif)",
+                f"Power Query step for table '{table}' (indicative)",
                 blocking=False,
             )
 
@@ -1004,7 +1004,7 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 name,
                 "Power Query",
                 f"query '{table}'",
-                f"Power Query reference tabel '{table}'",
+                f"Power Query reference to table '{table}'",
                 blocking=False,
             )
 
@@ -1039,8 +1039,8 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 table,
                 final,
                 "Power Query",
-                f"incremental refresh tabel '{table}'",
-                f"incremental refresh kolom '{final}'",
+                f"incremental refresh table '{table}'",
+                f"incremental refresh column '{final}'",
                 blocking=False,
             )
 
@@ -1212,26 +1212,26 @@ def verdict(
         kinds = sorted({ref.kind for ref in blocking})
         return (
             STATUS_BLOCKER,
-            "Dipakai objek model: " + ", ".join(kinds) + ".",
+            "Used by model objects: " + ", ".join(kinds) + ".",
         )
     if records:
         reports = len({str(row.get("report_id") or "") for row in records})
         return (
             STATUS_USED,
-            f"Dipakai di {len(records)} titik pada {reports} report.",
+            f"Used at {len(records)} points across {reports} report(s).",
         )
     if model_refs:
         kinds = sorted({ref.kind for ref in model_refs})
         return (
             STATUS_USED,
-            "Dipakai measure/model: " + ", ".join(kinds) + ".",
+            "Used by measures/model: " + ", ".join(kinds) + ".",
         )
     if not coverage_complete:
         return (
             STATUS_UNKNOWN,
-            "Belum ada referensi, tetapi cakupan report belum lengkap.",
+            "No references yet, but report coverage is incomplete.",
         )
-    return (STATUS_UNUSED, "Tidak ada referensi di report maupun model.")
+    return (STATUS_UNUSED, "No references in reports or the model.")
 
 
 def measure_verdict(
@@ -1247,13 +1247,13 @@ def measure_verdict(
         kinds = sorted({ref.kind for ref in blocking})
         return (
             STATUS_BLOCKER,
-            "Dirujuk objek model: " + ", ".join(kinds) + ".",
+            "Referenced by model objects: " + ", ".join(kinds) + ".",
         )
     if records:
         reports = len({str(row.get("report_id") or "") for row in records})
         return (
             STATUS_USED,
-            f"Dipakai di {len(records)} titik pada {reports} report.",
+            f"Used at {len(records)} points across {reports} report(s).",
         )
     if indirect:
         sources = sorted(
@@ -1266,24 +1266,24 @@ def measure_verdict(
         suffix = f" ({', '.join(sources[:3])})" if sources else ""
         return (
             STATUS_USED,
-            "Dipakai tidak langsung oleh measure yang dipakai report" + suffix + ".",
+            "Used indirectly by measures used in reports" + suffix + ".",
         )
     if refs:
         if not coverage_complete:
             return (
                 STATUS_UNKNOWN,
-                "Hanya dirujuk measure lain; cakupan report belum lengkap.",
+                "Only referenced by other measures; report coverage is incomplete.",
             )
         return (
             STATUS_UNUSED,
-            "Hanya dirujuk measure lain yang juga tidak dipakai.",
+            "Only referenced by other unused measures.",
         )
     if not coverage_complete:
         return (
             STATUS_UNKNOWN,
-            "Belum ada referensi, tetapi cakupan report belum lengkap.",
+            "No references yet, but report coverage is incomplete.",
         )
-    return (STATUS_UNUSED, "Tidak ada referensi di report maupun model.")
+    return (STATUS_UNUSED, "No references in reports or the model.")
 
 
 def _measure_usage_key(
@@ -1471,13 +1471,13 @@ def build_hierarchy_analyses(
             )
         if any(is_counted_record(row) for row in unique):
             status = STATUS_USED
-            reason = f"Dipakai di {len(unique)} titik pada report."
+            reason = f"Used at {len(unique)} points in reports."
         elif coverage_complete:
             status = STATUS_UNUSED
-            reason = "Tidak ada pemakaian level hierarchy di report."
+            reason = "No hierarchy level usage in reports."
         else:
             status = STATUS_UNKNOWN
-            reason = "Cakupan report belum lengkap."
+            reason = "Report coverage is incomplete."
         out.append(
             HierarchyAnalysis(
                 hierarchy=dict(definition),
@@ -1693,7 +1693,7 @@ def m_query_rows(
             table,
             {
                 "name": table,
-                "kind": "Tabel",
+                "kind": "Table",
                 "source": "",
                 "expression": "",
                 "warning": "",
@@ -1733,7 +1733,7 @@ def m_query_rows(
                 "detail": str(row.get("data_type") or ""),
             }
         )
-    rows.sort(key=lambda item: (item["kind"] != "Tabel", item["name"].casefold()))
+    rows.sort(key=lambda item: (item["kind"] != "Table", item["name"].casefold()))
     return rows
 
 
@@ -1833,7 +1833,7 @@ def scan_reports(
     names = [str(item) for item in table_names if item]
     if definition_loader is None:
         raise ExtractionError(
-            "Loader definisi report tidak tersedia untuk analisa ini."
+            "The report definition loader is not available for this analysis."
         )
     loader = definition_loader
     workers = max(1, min(4, int(scan_workers or 1)))
@@ -1916,7 +1916,7 @@ def scan_reports(
     for index, entry in enumerate(entries, start=1):
         if should_stop is not None and should_stop():
             counters.cancelled = True
-            log("Analisa dihentikan atas permintaan pengguna.")
+            log("Analysis stopped at user request.")
             break
         fill_prefetch(index)
         if entry.personal and not include_personal:
@@ -1930,8 +1930,8 @@ def scan_reports(
                 modified_at=entry.modified_at,
                 status="personal",
                 message=(
-                    "Dilewati: report berada di My Workspace (personal) dan "
-                    "tidak dapat diakses service principal."
+                    "Skipped: report is in My Workspace (personal) and is not accessible "
+                    "to the service principal."
                 ),
             )
             counters.personal += 1
@@ -1947,7 +1947,7 @@ def scan_reports(
                 modified_at=entry.modified_at,
                 status="app",
                 message=(
-                    "Dilewati: report berasal dari fitur Power BI App "
+                    "Skipped: the report comes from the Power BI App feature "
                     "([App] …); report sumbernya sudah dianalisa."
                 ),
             )
@@ -1971,8 +1971,8 @@ def scan_reports(
         ):
             counters.inaccessible += 1
             log(
-                f"[{index}/{counters.total}] {entry.label} dilewati "
-                "(inaccessible; coba lagi setelah cooldown)."
+                f"[{index}/{counters.total}] {entry.label} skipped "
+                "(inaccessible; retry after cooldown)."
             )
             continue
         if not entry.supported:
@@ -1986,8 +1986,8 @@ def scan_reports(
                 modified_at=entry.modified_at,
                 status="unsupported",
                 message=(
-                    "Report RDL/paginated tidak dianalisa field-nya "
-                    "(definisinya bukan PBIR/PBIR-Legacy)."
+                    "RDL/paginated reports are not field-analyzed "
+                    "(the definition is not PBIR/PBIR-Legacy)."
                 ),
             )
             counters.unsupported += 1
@@ -1996,8 +1996,8 @@ def scan_reports(
             remaining = counters.total - index + 1
             counters.incomplete = max(counters.incomplete, remaining)
             log(
-                f"Batas {max_reports} report tercapai; {remaining} report belum "
-                "dipindai sehingga kolom tanpa referensi berstatus 'Perlu dicek'."
+                f"Report limit {max_reports} reached; {remaining} reports were not "
+                "scanned, so unreferenced columns are 'Needs review'."
             )
             break
         if progress is not None:
@@ -2037,7 +2037,7 @@ def scan_reports(
                 )
                 counters.inaccessible += 1
                 log(
-                    f"  TIDAK DAPAT DIAKSES (HTTP {status_code}, "
+                    f"  INACCESSIBLE (HTTP {status_code}, "
                     f"{entry.workspace_label})"
                 )
             else:
@@ -2053,7 +2053,7 @@ def scan_reports(
                     message=f"HTTP {status_code}: {message}"[:300],
                 )
                 counters.failed += 1
-                log(f"  GAGAL: HTTP {status_code}: {message[:150]}")
+                log(f"  FAILED: HTTP {status_code}: {message[:150]}")
             processed += 1
             continue
         except (ExtractionError, XmlaError) as exc:
@@ -2070,7 +2070,7 @@ def scan_reports(
                 message=message,
             )
             counters.failed += 1
-            log(f"  GAGAL: {message}")
+            log(f"  FAILED: {message}")
             processed += 1
             continue
         except Exception as exc:  # noqa: BLE001 - jangan hentikan analisa
@@ -2087,13 +2087,13 @@ def scan_reports(
                 message=message,
             )
             counters.failed += 1
-            log(f"  GAGAL: {message}")
+            log(f"  FAILED: {message}")
             processed += 1
             continue
 
         if usage.report_format not in SUPPORTED_FORMATS:
             message = "; ".join(usage.unresolved) or (
-                f"Format definisi tidak dikenali: {usage.report_format or '(kosong)'}"
+                f"Unrecognized definition format: {usage.report_format or '(empty)'}"
             )
             save_report(
                 conn,
@@ -2108,7 +2108,7 @@ def scan_reports(
             )
             counters.failed += 1
             processed += 1
-            log(f"  GAGAL: {message[:180]}")
+            log(f"  FAILED: {message[:180]}")
             continue
 
         save_report(
@@ -2250,7 +2250,7 @@ def analyze_dataset(
     disimpan di sana selama sesi server dan tidak ditulis ke ``data\\*.db``.
     Tanpa ``session`` hasil ditulis ke ``database`` seperti sebelumnya (CLI/uji).
     ``include_reports=False`` melewati daftar + unduhan definisi report; verdict
-    yang tidak punya referensi model menjadi ``Perlu dicek`` karena cakupan
+    yang tidak punya referensi model menjadi ``Needs review`` karena cakupan
     report memang tidak lengkap.
     """
     principal.validate()
@@ -2283,14 +2283,14 @@ def analyze_dataset(
                 )
         except XmlaError as exc:
             hint = (
-                "Akun 365 perlu akses workspace dan XMLA Read."
+                "The Microsoft 365 account needs workspace access and XMLA Read."
                 if getattr(principal, "is_user", False)
-                else "service principal perlu akses ke workspace."
+                else "the service principal needs workspace access."
             )
             raise ExtractionError(
-                f"Tidak bisa terhubung ke XMLA workspace '{workspace_name}': {exc}\n"
-                "Dataset harus berada di kapasitas Premium/PPU/Fabric dengan "
-                "XMLA Read, dan " + hint
+                f"Cannot connect to the XMLA workspace '{workspace_name}': {exc}\n"
+                "The dataset must be in a Premium/PPU/Fabric capacity with "
+                "XMLA Read, and " + hint
             ) from exc
     dependencies: list[dict[str, Any]] = []
     try:
@@ -2300,22 +2300,22 @@ def analyze_dataset(
         try:
             dependencies = client.query("DISCOVER_CALC_DEPENDENCY")
         except XmlaError as exc:
-            log(f"Dependency DMV tidak tersedia: {exc}")
+            log(f"Dependency DMV is not available: {exc}")
     finally:
         client.close()
 
     if not stats.columns:
         raise ExtractionError(
-            f"Semantic model '{dataset_name}' tidak mengembalikan kolom. "
-            "Pastikan catalog benar dan service principal punya akses XMLA Read; "
-            "snapshot lama tidak diubah."
+            f"Semantic model '{dataset_name}' returned no columns. "
+            "Check the catalog and make sure the service principal has XMLA Read access; "
+            "the previous snapshot was not modified."
         )
 
     references = model_references(model)
     measure_refs = measure_references(model)
     log(
-        f"Kolom model: {len(stats.columns)}; measure: {len(stats.measures)}; "
-        f"referensi model: "
+        f"Model columns: {len(stats.columns)}; measures: {len(stats.measures)}; "
+        f"model references: "
         f"{sum(len(items) for items in references.values())} + "
         f"{sum(len(items) for items in measure_refs.values())} measure."
     )
@@ -2328,8 +2328,8 @@ def analyze_dataset(
         metadata.get("partitions") or [], metadata.get("expressions") or []
     )
     log(
-        f"Relasi model: {len(relationships)}; dependensi relasi: "
-        f"{sum(dependency_counts.values())}; M query/parameter: {len(m_rows)}."
+        f"Model relationships: {len(relationships)}; relationship dependencies: "
+        f"{sum(dependency_counts.values())}; M queries/parameters: {len(m_rows)}."
     )
 
     if include_reports:
@@ -2349,8 +2349,8 @@ def analyze_dataset(
         entries = []
         method = "model"
         notes = [
-            "Report tidak disertakan: analisa hanya memakai metadata model, "
-            "jadi kolom/measure tanpa referensi model berstatus 'Perlu dicek'."
+            "Reports are not included: the analysis uses only model metadata, "
+            "so columns/measures without model references are 'Needs review'."
         ]
         log(notes[0])
 
@@ -2424,9 +2424,9 @@ def analyze_dataset(
                     own_loader.close()
             if counters.scanned:
                 log(
-                    f"Scan report: {counters.scanned} unduh "
-                    f"{counters.fetch_ms / 1000:.1f} dtk · scan definisi "
-                    f"{counters.scan_ms / 1000:.1f} dtk · "
+                    f"Scan report: {counters.scanned} downloaded "
+                    f"{counters.fetch_ms / 1000:.1f} s · definition scan "
+                    f"{counters.scan_ms / 1000:.1f} s · "
                     f"{counters.workers} worker."
                 )
             usage_rows = field_usage(conn, dataset_id)
@@ -2570,7 +2570,7 @@ def snapshot_from_connection(
 ) -> AnalysisResult | None:
     """Susun hasil analisa terakhir dari koneksi (file atau sesi in-memory).
 
-    Dipakai sesi web agar hasil terakhir langsung tampil tanpa menulis ke
+    Used sesi web agar hasil terakhir langsung tampil tanpa menulis ke
     database, dan ekspor tetap memakai data yang sama dengan tampilan.
     """
     initialize(conn)
@@ -2748,24 +2748,24 @@ def snapshot_from_connection(
 
 def coverage_text(counters: ScanCounters) -> str:
     parts = [
-        f"{counters.total} report",
-        f"{counters.scanned} dipindai",
-        f"{counters.skipped} dari cache",
+        f"{counters.total} reports",
+        f"{counters.scanned} scanned",
+        f"{counters.skipped} from cache",
     ]
     if counters.failed:
-        parts.append(f"{counters.failed} gagal")
+        parts.append(f"{counters.failed} failed")
     if counters.inaccessible:
-        parts.append(f"{counters.inaccessible} tidak dapat diakses")
+        parts.append(f"{counters.inaccessible} inaccessible")
     if counters.unsupported:
-        parts.append(f"{counters.unsupported} format RDL")
+        parts.append(f"{counters.unsupported} RDL format")
     if counters.personal:
-        parts.append(f"{counters.personal} personal dilewati")
+        parts.append(f"{counters.personal} personal skipped")
     if counters.app:
-        parts.append(f"{counters.app} App dilewati")
+        parts.append(f"{counters.app} App skipped")
     if counters.unresolved:
         parts.append(f"{counters.unresolved} field tak terpetakan")
     if counters.incomplete:
-        parts.append(f"{counters.incomplete} belum dipindai")
+        parts.append(f"{counters.incomplete} not scanned")
     if counters.cancelled:
         parts.append("dibatalkan")
     return " · ".join(parts)
@@ -3198,17 +3198,17 @@ def resolve_names(
     missing = [
         label
         for label, value in (
-            ("nama workspace", workspace_name),
-            ("nama semantic model", dataset_name),
+            ("workspace name", workspace_name),
+            ("semantic model name", dataset_name),
         )
         if not value
     ]
     if missing:
         raise ExtractionError(
-            "Tidak bisa menentukan "
-            + " dan ".join(missing)
-            + " dari katalog. Jalankan Sinkronisasi data di tab Pengaturan "
-            "(atau scan lineage), lalu coba lagi."
+            "Cannot determine "
+            + " and ".join(missing)
+            + " from the catalog. Run Data sync in Settings "
+            "(or run a lineage scan), then try again."
         )
     return workspace_name, dataset_name
 

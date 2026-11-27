@@ -9,7 +9,6 @@ import {
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { fmtInt } from "../core/format.js";
 import { compareLanguage, highlightLine } from "../core/highlight.js";
-import { t } from "../core/i18n.js";
 import { state, store } from "../core/state.js";
 
 var DEFAULT_OPTIONS = {
@@ -98,7 +97,7 @@ function readOptionControls() {
 }
 
 function statusLabel(status) {
-  return t(STATUS_LABELS[status] || status || "");
+  return (STATUS_LABELS[status] || status || "");
 }
 
 function sideType(side) {
@@ -137,7 +136,7 @@ function setCompareType(side, type) {
   }
   var chip = $(side === "source" ? "#cmpSourceChip" : "#cmpTargetChip");
   if (chip) {
-    chip.lastElementChild.textContent = next === "desktop" ? t("Desktop") : t("Dataset");
+    chip.lastElementChild.textContent = next === "desktop" ? "Desktop" : "Dataset";
   }
 }
 
@@ -231,18 +230,18 @@ function validateCompareForm(payload) {
   function validSide(side, label) {
     if (side.type === "desktop") {
       if (!side.port || !side.catalog) {
-        app.toast(t("Choose a Desktop instance for ") + label + ".");
+        app.toast("Choose a Desktop instance for " + label + ".");
         return false;
       }
       return true;
     }
     if (!side.workspace_id || !side.dataset_id) {
-      app.toast(t("Choose a workspace and semantic model for ") + label + ".");
+      app.toast("Choose a workspace and semantic model for " + label + ".");
       return false;
     }
     return true;
   }
-  if (!validSide(payload.source, t("source")) || !validSide(payload.target, t("target"))) {
+  if (!validSide(payload.source, "source") || !validSide(payload.target, "target")) {
     return false;
   }
   if (
@@ -251,7 +250,7 @@ function validateCompareForm(payload) {
     payload.source.workspace_id === payload.target.workspace_id &&
     payload.source.dataset_id === payload.target.dataset_id
   ) {
-    app.toast(t("Source and target must be different models."));
+    app.toast("Source and target must be different models.");
     return false;
   }
   if (
@@ -260,7 +259,7 @@ function validateCompareForm(payload) {
     String(payload.source.port) === String(payload.target.port) &&
     payload.source.catalog === payload.target.catalog
   ) {
-    app.toast(t("Source and target must be different models."));
+    app.toast("Source and target must be different models.");
     return false;
   }
   return true;
@@ -280,7 +279,7 @@ export function applyCompareResult(result) {
   }
   if (result && (result.warnings || []).length) {
     app.addLog(
-      t("Measure dependency warnings") + ": " + fmtInt(result.warnings.length),
+      "Measure dependency warnings" + ": " + fmtInt(result.warnings.length),
       "warn"
     );
   }
@@ -299,19 +298,19 @@ export function runCompare() {
   $("#compareRun").hidden = false;
   $("#compareBar").style.width = "0%";
   $("#compareRunPct").textContent = "0%";
-  $("#compareRunLabel").textContent = t("Preparing comparison…");
+  $("#compareRunLabel").textContent = "Preparing comparison…";
   renderCompare();
   app.startJob({
     path: "/api/compare/run",
     body: payload,
-    label: t("Compare model"),
+    label: "Compare model",
     button: $("#runCompare"),
     onDone: function (snapshot) {
       state.compareRunning = false;
       $("#runCompare").disabled = false;
       $("#compareRun").hidden = true;
       applyCompareResult(snapshot.result || null);
-      if (state.compare) app.toast(t("Comparison finished"));
+      if (state.compare) app.toast("Comparison finished");
     },
     onError: function () {
       state.compareRunning = false;
@@ -379,7 +378,7 @@ function treeRow(item, level, hasChildren, open) {
   var toggle = hasChildren
     ? '<button type="button" class="cmp-tree-toggle" data-compare-toggle="' +
       escapeHtml(item.id) + '" aria-expanded="' + (open ? "true" : "false") +
-      '" aria-label="' + escapeHtml(open ? t("Collapse ") : t("Expand ")) +
+      '" aria-label="' + escapeHtml(open ? "Collapse " : "Expand ") +
       escapeHtml(item.name) + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>'
     : '<span class="cmp-tree-toggle" aria-hidden="true"></span>';
@@ -396,7 +395,7 @@ function treeRow(item, level, hasChildren, open) {
       '<span class="dot"></span>' + escapeHtml(statusLabel(item.status)) + "</span></td>" +
     '<td class="name" title="' + escapeHtml(item.target_name || "—") + '">' +
       escapeHtml(item.target_name || "—") + "</td>" +
-    "<td>" + escapeHtml(t(item.action || "Skip")) + "</td></tr>";
+    "<td>" + escapeHtml((item.action || "Skip")) + "</td></tr>";
 }
 
 function renderCompareTable() {
@@ -425,19 +424,19 @@ function renderCompareTable() {
   empty.hidden = Boolean(groups.length);
   if (!groups.length) {
     $("#cmpEmptyTitle").textContent = state.compare
-      ? t("No matching items")
-      : t("No comparison yet");
+      ? "No matching items"
+      : "No comparison yet";
     $("#cmpEmptyText").textContent = state.compare
-      ? t("Change the keyword or filter to see other items.")
-      : t("Choose source and target, then run the comparison. Results show definition differences in both models.");
+      ? "Change the keyword or filter to see other items."
+      : "Choose source and target, then run the comparison. Results show definition differences in both models.";
     $("#cmpFromEmpty").hidden = Boolean(state.compare);
   }
   $("#cmpSummary").textContent = state.compare
     ? fmtInt(groups.length) + " / " + fmtInt(compareItems().length) + " " +
-      t("groups shown") + " · " + fmtInt(compareItems().filter(function (item) {
+      "groups shown" + " · " + fmtInt(compareItems().filter(function (item) {
         return item.status !== "same";
-      }).length) + " " + t("changes")
-    : t("Not compared yet");
+      }).length) + " " + "changes"
+    : "Not compared yet";
 }
 
 function renderCompareMetrics() {
@@ -473,7 +472,7 @@ function renderCompareDetail() {
   })[0];
   if (!item) {
     $("#cmpDetail").innerHTML =
-      '<p class="helper">' + escapeHtml(t("Select a row to see status, action, and definitions.")) + "</p>";
+      '<p class="helper">' + escapeHtml("Select a row to see status, action, and definitions.") + "</p>";
     return;
   }
   $("#cmpDetail").innerHTML =
@@ -483,8 +482,8 @@ function renderCompareDetail() {
       " · " + escapeHtml(statusLabel(item.status)) +
       '</p></div><span class="cmp-status ' + (STATUS_CLASSES[item.status] || "") +
       '"><span class="dot"></span>' + escapeHtml(statusLabel(item.status)) + "</span></div>" +
-    '<p class="helper">' + escapeHtml(t("Suggested action")) + ": " +
-      escapeHtml(t(item.action || "Skip")) + "</p>";
+    '<p class="helper">' + escapeHtml("Suggested action") + ": " +
+      escapeHtml((item.action || "Skip")) + "</p>";
 }
 
 function renderDiffLine(line, row, side, language, blockStart, blockEnd) {
@@ -526,9 +525,9 @@ function renderDiffPane(element, meta, rows, side, language) {
     return row.kind === "insert" || row.kind === "replace";
   }).length;
   $(meta).textContent = lines.length
-    ? fmtInt(lines.length) + " " + t("lines") + " · " +
-      fmtInt(changed) + " " + t("changed")
-    : t("No definition");
+    ? fmtInt(lines.length) + " " + "lines" + " · " +
+      fmtInt(changed) + " " + "changed"
+    : "No definition";
   $(element).innerHTML = rows.length
     ? rows.map(function (row, index) {
         var blockStart = Boolean(row.block) &&
@@ -537,7 +536,7 @@ function renderDiffPane(element, meta, rows, side, language) {
           (index === rows.length - 1 || rows[index + 1].block !== row.block);
         return renderDiffLine(row[side], row, side, language, blockStart, blockEnd);
       }).join("")
-    : '<div class="diff-line"><span class="lt">' + escapeHtml(t("No definition")) + "</span></div>";
+    : '<div class="diff-line"><span class="lt">' + escapeHtml("No definition") + "</span></div>";
 }
 
 function renderCompareDiff() {
@@ -562,9 +561,9 @@ function renderCompareDiff() {
   if (targetPane) targetPane.scrollTop = 0;
   var stats = diff.stats || {};
   $("#cmpDiffSummary").textContent = rows.length
-    ? fmtInt(stats.blocks || 0) + " " + t("blocks") + " · +" +
+    ? fmtInt(stats.blocks || 0) + " " + "blocks" + " · +" +
       fmtInt(stats.added || 0) + " −" + fmtInt(stats.removed || 0) + " · " +
-      fmtInt(stats.changed || 0) + " " + t("changed")
+      fmtInt(stats.changed || 0) + " " + "changed"
     : "";
 }
 
@@ -577,7 +576,7 @@ function syncCompareToolbar() {
   $("#cmpScript").disabled = !ready;
   $("#cmpExport").disabled = !ready;
   $("#cmpApply").disabled = true;
-  $("#cmpApply").title = t("Comparison is read-only. Generate the script and apply it manually.");
+  $("#cmpApply").title = "Comparison is read-only. Generate the script and apply it manually.";
 }
 
 export function renderCompare() {
@@ -606,10 +605,10 @@ function validateCompare() {
   });
   state.compareValidated = true;
   app.addLog(
-    t("Validation complete") + ": " + fmtInt(changes.length) + " " + t("changes ready") + ".",
+    "Validation complete" + ": " + fmtInt(changes.length) + " " + "changes ready" + ".",
     "ok"
   );
-  app.toast(t("Validation complete") + " · " + fmtInt(changes.length));
+  app.toast("Validation complete" + " · " + fmtInt(changes.length));
   syncCompareToolbar();
 }
 
@@ -686,7 +685,7 @@ export function initCompareEvents() {
     state.compareOptions = Object.assign({}, DEFAULT_OPTIONS);
     syncOptionControls();
     saveOptions();
-    app.toast(t("Comparison options reset"));
+    app.toast("Comparison options reset");
   });
   $("#compareOptionsDialog").addEventListener("click", function (event) {
     if (event.target === event.currentTarget) closeOptionsDialog();
@@ -706,7 +705,7 @@ export function initCompareEvents() {
     setCompareType("target", sourceType);
     loadCompareDatasets("source");
     loadCompareDatasets("target");
-    app.toast(t("Source and target swapped"));
+    app.toast("Source and target swapped");
   });
   $("#cmpSearch").addEventListener("input", renderCompareTable);
   $("#cmpStatusFilter").addEventListener("change", renderCompareTable);
@@ -737,6 +736,6 @@ export function initCompareEvents() {
   $("#cmpExport").addEventListener("click", exportCompare);
   $("#cmpScript").addEventListener("click", generateCompareScript);
   $("#cmpApply").addEventListener("click", function () {
-    app.toast(t("Comparison is read-only. Generate the script and apply it manually."));
+    app.toast("Comparison is read-only. Generate the script and apply it manually.");
   });
 }

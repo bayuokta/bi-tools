@@ -22,7 +22,7 @@ export const store = {
 export const state = {
   view: "analisa",
   theme: store.get("pbi-theme", "dark") === "light" ? "light" : "dark",
-  language: store.get("pbi-lang", "en") === "id" ? "id" : "en",
+  language: "en",
   motion: store.get("pbi-motion", "on") !== "off",
   sidebarCollapsed: store.get("pbi-sidebar", "open") === "collapsed",
   source: "service",

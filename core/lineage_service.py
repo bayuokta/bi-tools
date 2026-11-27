@@ -56,7 +56,7 @@ def read_connection(database: Path | str) -> Iterator[sqlite3.Connection]:
         yield conn
     except sqlite3.Error as exc:
         raise ExtractionError(
-            f"Database lineage tidak bisa dibaca: {path} ({exc})"
+            f"The lineage database could not be read: {path} ({exc})"
         ) from exc
     finally:
         close_quietly(conn)
@@ -224,7 +224,7 @@ def reports_using_dataset(
 ) -> list[dict[str, Any]]:
     """Report yang memakai dataset menurut scan lineage.
 
-    Dipakai analisa kolom sebagai pelengkap katalog snapshot ``report_catalog``.
+    Used analisa kolom sebagai pelengkap katalog snapshot ``report_catalog``.
     Hasil bisa lebih lama dari katalog hasil sync; pemanggil mencatat sumber
     daftar report agar cakupan transparan.
     """

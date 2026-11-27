@@ -14,22 +14,22 @@ from core.xmla_client import list_instances
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Ekstraksi metadata semantic model via XMLA ke Excel.")
-    parser.add_argument("--report", help="File .pbix untuk kolom usage report (wajib bila tidak memakai --no-report).")
+    parser.add_argument("--report", help=".pbix file for the report usage columns (required unless --no-report is used).")
     parser.add_argument("--out", help="Path file Excel output.")
-    parser.add_argument("--endpoint", help="Endpoint XMLA (host:port atau connection string).")
-    parser.add_argument("--catalog", help="Nama catalog/dataset (wajib bila ada lebih dari satu instance tanpa --port).")
+    parser.add_argument("--endpoint", help="XMLA endpoint (host:port or connection string).")
+    parser.add_argument("--catalog", help="Catalog/dataset name (required when more than one instance is open without --port).")
     parser.add_argument("--port", type=int, help="Port instance Power BI Desktop lokal (lihat --list-instances).")
     parser.add_argument("--no-report", action="store_true", help="Lewati pemakaian report (thin report).")
-    parser.add_argument("--list-instances", action="store_true", help="Tampilkan instance Power BI Desktop yang terbuka, lalu berhenti.")
+    parser.add_argument("--list-instances", action="store_true", help="List open Power BI Desktop instances, then exit.")
     return parser.parse_args(argv)
 
 
 def print_instances() -> int:
     instances = list_instances()
     if not instances:
-        print("Tidak ada instance Power BI Desktop yang terbuka.")
+        print("No Power BI Desktop instance is open.")
         return 0
-    print("Instance Power BI Desktop yang terbuka:")
+    print("Open Power BI Desktop instances:")
     for index, item in enumerate(instances, start=1):
         print(f"  {index}. {item.label}")
         print(f"     --port {item.port}  --catalog {item.catalog}")
@@ -43,8 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not args.no_report and not args.report:
             raise ExtractionError(
-                "File .pbix untuk usage report wajib ditentukan dengan --report, "
-                "atau lewati dengan --no-report."
+                "The .pbix file for report usage is required via --report, "
+                "or skip it with --no-report."
             )
         run_model(
             endpoint=args.endpoint,

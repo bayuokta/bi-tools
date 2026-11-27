@@ -21,7 +21,7 @@ REPORT_ID = "b" * 32
 def column(
     name: str,
     table: str = "T",
-    status: str = "Dipakai",
+    status: str = "Used",
     *,
     size: int = 0,
     dictionary: int = 0,
@@ -43,7 +43,7 @@ def column(
 def measure(
     name: str,
     table: str = "T",
-    status: str = "Dipakai",
+    status: str = "Used",
     *,
     error: str = "",
 ):
@@ -125,7 +125,7 @@ def rules_of(items) -> list[str]:
 
 class ModelHealthTests(unittest.TestCase):
     def test_unused_status_constant_matches_analysis(self) -> None:
-        self.assertEqual(STATUS_UNUSED, "Tidak dipakai")
+        self.assertEqual(STATUS_UNUSED, "Unused")
 
     def test_errors_are_critical(self) -> None:
         data = result(
@@ -144,7 +144,7 @@ class ModelHealthTests(unittest.TestCase):
             columns=[
                 column("A", "Old", STATUS_UNUSED, size=500),
                 column("B", "Old", STATUS_UNUSED, size=500),
-                column("C", "Used", status="Dipakai", size=500),
+                column("C", "Used", status="Used", size=500),
             ],
             tables=[
                 table("Old", size=1000),

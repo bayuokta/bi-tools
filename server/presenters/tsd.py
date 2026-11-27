@@ -31,8 +31,8 @@ from .. import settings as keys
 from ..settings_store import SettingsStore
 from .formatting import file_status
 
-SCOPE_LABELS = {"both": "Page + visual", "pages": "Page saja", "visuals": "Visual saja"}
-SCALE_LABELS = {1.0: "1x (file ringkas)", 2.0: "2x (lebih tajam)", 3.0: "3x (maksimal)"}
+SCOPE_LABELS = {"both": "Page + visual", "pages": "Pages only", "visuals": "Visuals only"}
+SCALE_LABELS = {1.0: "1x (compact file)", 2.0: "2x (sharper)", 3.0: "3x (maximum)"}
 BOOL_KEYS = (
     "draft",
     "expand_all",
@@ -144,7 +144,7 @@ def paths_for(data: Mapping[str, Any]) -> dict[str, Any]:
     """Path output, sidecar, dan cache screenshot dari nilai formulir."""
     out_dir = Path(str(data.get("out_dir") or outputs_dir())).expanduser()
     if not out_dir.is_absolute():
-        raise ExtractionError("Folder output TSD harus absolut.")
+        raise ExtractionError("TSD output folder must be absolute.")
     report_name = str(data.get("report_name") or "").strip()
     report_id = str(data.get("report_id") or "").strip()
     suggested = output_file_name(report_name or "Report", report_id)
@@ -193,7 +193,7 @@ def build_capture_options(
     report_id = str(data.get("report_id") or "").strip()
     if not workspace or not report_id:
         raise ExtractionError(
-            "Pilih workspace dan report Power BI Service untuk screenshot."
+            "Choose a Power BI Service workspace and report for screenshots."
         )
     username, roles = _rls(store, data)
     report_text = str(data.get("report_workbook") or "").strip()
@@ -225,12 +225,12 @@ def build_request(
     """Susun ``TsdRequest``; validasi ringan sebelum job dimulai."""
     report_text = str(data.get("report_workbook") or "").strip()
     if not report_text:
-        raise ExtractionError("Pilih workbook Report_Metadata.xlsx.")
+        raise ExtractionError("Choose Report_Metadata.xlsx.")
     report_path = Path(report_text).expanduser()
     if not report_path.exists():
-        raise ExtractionError(f"Workbook report tidak ditemukan: {report_path}")
+        raise ExtractionError(f"Report workbook not found: {report_path}")
     if report_path.suffix.lower() != ".xlsx":
-        raise ExtractionError(f"Workbook report harus .xlsx: {report_path}")
+        raise ExtractionError(f"Report workbook must be .xlsx: {report_path}")
 
     model_path: Path | None = None
     model_text = str(data.get("model_workbook") or "").strip()
@@ -242,7 +242,7 @@ def build_request(
     template_text = str(data.get("template_path") or "").strip()
     template = Path(template_text).expanduser() if template_text else TEMPLATE_PATH
     if not template.exists():
-        raise ExtractionError(f"Template TSD tidak ditemukan: {template}")
+        raise ExtractionError(f"TSD template not found: {template}")
 
     paths = paths_for(data)
     merged = dict(data.get("manual") or {})
@@ -304,8 +304,8 @@ def build_state(
     """Nilai formulir + status berkas untuk halaman TSD."""
     data = normalize(store, payload)
     paths = paths_for(data)
-    report = _file_or_empty(str(data.get("report_workbook") or ""), "Belum dipilih")
-    model = _file_or_empty(str(data.get("model_workbook") or ""), "Tidak dipakai")
+    report = _file_or_empty(str(data.get("report_workbook") or ""), "Not selected")
+    model = _file_or_empty(str(data.get("model_workbook") or ""), "Unused")
     template_path = Path(str(data.get("template_path") or TEMPLATE_PATH)).expanduser()
     template = file_status(template_path)
     manual = file_status(paths["manual_file"])
@@ -343,7 +343,7 @@ def build_state(
             "cache": {
                 "path": str(paths["assets_dir"]),
                 "exists": cached is not None,
-                "summary": cached.summary() if cached is not None else "Belum ada cache",
+                "summary": cached.summary() if cached is not None else "No cache yet",
                 "pages": cached.page_count if cached is not None else 0,
                 "visuals": cached.visual_count if cached is not None else 0,
                 "mobile": cached.mobile_count if cached is not None else 0,
@@ -408,11 +408,11 @@ def clear_cache(
     paths = paths_for(data)
     folder = paths["assets_dir"]
     if not folder.exists():
-        return {"removed": False, "path": str(folder), "message": "Cache belum ada."}
+        return {"removed": False, "path": str(folder), "message": "No cache yet."}
     try:
         shutil.rmtree(folder)
     except OSError as exc:
-        raise ExtractionError(f"Cache tidak bisa dihapus: {exc}") from exc
+        raise ExtractionError(f"Cache could not be cleared: {exc}") from exc
     return {
         "removed": True,
         "path": str(folder),
@@ -435,12 +435,12 @@ def save_manual_file(
 ) -> dict[str, Any]:
     text = str(path_text or "").strip().strip('"')
     if not text:
-        raise ExtractionError("Path sidecar JSON belum ditentukan.")
+        raise ExtractionError("JSON sidecar path is not set.")
     path = Path(text).expanduser()
     if path.suffix.lower() != ".json":
-        raise ExtractionError("Sidecar manual harus file .json.")
+        raise ExtractionError("Manual sidecar must be a .json file.")
     if not isinstance(data, Mapping):
-        raise ExtractionError("Isi sidecar manual harus objek JSON.")
+        raise ExtractionError("Manual sidecar content must be a JSON object.")
     path.parent.mkdir(parents=True, exist_ok=True)
     write_manual(path, data)
     return {"path": str(path), "exists": True, "data": dict(data)}
@@ -451,10 +451,10 @@ def preview_path(
 ) -> Path:
     text = str(path_text or "").strip().strip('"')
     if not text:
-        raise ExtractionError("File HTML TSD belum ditentukan.")
+        raise ExtractionError("TSD HTML file is not set.")
     path = Path(text).expanduser().resolve()
     if not path.exists() or path.suffix.lower() not in {".html", ".htm"}:
-        raise ExtractionError(f"File HTML TSD tidak ditemukan: {path}")
+        raise ExtractionError(f"TSD HTML file not found: {path}")
     data = normalize(store, payload)
     allowed = {
         outputs_dir().resolve(),
@@ -462,5 +462,5 @@ def preview_path(
         paths_for(data)["out_dir"].resolve(),
     }
     if not any(path.is_relative_to(base) for base in allowed):
-        raise ExtractionError("Preview hanya untuk file HTML di folder output.")
+        raise ExtractionError("Preview is only available for HTML files in the output folder.")
     return path

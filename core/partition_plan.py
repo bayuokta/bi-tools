@@ -193,18 +193,18 @@ def _normalize_targets(
                 table, partition = item
             except (TypeError, ValueError) as exc:
                 raise TomError(
-                    "Target partisi harus berisi pasangan (table, partition)."
+                    "Partition targets must contain (table, partition) pairs."
                 ) from exc
             table = str(table or "").strip()
             partition = str(partition or "").strip()
         if not table or not partition:
-            raise TomError("Nama tabel dan partisi tidak boleh kosong.")
+            raise TomError("Table and partition names cannot be empty.")
         key = (table, partition)
         if key not in seen:
             seen.add(key)
             result.append(key)
     if not result:
-        raise TomError("Pilih minimal satu partisi untuk diproses.")
+        raise TomError("Select at least one partition to process.")
     return result
 
 
@@ -223,12 +223,12 @@ def validate_refresh_targets(
     for partition in partitions:
         if partition.is_calculated:
             raise TomError(
-                f"Refresh 'add' tidak berlaku untuk calculated partition "
+                f"Refresh 'add' does not apply to calculated partition "
                 f"'{partition.table}' / '{partition.name}'."
             )
         if partition.mode.lower() == "directquery":
             raise TomError(
-                f"Refresh 'add' tidak berlaku untuk partition DirectQuery "
+                f"Refresh 'add' does not apply to DirectQuery partition "
                 f"'{partition.table}' / '{partition.name}'."
             )
     return normalized

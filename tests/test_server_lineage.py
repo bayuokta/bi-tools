@@ -76,7 +76,7 @@ class LineagePresenterTests(unittest.TestCase):
     def test_state_without_database(self) -> None:
         state = presenter.build_state(self.store)
         self.assertFalse(state["exists"])
-        self.assertIn("Sinkronisasi", state["status"])
+        self.assertIn("Data sync", state["status"])
         self.assertEqual(state["node_types"], [])
 
     def test_search_requires_text(self) -> None:
@@ -89,7 +89,7 @@ class LineagePresenterTests(unittest.TestCase):
             )()
             data = presenter.search(self.store, "", "", "")
         self.assertEqual(data["results"], [])
-        self.assertIn("kata kunci", data["message"])
+        self.assertIn("keyword", data["message"])
 
     def test_search_results(self) -> None:
         rows = [{"node_id": "report-1", "name": "Report Uji", "node_type": "Report"}]
@@ -102,7 +102,7 @@ class LineagePresenterTests(unittest.TestCase):
             )()
             data = presenter.search(self.store, "Report", "", "Report")
         self.assertEqual(data["results"][0]["node_id"], "report-1")
-        self.assertIn("1 hasil", data["message"])
+        self.assertIn("1 results", data["message"])
 
     def test_node_payload(self) -> None:
         with patch.object(

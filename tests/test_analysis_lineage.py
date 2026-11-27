@@ -281,7 +281,7 @@ class LineageBuilderTests(unittest.TestCase):
         amount = column_analysis("Sales", "Amount")
         result = make_result(
             columns=[amount],
-            m_queries=[{"name": "Sales", "kind": "Tabel", "source": "Import"}],
+            m_queries=[{"name": "Sales", "kind": "Table", "source": "Import"}],
         )
         data = build_lineage(result, kind="column", table="Sales", name="Amount")
         nodes = {node["id"]: node for node in data["nodes"]}
@@ -429,7 +429,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }
@@ -503,7 +503,7 @@ in
                 m_queries=[
                     {
                         "name": "Sales",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": expression,
                     }
@@ -531,7 +531,7 @@ in
         result = make_result(
             columns=[column_analysis("Sales", "Amount")],
             m_queries=[
-                {"name": "Sales", "kind": "Tabel", "source": "Import"}
+                {"name": "Sales", "kind": "Table", "source": "Import"}
             ],
         )
         data = build_lineage(result, kind="column", table="Sales", name="Amount")
@@ -918,7 +918,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }
@@ -952,7 +952,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }
@@ -985,7 +985,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }
@@ -1038,7 +1038,7 @@ in
     def test_table_lineage_accepts_mquery_only_table(self) -> None:
         result = make_result(
             columns=[],
-            m_queries=[{"name": "Sales", "kind": "Tabel", "source": "Import"}],
+            m_queries=[{"name": "Sales", "kind": "Table", "source": "Import"}],
         )
         data = build_table_lineage(result, table="Sales")
         self.assertEqual(
@@ -1225,7 +1225,7 @@ in
                 m_queries=[
                     {
                         "name": "Sales",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": expression,
                     }
@@ -1286,7 +1286,7 @@ in
                 m_queries=[
                     {
                         "name": "Sales",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": expression,
                     }
@@ -1349,7 +1349,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }
@@ -1576,7 +1576,7 @@ class SourcePathTests(unittest.TestCase):
                 m_queries=[
                     {
                         "name": "orders",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": text,
                     }
@@ -1854,7 +1854,7 @@ class SourcePathTests(unittest.TestCase):
                 m_queries=[
                     {
                         "name": "orders",
-                        "kind": "Tabel",
+                        "kind": "Table",
                         "source": "Import",
                         "expression": text,
                     }
@@ -1963,7 +1963,7 @@ class SharedQueryTests(unittest.TestCase):
             m_queries=[
                 {
                     "name": "orders",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": "let Source = SharedOrders in Source",
                 },
@@ -2108,7 +2108,7 @@ in
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "source": "Import",
                     "expression": expression,
                 }

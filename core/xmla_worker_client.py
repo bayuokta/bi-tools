@@ -16,14 +16,14 @@ from .xmla_client import DMV_RE, XmlaError
 # Login MSOLAP tidak punya timeout sendiri; batasi agar job tidak menggantung.
 OPEN_TIMEOUT_SECONDS = 300.0
 LOGIN_WAIT_MESSAGE = (
-    "Menunggu login XMLA: selesaikan jendela 'BI Tools - XMLA login'..."
+    "Waiting for XMLA login: complete the 'BI Tools - XMLA login' window..."
 )
-LOGIN_DONE_MESSAGE = "Login XMLA selesai."
+LOGIN_DONE_MESSAGE = "XMLA login completed."
 
 
 def open_timeout_message(seconds: float) -> str:
     return (
-        f"Login XMLA tidak selesai dalam {int(seconds)} detik. "
+        f"XMLA login did not complete within {int(seconds)} detik. "
         "Ulangi analisa lalu selesaikan jendela 'BI Tools - XMLA login'."
     )
 
@@ -93,21 +93,21 @@ class WorkerXmlaClient:
         timeout_message: str = "",
     ) -> dict[str, Any]:
         message = timeout_message or (
-            "Worker XMLA tidak menjawab dalam batas waktu. "
-            "Selesaikan dialog login yang muncul."
+            "The XMLA worker did not respond in time. "
+            "Complete the login dialog that appears."
         )
         with self._lock:
             if self._process.poll() is not None:
                 raise XmlaError(
                     "Worker XMLA berhenti. "
-                    + (self._stderr[-1] if self._stderr else "Tidak ada detail.")
+                    + (self._stderr[-1] if self._stderr else "No details.")
                 )
             assert self._process.stdin is not None
             try:
                 self._process.stdin.write(json.dumps(payload) + "\n")
                 self._process.stdin.flush()
             except OSError as exc:
-                raise XmlaError(f"Worker XMLA tidak bisa ditulis: {exc}") from exc
+                raise XmlaError(f"The XMLA worker could not be written to: {exc}") from exc
             deadline = time.monotonic() + float(timeout)
             response: dict[str, Any] | None = None
             while response is None:
@@ -121,7 +121,7 @@ class WorkerXmlaClient:
                 if line is None:
                     raise XmlaError(
                         "Worker XMLA berhenti. "
-                        + (self._stderr[-1] if self._stderr else "Tidak ada detail.")
+                        + (self._stderr[-1] if self._stderr else "No details.")
                     )
                 try:
                     value = json.loads(line)
@@ -135,7 +135,7 @@ class WorkerXmlaClient:
                 response = value
             if not isinstance(response, dict) or not response.get("ok"):
                 error = response.get("error") if isinstance(response, dict) else ""
-                raise XmlaError(str(error or "Worker XMLA gagal."))
+                raise XmlaError(str(error or "The XMLA worker failed."))
             return response
 
     def query_sql(self, sql: str, timeout: int | None = None) -> list[dict[str, Any]]:
@@ -148,7 +148,7 @@ class WorkerXmlaClient:
 
     def query(self, dmv: str) -> list[dict[str, Any]]:
         if not DMV_RE.match(dmv):
-            raise XmlaError(f"Nama DMV tidak valid: {dmv}")
+            raise XmlaError(f"Invalid DMV name: {dmv}")
         response = self._request({"op": "dmv", "dmv": dmv}, timeout=180)
         rows = response.get("rows")
         return rows if isinstance(rows, list) else []
@@ -200,7 +200,7 @@ def get_worker_client(
             worker = WorkerXmlaClient(str(endpoint), str(catalog))
         except Exception:
             if log is not None:
-                log("Login XMLA gagal.")
+                log("XMLA login failed.")
             raise
         _WORKERS[key] = worker
         if log is not None:

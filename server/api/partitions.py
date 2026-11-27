@@ -54,7 +54,7 @@ def inventory(
     return submit_job(
         request,
         "partitions-inventory",
-        "Membaca inventaris partisi",
+        "Reading partition inventory",
         lambda log, cancel: presenter.run_inventory_job(store, data, log, cancel),
     )
 

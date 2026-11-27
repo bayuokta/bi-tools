@@ -1,4 +1,4 @@
-"""Dispatcher CLI tunggal: ``bi-tools-cli <perintah> [opsi]``.
+"""Dispatcher CLI tunggal: ``bi-tools-cli <command> [options]``.
 
 Satu executable console untuk semua perintah baris. Setiap perintah tetap
 berada di modulnya sendiri (``cli.report``, ``cli.model``, dst.) dan diimpor
@@ -20,39 +20,39 @@ from core.version import APP_NAME, __version__
 from core.pbi_capture.browsers import prepare_environment
 
 COMMANDS: dict[str, tuple[str, str]] = {
-    "report": ("cli.report", "metadata report dari .pbix atau Power BI Service"),
-    "model": ("cli.model", "metadata semantic model lewat XMLA"),
-    "tsd": ("cli.tsd", "dokumen TSD (HTML) dari workbook metadata"),
-    "lineage": ("cli.lineage", "scan, pencarian, dan lineage Power BI"),
-    "analyze": ("cli.analysis", "ukuran kolom + pemakaian di report"),
-    "compare": ("cli.compare", "snapshot TOM untuk perbandingan semantic model"),
-    "partition": ("cli.partition", "inventaris dan refresh partisi semantic model"),
-    "xmla-worker": ("cli.xmla_worker", "worker ADOMD interaktif internal"),
-    "tom-worker": ("cli.tom_worker", "worker TOM interaktif internal"),
-    "install-browser": ("", "unduh Chromium untuk screenshot TSD"),
+    "report": ("cli.report", "report metadata from .pbix or Power BI Service"),
+    "model": ("cli.model", "semantic model metadata via XMLA"),
+    "tsd": ("cli.tsd", "TSD document (HTML) from the metadata workbook"),
+    "lineage": ("cli.lineage", "scan, search, and Power BI lineage"),
+    "analyze": ("cli.analysis", "column sizes + usage across reports"),
+    "compare": ("cli.compare", "TOM snapshot for semantic model comparison"),
+    "partition": ("cli.partition", "partition inventory and refresh for a semantic model"),
+    "xmla-worker": ("cli.xmla_worker", "internal interactive ADOMD worker"),
+    "tom-worker": ("cli.tom_worker", "internal interactive TOM worker"),
+    "install-browser": ("", "download Chromium for TSD screenshots"),
 }
 
 USAGE = f"""\
-{APP_NAME} {__version__} - antarmuka baris perintah
+{APP_NAME} {__version__} - command line interface
 
-Pemakaian:
-  bi-tools-cli <perintah> [opsi]
+Usage:
+  bi-tools-cli <command> [options]
 
-Perintah:
-  report           metadata report dari .pbix atau Power BI Service
-  model            metadata semantic model lewat XMLA
-  tsd              dokumen TSD (HTML) dari workbook metadata
-  lineage          scan, pencarian, dan lineage Power BI
-  analyze          ukuran kolom + pemakaian di report
-  compare          snapshot TOM untuk perbandingan semantic model (internal)
-  partition        inventaris dan refresh partisi semantic model
-  install-browser  unduh Chromium untuk screenshot TSD (default: install chromium)
+Commands:
+  report           report metadata from .pbix or Power BI Service
+  model            semantic model metadata via XMLA
+  tsd              TSD document (HTML) from the metadata workbook
+  lineage          scan, search, and Power BI lineage
+  analyze          column sizes + usage across reports
+  compare          TOM snapshot for semantic model comparison (internal)
+  partition        partition inventory and refresh for a semantic model
+  install-browser  download Chromium for TSD screenshots (default: install chromium)
 
-Opsi umum:
-  -h, --help       tampilkan bantuan ini
-  -V, --version    tampilkan versi
+General options:
+  -h, --help       show this help
+  -V, --version    show the version
 
-Bantuan per perintah:
+Help per command:
   bi-tools-cli report --help
 """
 
@@ -68,8 +68,8 @@ def install_browser(argv: Sequence[str] | None = None) -> int:
         from playwright.__main__ import main as playwright_main
     except Exception as exc:  # noqa: BLE001 - pesan instalasi, bukan traceback
         print(
-            "Playwright tidak tersedia di paket ini "
-            f"({exc}). Pasang ulang aplikasi atau jalankan dari source: "
+            "Playwright is not available in this package "
+            f"({exc}). Reinstall the application or run from source: "
             "pip install playwright",
             file=sys.stderr,
         )
@@ -103,7 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     name, rest = args[0], args[1:]
     if name not in COMMANDS:
-        print(f"Perintah tidak dikenal: {name}", file=sys.stderr)
+        print(f"Unknown command: {name}", file=sys.stderr)
         print(USAGE, end="", file=sys.stderr)
         return 2
 

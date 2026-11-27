@@ -71,7 +71,7 @@ def _item_file(kind: str, name: str, item_id: str) -> str:
 def _safe_part_path(root: Path, relative: str) -> Path:
     path = PurePosixPath(str(relative or "").replace("\\", "/"))
     if path.is_absolute() or ".." in path.parts or not path.parts:
-        raise ExtractionError(f"Part report tidak aman: {relative!r}.")
+        raise ExtractionError(f"Unsafe report part: {relative!r}.")
     return root.joinpath(*path.parts)
 
 
@@ -85,7 +85,7 @@ def write_report_parts(definition: ReportDefinition, target: Path | str) -> int:
         destination.write_bytes(part.payload)
         count += 1
     if count == 0:
-        raise ExtractionError("Definisi report tidak memuat part apa pun.")
+        raise ExtractionError("The report definition contains no parts.")
     return count
 
 
@@ -94,7 +94,7 @@ def write_zip(source: Path | str, target: Path | str) -> int:
     root = Path(source)
     files = [path for path in root.rglob("*") if path.is_file()]
     if not files:
-        raise ExtractionError("Tidak ada file untuk diarsipkan.")
+        raise ExtractionError("No files to archive.")
     destination = Path(target)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -117,10 +117,10 @@ class BackupItem:
     def __post_init__(self) -> None:
         kind = str(self.kind or "").strip().lower()
         if kind not in KINDS:
-            raise ExtractionError(f"Jenis item backup tidak dikenal: {self.kind}.")
+            raise ExtractionError(f"Unknown backup item type: {self.kind}.")
         name = str(self.name or "").strip()
         if not name:
-            raise ExtractionError("Nama item backup kosong.")
+            raise ExtractionError("Backup item name is empty.")
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "name", name)
 
@@ -153,10 +153,10 @@ class BackupOptions:
 
     def __post_init__(self) -> None:
         if not self.items:
-            raise ExtractionError("Pilih minimal satu item untuk dibackup.")
+            raise ExtractionError("Select at least one item to back up.")
         folder = Path(self.folder).expanduser()
         if not folder.is_absolute():
-            raise ExtractionError("Folder backup harus absolut.")
+            raise ExtractionError("Backup folder must be absolute.")
         object.__setattr__(self, "folder", folder)
         object.__setattr__(self, "prefix", safe_name(self.prefix or "Backup"))
 
@@ -250,7 +250,7 @@ def _backup_model(
     siap dipakai restore. TOM tetap dipakai untuk ``model.bim`` dan sebagai
     cadangan bila endpoint semantic model tidak tersedia.
     """
-    log(f"Mengunduh definisi Fabric model {item.name}...")
+    log(f"Downloading Fabric model definition {item.name}...")
     try:
         definition = client.get_semantic_model_definition(
             workspace_id, item.item_id
@@ -260,8 +260,8 @@ def _backup_model(
         log(f"Definisi Fabric model {item.name}: {len(definition.parts)} part.")
     except Exception as exc:  # noqa: BLE001 - fallback TOM
         log(
-            f"Definisi Fabric model {item.name} tidak tersedia "
-            f"({str(exc).splitlines()[0][:160]}); memakai TOM."
+            f"Fabric model definition {item.name} is not available "
+            f"({str(exc).splitlines()[0][:160]}); using TOM."
         )
         worker = get_tom_worker(endpoint, item.name)
         worker.export(str(target))
@@ -276,7 +276,7 @@ def _backup_model(
         if model_bim.is_file():
             shutil.copyfile(model_bim, target / "model.bim")
     except Exception as exc:  # noqa: BLE001 - model.bim opsional
-        log(f"model.bim {item.name} dilewati: {str(exc).splitlines()[0][:160]}")
+        log(f"model.bim {item.name} skipped: {str(exc).splitlines()[0][:160]}")
     finally:
         shutil.rmtree(target / "_tom", ignore_errors=True)
     return "fabric"
@@ -298,10 +298,10 @@ def run_backup(
     principal.validate()
     workspace_id = str(options.workspace_id or "").strip()
     if not workspace_id:
-        raise ExtractionError("Workspace backup belum dipilih.")
+        raise ExtractionError("No backup workspace selected.")
     workspace_name = str(options.workspace_name or "").strip()
     if not workspace_name:
-        raise ExtractionError("Nama workspace backup belum diketahui.")
+        raise ExtractionError("The backup workspace name is unknown.")
 
     options.folder.mkdir(parents=True, exist_ok=True)
     run_dir = options.folder / (
@@ -336,9 +336,9 @@ def run_backup(
                 continue
             if item.kind == KIND_REPORT and _is_paginated(item):
                 entry.status = STATUS_SKIPPED
-                entry.message = "Report paginated (RDL) belum didukung."
+                entry.message = "Paginated (RDL) reports are not supported yet."
                 entries.append(entry)
-                log(f"Lewati {item.label}: RDL belum didukung.")
+                log(f"Skipped {item.label}: RDL is not supported yet.")
                 if progress:
                     progress(index, total, item.label)
                 continue
@@ -368,7 +368,7 @@ def run_backup(
             except Exception as exc:  # noqa: BLE001 - item gagal, lanjut item lain
                 entry.status = STATUS_FAILED
                 entry.message = str(exc).splitlines()[0][:300]
-                log(f"Gagal {item.label}: {entry.message}")
+                log(f"Failed {item.label}: {entry.message}")
             else:
                 entry.status = STATUS_OK
                 entry.file = archive.name
@@ -418,7 +418,7 @@ def run_backup(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     log(
-        f"Selesai: {result.ok_count}/{len(entries)} item, "
+        f"Done: {result.ok_count}/{len(entries)} item, "
         f"{result.size} byte, {duration:.1f} detik."
     )
     return result
@@ -462,8 +462,8 @@ def history(folder: Path | str, *, limit: int = 10) -> list[dict[str, Any]]:
 def read_manifest(run_dir: Path | str) -> dict[str, Any]:
     path = Path(run_dir) / "manifest.json"
     if not path.is_file():
-        raise ExtractionError(f"Manifest backup tidak ditemukan: {path}")
+        raise ExtractionError(f"Backup manifest not found: {path}")
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        raise ExtractionError(f"Manifest backup tidak bisa dibaca: {exc}") from exc
+        raise ExtractionError(f"The backup manifest could not be read: {exc}") from exc

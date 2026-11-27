@@ -94,11 +94,11 @@ def _run_admin_scan(
         modified_since, include_personal=include_personal
     )
     scope = (
-        "termasuk My Workspace (personal)"
+        "including My Workspace (personal)"
         if include_personal
-        else "tanpa My Workspace (personal)"
+        else "without My Workspace (personal)"
     )
-    progress(f"Mode {scan_mode}: {len(workspace_ids)} workspace akan di-scan ({scope})")
+    progress(f"Mode {scan_mode}: {len(workspace_ids)} workspaces will be scanned ({scope})")
 
     first_scan_id: str | None = None
     for offset in range(0, len(workspace_ids), BATCH_SIZE):
@@ -139,7 +139,7 @@ def _run_member_scan(
     scan_id = f"member-{uuid.uuid4()}"
     workspaces = client.member_workspaces()
     progress(
-        f"Mode member: {len(workspaces)} workspace yang dapat diakses service principal"
+        f"Mode member: {len(workspaces)} workspaces accessible to the service principal"
     )
 
     for offset in range(0, len(workspaces), MEMBER_BATCH_SIZE):
@@ -192,7 +192,7 @@ def run_lineage_scan(
     ``client_factory`` dipakai oleh uji untuk mengganti client REST.
     """
     if mode not in {"auto", "admin", "member"}:
-        raise ExtractionError(f"Mode scan lineage tidak dikenal: {mode}")
+        raise ExtractionError(f"Unknown lineage scan mode: {mode}")
     settings.validate()
 
     database_path = Path(database).expanduser().resolve()
@@ -226,18 +226,18 @@ def run_lineage_scan(
         elif resolved_mode == "member":
             if include_personal:
                 log(
-                    "Mode member tidak dapat memindai My Workspace (personal): "
-                    "service principal bukan anggota My Workspace pengguna. "
-                    "Gunakan mode admin untuk menyertakan personal."
+                    "Member mode cannot scan My Workspace (personal): "
+                    "the service principal is not a member of the user My Workspace. "
+                    "Use admin mode to include personal workspaces."
                 )
             if full:
                 log(
-                    "Mode member memindai seluruh workspace yang dapat diakses; "
-                    "opsi full tidak mengubah hasil."
+                    "Member mode scans every accessible workspace; "
+                    "the full option does not change the result."
                 )
             scan_id = _run_member_scan(conn, client, log, started_at)
         else:
-            raise ExtractionError(f"Mode scan lineage tidak dikenal: {resolved_mode}")
+            raise ExtractionError(f"Unknown lineage scan mode: {resolved_mode}")
 
         node_count, edge_count = active_counts(conn)
         summary = stats(conn)
@@ -250,24 +250,24 @@ def run_lineage_scan(
         finished_at = now_iso()
         duration = time.perf_counter() - clock
         log("")
-        log(f"Scan selesai    : {scan_id}")
+        log(f"Scan finished   : {scan_id}")
         log(f"Mode            : {resolved_mode}")
         log(
-            "Cakupan         : "
+            "Coverage        : "
             + (
-                "termasuk My Workspace (personal)"
+                "including My Workspace (personal)"
                 if personal_scanned
-                else "workspace saja"
+                else "workspaces only"
             )
         )
-        log(f"Node aktif      : {node_count}")
-        log(f"Edge aktif      : {edge_count}")
-        log(f"Scan terakhir   : {summary.get('last_scan') or '-'}")
+        log(f"Active nodes    : {node_count}")
+        log(f"Active edges    : {edge_count}")
+        log(f"Last scan       : {summary.get('last_scan') or '-'}")
         unresolved = unresolved_feed_sources(conn)
         if unresolved:
             log(
-                f"WARNING: {unresolved} ID sumber belum memiliki metadata. "
-                "Aktifkan detailed metadata untuk admin API lalu jalankan full scan."
+                f"WARNING: {unresolved} source IDs have no metadata yet. "
+                "Enable detailed metadata for the admin API, then run a full scan."
             )
         return LineageScanResult(
             database=database_path,
@@ -292,7 +292,7 @@ def run_lineage_scan(
                 pass
         if isinstance(exc, ExtractionError):
             raise
-        raise ExtractionError(f"Scan lineage gagal: {exc}") from exc
+        raise ExtractionError(f"Lineage scan failed: {exc}") from exc
     finally:
         close = getattr(client, "close", None)
         if callable(close):

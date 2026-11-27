@@ -70,7 +70,7 @@ def run_workspace_sync(
     ``client_factory`` dipakai uji untuk mengganti client REST tanpa network.
     """
     if mode not in MODES:
-        raise ExtractionError(f"Mode sinkronisasi workspace tidak dikenal: {mode}")
+        raise ExtractionError(f"Unknown workspace sync mode: {mode}")
     settings.validate()
 
     database_path = Path(database).expanduser().resolve()
@@ -95,16 +95,16 @@ def run_workspace_sync(
 
         if resolved_mode == "admin":
             rows = client.admin_workspaces()
-            log(f"{len(rows)} workspace dari Admin API.")
+            log(f"{len(rows)} workspaces from the Admin API.")
         elif resolved_mode == "member":
             rows = _rows_for_member(client)
             log(
-                f"{len(rows)} workspace yang dapat diakses service principal "
+                f"{len(rows)} workspaces accessible to the service principal "
                 "(mode member)."
             )
         else:
             raise ExtractionError(
-                f"Mode sinkronisasi workspace tidak dikenal: {resolved_mode}"
+                f"Unknown workspace sync mode: {resolved_mode}"
             )
 
         workspace_count = len(rows)
@@ -127,8 +127,8 @@ def run_workspace_sync(
         log("")
         log(f"Mode            : {resolved_mode}")
         log(
-            f"Workspace       : {workspace_count} diterima, "
-            f"{added} baru, {updated} diperbarui"
+            f"Workspace       : {workspace_count} received, "
+            f"{added} new, {updated} updated"
         )
         log(f"Workspace aktif : {summary['active']} (total {summary['total']})")
         return WorkspaceSyncResult(
@@ -161,7 +161,7 @@ def run_workspace_sync(
                 pass
         if isinstance(exc, ExtractionError):
             raise
-        raise ExtractionError(f"Sinkronisasi workspace gagal: {exc}") from exc
+        raise ExtractionError(f"Workspace sync failed: {exc}") from exc
     finally:
         close = getattr(client, "close", None)
         if callable(close):
@@ -186,9 +186,9 @@ def sync_report_catalog(
             rows = client.admin_reports()
         finally:
             client.close()
-        log(f"Report dari Admin API: {len(rows)}")
+        log(f"Reports from the Admin API: {len(rows)}")
         count = save_report_catalog(conn, rows, full=full)
-        log(f"Katalog report disimpan: {count}")
+        log(f"Report catalog saved: {count}")
         return count
     finally:
         conn.close()

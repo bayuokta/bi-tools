@@ -78,10 +78,10 @@ class SharePointTarget:
             site = site.split("/", 1)[1] if "/" in site else ""
         site = "/".join(_segments(site))
         if not host:
-            raise ExtractionError("Hostname SharePoint wajib diisi (tanpa https://).")
+            raise ExtractionError("SharePoint hostname is required (without https://).")
         if not site:
             raise ExtractionError(
-                "Path site SharePoint wajib diisi (mis. /teams/BIDataRepository)."
+                "SharePoint site path is required (e.g. /teams/BIDataRepository)."
             )
         return cls(
             hostname=host,
@@ -154,9 +154,9 @@ class GraphUploader:
         except ApiError as exc:
             if exc.status_code in (401, 403):
                 raise ExtractionError(
-                    "Akses Graph ditolak. Pastikan izin aplikasi "
-                    "`Sites.Selected` (atau `Sites.ReadWrite.All`) sudah "
-                    f"di-consent dan site {self.target.label} sudah di-grant. "
+                    "Graph access denied. Make sure the application permission "
+                    "`Sites.Selected` (or `Sites.ReadWrite.All`) is "
+                    f"consented and site {self.target.label} has been granted. "
                     f"Detail: {exc}"
                 ) from exc
             raise ExtractionError(str(exc)) from exc
@@ -166,7 +166,7 @@ class GraphUploader:
             data = self._get(f"/sites/{self.target.hostname}:/{self.target.site_path}")
             if not data.get("id"):
                 raise ExtractionError(
-                    f"Site SharePoint tidak ditemukan: {self.target.label}."
+                    f"SharePoint site not found: {self.target.label}."
                 )
             self._site = data
         return self._site
@@ -181,7 +181,7 @@ class GraphUploader:
         if self._drive is None:
             drives = self.drives()
             if not drives:
-                raise ExtractionError("Site tidak memiliki document library.")
+                raise ExtractionError("The site has no document library.")
             wanted = (self.target.library or "").strip().casefold()
             chosen = None
             if wanted and wanted != "default":
@@ -196,8 +196,8 @@ class GraphUploader:
                 if chosen is None:
                     names = ", ".join(str(row.get("name") or "") for row in drives)
                     raise ExtractionError(
-                        f"Library '{self.target.library}' tidak ditemukan. "
-                        f"Pilihan: {names}."
+                        f"Library '{self.target.library}' was not found. "
+                        f"Options: {names}."
                     )
             else:
                 chosen = next(
@@ -249,7 +249,7 @@ class GraphUploader:
         """Upload satu file; nama di SharePoint default sama dengan nama file."""
         source = Path(path).expanduser()
         if not source.is_file():
-            raise ExtractionError(f"File upload tidak ditemukan: {source}")
+            raise ExtractionError(f"Upload file not found: {source}")
         self.ensure_folder()
         remote_name = str(name or source.name)
         remote = self._remote(remote_name)
@@ -287,7 +287,7 @@ class GraphUploader:
         )
         upload_url = str(session.get("uploadUrl") or "")
         if not upload_url:
-            raise ExtractionError("Graph tidak mengembalikan uploadUrl.")
+            raise ExtractionError("Graph did not return an uploadUrl.")
         total = source.stat().st_size
         chunk = self._chunk_size
         offset = 0
@@ -314,7 +314,7 @@ class GraphUploader:
                 self._log(f"Upload chunk {offset}/{total} byte")
         if offset < total:
             raise ExtractionError(
-                f"Upload berhenti di {offset} dari {total} byte: {source.name}"
+                f"Upload berhenti di {offset} of {total} byte: {source.name}"
             )
         return last
 

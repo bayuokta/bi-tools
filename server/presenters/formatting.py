@@ -22,7 +22,7 @@ def file_status(path: Path) -> dict[str, object]:
             "exists": False,
             "size": 0,
             "modified": "",
-            "text": f"{path.name}  (belum dibuat)",
+            "text": f"{path.name}  (not created yet)",
         }
     try:
         stat = path.stat()
@@ -52,7 +52,7 @@ def duration_text(seconds: float) -> str:
         value = float(seconds)
     except (TypeError, ValueError):
         return "-"
-    return f"{value:.1f} detik"
+    return f"{value:.1f} seconds"
 
 
 def format_time(value: str) -> str:

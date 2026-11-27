@@ -75,7 +75,7 @@ class ResultExportTests(unittest.TestCase):
             "page_name": "Page 1",
             "visual_id": "v1",
             "visual_type": "pivotTable",
-            "visual_title": "(tanpa judul) pivotTable 12345678",
+            "visual_title": "(untitled) pivotTable 12345678",
             "usage_kind": "field",
             "detail": "Values",
         }
@@ -89,12 +89,12 @@ class ResultExportTests(unittest.TestCase):
             columns=[
                 ColumnAnalysis(
                     column=customer,
-                    status="Tidak dipakai",
+                    status="Unused",
                     reason="",
                 ),
                 ColumnAnalysis(
                     column=amount,
-                    status="Dipakai",
+                    status="Used",
                     reason="",
                     model_refs=[
                         ModelReference(
@@ -114,7 +114,7 @@ class ResultExportTests(unittest.TestCase):
             measures=[
                 MeasureAnalysis(
                     measure=measure,
-                    status="Dipakai",
+                    status="Used",
                     reason="",
                     report_records=[record],
                 )
@@ -129,7 +129,7 @@ class ResultExportTests(unittest.TestCase):
                         "levels": "Year > Month",
                         "level_count": 2,
                     },
-                    status="Dipakai",
+                    status="Used",
                     reason="",
                     report_records=[
                         {

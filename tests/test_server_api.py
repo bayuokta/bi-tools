@@ -94,11 +94,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(good.json()["ui"]["theme"], "light")
         self.assertFalse(good.json()["ui"]["motion"])
 
-        self.assertEqual(self.client.get("/api/settings").json()["ui"]["language"], "en")
-        bad_language = self.client.put("/api/settings/ui", json={"language": "fr"})
-        self.assertEqual(bad_language.status_code, 400)
-        language = self.client.put("/api/settings/ui", json={"language": "id"})
-        self.assertEqual(language.json()["ui"]["language"], "id")
 
     def test_extraction_scope_and_out_dir(self) -> None:
         bad = self.client.put(
@@ -125,7 +120,7 @@ class ApiTestCase(unittest.TestCase):
         self.store.set_lineage_db(self.root / "tidak-ada.db")
         body = self.client.get("/api/catalog/status").json()
         self.assertEqual(body["tone"], "idle")
-        self.assertIn("Belum ada katalog", body["text"])
+        self.assertIn("No saved workspace catalog", body["text"])
 
     def test_files_browse_root_and_folder(self) -> None:
         roots = self.client.get("/api/files/browse").json()
@@ -161,7 +156,7 @@ class ApiTestCase(unittest.TestCase):
         target.write_bytes(b"MZ")
         response = self.client.post("/api/files/open", json={"path": str(target)})
         self.assertEqual(response.status_code, 400)
-        self.assertIn("dieksekusi", response.json()["detail"])
+        self.assertIn("Executable", response.json()["detail"])
 
     def test_outputs_use_saved_folder(self) -> None:
         target = self.root / "hasil"

@@ -608,7 +608,7 @@ class PbirScanTests(unittest.TestCase):
             for row in self.usage.records
             if row.usage_kind == USAGE_FIELD and row.visual_id == "v2"
         ][0]
-        self.assertTrue(slicer.visual_title.startswith("(tanpa judul) slicer"))
+        self.assertTrue(slicer.visual_title.startswith("(untitled) slicer"))
 
 
 class LegacyScanTests(unittest.TestCase):
@@ -806,7 +806,7 @@ class UnsupportedFormatTests(unittest.TestCase):
         usage = scan_definition(ReportDefinition(report_format="unknown", parts=()))
 
         self.assertEqual(usage.records, [])
-        self.assertTrue(any("tidak dikenal" in line for line in usage.unresolved))
+        self.assertTrue(any("Unknown" in line for line in usage.unresolved))
 
 
 if __name__ == "__main__":

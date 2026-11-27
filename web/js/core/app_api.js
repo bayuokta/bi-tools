@@ -4,7 +4,7 @@
 
 function missing(name) {
   return function () {
-    throw new Error("Helper UI belum terpasang: " + name);
+    throw new Error("UI helper is not installed: " + name);
   };
 }
 

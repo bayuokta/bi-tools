@@ -26,7 +26,7 @@ def column(
     table: str = "Sales",
     *,
     data_type: str = "string",
-    status: str = "Dipakai",
+    status: str = "Used",
     size: int = 1024,
     cardinality: int = 0,
     hidden: bool = False,
@@ -71,7 +71,7 @@ def measure(
     table: str = "Sales",
     *,
     expression: str = "1",
-    status: str = "Dipakai",
+    status: str = "Used",
     format_string: str = "#,0",
     hidden: bool = False,
     description: str = "desc",
@@ -197,7 +197,7 @@ class CatalogTests(unittest.TestCase):
             with patch("core.best_practice.RULES_DIR", Path(tmp)):
                 data = build_best_practice(result())
         self.assertFalse(data["available"])
-        self.assertIn("tidak bisa dibaca", data["error"])
+        self.assertIn("could not be read", data["error"])
 
     def test_verdict_boundaries(self) -> None:
         self.assertEqual(model_verdict(0)[0], "Power BI Pro")
@@ -236,7 +236,7 @@ class EvaluationTests(unittest.TestCase):
                 ),
                 column(
                     "Hidden Unused",
-                    status="Tidak dipakai",
+                    status="Unused",
                     hidden=True,
                     description="",
                 ),
@@ -289,7 +289,7 @@ class EvaluationTests(unittest.TestCase):
             m_queries=[
                 {
                     "name": "Sales",
-                    "kind": "Tabel",
+                    "kind": "Table",
                     "expression": 'let Source = ... in Table.AddColumn(Source, "x", each 1)',
                 }
             ],

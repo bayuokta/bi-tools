@@ -70,7 +70,7 @@ def cli_argv(args: Sequence[str]) -> list[str]:
     """Argumen untuk menjalankan perintah CLI dari proses server.
 
     Saat source, CLI dijalankan lewat ``python -m cli``; saat paket, executable
-    ``bi-tools-cli.exe`` berada di folder yang sama dengan server. Dipakai untuk
+    ``bi-tools-cli.exe`` berada di folder yang sama dengan server. Used untuk
     memisahkan ADOMD/DMV dari TOM dalam proses terpisah.
     """
     values = [str(item) for item in args]

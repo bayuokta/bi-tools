@@ -138,7 +138,7 @@ class EndpointTests(_StoreCase):
             json={"workspace_id": WORKSPACE, "items": [], "folder": "C:/backup"},
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("minimal satu item", response.json()["detail"])
+        self.assertIn("at least one item", response.json()["detail"])
 
     def test_restore_state_includes_files_and_targets(self) -> None:
         payload = {
@@ -184,7 +184,7 @@ class EndpointTests(_StoreCase):
             },
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("tujuan", response.json()["detail"])
+        self.assertIn("target", response.json()["detail"])
 
     def test_restore_starts_job(self) -> None:
         archive = self.root / "backup.zip"

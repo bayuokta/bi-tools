@@ -29,8 +29,8 @@ from core.lineage_store import (
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Lineage item Power BI Service dari database SQLite: cari item, "
-            "lalu telusuri upstream/downstream."
+            "Power BI Service item lineage from the SQLite database: search items, "
+            "then trace upstream/downstream."
         ),
         allow_abbrev=False,
     )
@@ -40,42 +40,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Path database SQLite (default: {DEFAULT_DB.name}).",
     )
     actions = parser.add_mutually_exclusive_group()
-    actions.add_argument("--search", metavar="QUERY", help="Cari item berdasarkan nama.")
+    actions.add_argument("--search", metavar="QUERY", help="Search items by name.")
     actions.add_argument(
         "--impact",
         metavar="NODE_ID",
-        help="Daftar item downstream (dipakai oleh) dari satu node.",
+        help="List downstream items (used by) for one node.",
     )
     actions.add_argument(
         "--upstream",
         metavar="NODE_ID",
-        help="Daftar item upstream (bersumber dari) satu node.",
+        help="List upstream items (sourced from) for one node.",
     )
     actions.add_argument("--stats", action="store_true", help="Statistik database.")
     actions.add_argument(
         "--check",
         action="store_true",
-        help="Diagnostik edge, referensi node yang hilang, dan riwayat scan.",
+        help="Edge diagnostics, missing node references, and scan history.",
     )
 
     parser.add_argument(
-        "--workspace", help="Filter nama workspace untuk --search."
+        "--workspace", help="Filter workspace name for --search."
     )
-    parser.add_argument("--type", help="Filter tipe node untuk --search.")
+    parser.add_argument("--type", help="Filter node type for --search.")
     parser.add_argument(
         "--limit",
         type=int,
         default=300,
-        help="Batas hasil pencarian (default: 300).",
+        help="Search result limit (default: 300).",
     )
     parser.add_argument(
         "--export-csv",
-        help="Simpan hasil --impact/--upstream ke file CSV.",
+        help="Save --impact/--upstream results to a CSV file.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Cetak hasil dalam JSON (selain progres scan).",
+        help="Print results as JSON (besides scan progress).",
     )
     return parser.parse_args(argv)
 
@@ -119,7 +119,7 @@ def _search(args: argparse.Namespace) -> int:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
         return 0
     if not rows:
-        print("Tidak ada hasil.")
+        print("No results.")
         return 0
     _print_table(
         ["Tipe", "Nama", "Workspace", "Owner", "ID"],
@@ -134,7 +134,7 @@ def _search(args: argparse.Namespace) -> int:
             for row in rows
         ),
     )
-    print(f"\n{len(rows)} hasil" + (" (dibatasi)" if len(rows) >= args.limit else ""))
+    print(f"\n{len(rows)} results" + (" (limited)" if len(rows) >= args.limit else ""))
     return 0
 
 
@@ -153,14 +153,14 @@ def _lineage(args: argparse.Namespace) -> int:
             close_quietly(conn)
 
     if result is None:
-        print(f"ERROR: node tidak ditemukan: {node_id}", file=sys.stderr)
+        print(f"ERROR: node not found: {node_id}", file=sys.stderr)
         return 2
 
     if args.export_csv:
         try:
             target = write_lineage_csv(args.export_csv, result)
         except OSError as exc:
-            print(f"ERROR: gagal menulis CSV: {exc}", file=sys.stderr)
+            print(f"ERROR: failed to write CSV: {exc}", file=sys.stderr)
             return 2
         if not args.json:
             print(f"CSV: {target}")
@@ -174,7 +174,7 @@ def _lineage(args: argparse.Namespace) -> int:
     print(f"Workspace : {root.get('workspace_name') or '-'}")
     print(f"Arah      : {direction}")
     if not result["nodes"]:
-        print("Tidak ada item pada arah ini.")
+        print("No items in this direction.")
         return 0
     _print_table(
         ["Depth", "Tipe", "Nama", "Workspace", "Owner", "Relasi"],
@@ -215,9 +215,9 @@ def _stats(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
-    print(f"Scan terakhir: {data.get('last_scan') or '-'}")
+    print(f"Last scan: {data.get('last_scan') or '-'}")
     _print_table(
-        ["Tipe", "Jumlah"],
+        ["Type", "Count"],
         ((item["node_type"], item["n"]) for item in data["types"]),
     )
     return 0
@@ -239,7 +239,7 @@ def _check(args: argparse.Namespace) -> int:
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
 
-    print("Edge aktif per tipe (hilang = ID tidak ada di tabel nodes):")
+    print("Active edges per type (missing = ID not present in the nodes table):")
     _print_table(
         ["Edge", "Total", "Source hilang", "Target hilang"],
         (
@@ -253,7 +253,7 @@ def _check(args: argparse.Namespace) -> int:
         ),
     )
     if data["missing_samples"]:
-        print("\nContoh ID yang hilang:")
+        print("\nExample missing IDs:")
         _print_table(
             ["Edge", "Sisi", "Node ID"],
             (
@@ -262,13 +262,13 @@ def _check(args: argparse.Namespace) -> int:
             ),
         )
     else:
-        print("\nTidak ada ID yang hilang.")
+        print("\nNo missing IDs.")
 
-    print(f"\nSumber feed tanpa metadata: {data['unresolved_feed_sources']}")
+    print(f"\nFeed sources without metadata: {data['unresolved_feed_sources']}")
     if data["scans"]:
-        print("\nRiwayat scan:")
+        print("\nScan history:")
         _print_table(
-            ["Waktu", "Mode", "Workspace", "Status", "Scan ID"],
+            ["Time", "Mode", "Workspace", "Status", "Scan ID"],
             (
                 (
                     row["started_at"],
@@ -294,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         return _check(args)
     print(
-        "Pilih salah satu aksi: --search, --impact, --upstream, --stats, --check."
+        "Choose one action: --search, --impact, --upstream, --stats, --check."
     )
     return 2
 

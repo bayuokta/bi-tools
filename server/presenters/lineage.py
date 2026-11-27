@@ -50,9 +50,9 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
     database = database_path(store)
     summary = database_summary(database)
     if not summary.exists:
-        status = "Database belum ada. Jalankan Sinkronisasi data di Pengaturan."
+        status = "The database does not exist yet. Run Data sync in Settings."
     elif not summary.readable:
-        status = f"Database tidak bisa dibaca: {summary.error}"
+        status = f"Database could not be read: {summary.error}"
     else:
         status = f"{summary.items} item · {summary.workspaces} workspace"
     return {
@@ -81,17 +81,17 @@ def search(
     database = database_path(store)
     if not database_summary(database).readable:
         raise ExtractionError(
-            "Database lineage belum siap. Jalankan Sinkronisasi data di Pengaturan."
+            "The lineage database is not ready. Run Data sync in Settings."
         )
     text = str(query or "").strip()
     space = str(workspace or "").strip()
     kind = str(node_type or "").strip()
     if not text and not space and not kind:
-        return {"results": [], "message": "Isi kata kunci atau filter terlebih dahulu."}
+        return {"results": [], "message": "Enter a keyword or filter first."}
     rows = search_nodes(database, text, space, kind, limit=max(1, int(limit)))
     capped = len(rows) >= limit
-    message = f"{len(rows)} hasil" + (
-        " (batas tercapai; perjelas kata kunci)" if capped else ""
+    message = f"{len(rows)} results" + (
+        " (limit reached; refine the keyword)" if capped else ""
     )
     return {"results": rows, "message": message}
 
@@ -134,12 +134,12 @@ def node_payload(
     database = database_path(store)
     ident = str(node_id or "").strip()
     if not ident:
-        raise ExtractionError("Node lineage belum dipilih.")
+        raise ExtractionError("No lineage node selected.")
     depth = max(1, min(MAX_DEPTH, int(depth)))
     down, up = two_way_lineage(database, ident, depth)
     if down is None and up is None:
         raise ExtractionError(
-            "Node tidak ditemukan di database lineage. Jalankan scan ulang."
+            "Node was not found in the lineage database. Run the scan again."
         )
     selected = down if direction == "downstream" else up
     if selected is None:
@@ -193,11 +193,11 @@ def export_lineage_image(
     data = payload or {}
     node_id = str(data.get("node_id") or "").strip()
     if not node_id:
-        raise ExtractionError("Node lineage belum dipilih.")
+        raise ExtractionError("No lineage node selected.")
     detail = node_detail(database_path(store), node_id)
     if not detail:
         raise ExtractionError(
-            "Node tidak ditemukan di database lineage. Jalankan scan ulang."
+            "Node was not found in the lineage database. Run the scan again."
         )
     root_name = str(detail.get("name") or "lineage")
     image_format = str(data.get("format") or "svg").strip().lower()
@@ -215,7 +215,7 @@ def export_lineage_image(
         raise ExtractionError(str(exc)) from exc
     except OSError as exc:
         raise ExtractionError(
-            f"Gagal menulis gambar lineage: {exc}. Tutup berkas bila sedang dibuka."
+            f"Could not write the lineage image: {exc}. Close the file if it is open."
         ) from exc
     return {
         "path": str(written["path"]),

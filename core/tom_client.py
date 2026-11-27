@@ -68,8 +68,8 @@ def load_tom(dll_dir: str | Path | None = None) -> tuple[Any, Any, Any]:
     main_dll = folder / "Microsoft.AnalysisServices.Tabular.dll"
     if not main_dll.exists():
         raise TomError(
-            f"DLL TOM tidak ditemukan: {main_dll}. "
-            "Pasang ulang aplikasi atau jalankan dari source dengan folder libs/tom."
+            f"TOM DLL not found: {main_dll}. "
+            "Reinstall the application or run from source with the libs/tom folder."
         )
 
     dlls = sorted(folder.rglob("*.dll"))
@@ -93,7 +93,7 @@ def load_tom(dll_dir: str | Path | None = None) -> tuple[Any, Any, Any]:
         if blocked:
             raise TomError(_blocked_assembly_message(blocked, str(exc))) from exc
         raise TomError(
-            f"Assembly TOM tidak bisa dimuat dari {folder}: {exc}"
+            f"The TOM assembly could not be loaded from {folder}: {exc}"
         ) from exc
 
     loaded = (Server, AccessToken, DateTimeOffset)
@@ -118,10 +118,10 @@ def build_connection_string(
     """
     data_source = readwrite_endpoint(endpoint)
     if not data_source:
-        raise TomError("Endpoint XMLA kosong; koneksi TOM tidak bisa dibuat.")
+        raise TomError("Empty XMLA endpoint; cannot create a TOM connection.")
     catalog = str(dataset or "").strip()
     if not catalog:
-        raise TomError("Nama semantic model kosong; koneksi TOM tidak bisa dibuat.")
+        raise TomError("Empty semantic model name; cannot create a TOM connection.")
 
     if interactive:
         # Samakan dengan contoh pbi_one_login: URL PaaS polos, tanpa quote,
@@ -211,14 +211,14 @@ def connect_server(
             )
         except Exception as exc:  # noqa: BLE001 - pesan koneksi perlu konteks
             hint = (
-                "Akun 365 perlu akses workspace dan XMLA endpoint Read Write."
+                "The Microsoft 365 account needs workspace access and the XMLA endpoint Read Write permission."
                 if interactive
-                else "XMLA endpoint Read Write, dan service principal punya akses "
-                "Member/Admin ke workspace."
+                else "the XMLA endpoint Read Write permission, and the service principal has "
+                "Member/Admin access to the workspace."
             )
             raise TomError(
-                f"Koneksi XMLA ke '{dataset}' gagal: {exc}\n"
-                "Pastikan workspace berada di kapasitas Premium/PPU/Fabric, "
+                f"XMLA connection to '{dataset}' failed: {exc}\n"
+                "Make sure the workspace is on Premium/PPU/Fabric capacity, "
                 + hint
             ) from exc
         yield server
@@ -255,7 +255,7 @@ def connect_desktop_server(
             server.Connect(connection)
         except Exception as exc:  # noqa: BLE001
             raise TomError(
-                f"Koneksi TOM ke Desktop localhost:{int(port)} gagal: {exc}"
+                f"Koneksi TOM ke Desktop localhost:{int(port)} failed: {exc}"
             ) from exc
         yield server
     finally:
@@ -325,13 +325,13 @@ def list_partitions(server: Any, dataset: str) -> list[PartitionInfo]:
         except Exception:  # noqa: BLE001
             available = []
         detail = f" Dataset tersedia: {', '.join(available)}." if available else ""
-        raise TomError(f"Dataset '{dataset}' tidak ditemukan.{detail}") from exc
+        raise TomError(f"Dataset '{dataset}' was not found.{detail}") from exc
 
     rows: list[PartitionInfo] = []
     try:
         tables = list(database.Model.Tables)
     except Exception as exc:  # noqa: BLE001
-        raise TomError(f"Tabel model '{dataset}' tidak bisa dibaca: {exc}") from exc
+        raise TomError(f"Tabel model '{dataset}' could not be read: {exc}") from exc
 
     for table in tables:
         table_name = str(table.Name)
@@ -339,7 +339,7 @@ def list_partitions(server: Any, dataset: str) -> list[PartitionInfo]:
             partitions = list(table.Partitions)
         except Exception as exc:  # noqa: BLE001
             raise TomError(
-                f"Partisi tabel '{table_name}' tidak bisa dibaca: {exc}"
+                f"Partisi tabel '{table_name}' could not be read: {exc}"
             ) from exc
         for partition in partitions:
             source = getattr(partition, "Source", None)
@@ -378,7 +378,7 @@ def execute_refresh(server: Any, tmsl: str) -> Any:
     try:
         results = server.Execute(xmla)
     except Exception as exc:  # noqa: BLE001 - pengalaman server beragam
-        raise TomError(f"Perintah refresh TMSL gagal: {exc}") from exc
+        raise TomError(f"The TMSL refresh command failed: {exc}") from exc
     if bool(getattr(results, "ContainsErrors", False)):
         raise TomError(f"Perintah refresh TMSL mengembalikan error: {results}")
     return results

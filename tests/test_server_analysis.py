@@ -88,7 +88,7 @@ def fake_result() -> SimpleNamespace:
         SimpleNamespace(
             kind="RLS",
             object="role 'HO'",
-            detail="filter RLS role 'HO' pada tabel 'Dim Customer'",
+            detail="RLS filter for role 'HO' on table 'Dim Customer'",
             blocking=True,
         ),
         SimpleNamespace(
@@ -106,13 +106,13 @@ def fake_result() -> SimpleNamespace:
         SimpleNamespace(
             kind="langkah M",
             object="query 'Dim Customer'",
-            detail="langkah Power Query tabel 'Dim Customer' (indikatif)",
+            detail="Power Query step for table 'Dim Customer' (indicative)",
             blocking=False,
         ),
     ]
     column = SimpleNamespace(
         column=column_stat,
-        status="Tidak dipakai",
+        status="Unused",
         reason="Tidak ada referensi.",
         report_records=[record, page_filter],
         model_refs=refs,
@@ -129,8 +129,8 @@ def fake_result() -> SimpleNamespace:
     )
     measure = SimpleNamespace(
         measure=measure_stat,
-        status="Dipakai",
-        reason="Dipakai report.",
+        status="Used",
+        reason="Used report.",
         report_records=[],
         model_refs=[],
     )
@@ -191,7 +191,7 @@ def fake_result() -> SimpleNamespace:
             }
         ],
         m_queries=[
-            {"name": "Fact Sales", "kind": "Tabel", "detail": "2 partisi"}
+            {"name": "Fact Sales", "kind": "Table", "detail": "2 partisi"}
         ],
         report_pages={
             "bbbbbbbb-cccc-dddd-eeee-ffffffffffff": [
@@ -219,8 +219,8 @@ def fake_result() -> SimpleNamespace:
         unused_measures=[],
         unused_bytes=1024,
         dataset_bytes=1024,
-        status_counts={"Tidak dipakai": 1},
-        measure_status_counts={"Dipakai": 1},
+        status_counts={"Unused": 1},
+        measure_status_counts={"Used": 1},
     )
 
 
@@ -241,7 +241,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         analysis = SimpleNamespace(
             name="Calendar",
             table="Dim Customer",
-            status="Dipakai",
+            status="Used",
             reason="",
             use_count=1,
             report_count=1,
@@ -322,7 +322,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["columns"][0]["uses"], 7)
         self.assertEqual(data["columns"][0]["direct_refs"], 5)
         self.assertEqual(data["columns"][0]["transitive_refs"], 1)
-        self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Dipakai")
+        self.assertEqual(artifacts["rows"][0]["cells"]["6"], "Used")
         visuals = by_label["Used in visuals"]
         self.assertEqual(
             [(column["index"], column["label"]) for column in visuals["columns"]],
@@ -340,7 +340,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(security["rows"][0]["cells"]["2"], "Dim Customer")
         key_column = by_label["Used as key column"]
         self.assertEqual(key_column["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(key_column["rows"][0]["cells"]["5"], "1,0 KB")
+        self.assertEqual(key_column["rows"][0]["cells"]["5"], "1.0 KB")
         sorting = by_label["Used in column sorting"]
         self.assertEqual(sorting["rows"][0]["cells"]["2"], "Dim Customer")
         self.assertEqual(sorting["rows"][0]["cells"]["4"], "Text")
@@ -372,10 +372,10 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(relation["type"], "Active")
         self.assertEqual(relation["cross"], "Single")
         self.assertEqual(relation["cardinality"], "N \u2190 1")
-        self.assertEqual(relation["status"], "Dipakai")
-        self.assertEqual(relation["auto"], "Ya")
+        self.assertEqual(relation["status"], "Used")
+        self.assertEqual(relation["auto"], "Yes")
         self.assertEqual(relation["used"], 2)
-        self.assertEqual(data["m_queries"][0]["kind"], "Tabel")
+        self.assertEqual(data["m_queries"][0]["kind"], "Table")
         self.assertEqual(data["totals"]["pages"], 3)
         self.assertEqual(data["totals"]["tables"], 1)
 
@@ -410,7 +410,7 @@ class AnalysisPresenterTests(unittest.TestCase):
     def test_state_empty_catalog(self) -> None:
         state = presenter.build_state(self.store)
         self.assertEqual(state["workspaces"], [])
-        self.assertIn("Sinkronisasi", state["hint"])
+        self.assertIn("catalog sync", state["hint"])
         self.assertEqual(state["settings"]["object_filter"], "all")
 
     def test_run_job_requires_selection(self) -> None:
@@ -449,8 +449,8 @@ class AnalysisPresenterTests(unittest.TestCase):
         presenter.reset_sessions()
         with self.assertRaises(ExtractionError) as ctx:
             presenter.export({"dataset_id": DATASET}, self.store)
-        self.assertIn("Belum ada hasil analisa", str(ctx.exception))
-        self.assertIn("tidak disimpan", str(ctx.exception))
+        self.assertIn("No analysis results", str(ctx.exception))
+        self.assertIn("not saved", str(ctx.exception))
 
     def test_export_writes_result_template(self) -> None:
         target = self.root / "hasil.xlsx"
@@ -489,7 +489,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         ):
             with self.assertRaises(ExtractionError) as ctx:
                 presenter.export({"dataset_id": DATASET, "tab": "tables"}, self.store)
-        self.assertIn("belum tersedia", str(ctx.exception))
+        self.assertIn("not available", str(ctx.exception))
 
     def test_snapshot_payload_reads_session(self) -> None:
         presenter._session(DATASET)
@@ -508,7 +508,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         presenter.reset_sessions()
         with self.assertRaises(ExtractionError) as ctx:
             presenter.lineage_payload(self.store, DATASET, "column", "T", "C")
-        self.assertIn("Belum ada hasil analisa", str(ctx.exception))
+        self.assertIn("No analysis results", str(ctx.exception))
 
     def test_lineage_payload_uses_session(self) -> None:
         presenter._session(DATASET)
@@ -569,7 +569,7 @@ class AnalysisPresenterTests(unittest.TestCase):
                 presenter.lineage_payload(
                     self.store, DATASET, "column", "T", "TidakAda"
                 )
-        self.assertIn("tidak ditemukan", str(ctx.exception))
+        self.assertIn("not found", str(ctx.exception))
 
     def test_preview_payload_queries_model_read_only(self) -> None:
         presenter._session(DATASET)

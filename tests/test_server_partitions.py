@@ -48,7 +48,7 @@ class PartitionPresenterTests(unittest.TestCase):
     def test_state_has_refresh_types_and_confirmation(self) -> None:
         state = presenter.build_state(self.store)
         self.assertEqual(state["workspaces"], [])
-        self.assertIn("Sinkronisasi", state["hint"])
+        self.assertIn("catalog sync", state["hint"])
         self.assertIn("full", state["refresh_types"])
         self.assertEqual(state["confirmation"], "PROCESS")
 

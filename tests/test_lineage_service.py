@@ -44,7 +44,7 @@ class LineageServiceTests(unittest.TestCase):
 
         self.assertTrue(summary.exists)
         self.assertFalse(summary.readable)
-        self.assertIn("tidak bisa dibaca", summary.error.lower())
+        self.assertIn("could not be read", summary.error.lower())
 
     def test_seeded_summary_counts_nodes(self) -> None:
         summary = database_summary(self.db)

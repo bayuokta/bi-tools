@@ -17,22 +17,22 @@ from core.report import OUT_FILE
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Ekstraksi metadata report PBIR dari file .pbix atau dari Power BI Service "
-            "ke Report_Metadata.xlsx. Validasi field terhadap model bersifat opsional."
+            "Extract PBIR report metadata from a .pbix file or from the Power BI Service "
+            "into Report_Metadata.xlsx. Field validation against the model is optional."
         ),
         allow_abbrev=False,
     )
     parser.add_argument(
         "--report",
-        help="File .pbix sumber report (wajib untuk sumber lokal).",
+        help="Source .pbix file (required for local sources).",
     )
     parser.add_argument("--report-url", help="URL report Power BI Service (workspace/reports).")
-    parser.add_argument("--workspace-id", help="Workspace ID (GUID) untuk sumber Power BI Service.")
-    parser.add_argument("--report-id", action="append", default=[], help="Report ID (GUID); ulangi untuk batch report.")
-    parser.add_argument("--model-workbook", help="Workbook Semantic_Model_Metadata.xlsx untuk validasi field.")
+    parser.add_argument("--workspace-id", help="Workspace ID (GUID) for the Power BI Service source.")
+    parser.add_argument("--report-id", action="append", default=[], help="Report ID (GUID); repeat for batch reports.")
+    parser.add_argument("--model-workbook", help="Semantic_Model_Metadata.xlsx workbook for field validation.")
     parser.add_argument("--no-model", action="store_true", help="Lewati validasi model; cukup file .pbix.")
     parser.add_argument("--out", help=f"Path workbook output (default: {OUT_FILE.name}).")
-    parser.add_argument("--extract-to", help="Simpan hasil ekstraksi Report/definition ke folder ini (default: temporary).")
+    parser.add_argument("--extract-to", help="Save the extracted Report/definition to this folder (default: temporary).")
     return parser.parse_args(argv)
 
 
@@ -41,12 +41,12 @@ def _service_refs(args: argparse.Namespace) -> list[ServiceReportRef]:
     if args.report_url:
         if args.workspace_id or ids:
             raise ExtractionError(
-                "Gunakan --report-url saja, atau pasangan --workspace-id dan --report-id."
+                "Use --report-url alone, or the --workspace-id and --report-id pair."
             )
         return [parse_report_url(args.report_url)]
     if args.workspace_id or ids:
         if not (args.workspace_id and ids):
-            raise ExtractionError("--workspace-id dan --report-id harus diisi berpasangan.")
+            raise ExtractionError("--workspace-id and --report-id must be provided as a pair.")
         return [ServiceReportRef.from_ids(args.workspace_id, item) for item in ids]
     return []
 
@@ -59,11 +59,11 @@ def main(argv: list[str] | None = None) -> int:
         if refs:
             if args.report:
                 raise ExtractionError(
-                    "--report (file .pbix) tidak bisa digabung dengan opsi Power BI Service."
+                    "--report (a .pbix file) cannot be combined with Power BI Service options."
                 )
             if args.extract_to:
                 raise ExtractionError(
-                    "--extract-to hanya untuk sumber .pbix; report service memakai folder temporary."
+                    "--extract-to is only for .pbix sources; service reports use a temporary folder."
                 )
             settings = ServicePrincipal.from_env()
             token_provider = fabric_provider(EntraTokens(settings))
@@ -73,8 +73,8 @@ def main(argv: list[str] | None = None) -> int:
                     out_dir = out_dir.parent
                 if args.model_workbook:
                     print(
-                        "NOTE: --model-workbook diabaikan pada batch; validasi "
-                        "memakai workbook model di folder output.",
+                        "NOTE: --model-workbook is ignored for batches; validation "
+                        "uses the model workbook in the output folder.",
                         file=sys.stderr,
                     )
                 run_metadata_job(
@@ -101,8 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if not args.report:
                 raise ExtractionError(
-                    "File .pbix wajib ditentukan dengan --report, atau pakai opsi "
-                    "Power BI Service (--report-url / --workspace-id + --report-id)."
+                    "A .pbix file is required via --report, or use the "
+                    "Power BI Service options (--report-url / --workspace-id + --report-id)."
                 )
             run_report_job(
                 pbix=Path(args.report),

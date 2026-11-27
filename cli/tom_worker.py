@@ -33,7 +33,7 @@ class _Session:
         data_source = str(endpoint or "").strip()
         name = str(catalog or "").strip()
         if not data_source or not name:
-            raise ValueError("Endpoint dan catalog wajib diisi.")
+            raise ValueError("Endpoint and catalog are required.")
         variants = (
             "Interactive Login=Enabled; Identity Mode=Connection;",
             "Interactive Login=Always; Identity Mode=Connection;",
@@ -61,7 +61,7 @@ class _Session:
             self.server = server
             self.catalog = name
             return {"catalog": name}
-        raise TomError("Koneksi TOM gagal: " + " | ".join(errors[:2]))
+        raise TomError("TOM connection failed: " + " | ".join(errors[:2]))
 
     def close(self) -> None:
         server = self.server
@@ -74,14 +74,14 @@ class _Session:
 
     def inventory(self) -> list[dict[str, Any]]:
         if self.server is None:
-            raise TomError("Koneksi TOM belum dibuka.")
+            raise TomError("The TOM connection is not open yet.")
         return partition_payload(list_partitions(self.server, self.catalog))
 
     def refresh(
         self, targets: list[dict[str, Any]], refresh_type: str
     ) -> list[dict[str, Any]]:
         if self.server is None:
-            raise TomError("Koneksi TOM belum dibuka.")
+            raise TomError("The TOM connection is not open yet.")
         pairs = [
             (str(item.get("table") or ""), str(item.get("partition") or ""))
             for item in targets
@@ -93,12 +93,12 @@ class _Session:
 
     def snapshot(self, options: dict[str, Any]) -> str:
         if self.server is None:
-            raise TomError("Koneksi TOM belum dibuka.")
+            raise TomError("The TOM connection is not open yet.")
         return serialize_snapshot(self.server, self.catalog, options)
 
     def export(self, target: str) -> dict[str, Any]:
         if self.server is None:
-            raise TomError("Koneksi TOM belum dibuka.")
+            raise TomError("The TOM connection is not open yet.")
         folder = str(target or "").strip()
         if not folder:
             raise TomError("Folder tujuan ekspor model wajib diisi.")
@@ -171,8 +171,8 @@ def main(argv: list[str] | None = None) -> int:
     root.geometry("360x100+80+80")
     tk.Label(
         root,
-        text="Selesaikan login XMLA di jendela yang muncul.\n"
-        "Jendela ini boleh diminimalkan setelah selesai.",
+        text="Complete the XMLA login in the window that appears.\n"
+        "You can minimize this window when done.",
         justify="center",
     ).pack(padx=12, pady=12)
     root.update()

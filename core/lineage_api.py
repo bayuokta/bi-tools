@@ -72,8 +72,8 @@ class PowerBILineageClient:
     def _call(self, method: str, path: str, **kwargs: Any) -> Any:
         if str(method or "").strip().upper() == "DELETE":
             raise ExtractionError(
-                "Metode HTTP DELETE dilarang di tool ini. Gunakan POST "
-                "(mis. .../clear atau .../cancel)."
+                "The HTTP DELETE method is forbidden in this tool. Use POST "
+                "(e.g. .../clear or .../cancel)."
             )
         return self._transport.json(method, path, **kwargs)
 

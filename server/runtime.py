@@ -168,25 +168,25 @@ def _wait_for_server(port: int, timeout: float = START_TIMEOUT) -> bool:
 def _open_when_ready(port: int, token_url: str, timeout: float = START_TIMEOUT) -> None:
     if not _wait_for_server(port, timeout):
         print(
-            "Server belum menjawab; buka manual tautan di atas setelah siap.",
+            "The server is not responding yet; open the link above manually when ready.",
             flush=True,
         )
         return
     try:
         webbrowser.open(token_url)
     except Exception:  # noqa: BLE001 - browser opsional
-        print("Tidak bisa membuka browser otomatis; buka tautan di atas.", flush=True)
+        print("Could not open the browser automatically; open the link above.", flush=True)
 
 
 def _banner(port: int, token_url: str, settings_path: Path) -> None:
     line = "=" * 64
     print(line, flush=True)
-    print(f"{APP_NAME} {__version__} - antarmuka web lokal", flush=True)
+    print(f"{APP_NAME} {__version__} - local web interface", flush=True)
     print(line, flush=True)
-    print(f"Alamat     : http://{DEFAULT_HOST}:{port}/", flush=True)
-    print(f"Tautan sesi: {token_url}", flush=True)
-    print(f"Preferensi : {settings_path}", flush=True)
-    print("Tekan Ctrl+C untuk menghentikan server.", flush=True)
+    print(f"Address    : http://{DEFAULT_HOST}:{port}/", flush=True)
+    print(f"Session link: {token_url}", flush=True)
+    print(f"Preferences : {settings_path}", flush=True)
+    print("Press Ctrl+C to stop the server.", flush=True)
     print(line, flush=True)
 
 
@@ -205,13 +205,13 @@ def run(
             entry = _wait_for_state()
         if entry is None:
             print(
-                "Server sudah berjalan tetapi tautannya belum tersedia. "
-                "Tutup jendela konsol server lama atau periksa Task Manager.",
+                "The server is running but the link is not available yet. "
+                "Close the old server console window or check Task Manager.",
                 flush=True,
             )
             return 1
-        print(f"{APP_NAME} sudah berjalan di {entry['url']}", flush=True)
-        print(f"Tautan sesi: {entry['token_url']}", flush=True)
+        print(f"{APP_NAME} is already running at {entry['url']}", flush=True)
+        print(f"Session link: {entry['token_url']}", flush=True)
         if open_browser:
             webbrowser.open(entry["token_url"])
         return 0
@@ -220,8 +220,8 @@ def run(
     try:
         existing = find_running()
         if existing is not None:
-            print(f"{APP_NAME} sudah berjalan di {existing['url']}", flush=True)
-            print(f"Tautan sesi: {existing['token_url']}", flush=True)
+            print(f"{APP_NAME} is already running at {existing['url']}", flush=True)
+            print(f"Session link: {existing['token_url']}", flush=True)
             if open_browser:
                 webbrowser.open(existing["token_url"])
             return 0
@@ -234,7 +234,7 @@ def run(
             try:
                 download_snapshot(store)
             except Exception as exc:  # noqa: BLE001 - snapshot opsional saat start
-                print(f"Snapshot database bersama tidak bisa dimuat: {exc}")
+                print(f"Shared database snapshot could not be loaded: {exc}")
         chosen = choose_port(int(port) if port else DEFAULT_PORT)
         token = new_token()
         hosts, origins = allowed_for(chosen)
@@ -280,7 +280,7 @@ def run(
         except KeyboardInterrupt:  # pragma: no cover - ditangani uvicorn
             pass
         except Exception as exc:  # noqa: BLE001 - tampilkan pesan ke konsol
-            print(f"Server gagal dijalankan: {exc}", flush=True)
+            print(f"Server failed to start: {exc}", flush=True)
             return 1
         print("Server berhenti.", flush=True)
         return 0
@@ -313,23 +313,23 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="python -m server",
-        description="Server lokal antarmuka web BI Tools (127.0.0.1).",
+        description="BI Tools local web interface server (127.0.0.1).",
     )
-    parser.add_argument("--port", type=int, default=None, help="port yang dipakai")
+    parser.add_argument("--port", type=int, default=None, help="port to use")
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="jangan buka browser otomatis",
+        help="do not open the browser automatically",
     )
     parser.add_argument(
         "--settings",
         default=None,
-        help=f"berkas preferensi JSON (default: {default_path()})",
+        help=f"JSON preferences file (default: {default_path()})",
     )
     parser.add_argument(
         "--web-root",
         default=None,
-        help="folder aset web (default: web di folder aplikasi)",
+        help="web asset folder (default: web in the app folder)",
     )
     args = parser.parse_args(argv)
     if sys.platform == "win32":

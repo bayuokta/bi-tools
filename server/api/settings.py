@@ -27,7 +27,6 @@ class UiIn(BaseModel):
     theme: str | None = None
     motion: bool | None = None
     show_console: bool | None = None
-    language: str | None = None
 
 
 class ExtractionIn(BaseModel):
@@ -105,7 +104,6 @@ def save_ui(payload: UiIn, request: Request) -> dict[str, Any]:
         payload.theme,
         payload.motion,
         payload.show_console,
-        payload.language,
     )
 
 

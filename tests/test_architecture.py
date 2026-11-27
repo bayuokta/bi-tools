@@ -21,7 +21,7 @@ def source_files() -> list[Path]:
 
 
 def web_script_text() -> str:
-    """Semua JS sumber UI (app.js + modul di web/js), tanpa locales.js."""
+    """Semua JS sumber UI (app.js + modul di web/js)."""
     files = [ROOT / "web" / "app.js"]
     files.extend(sorted((ROOT / "web" / "js").rglob("*.js")))
     return "\n".join(path.read_text(encoding="utf-8") for path in files)
@@ -258,8 +258,8 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn(".graph-wrap{ padding:8px 12px 12px; background:var(--console-bg); overflow:hidden; }", css)
         self.assertIn("function analysisLoadReportDetail(", js)
         self.assertIn("/api/analysis/report-detail", js)
-        self.assertIn('label: t("Practice score")', js)
-        self.assertIn('label: t("Broken visuals")', js)
+        self.assertIn('label: "Practice score"', js)
+        self.assertIn('label: "Broken visuals"', js)
         self.assertIn('{ label: "Views", num: true }', js)
         self.assertIn("hidden: Boolean(page.is_hidden)", js)
         self.assertIn("hidden: Boolean(visual.is_hidden)", js)
@@ -779,7 +779,7 @@ class WebLayerTests(unittest.TestCase):
         ):
             self.assertIn(f'"{label}"', presenter, f"grup {label} hilang dari presenter")
         self.assertIn('label: "Auto create"', js)
-        self.assertIn('label: t("# used"), key: "used", num: true', js)
+        self.assertIn('label: "# used", key: "used", num: true', js)
         self.assertNotIn('{ label: "Security filter"', js)
         self.assertNotIn('kind: "subhead"', js)
         self.assertIn('"columns": [', presenter)

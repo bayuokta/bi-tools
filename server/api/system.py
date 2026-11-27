@@ -16,7 +16,7 @@ router = APIRouter(tags=["system"])
 
 @router.get("/api/health")
 def health() -> dict[str, str]:
-    """Dipakai launcher untuk menunggu server siap (tanpa token)."""
+    """Used launcher untuk menunggu server siap (tanpa token)."""
     return {"status": "ok", "app": APP_NAME, "version": __version__}
 
 

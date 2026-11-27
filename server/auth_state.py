@@ -11,15 +11,15 @@ from .settings_store import SettingsStore
 
 def _user_status(session: UserSession) -> dict[str, Any]:
     if session.signed_in:
-        text = f"Login sebagai {session.account or 'akun 365'}."
+        text = f"Signed in as {session.account or 'akun 365'}."
         tone = "ok"
         if session.fabric_error:
-            text += " Token Fabric belum tersedia."
+            text += " The Fabric token is not available yet."
             tone = "warn"
     else:
         text = (
-            "Belum login. Klik Sign in untuk membuka browser dan memakai "
-            "akun 365."
+            "Not signed in. Click Sign in to open the browser with "
+            "your Microsoft 365 account."
         )
         tone = "idle"
     return {

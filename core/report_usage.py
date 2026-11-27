@@ -42,11 +42,11 @@ USAGE_FORMAT = "format"
 USAGE_CALCULATION = "calculation"
 
 USAGE_LABELS = {
-    USAGE_FIELD: "Field visual",
-    USAGE_FILTER_REPORT: "Filter report",
-    USAGE_FILTER_PAGE: "Filter halaman",
-    USAGE_FILTER_VISUAL: "Filter visual",
-    USAGE_QUERY_FILTER: "Filter query visual",
+    USAGE_FIELD: "Visual field",
+    USAGE_FILTER_REPORT: "Report filter",
+    USAGE_FILTER_PAGE: "Page filter",
+    USAGE_FILTER_VISUAL: "Visual filter",
+    USAGE_QUERY_FILTER: "Visual query filter",
     USAGE_SORT: "Sort",
     USAGE_FORMAT: "Formatting",
     USAGE_CALCULATION: "Visual calculation",
@@ -397,7 +397,7 @@ class _Collector:
         """Catat referensi field yang tidak bisa dipetakan (string + baris)."""
         where = f"{page_name} / {visual_id[:8]}"
         ref = str(query_ref or "?")
-        reason = f"'{ref}' tidak bisa dipetakan ke tabel/kolom"
+        reason = f"'{ref}' could not be mapped to a table/column"
         self.unresolved.append(f"{where}: {reason}")
         self.unresolved_rows.append(
             {
@@ -567,8 +567,8 @@ def _scan_pbir(
             collector.add_field(
                 info,
                 usage_kind=USAGE_FILTER_REPORT,
-                page_name="(semua halaman)",
-                visual_title="(semua visual)",
+                page_name="(all pages)",
+                visual_title="(all visuals)",
                 detail=detail,
             )
 
@@ -602,7 +602,7 @@ def _scan_pbir(
                     usage_kind=USAGE_FILTER_PAGE,
                     page_id=page_id,
                     page_name=page_name,
-                    visual_title="(semua visual di halaman)",
+                    visual_title="(all visuals on page)",
                     detail=detail,
                 )
 
@@ -781,7 +781,7 @@ def _scan_pbir(
                 "order_index": order,
             }
         )
-        log(f"  PBIR halaman {order}: {page_name} ({len(visuals)} visual)")
+        log(f"  PBIR page {order}: {page_name} ({len(visuals)} visuals)")
 
 
 def _pbir_title(visual: dict[str, Any], visual_id: str) -> str:
@@ -795,7 +795,7 @@ def _pbir_title(visual: dict[str, Any], visual_id: str) -> str:
             if cleaned:
                 return cleaned
     visual_type = str(visual.get("visualType") or "visual")
-    return f"(tanpa judul) {visual_type} {visual_id[:8]}"
+    return f"(untitled) {visual_type} {visual_id[:8]}"
 
 
 # ---------------------------------------------------------------------------
@@ -944,7 +944,7 @@ def _scan_legacy(
 ) -> None:
     report = parts.json("report.json")
     if not report:
-        collector.unresolved.append("report.json kosong atau tidak bisa dibaca")
+        collector.unresolved.append("report.json is empty or could not be read")
         return
 
     report_config = _loads(report.get("config")) or {}
@@ -954,8 +954,8 @@ def _scan_legacy(
         collector.add_field(
             info,
             usage_kind=USAGE_FILTER_REPORT,
-            page_name="(semua halaman)",
-            visual_title="(semua visual)",
+            page_name="(all pages)",
+            visual_title="(all visuals)",
             detail=str(info.get("detail") or "Filter"),
         )
 
@@ -971,7 +971,7 @@ def _scan_legacy(
                 usage_kind=USAGE_FILTER_PAGE,
                 page_id=page_id,
                 page_name=page_name,
-                visual_title="(semua visual di halaman)",
+                visual_title="(all visuals on page)",
                 detail=str(info.get("detail") or "Filter"),
             )
 
@@ -1068,7 +1068,7 @@ def _scan_legacy(
                     visual_id=visual_id,
                     visual_type=visual_type,
                     visual_title=title,
-                    detail="select tanpa proyeksi",
+                    detail="select without projection",
                 )
 
             for field_info in _legacy_filter_fields(container.get("filters"), alias):
@@ -1148,7 +1148,7 @@ def _scan_legacy(
                 "order_index": order,
             }
         )
-        log(f"  Legacy halaman {order}: {page_name} ({visuals} visual)")
+        log(f"  Legacy page {order}: {page_name} ({visuals} visuals)")
 
 
 def _query_ref_field(
@@ -1191,7 +1191,7 @@ def _legacy_title(visual: dict[str, Any], visual_id: str) -> str:
             if cleaned:
                 return cleaned
     visual_type = str(visual.get("visualType") or "visual")
-    return f"(tanpa judul) {visual_type} {visual_id[:8]}"
+    return f"(untitled) {visual_type} {visual_id[:8]}"
 
 
 # ---------------------------------------------------------------------------
@@ -1215,13 +1215,13 @@ def scan_definition(
     else:
         return ReportUsage(
             report_format=report_format,
-            unresolved=[f"Format report tidak dikenal: {report_format or '(kosong)'}"],
+            unresolved=[f"Unknown report format: {report_format or '(empty)'}"],
         )
     collector.finish()
     if not collector.records:
         collector.unresolved.append(
-            "Tidak ada field yang terbaca; report mungkin kosong atau memakai "
-            "visual yang tidak memakai field."
+            "No fields were read; the report may be empty or use "
+            "visuals that do not reference fields."
         )
     return ReportUsage(
         report_format=report_format,

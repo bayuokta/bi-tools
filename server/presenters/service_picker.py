@@ -13,11 +13,11 @@ from core.lineage_api import PowerBILineageClient
 from core.lineage_service import WorkspaceOption, workspace_options
 
 EMPTY_CATALOG_HINT = (
-    "Belum ada workspace tersimpan. Buka Pengaturan lalu jalankan "
-    "Sinkronisasi katalog workspace."
+    "No saved workspace yet. Open Settings and run "
+    "Workspace catalog sync."
 )
 MISSING_CREDENTIALS = (
-    "Belum login atau kredensial belum lengkap; buka Pengaturan."
+    "Not signed in or credentials are incomplete; open Settings."
 )
 
 
@@ -28,7 +28,7 @@ def workspace_picklist(
     try:
         options = tuple(workspace_options(database))
     except ExtractionError as exc:
-        return (), set(), f"Database katalog tidak bisa dibaca: {exc}"
+        return (), set(), f"Catalog database could not be read: {exc}"
     names = [option.name for option in options]
     duplicates = {name for name in set(names) if names.count(name) > 1}
     return options, duplicates, "" if options else EMPTY_CATALOG_HINT

@@ -124,8 +124,8 @@ def fetch_service_report_definition(
     fabric = client or FabricReportClient(token_provider, log=log)
     try:
         log(
-            f"Mengambil definition report {service.report_id} "
-            f"dari workspace {service.workspace_id}..."
+            f"Fetching report definition {service.report_id} "
+            f"from workspace {service.workspace_id}..."
         )
         return fabric.get_report_definition(service)
     finally:
@@ -191,23 +191,23 @@ def _run_service_metadata_job(
     """Jalur Power BI Service: report via getDefinition, model via XMLA manual."""
     if not extract_report and not extract_model:
         raise ExtractionError(
-            "Tidak ada yang diekstrak: cakupan report dan model sama-sama dimatikan."
+            "Nothing to extract: both report and model scopes are disabled."
         )
     if extract_report and service is None:
         raise ExtractionError(
-            "Sumber report Power BI Service belum dipilih (URL report atau Workspace ID + Report ID)."
+            "No Power BI Service report source selected (report URL or Workspace ID + Report ID)."
         )
     if extract_report and token_provider is None:
-        raise ExtractionError("Token Fabric belum disiapkan untuk sumber Power BI Service.")
+        raise ExtractionError("The Fabric token is not ready for the Power BI Service source.")
     if extract_model and not endpoint and port is None:
         log(
-            "Model            : dilewati (instance Desktop belum dipilih / endpoint XMLA kosong)"
+            "Model            : skipped (no Desktop instance selected / empty XMLA endpoint)"
         )
         extract_model = False
 
     usage = bool(include_report_usage and extract_model and extract_report)
     if include_report_usage and extract_model and not usage:
-        log("Usage report     : dilewati (cakupan report tidak aktif)")
+        log("Usage report     : skipped (report scope is not active)")
 
     target_dir = (out_dir or outputs_dir()).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +243,7 @@ def _run_service_metadata_job(
         model_error = ""
         if extract_model:
             log("")
-            log("=== Ekstraksi semantic model (XMLA) ===")
+            log("=== Semantic model extraction (XMLA) ===")
             try:
                 model_result = run_model(
                     endpoint=endpoint,
@@ -264,22 +264,22 @@ def _run_service_metadata_job(
                 model_path = model_out
             except ExtractionError as exc:
                 model_error = str(exc)
-                log(f"WARNING: ekstraksi model dilewati: {exc}")
+                log(f"WARNING: model extraction skipped: {exc}")
                 if extract_report:
-                    log("WARNING: report tetap diekstrak tanpa validasi model.")
+                    log("WARNING: the report is still extracted without model validation.")
                 else:
-                    log("WARNING: tidak ada file model yang dibuat.")
+                    log("WARNING: no model file was created.")
                 if model_out.exists():
                     log(
-                        f"WARNING: {display_path(model_out)} tidak diperbarui "
-                        "dan mungkin sudah usang."
+                        f"WARNING: {display_path(model_out)} was not updated "
+                        "and may be out of date."
                     )
 
         report_result: dict[str, Any] | None = None
         report_path: Path | None = None
         if extract_report:
             log("")
-            log("=== Ekstraksi report ===")
+            log("=== Report extraction ===")
             report_result = _run_report_from_definition(
                 report_def,
                 f"service Power BI workspace {service.workspace_id} "
@@ -295,9 +295,9 @@ def _run_service_metadata_job(
             report_path = report_out
 
     if report_path is None and model_path is None:
-        reason = model_error or "tidak ada pekerjaan yang dipilih"
+        reason = model_error or "no work selected"
         raise ExtractionError(
-            "Tidak ada file yang dibuat: ekstraksi report dan model tidak berjalan "
+            "No files were created: report and model extraction did not run "
             f"({reason})."
         )
 
@@ -307,7 +307,7 @@ def _run_service_metadata_job(
     if model_path is not None:
         outputs.append(model_path)
     log("")
-    log(f"Selesai. {len(outputs)} file dibuat: " + ", ".join(display_path(p) for p in outputs))
+    log(f"Done. {len(outputs)} files created: " + ", ".join(display_path(p) for p in outputs))
 
     return MetadataJobResult(
         source=ServiceSourceInfo(
@@ -376,19 +376,19 @@ def _run_service_batch_job(
     if not reports:
         raise ExtractionError("Batch report kosong.")
     if token_provider is None:
-        raise ExtractionError("Token Fabric belum disiapkan untuk batch report.")
+        raise ExtractionError("The Fabric token is not ready for batch reports.")
     workspace_id = reports[0].workspace_id
     if any(item.workspace_id != workspace_id for item in reports):
         raise ExtractionError(
-            "Batch report harus berada di satu workspace yang sama."
+            "Batch reports must be in the same workspace."
         )
     if extract_model and not endpoint and port is None:
-        log("Model            : dilewati (endpoint XMLA kosong)")
+        log("Model            : skipped (empty XMLA endpoint)")
         extract_model = False
     if include_report_usage and extract_model:
         log(
-            "Usage report     : dilewati pada batch (model diekstrak sekali; "
-            "jalankan report tunggal untuk usage gabungan)."
+            "Usage report     : skipped for batches (the model is extracted once; "
+            "run a single report for combined usage)."
         )
 
     target_dir = (out_dir or outputs_dir()).resolve()
@@ -409,7 +409,7 @@ def _run_service_batch_job(
     model_error = ""
     if extract_model:
         log("")
-        log("=== Ekstraksi semantic model (XMLA) ===")
+        log("=== Semantic model extraction (XMLA) ===")
         try:
             model_result = run_model(
                 endpoint=endpoint,
@@ -423,8 +423,8 @@ def _run_service_batch_job(
             model_path = model_out
         except ExtractionError as exc:
             model_error = str(exc)
-            log(f"WARNING: ekstraksi model dilewati: {exc}")
-            log("WARNING: report tetap diekstrak tanpa validasi model.")
+            log(f"WARNING: model extraction skipped: {exc}")
+            log("WARNING: the report is still extracted without model validation.")
 
     rows: list[dict[str, Any]] = []
     outputs: list[Path] = []
@@ -502,7 +502,7 @@ def _run_service_batch_job(
             except Exception as exc:  # noqa: BLE001 - lanjut report lain
                 message = str(exc).splitlines()[0][:300]
                 row["Message"] = message
-                log(f"  GAGAL: {message}")
+                log(f"  FAILED: {message}")
             rows.append(row)
     finally:
         client.close()
@@ -514,8 +514,8 @@ def _run_service_batch_job(
     done = sum(1 for row in rows if row.get("Status") == "ok")
     log("")
     log(
-        f"Batch selesai: {done}/{len(reports)} report berhasil. "
-        f"Ringkasan: {display_path(summary)}"
+        f"Batch finished: {done}/{len(reports)} reports succeeded. "
+        f"Summary: {display_path(summary)}"
     )
     source = ServiceSourceInfo(
         workspace_id=workspace_id,
@@ -608,23 +608,23 @@ def run_metadata_job(
 
     if pbix is None:
         raise ExtractionError(
-            "File .pbix wajib ditentukan (--report). Tidak ada file bawaan."
+            "A .pbix file is required (--report). There is no default file."
         )
     pbix_path = pbix.resolve()
 
     source = detect_pbix_source(pbix_path)
-    log(f"Jenis sumber     : {source.label}")
+    log(f"Source type      : {source.label}")
     if source.has_local_model:
-        log("Model            : tersimpan di dalam .pbix (ekstraksi via XMLA)")
+        log("Model            : stored inside the .pbix (extraction via XMLA)")
     elif source.is_live_connection:
         dataset = f" {source.dataset_id}" if source.dataset_id else ""
-        log(f"Model            : tidak tersedia (live connection ke dataset{dataset})")
+        log(f"Model            : not available (live connection to dataset{dataset})")
     else:
-        log("Model            : tidak tersedia (jenis sumber tidak dikenali)")
+        log("Model            : not available (source type not recognized)")
     if not source.has_pbir:
-        log("WARNING: Report/definition tidak ditemukan; file mungkin masih memakai Report/Layout legacy.")
+        log("WARNING: Report/definition not found; the file may still use legacy Report/Layout.")
     if not extract_report:
-        log("Report           : dilewati (cakupan semantic model saja)")
+        log("Report           : skipped (semantic model scope only)")
 
     target_dir = (out_dir or outputs_dir()).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -637,20 +637,20 @@ def run_metadata_job(
     model_target_missing = not endpoint and port is None and not catalog
     if not source.has_local_model:
         model_skip_reason = (
-            "thin report" if source.is_live_connection else "jenis sumber tidak dikenali"
+            "thin report" if source.is_live_connection else "source type not recognized"
         )
     elif not extract_model:
-        model_skip_reason = "opsi ekstrak model tidak aktif"
+        model_skip_reason = "model extraction option is off"
     elif model_target_missing:
-        model_skip_reason = "instance Desktop belum dipilih / tidak terbuka"
+        model_skip_reason = "no Desktop instance selected / not open"
     else:
         model_skip_reason = ""
 
     if model_skip_reason:
-        log(f"Model            : dilewati ({model_skip_reason})")
+        log(f"Model            : skipped ({model_skip_reason})")
     else:
         log("")
-        log("=== Ekstraksi semantic model (XMLA) ===")
+        log("=== Semantic model extraction (XMLA) ===")
         try:
             model_result = run_model(
                 endpoint=endpoint,
@@ -666,19 +666,19 @@ def run_metadata_job(
         except ExtractionError as exc:
             model_error = str(exc)
             model_skip_reason = str(exc)
-            log(f"WARNING: ekstraksi model dilewati: {exc}")
+            log(f"WARNING: model extraction skipped: {exc}")
             if extract_report:
-                log("WARNING: report tetap diekstrak tanpa validasi model.")
+                log("WARNING: the report is still extracted without model validation.")
             else:
-                log("WARNING: tidak ada file model yang dibuat.")
+                log("WARNING: no model file was created.")
             if model_out.exists():
-                log(f"WARNING: {display_path(model_out)} tidak diperbarui dan mungkin sudah usang.")
+                log(f"WARNING: {display_path(model_out)} was not updated and may be out of date.")
 
     report_result: dict[str, Any] | None = None
     report_path: Path | None = None
     if extract_report:
         log("")
-        log("=== Ekstraksi report ===")
+        log("=== Report extraction ===")
         report_result = run_report_job(
             pbix=pbix_path,
             model_workbook=model_path,
@@ -693,12 +693,12 @@ def run_metadata_job(
 
     if report_path is None and model_path is None:
         if not extract_report and not extract_model:
-            reason = "kedua cakupan (report dan model) dimatikan"
+            reason = "both scopes (report and model) are disabled"
         else:
-            reason = model_error or model_skip_reason or "tidak ada pekerjaan yang dipilih"
+            reason = model_error or model_skip_reason or "no work selected"
         raise ExtractionError(
-            "Tidak ada file yang dibuat: ekstraksi report dilewati dan ekstraksi model "
-            f"tidak berjalan ({reason})."
+            "No files were created: report extraction was skipped and model extraction "
+            f"did not run ({reason})."
         )
 
     outputs: list[Path] = []
@@ -707,7 +707,7 @@ def run_metadata_job(
     if model_path is not None:
         outputs.append(model_path)
     log("")
-    log(f"Selesai. {len(outputs)} file dibuat: " + ", ".join(display_path(path) for path in outputs))
+    log(f"Done. {len(outputs)} files created: " + ", ".join(display_path(path) for path in outputs))
 
     return MetadataJobResult(
         source=source,

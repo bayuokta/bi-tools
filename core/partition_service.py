@@ -97,7 +97,7 @@ def _run_json_process(
     )
     if completed.returncode != 0:
         line = _error_line(completed.stderr or completed.stdout)
-        raise ExtractionError(line or "Proses CLI gagal tanpa pesan.")
+        raise ExtractionError(line or "The CLI process failed without a message.")
     return completed.stdout or ""
 
 
@@ -148,7 +148,7 @@ def _run_stream_process(
             process.kill()
     if process.returncode != 0:
         line = _error_line("\n".join(errors))
-        raise ExtractionError(line or "Proses CLI gagal tanpa pesan.")
+        raise ExtractionError(line or "The CLI process failed without a message.")
     return "".join(chunks)
 
 
@@ -242,7 +242,7 @@ def _row_counts(
                 endpoint, dataset_name, tokens, interactive
             )
     except Exception as exc:  # noqa: BLE001 - row count bersifat best-effort
-        message = f"Jumlah baris partisi tidak tersedia: {exc}"
+        message = f"Partition row counts are not available: {exc}"
         log(message)
         return {}, [message]
     return partition_row_counts(segments), []
@@ -334,7 +334,7 @@ def read_partition_inventory(
         endpoint, dataset_name, tokens, log, interactive
     )
     log(
-        f"Partisi dibaca: {len(partitions)}; jumlah baris tersedia untuk "
+        f"Partitions read: {len(partitions)}; row counts available for "
         f"{len(row_counts)} partisi."
     )
     return _payload(
@@ -366,7 +366,7 @@ def process_partitions(
     normalized = normalize_refresh_type(refresh_type)
     pairs = tuple((str(table).strip(), str(name).strip()) for table, name in targets)
     if not pairs:
-        raise ExtractionError("Pilih minimal satu partisi untuk diproses.")
+        raise ExtractionError("Select at least one partition to process.")
 
     tokens = EntraTokens(principal)
     endpoint = _endpoint(principal, workspace_name)
@@ -375,16 +375,16 @@ def process_partitions(
     log(f"Refresh type: {normalized}")
     log(f"Target partisi: {len(pairs)}")
     if _should_stop(should_stop):
-        raise ExtractionError("Refresh partisi dibatalkan sebelum dikirim.")
+        raise ExtractionError("Partition refresh cancelled before sending.")
 
     log(
-        "Mengirim refresh TMSL; perintah tidak bisa dibatalkan setelah dikirim."
+        "Sending the TMSL refresh; the command cannot be cancelled once sent."
     )
     interactive = bool(getattr(principal, "interactive_xmla", False))
     refreshed = _tom_refresh_subprocess(
         endpoint, dataset_name, tokens, pairs, normalized, log, interactive
     )
-    log("Perintah refresh selesai; membaca jumlah baris partisi.")
+    log("Refresh completed; reading partition row counts.")
 
     row_counts, warnings = _row_counts(
         endpoint, dataset_name, tokens, log, interactive
@@ -406,9 +406,9 @@ def process_partitions(
         ],
         "completed_at": _now(),
         "message": (
-            f"Refresh {normalized} selesai untuk {len(pairs)} partisi. "
-            "Periksa Refresh history di Power BI Service untuk konfirmasi "
-            "Via XMLA Endpoint."
+            f"Refresh {normalized} finished for {len(pairs)} partitions. "
+            "Check Refresh history in the Power BI Service to confirm "
+            "via XMLA Endpoint."
         ),
     }
     return payload

@@ -3,7 +3,6 @@
 // berada di dalam <dialog>.
 
 import { $, $$, escapeHtml } from "./dom.js";
-import { t } from "./i18n.js";
 
 var comboState = { select: null, trigger: null, options: [], active: -1 };
 var selectData = {};
@@ -21,12 +20,12 @@ export function refreshCombo(select) {
   if (!button) return;
   var label = button.querySelector(".combo-label");
   var text = comboLabelText(select);
-  if (label) label.textContent = text || t("Choose…");
+  if (label) label.textContent = text || "Choose…";
   button.title = text;
   var fieldLabel = select.id ? document.querySelector('label[for="' + select.id + '"]') : null;
   button.setAttribute(
     "aria-label",
-    (fieldLabel ? fieldLabel.textContent.trim() + ": " : "") + (text || t("Choose"))
+    (fieldLabel ? fieldLabel.textContent.trim() + ": " : "") + (text || "Choose")
   );
   if (comboState.select === select) buildComboList($("#comboSearch").value);
 }
@@ -217,12 +216,11 @@ export function setSelectOptions(id, items, placeholder) {
   var select = $("#" + id);
   if (!select) return;
   var current = select.value;
-  select.dataset.i18nPlaceholder = placeholder || "";
   select.innerHTML = "";
   if (placeholder) {
     var head = document.createElement("option");
     head.value = "";
-    head.textContent = t(placeholder);
+    head.textContent = (placeholder);
     select.appendChild(head);
   }
   (items || []).forEach(function (item) {

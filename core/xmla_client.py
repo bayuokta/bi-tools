@@ -1,7 +1,7 @@
 """
 Klien XMLA minimal untuk semantic model Power BI (ADOMD + DMV).
 
-Dipakai oleh extract_model_metadata.py. Read-only: hanya SELECT ke DMV.
+Used oleh extract_model_metadata.py. Read-only: hanya SELECT ke DMV.
 Tidak menulis apa pun ke model.
 
 Catatan penting:
@@ -96,13 +96,13 @@ def unblock_dotnet_assemblies(*paths: Path | None) -> list[Path]:
 def _blocked_assembly_message(paths: list[Path], detail: str = "") -> str:
     listing = "\n".join(f"  - {path}" for path in paths)
     message = (
-        "Berkas .NET aplikasi masih ditandai berasal dari internet "
-        "(Mark of the Web) dan Windows menolak memuatnya:\n"
+        "The application .NET files are still marked as coming from the internet "
+        "(Mark of the Web) and Windows refuses to load them:\n"
         f"{listing}\n"
-        "Jalankan PowerShell berikut satu kali, lalu ulangi:\n"
+        "Run the following PowerShell command once, then try again:\n"
         f'  Get-ChildItem -Recurse -Path "{ROOT}" | Unblock-File\n'
-        "Cara lain: klik kanan ZIP -> Properties -> Unblock sebelum ekstrak, "
-        "atau pakai installer (BI Tools Setup) yang tidak menandai berkas."
+        "Alternatively, right-click the ZIP -> Properties -> Unblock before extracting, "
+        "or use the installer (BI Tools Setup), which does not mark the files."
     )
     if detail:
         message += f"\nDetail: {detail}"
@@ -152,7 +152,7 @@ def load_adomd(dll_path: str | Path | None = None) -> tuple[Any, Any, Any]:
 
     path = Path(dll_path) if dll_path else DEFAULT_DLL
     if not path.exists():
-        raise XmlaError(f"DLL ADOMD tidak ditemukan: {path}")
+        raise XmlaError(f"ADOMD DLL not found: {path}")
 
     folders = [path.parent]
     tom_dir = path.parent / "tom"
@@ -254,10 +254,10 @@ def _clear_adomd_channel_cache(*, force: bool = False) -> bool:
 
 def _channel_cache_message(exc: BaseException) -> str:
     return (
-        "Koneksi XMLA gagal karena cache channel ADOMD tidak kompatibel "
-        "dengan versi lain di mesin ini (Specified cast is not valid).\n"
-        "Tutup aplikasi lain yang memakai ADOMD/XMLA (Power BI Desktop, "
-        "DAX Studio, Tabular Editor, SSMS), lalu coba lagi.\n"
+        "The XMLA connection failed because the ADOMD channel cache is incompatible "
+        "with another version on this machine (Specified cast is not valid).\n"
+        "Close other applications that use ADOMD/XMLA (Power BI Desktop, "
+        "DAX Studio, Tabular Editor, SSMS), then try again.\n"
         f"Detail: {exc}"
     )
 
@@ -379,7 +379,7 @@ class XmlaClient:
 
     def query(self, dmv: str) -> list[dict[str, Any]]:
         if not DMV_RE.match(dmv):
-            raise XmlaError(f"Nama DMV tidak valid: {dmv}")
+            raise XmlaError(f"Invalid DMV name: {dmv}")
         return self.query_sql(f"SELECT * FROM $SYSTEM.{dmv}")
 
     # -- lifecycle ---------------------------------------------------------
@@ -434,7 +434,7 @@ def interactive_connection_string(
 ) -> str:
     """Tambahkan properti login interaktif MSOLAP untuk endpoint cloud.
 
-    Dipakai jalur akun 365 tanpa client id: token browser ditolak XMLA, jadi
+    Used jalur akun 365 tanpa client id: token browser ditolak XMLA, jadi
     autentikasi diserahkan ke MSOLAP. ``reuse=True`` memakai
     ``Interactive Login=Enabled`` agar TOM memakai ulang identitas ADOMD.
     """
@@ -547,7 +547,7 @@ def _connect(
                 continue
             raise XmlaError(_channel_cache_message(exc)) from exc
         return make_client(connection)
-    raise XmlaError("Koneksi XMLA tidak bisa dibuka.")
+    raise XmlaError("The XMLA connection could not be opened.")
 
 
 def _is_cloud(connection_string: str) -> bool:
@@ -626,7 +626,7 @@ def workspace_endpoint(
     """
     workspace = str(name or "").strip()
     if not workspace:
-        raise XmlaError("Nama workspace kosong; endpoint XMLA tidak bisa dibangun.")
+        raise XmlaError("Empty workspace name; cannot build the XMLA endpoint.")
     if disambiguate and workspace_id:
         workspace = f"{workspace} - {str(workspace_id).strip()}"
     part_tenant = str(tenant or "myorg").strip() or "myorg"
@@ -911,13 +911,13 @@ def open_client(
         elif len(ports) > 1 and not catalog:
             listing = "\n".join(f"  - localhost:{item[0]}" for item in ports)
             raise XmlaError(
-                "Ada lebih dari satu instance Power BI Desktop yang terbuka. "
-                "Pilih salah satu dengan --port atau --catalog:\n" + listing
+                "More than one Power BI Desktop instance is open. "
+                "Choose one with --port or --catalog:\n" + listing
             )
         if not ports:
             raise XmlaError(
-                "Tidak ada instance Power BI Desktop yang berjalan.\n"
-                "Buka file .pbix/.pbip di Power BI Desktop, lalu jalankan ulang script ini."
+                "No Power BI Desktop instance is running.\n"
+                "Open a .pbix/.pbip file in Power BI Desktop, then run this script again."
             )
         candidates = [(f"Data Source=localhost:{item[0]}", f"localhost:{item[0]}") for item in ports]
 
@@ -976,7 +976,7 @@ def open_client(
         try:
             catalogs = list_catalogs(base)
         except Exception as exc:  # noqa: BLE001
-            errors.append(f"{endpoint_label}: gagal membaca catalog ({exc})")
+            errors.append(f"{endpoint_label}: failed to read catalog ({exc})")
             base.close()
             continue
         finally:
@@ -1001,7 +1001,7 @@ def open_client(
             chosen = names[0]
         else:
             errors.append(
-                f"{endpoint_label}: ada {len(names)} catalog, tentukan dengan --catalog "
+                f"{endpoint_label}: {len(names)} catalogs found, specify one with --catalog "
                 f"({', '.join(names[:6])}{'...' if len(names) > 6 else ''})"
             )
             continue
@@ -1023,4 +1023,4 @@ def open_client(
         return client
 
     detail = "\n".join(f"  - {item}" for item in errors)
-    raise XmlaError(f"Tidak bisa terhubung ke model.\n{detail}")
+    raise XmlaError(f"Could not connect to the model.\n{detail}")

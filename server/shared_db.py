@@ -56,7 +56,7 @@ def download_snapshot(store: SettingsStore) -> dict[str, object]:
     source = store.shared_db_source()
     if not source:
         raise ExtractionError(
-            "Lokasi snapshot bersama belum diisi (folder SharePoint/OneDrive)."
+            "Shared snapshot location is not set (SharePoint/OneDrive folder)."
         )
     local = local_snapshot_path(store)
     result = prepare_local_snapshot(source, local)

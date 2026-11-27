@@ -126,7 +126,7 @@ class TsdPresenterTests(unittest.TestCase):
                 self.store,
                 presenter.normalize(self.store, self.form(screenshots=True)),
             )
-        self.assertIn("workspace dan report", str(ctx.exception))
+        self.assertIn("workspace and report", str(ctx.exception))
 
     def test_build_request_screenshots_builds_capture(self) -> None:
         request, capture, _paths = presenter.build_request(
@@ -324,7 +324,7 @@ class TsdEndpointTests(unittest.TestCase):
             "/api/tsd/capture", json=self.payload(screenshots=True)
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("workspace dan report", response.json()["detail"])
+        self.assertIn("workspace and report", response.json()["detail"])
 
     def test_manual_endpoints(self) -> None:
         state = self.client.get("/api/tsd/manual").json()

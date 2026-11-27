@@ -295,7 +295,7 @@ class CatalogDiscoveryTests(unittest.TestCase):
             )
         self.assertEqual([entry.report_id for entry in entries], ["catalog-1"])
         self.assertEqual(method, "catalog")
-        self.assertTrue(any("katalog" in note for note in notes))
+        self.assertTrue(any("catalog" in note for note in notes))
 
 
 if __name__ == "__main__":

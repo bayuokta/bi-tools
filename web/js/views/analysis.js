@@ -3,7 +3,6 @@ import { getSelectValue, setSelectOptions, setSelectValue } from "../core/combo.
 import { $, $$, escapeHtml } from "../core/dom.js";
 import { decimalText, fileMeta, fmtInt, sizeText } from "../core/format.js";
 import { highlightCode } from "../core/highlight.js";
-import { currentLanguage, t, tr } from "../core/i18n.js";
 import { state } from "../core/state.js";
 
   var ANALYSIS_CHEVRON = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -181,78 +180,78 @@ import { state } from "../core/state.js";
   };
   var ANALYSIS_TABS = {
     all: {
-      placeholder: t("Column, measure, or table name"),
-      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"], ["hierarchies", t("Hierarchies")]],
+      placeholder: "Column, measure, or table name",
+      filters: [["all", "All types"], ["columns", "Columns"], ["measures", "Measure"], ["hierarchies", "Hierarchies"]],
       unused: true,
       expandable: true
     },
     tables: {
-      placeholder: t("Table, column, or measure name"),
-      filters: [["all", t("All types")], ["columns", t("Columns")], ["measures", "Measure"]],
+      placeholder: "Table, column, or measure name",
+      filters: [["all", "All types"], ["columns", "Columns"], ["measures", "Measure"]],
       unused: true,
       expandable: true
     },
     relationships: {
-      placeholder: t("Relationship or column name"),
-      filters: [["all", t("All statuses")], ["active", t("Active")], ["inactive", t("Inactive")]],
+      placeholder: "Relationship or column name",
+      filters: [["all", "All statuses"], ["active", "Active"], ["inactive", "Inactive"]],
       unused: false,
       expandable: false
     },
     roles: {
-      placeholder: t("Role or member name"),
-      filters: [["all", t("All types")], ["Role", t("Role")], ["Member", t("Member")]],
+      placeholder: "Role or member name",
+      filters: [["all", "All types"], ["Role", "Role"], ["Member", "Member"]],
       unused: false,
       expandable: true
     },
     report: {
-      placeholder: t("Report, page, or workspace name"),
-      filters: [["all", t("All statuses")], ["used", t("Used")], ["unused", t("Unused")]],
+      placeholder: "Report, page, or workspace name",
+      filters: [["all", "All statuses"], ["used", "Used"], ["unused", "Unused"]],
       unused: false,
       expandable: true
     },
     dax: {
-      placeholder: t("Measure, calculated column, or DAX expression"),
-      filters: [["all", t("All types")], ["Measure", "Measure"], ["Calculated column", "Calculated column"]],
+      placeholder: "Measure, calculated column, or DAX expression",
+      filters: [["all", "All types"], ["Measure", "Measure"], ["Calculated column", "Calculated column"]],
       unused: false,
       expandable: true
     },
     m: {
-      placeholder: t("Query, parameter, or M expression"),
-      filters: [["all", t("All types")], ["Tabel", t("Table")], ["M parameter", "M parameter"], ["Expression", "Expression"]],
+      placeholder: "Query, parameter, or M expression",
+      filters: [["all", "All types"], ["Table", "Table"], ["M parameter", "M parameter"], ["Expression", "Expression"]],
       unused: false,
       expandable: true
     },
     health: {
-      placeholder: t("Rule, object, or report name"),
+      placeholder: "Rule, object, or report name",
       filters: [
-        ["all", t("All severities")],
-        ["critical", t("Critical")],
-        ["warning", t("Warning")],
-        ["info", t("Info")]
+        ["all", "All severities"],
+        ["critical", "Critical"],
+        ["warning", "Warning"],
+        ["info", "Info"]
       ],
       unused: false,
       expandable: false
     },
     bestpractice: {
-      placeholder: t("Rule, object, or category"),
+      placeholder: "Rule, object, or category",
       filters: [
-        ["all", t("All categories")],
-        ["Performance", t("Performance")],
-        ["DAX Expressions", t("DAX Expressions")],
-        ["Error Prevention", t("Error Prevention")],
-        ["Maintenance", t("Maintenance")],
-        ["Formatting", t("Formatting")],
-        ["Naming Conventions", t("Naming Conventions")]
+        ["all", "All categories"],
+        ["Performance", "Performance"],
+        ["DAX Expressions", "DAX Expressions"],
+        ["Error Prevention", "Error Prevention"],
+        ["Maintenance", "Maintenance"],
+        ["Formatting", "Formatting"],
+        ["Naming Conventions", "Naming Conventions"]
       ],
       unused: false,
       expandable: true
     }
   };
   var ANALYSIS_STATUS_ORDER = {
-    "Tidak dipakai": 0,
-    "Perlu dicek": 1,
-    "Dipakai": 2,
-    "Wajib dipertahankan": 3
+    "Unused": 0,
+    "Needs review": 1,
+    "Used": 2,
+    "Must keep": 3
   };
 
   function analysisPayload() {
@@ -275,23 +274,23 @@ import { state } from "../core/state.js";
   }
 
   var ANALYSIS_STATUS_LABELS = {
-    "Tidak dipakai": "Unused",
-    "Perlu dicek": "Needs review",
-    "Dipakai": "Used",
-    "Wajib dipertahankan": "Must keep"
+    "Unused": "Unused",
+    "Needs review": "Needs review",
+    "Used": "Used",
+    "Must keep": "Must keep"
   };
 
   function tStatus(status) {
     var english = ANALYSIS_STATUS_LABELS[status];
-    return english ? t(english) : status;
+    return english ? (english) : status;
   }
 
   function analysisStatusChip(status) {
     var map = {
-      "Tidak dipakai": "chip-danger",
-      "Perlu dicek": "chip-warn",
-      "Dipakai": "chip-ok",
-      "Wajib dipertahankan": "chip-accent"
+      "Unused": "chip-danger",
+      "Needs review": "chip-warn",
+      "Used": "chip-ok",
+      "Must keep": "chip-accent"
     };
     return '<span class="chip ' + (map[status] || "chip-idle") +
       '"><span class="dot"></span>' + escapeHtml(tStatus(status) || "-") + "</span>";
@@ -305,8 +304,8 @@ import { state } from "../core/state.js";
 
   function analysisCoverageSuffix(result) {
     if (!result) return "";
-    if (result.coverage_complete) return t(" · full coverage");
-    return result.coverage ? " · " + result.coverage : t(" · partial coverage");
+    if (result.coverage_complete) return " · full coverage";
+    return result.coverage ? " · " + result.coverage : " · partial coverage";
   }
 
   function analysisTabConfig(name) {
@@ -366,15 +365,15 @@ import { state } from "../core/state.js";
         $("#spStatus"),
         missing.length ? "warn" : "ok",
         missing.length
-          ? t("Not signed in")
-          : t("Signed in")
+          ? "Not signed in"
+          : "Signed in"
       );
       $("#modelSelect") && setSelectOptions("modelSelect", [], "Choose a semantic model…");
       analysisApplyTabTools(state.analysisTab, false);
       analysisRender();
       return data;
     }).catch(function (error) {
-      app.addLog(t("Analysis catalog could not be read: ") + error.message, "warn");
+      app.addLog("Analysis catalog could not be read: " + error.message, "warn");
     });
   }
 
@@ -387,19 +386,19 @@ import { state } from "../core/state.js";
       return Promise.resolve();
     }
     setSelectOptions("modelSelect", [], "Loading datasets…");
-    $("#analyzeSummary").textContent = t("Loading semantic models…");
+    $("#analyzeSummary").textContent = "Loading semantic models…";
     return app.api().get(
       "/api/analysis/workspaces/" + encodeURIComponent(workspaceId) + "/datasets"
     ).then(function (data) {
       setSelectOptions("modelSelect", (data.datasets || []).map(function (item) {
         return { value: item.id, label: item.name, data: item };
       }), "Choose a semantic model…");
-      $("#analyzeSummary").textContent = t("Choose a semantic model to analyze.");
+      $("#analyzeSummary").textContent = "Choose a semantic model to analyze.";
       analysisRender();
       return data;
     }).catch(function (error) {
       setSelectOptions("modelSelect", [], "Choose a semantic model…");
-      $("#analyzeSummary").textContent = tr(error.message);
+      $("#analyzeSummary").textContent = (error.message);
       app.reportError(error);
     });
   }
@@ -407,9 +406,9 @@ import { state } from "../core/state.js";
   export function analysisNote(result) {
     var stamp = String(result.analyzed_at || "")
       .replace("T", " ").slice(0, 16);
-    var text = t("Updated ") + (stamp || "-") + ".";
+    var text = "Updated " + (stamp || "-") + ".";
     if (result.reports_included === false) {
-      text = t("Model only — report usage not included.") + " " + text;
+      text = "Model only — report usage not included." + " " + text;
     }
     return text;
   }
@@ -432,18 +431,18 @@ import { state } from "../core/state.js";
     state.relSelected = null;
     var totals = result.totals || {};
     $("#metricSize").textContent = analysisFmtBytes(totals.model_bytes);
-    var sizeNote = (totals.tables || 0) + t(" tables in the model");
+    var sizeNote = (totals.tables || 0) + " tables in the model";
     $("#metricSizeNote").textContent = sizeNote;
     $("#metricSizeNote").title =
       "data " + analysisFmtBytes(totals.data_bytes) +
-      t(" · hierarchy ") + analysisFmtBytes(totals.hierarchy_bytes) +
+      " · hierarchy " + analysisFmtBytes(totals.hierarchy_bytes) +
       " · dictionary " + analysisFmtBytes(totals.dictionary_bytes);
     $("#metricColumns").textContent = (totals.columns || 0);
-    $("#metricColumnsNote").textContent = (totals.hidden_columns || 0) + t(" hidden columns");
+    $("#metricColumnsNote").textContent = (totals.hidden_columns || 0) + " hidden columns";
     $("#metricMeasures").textContent = (totals.measures || 0);
     $("#metricMeasuresNote").textContent = totals.helper_measures
-      ? totals.helper_measures + t(" stored in _Measures")
-      : t("measures in the model");
+      ? totals.helper_measures + " stored in _Measures"
+      : "measures in the model";
     $("#metricUnusedColumns").textContent = (totals.unused_columns || 0);
     var pct = totals.model_bytes
       ? Math.round((totals.unused_bytes || 0) / totals.model_bytes * 100)
@@ -453,15 +452,15 @@ import { state } from "../core/state.js";
     $("#metricUnusedColumnsNote").title = unusedNote;
     $("#metricUnusedMeasures").textContent = (totals.unused_measures || 0);
     $("#metricUnusedMeasuresNote").textContent = totals.measures
-      ? Math.round((totals.unused_measures || 0) / totals.measures * 100) + t("% of total measures")
-      : t("not referenced");
+      ? Math.round((totals.unused_measures || 0) / totals.measures * 100) + "% of total measures"
+      : "not referenced";
     if (result.reports_included === false) {
       $("#metricReport").textContent = "—";
-      $("#metricReportNote").textContent = t("Report usage not included");
+      $("#metricReportNote").textContent = "Report usage not included";
     } else {
-      $("#metricReport").textContent = (totals.reports || 0) + t(" reports");
-      var reportNote = (totals.pages || 0) + t(" pages · ") +
-        (totals.visuals || 0) + t(" visuals");
+      $("#metricReport").textContent = (totals.reports || 0) + " reports";
+      var reportNote = (totals.pages || 0) + " pages · " +
+        (totals.visuals || 0) + " visuals";
       $("#metricReportNote").textContent = reportNote;
       $("#metricReportNote").title = result.coverage || "";
     }
@@ -469,10 +468,10 @@ import { state } from "../core/state.js";
       $("#spStatus"),
       result.coverage_complete ? "ok" : "warn",
       result.coverage_complete
-        ? t("Full coverage")
+        ? "Full coverage"
         : (result.reports_included === false
-          ? t("Model only — report usage not included")
-          : t("Partial coverage"))
+          ? "Model only — report usage not included"
+          : "Partial coverage")
     );
     analysisApplyTabTools(state.analysisTab, false);
     analysisRender();
@@ -483,8 +482,8 @@ import { state } from "../core/state.js";
     if (!button) return;
     var canExport = state.analysisTab === "all";
     button.disabled = !state.analysis || !canExport;
-    button.textContent = t(canExport ? "Export Result" : "Export (coming soon)");
-    button.title = canExport ? t("Export Result") : t("Coming soon");
+    button.textContent = (canExport ? "Export Result" : "Export (coming soon)");
+    button.title = canExport ? "Export Result" : "Coming soon";
     button.setAttribute(
       "aria-disabled",
       state.analysis && canExport ? "false" : "true"
@@ -568,7 +567,7 @@ import { state } from "../core/state.js";
       html += '<button type="button" class="row-toggle" data-analysis-toggle="' +
         escapeHtml(options.toggleId) + '" aria-expanded="' +
         (options.open ? "true" : "false") + '" aria-label="' +
-        (options.open ? t("Collapse ") : t("Expand ")) + escapeHtml(name) + '">' +
+        (options.open ? "Collapse " : "Expand ") + escapeHtml(name) + '">' +
         ANALYSIS_CHEVRON + "</button>";
     } else if (options.level) {
       html += '<span class="row-toggle" aria-hidden="true"></span>';
@@ -584,8 +583,8 @@ import { state } from "../core/state.js";
     if (options.menu) {
       html += '<button type="button" class="row-menu-btn" data-analysis-menu ' +
         'aria-haspopup="menu" aria-expanded="false" aria-label="' +
-        escapeHtml(t("Item actions")) + '" title="' +
-        escapeHtml(t("Item actions")) + '">' + MENU_ICONS.more + "</button>";
+        escapeHtml("Item actions") + '" title="' +
+        escapeHtml("Item actions") + '">' + MENU_ICONS.more + "</button>";
     }
     html += "</div>";
     return html;
@@ -637,12 +636,12 @@ import { state } from "../core/state.js";
   function analysisMenuEntries(target) {
     if (target.kind === "table") {
       return [
-        { id: "table-lineage", label: t("Table lineage"), icon: "graph", primary: true },
-        { id: "table-details", label: t("Table details"), icon: "details" },
-        { id: "table-show", label: t("Show in analysis"), icon: "table" },
-        { id: "table-copy", label: t("Copy table name"), icon: "copy" },
+        { id: "table-lineage", label: "Table lineage", icon: "graph", primary: true },
+        { id: "table-details", label: "Table details", icon: "details" },
+        { id: "table-show", label: "Show in analysis", icon: "table" },
+        { id: "table-copy", label: "Copy table name", icon: "copy" },
         { divider: true },
-        { id: "exports", label: t("Exports"), icon: "export", submenu: "exports" }
+        { id: "exports", label: "Exports", icon: "export", submenu: "exports" }
       ];
     }
     var item = analysisFindItem(target.kind, target.table, target.name);
@@ -652,66 +651,66 @@ import { state } from "../core/state.js";
     var entries = [
       {
         id: "expand",
-        label: t("Expand items below"),
+        label: "Expand items below",
         icon: "expand",
         disabled: !canToggle
       },
       {
         id: "collapse",
-        label: t("Collapse items below"),
+        label: "Collapse items below",
         icon: "collapse",
         disabled: !canToggle
       },
-      { id: "copy", label: t("Copy text"), icon: "copy" },
+      { id: "copy", label: "Copy text", icon: "copy" },
       { divider: true }
     ];
     if (isMeasure) {
-      entries.push({ id: "dax", label: t("View DAX expression"), icon: "sigma" });
+      entries.push({ id: "dax", label: "View DAX expression", icon: "sigma" });
     }
     entries.push(
-      { id: "lineage", label: t("View column lineage"), icon: "lineage" },
+      { id: "lineage", label: "View column lineage", icon: "lineage" },
       {
         id: "lineage-graph",
-        label: t("View column lineage graph"),
+        label: "View column lineage graph",
         icon: "graph",
         primary: true
       },
       {
         id: "details",
-        label: isMeasure ? t("Measure details") : t("Column details"),
+        label: isMeasure ? "Measure details" : "Column details",
         icon: "details"
       },
       {
         id: "raw-metadata",
-        label: isMeasure ? t("Measure raw data") : t("Column raw data"),
+        label: isMeasure ? "Measure raw data" : "Column raw data",
         icon: "raw"
       },
       {
         id: "preview",
-        label: t("Preview values"),
+        label: "Preview values",
         icon: "query"
       },
       {
         id: "dependencies",
-        label: t("View dependencies"),
+        label: "View dependencies",
         icon: "dependencies",
         submenu: "dependencies"
       },
       {
         id: "table-options",
-        label: t("Table options"),
+        label: "Table options",
         icon: "table",
         submenu: "table"
       },
       {
         id: "model-options",
-        label: t("Model options"),
+        label: "Model options",
         icon: "model",
         submenu: "model"
       },
       {
         id: "exports",
-        label: t("Exports"),
+        label: "Exports",
         icon: "export",
         submenu: "exports"
       }
@@ -736,7 +735,7 @@ import { state } from "../core/state.js";
       if (disabled) attrs += ' aria-disabled="true"';
       var icon = MENU_ICONS[entry.icon] || "";
       var badge = entry.soon
-        ? '<span class="menu-badge">' + escapeHtml(t("Soon")) + "</span>"
+        ? '<span class="menu-badge">' + escapeHtml("Soon") + "</span>"
         : "";
       var arrow = entry.submenu
         ? '<span class="menu-arrow">' + MENU_ICONS.chevron + "</span>"
@@ -816,7 +815,7 @@ import { state } from "../core/state.js";
       return '<div class="menu-item" role="menuitem" tabindex="-1" data-menu-action="' +
         escapeHtml(entry.action) + '">' +
         '<span class="menu-icon">' + (MENU_ICONS[entry.icon] || "") + "</span>" +
-        '<span class="menu-label">' + escapeHtml(t(entry.label)) + "</span></div>";
+        '<span class="menu-label">' + escapeHtml((entry.label)) + "</span></div>";
     }).join("");
   }
 
@@ -1045,9 +1044,9 @@ import { state } from "../core/state.js";
   export function copyTextValue(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
-        app.toast(t("Copied to clipboard"));
+        app.toast("Copied to clipboard");
       }).catch(function () {
-        app.toast(t("Copy failed"));
+        app.toast("Copy failed");
       });
       return;
     }
@@ -1061,9 +1060,9 @@ import { state } from "../core/state.js";
       area.select();
       var copied = document.execCommand("copy");
       document.body.removeChild(area);
-      app.toast(copied ? t("Copied to clipboard") : t("Copy failed"));
+      app.toast(copied ? "Copied to clipboard" : "Copy failed");
     } catch (error) {
-      app.toast(t("Copy failed"));
+      app.toast("Copy failed");
     }
   }
 
@@ -1085,27 +1084,27 @@ import { state } from "../core/state.js";
       return table.name === target.table;
     })[0] || {};
     var query = (state.analysis.m_queries || []).filter(function (item) {
-      return item.kind === "Tabel" && item.name === target.table;
+      return item.kind === "Table" && item.name === target.table;
     })[0] || {};
     var rows = [
-      [t("Table"), target.table],
-      [t("Mode"), info.storage_mode || "\u2014"],
-      [t("Partitions"), info.partition_count || 0],
-      [t("Rows"), info.rows || 0],
-      [t("Size"), info.size || analysisFmtBytes(info.size_bytes || 0)],
-      [t("Columns"), info.column_count || 0],
-      [t("Measures"), info.measure_count || 0],
-      [t("Source"), query.source || "\u2014"],
-      [t("Query"), query.detail || "\u2014"]
+      ["Table", target.table],
+      ["Mode", info.storage_mode || "\u2014"],
+      ["Partitions", info.partition_count || 0],
+      ["Rows", info.rows || 0],
+      ["Size", info.size || analysisFmtBytes(info.size_bytes || 0)],
+      ["Columns", info.column_count || 0],
+      ["Measures", info.measure_count || 0],
+      ["Source", query.source || "\u2014"],
+      ["Query", query.detail || "\u2014"]
     ];
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
     }).join("") + "</div>";
     if (query.expression) {
-      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+      html += '<h3 class="detail-heading">' + escapeHtml("Expression") +
         "</h3>" + analysisExpressionMarkup(query.expression, "m");
     }
-    analysisOpenInfoDialog(t("Table details"), "'" + target.table + "'", html, {
+    analysisOpenInfoDialog("Table details", "'" + target.table + "'", html, {
       copyText: query.expression || ""
     });
   }
@@ -1113,38 +1112,38 @@ import { state } from "../core/state.js";
   function analysisOpenModelDetails() {
     var result = state.analysis;
     if (!result) {
-      app.toast(t("Run the analysis first"));
+      app.toast("Run the analysis first");
       return;
     }
     var dataset = result.dataset || {};
     var totals = result.totals || {};
     var rows = [
-      [t("Model"), dataset.name || ""],
-      [t("Workspace"), dataset.workspace_name || ""],
-      [t("Dataset ID"), dataset.id || ""],
-      [t("Analyzed at"), String(result.analyzed_at || "").replace("T", " ").slice(0, 19)],
-      [t("Method"), result.method || ""],
-      [t("Coverage"), result.coverage || ""],
-      [t("Model size"), analysisFmtBytes(totals.model_bytes || 0)],
-      [t("Tables"), totals.tables || 0],
-      [t("Columns"), totals.columns || 0],
-      [t("Measures"), totals.measures || 0],
-      [t("Reports"), totals.reports || 0],
-      [t("Pages"), totals.pages || 0],
-      [t("Visuals"), totals.visuals || 0],
-      [t("Report usage"), result.reports_included === false
-        ? t("Not included") : t("Included")]
+      ["Model", dataset.name || ""],
+      ["Workspace", dataset.workspace_name || ""],
+      ["Dataset ID", dataset.id || ""],
+      ["Analyzed at", String(result.analyzed_at || "").replace("T", " ").slice(0, 19)],
+      ["Method", result.method || ""],
+      ["Coverage", result.coverage || ""],
+      ["Model size", analysisFmtBytes(totals.model_bytes || 0)],
+      ["Tables", totals.tables || 0],
+      ["Columns", totals.columns || 0],
+      ["Measures", totals.measures || 0],
+      ["Reports", totals.reports || 0],
+      ["Pages", totals.pages || 0],
+      ["Visuals", totals.visuals || 0],
+      ["Report usage", result.reports_included === false
+        ? "Not included" : "Included"]
     ];
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
     }).join("") + "</div>";
-    analysisOpenInfoDialog(t("Model details"), dataset.name || "", html);
+    analysisOpenInfoDialog("Model details", dataset.name || "", html);
   }
 
   function analysisCopyModelName() {
     var result = state.analysis;
     if (!result) {
-      app.toast(t("Run the analysis first"));
+      app.toast("Run the analysis first");
       return;
     }
     var dataset = result.dataset || {};
@@ -1182,7 +1181,7 @@ import { state } from "../core/state.js";
           ? /\.json$/i.test(item) : /_nodes\.csv$/i.test(item);
       })[0] || paths[0];
       if (!path) return;
-      app.toast(t("Export: ") + path);
+      app.toast("Export: " + path);
       app.api().post("/api/files/open", { path: path, mode: "open" }).catch(function () {});
     }).catch(app.reportError);
   }
@@ -1197,10 +1196,10 @@ import { state } from "../core/state.js";
     }).then(function (data) {
       if (!data.path) return;
       if (!data.rows) {
-        app.toast(t("No dependencies"));
+        app.toast("No dependencies");
         return;
       }
-      app.toast(t("Export: ") + data.path);
+      app.toast("Export: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
     }).catch(app.reportError);
   }
@@ -1315,11 +1314,11 @@ import { state } from "../core/state.js";
       var stroke = seed ? palette.accent : palette.border;
       var strokeWidth = seed ? 2 : 1;
       var text = analysisLineageCardText(node);
-      var statusColor = text.status === "Tidak dipakai"
+      var statusColor = text.status === "Unused"
         ? "#c42b1c"
-        : text.status === "Wajib dipertahankan"
+        : text.status === "Must keep"
           ? "#d4a017"
-          : text.status === "Perlu dicek"
+          : text.status === "Needs review"
             ? "#d67500"
             : text.status
               ? "#107c10"
@@ -1405,7 +1404,7 @@ import { state } from "../core/state.js";
       };
       image.onerror = function () {
         URL.revokeObjectURL(url);
-        reject(new Error(t("Image export failed")));
+        reject(new Error("Image export failed"));
       };
       image.src = url;
     });
@@ -1424,7 +1423,7 @@ import { state } from "../core/state.js";
   function analysisLineageFetchGraph(target) {
     var datasetId = getSelectValue("modelSelect");
     if (!datasetId || !app.apiReady()) {
-      return Promise.reject(new Error(t("Run the analysis first")));
+      return Promise.reject(new Error("Run the analysis first"));
     }
     var path = "/api/analysis/lineage?dataset_id=" +
       encodeURIComponent(datasetId) +
@@ -1453,7 +1452,7 @@ import { state } from "../core/state.js";
         });
     }).then(function (data) {
       if (!data || !data.path) return;
-      app.toast(t("Export: ") + data.path);
+      app.toast("Export: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
     }).catch(app.reportError);
@@ -1514,7 +1513,7 @@ import { state } from "../core/state.js";
       name: target.name
     };
     $("#analysisRawSub").textContent = "'" + target.table + "'[" + target.name + "]";
-    $("#analysisRawStatus").textContent = t("Not loaded");
+    $("#analysisRawStatus").textContent = "Not loaded";
     if (dialog.open) dialog.close();
     dialog.showModal();
   }
@@ -1523,7 +1522,7 @@ import { state } from "../core/state.js";
     var target = state.analysisRawTarget;
     var datasetId = getSelectValue("modelSelect");
     if (!target || !datasetId) return;
-    $("#analysisRawStatus").textContent = t("Loading preview…");
+    $("#analysisRawStatus").textContent = "Loading preview…";
     app.startJob({
       kind: "analysis-preview",
       path: "/api/analysis/preview",
@@ -1534,19 +1533,19 @@ import { state } from "../core/state.js";
         name: target.name,
         limit: 100
       },
-      label: t("Preview values"),
+      label: "Preview values",
       button: $("#analysisRawLoad"),
       silent: true,
       onBusy: function () {
         $("#analysisRawStatus").textContent =
-          t("Another job is still running. Try again.");
+          "Another job is still running. Try again.";
       },
       onDone: function (snapshot) {
         if (snapshot.result) analysisRenderPreview(snapshot.result);
       },
       onError: function (_snapshot, message) {
         $("#analysisRawStatus").textContent =
-          tr(message || t("Preview could not be loaded"));
+          (message || "Preview could not be loaded");
       }
     });
   }
@@ -1569,10 +1568,10 @@ import { state } from "../core/state.js";
     }).join("");
     $("#analysisRawTableWrap").hidden = rows.length === 0;
     var status = rows.length
-      ? rows.length + " " + t("rows")
-      : t("No rows returned");
+      ? rows.length + " " + "rows"
+      : "No rows returned";
     if (payload.truncated) {
-      status += " \u00b7 " + t("first {n} rows").replace("{n}", payload.limit);
+      status += " \u00b7 " + "first {n} rows".replace("{n}", payload.limit);
     }
     $("#analysisRawStatus").textContent = status;
     $("#analysisRawQueryWrap").hidden = !payload.query;
@@ -1593,10 +1592,10 @@ import { state } from "../core/state.js";
     state.analysisItemRawError = "";
     state.analysisItemTab = "properties";
     $("#analysisItemTitle").textContent = target.kind === "measure"
-      ? t("Measure details") : t("Column details");
+      ? "Measure details" : "Column details";
     $("#analysisItemSub").textContent = "'" + target.table + "'[" + target.name + "]";
     $("#analysisItemPane").innerHTML =
-      '<p class="helper">' + escapeHtml(t("Loading details…")) + "</p>";
+      '<p class="helper">' + escapeHtml("Loading details…") + "</p>";
     analysisItemTabs();
     if (dialog.open) dialog.close();
     dialog.showModal();
@@ -1609,7 +1608,7 @@ import { state } from "../core/state.js";
       analysisRenderItemDetails();
     }).catch(function (error) {
       $("#analysisItemPane").innerHTML =
-        '<p class="helper">' + escapeHtml(tr(error.message)) + "</p>";
+        '<p class="helper">' + escapeHtml((error.message)) + "</p>";
       app.reportError(error);
     });
   }
@@ -1636,13 +1635,13 @@ import { state } from "../core/state.js";
       pane.innerHTML = '<p class="helper">' +
         escapeHtml(state.analysisItemRawError) + "</p>" +
         '<p><button class="btn btn-sm" type="button" data-item-raw-retry>' +
-        escapeHtml(t("Reload")) + "</button></p>";
+        escapeHtml("Reload") + "</button></p>";
     } else if (state.analysisItemRaw) {
       pane.innerHTML = '<pre class="detail-code">' +
         highlightCode(analysisPrettyJson(state.analysisItemRaw), "json") + "</pre>";
     } else {
       pane.innerHTML = '<p class="helper">' +
-        escapeHtml(t("Loading metadata…")) + "</p>";
+        escapeHtml("Loading metadata…") + "</p>";
       analysisLoadItemRaw();
     }
   }
@@ -1650,37 +1649,37 @@ import { state } from "../core/state.js";
   function analysisItemPropertiesMarkup(details) {
     var measure = details.type === "Measure";
     var rows = [
-      [t("Name"), details.name],
-      [t("Model"), details.model_name],
-      [t("Table"), details.table_name],
-      [t("Type"), details.type],
-      [t("Data type"), details.data_type_str],
-      [t("Size"), measure ? "\u2014" : analysisFmtBytes(details.size)],
-      [t("Rows"), measure ? "\u2014" : details.rows],
-      [t("Format string"), details.format_string],
-      [t("Display folder"), details.display_folder],
-      [t("Hidden"), details.is_hidden ? t("Yes") : t("No")],
-      [t("Status"), tStatus(details.status)],
-      [t("Reason"), tr(details.reason)],
-      [t("Lineage tag"), details.lineage_tag ||
+      ["Name", details.name],
+      ["Model", details.model_name],
+      ["Table", details.table_name],
+      ["Type", details.type],
+      ["Data type", details.data_type_str],
+      ["Size", measure ? "\u2014" : analysisFmtBytes(details.size)],
+      ["Rows", measure ? "\u2014" : details.rows],
+      ["Format string", details.format_string],
+      ["Display folder", details.display_folder],
+      ["Hidden", details.is_hidden ? "Yes" : "No"],
+      ["Status", tStatus(details.status)],
+      ["Reason", (details.reason)],
+      ["Lineage tag", details.lineage_tag ||
         (state.analysisItemRaw
           ? (state.analysisItemRaw.LineageTag || "\u2014")
-          : t("See Raw JSON"))],
-      [t("Annotation"), details.annotation]
+          : "See Raw JSON")],
+      ["Annotation", details.annotation]
     ];
     if (!measure) {
       rows.splice(6, 0,
-        [t("Cardinality"), details.cardinality ? fmtInt(details.cardinality) : "—"],
-        [t("Data size"), analysisFmtBytes(details.size_data)],
-        [t("Hierarchy size"), analysisFmtBytes(details.size_hierarchy)],
-        [t("Dictionary size"), analysisFmtBytes(details.size_dictionary)]
+        ["Cardinality", details.cardinality ? fmtInt(details.cardinality) : "—"],
+        ["Data size", analysisFmtBytes(details.size_data)],
+        ["Hierarchy size", analysisFmtBytes(details.size_hierarchy)],
+        ["Dictionary size", analysisFmtBytes(details.size_dictionary)]
       );
     }
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
     }).join("") + "</div>";
     if (details.expression) {
-      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+      html += '<h3 class="detail-heading">' + escapeHtml("Expression") +
         "</h3>" + analysisExpressionMarkup(details.expression, "dax");
     }
     return html;
@@ -1688,13 +1687,13 @@ import { state } from "../core/state.js";
 
   function analysisItemUsageMarkup(details) {
     var rows = [
-      [t("Status"), tStatus(details.status)],
-      [t("Reason"), tr(details.reason)],
-      [t("Model dependencies"), (details.model_dependencies || []).length],
-      [t("Relationships"), (details.relationship_dependencies || []).length],
-      [t("Visuals"), (details.visual_dependencies || []).length],
-      [t("Page level filters"), (details.page_level_filters_dependencies || []).length],
-      [t("Report level filters"), (details.report_level_filters_dependencies || []).length]
+      ["Status", tStatus(details.status)],
+      ["Reason", (details.reason)],
+      ["Model dependencies", (details.model_dependencies || []).length],
+      ["Relationships", (details.relationship_dependencies || []).length],
+      ["Visuals", (details.visual_dependencies || []).length],
+      ["Page level filters", (details.page_level_filters_dependencies || []).length],
+      ["Report level filters", (details.report_level_filters_dependencies || []).length]
     ];
     var flags = Object.keys(USAGE_FLAG_LABELS).filter(function (key) {
       return details[key] === true;
@@ -1702,21 +1701,21 @@ import { state } from "../core/state.js";
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
     }).join("") + "</div>";
-    html += '<h3 class="detail-heading">' + escapeHtml(t("Usage flags")) + "</h3>";
+    html += '<h3 class="detail-heading">' + escapeHtml("Usage flags") + "</h3>";
     html += '<div class="item-flags">' + (flags.length
       ? flags.map(function (key) {
         return '<span class="chip chip-ok"><span class="dot"></span>' +
-          escapeHtml(t(USAGE_FLAG_LABELS[key])) + "</span>";
+          escapeHtml((USAGE_FLAG_LABELS[key])) + "</span>";
       }).join("")
-      : '<span class="helper">' + escapeHtml(t("No usage detected")) + "</span>") +
+      : '<span class="helper">' + escapeHtml("No usage detected") + "</span>") +
       "</div>";
     if ((details.unsupported || []).length) {
       var unsupported = [];
       (details.unsupported || []).forEach(function (key) {
-        var label = t(UNSUPPORTED_LABELS[key] || key);
+        var label = (UNSUPPORTED_LABELS[key] || key);
         if (unsupported.indexOf(label) === -1) unsupported.push(label);
       });
-      html += '<p class="item-note">' + escapeHtml(t("Not detected by this tool")) +
+      html += '<p class="item-note">' + escapeHtml("Not detected by this tool") +
         ": " + escapeHtml(unsupported.join(", ")) + "</p>";
     }
     return html;
@@ -1728,7 +1727,7 @@ import { state } from "../core/state.js";
       var rows = details[group[0]];
       if (!rows || !rows.length) return;
       sections.push(
-        '<section class="dep-group"><h3>' + escapeHtml(t(group[1])) +
+        '<section class="dep-group"><h3>' + escapeHtml((group[1])) +
         "</h3><ul class=\"dep-list\">" + rows.map(function (entry) {
           var text = analysisDependencyText(entry);
           var sub = analysisDependencySub(entry);
@@ -1739,7 +1738,7 @@ import { state } from "../core/state.js";
             ? ' class="dep-click" data-dep-kind="' + escapeHtml(entry.target_kind) +
               '" data-dep-table="' + escapeHtml(entry.target_table) +
               '" data-dep-name="' + escapeHtml(entry.target_name) +
-              '" title="' + escapeHtml(t("Open lineage")) + '"'
+              '" title="' + escapeHtml("Open lineage") + '"'
             : "";
           return "<li" + attrs + "><span class=\"dep-kind\">" +
             escapeHtml(String(entry.kind || entry.type || "")) + "</span>" +
@@ -1751,7 +1750,7 @@ import { state } from "../core/state.js";
     });
     return sections.length
       ? sections.join("")
-      : '<p class="helper">' + escapeHtml(t("No dependencies")) + "</p>";
+      : '<p class="helper">' + escapeHtml("No dependencies") + "</p>";
   }
 
   function analysisDependencyText(entry) {
@@ -1780,7 +1779,7 @@ import { state } from "../core/state.js";
       entry.relationship_type,
       entry.type,
       detail,
-      entry.hidden ? t("Hidden") : ""
+      entry.hidden ? "Hidden" : ""
     ].filter(Boolean).join(" \u00b7 ");
   }
 
@@ -1800,7 +1799,7 @@ import { state } from "../core/state.js";
       state.analysisItemRaw = payload.row;
       if (state.analysisItemTab === "raw") analysisRenderItemDetails();
     }, function (message) {
-      state.analysisItemRawError = tr(message);
+      state.analysisItemRawError = (message);
       if (state.analysisItemTab === "raw") analysisRenderItemDetails();
     });
   }
@@ -1822,14 +1821,14 @@ import { state } from "../core/state.js";
         table: target.table,
         name: target.name
       },
-      label: t("Raw data"),
+      label: "Raw data",
       silent: true,
       onBusy: function () {
-        if (onError) onError(t("Another job is still running. Try again."));
+        if (onError) onError("Another job is still running. Try again.");
       },
       onDone: function (snapshot) {
         if (snapshot.result) onDone(snapshot.result);
-        else if (onError) onError(t("Metadata could not be loaded"));
+        else if (onError) onError("Metadata could not be loaded");
       },
       onError: function (_snapshot, message) {
         if (onError) onError(message);
@@ -1847,7 +1846,7 @@ import { state } from "../core/state.js";
       name: target.name
     };
     $("#analysisRawMetaSub").textContent = "'" + target.table + "'[" + target.name + "]";
-    $("#analysisRawMetaStatus").textContent = t("Loading metadata…");
+    $("#analysisRawMetaStatus").textContent = "Loading metadata…";
     $("#analysisRawMetaJson").textContent = "";
     if (dialog.open) dialog.close();
     dialog.showModal();
@@ -1858,7 +1857,7 @@ import { state } from "../core/state.js";
     var target = state.analysisRawMetaTarget;
     if (!target) return;
     state.analysisRawMeta = null;
-    $("#analysisRawMetaStatus").textContent = t("Loading metadata…");
+    $("#analysisRawMetaStatus").textContent = "Loading metadata…";
     $("#analysisRawMetaJson").textContent = "";
     analysisFetchRawMetadata(target, function (payload) {
       state.analysisRawMeta = payload.row;
@@ -1867,7 +1866,7 @@ import { state } from "../core/state.js";
       $("#analysisRawMetaJson").textContent =
         analysisPrettyJson(payload.row);
     }, function (message) {
-      $("#analysisRawMetaStatus").textContent = tr(message);
+      $("#analysisRawMetaStatus").textContent = (message);
     });
   }
 
@@ -1880,7 +1879,7 @@ import { state } from "../core/state.js";
   }
 
   function analysisExpressionMarkup(expression, language) {
-    var copyLabel = escapeHtml(t("Copy code"));
+    var copyLabel = escapeHtml("Copy code");
     return '<div class="code-cell detail-code-cell">' +
       '<button type="button" class="code-copy" data-copy-code aria-label="' +
       copyLabel + '" title="' + copyLabel + '">' + MENU_ICONS.copy +
@@ -1898,46 +1897,46 @@ import { state } from "../core/state.js";
 
   function analysisDetailsMarkup(item, kind) {
     var rows;
-    var hasError = item.has_error ? t("Yes") : t("No");
+    var hasError = item.has_error ? "Yes" : "No";
     if (kind === "measure") {
       rows = [
-        [t("Table"), item.table],
-        [t("Type"), item.is_hidden ? t("Measure") + " \u00b7 " + t("Hidden") : t("Measure")],
-        [t("Data type"), item.data_type],
-        [t("Format string"), item.format_string],
-        [t("Display folder"), item.display_folder],
-        [t("Status"), tStatus(item.status)],
-        [t("Reason"), tr(item.reason)],
-        [t("Uses"), item.uses],
-        [t("Reports"), item.reports],
-        [t("Has error"), hasError]
+        ["Table", item.table],
+        ["Type", item.is_hidden ? "Measure" + " \u00b7 " + "Hidden" : "Measure"],
+        ["Data type", item.data_type],
+        ["Format string", item.format_string],
+        ["Display folder", item.display_folder],
+        ["Status", tStatus(item.status)],
+        ["Reason", (item.reason)],
+        ["Uses", item.uses],
+        ["Reports", item.reports],
+        ["Has error", hasError]
       ];
     } else {
       var breakdown = item.size_breakdown || {};
       rows = [
-        [t("Table"), item.table],
-        [t("Type"), item.is_calculated ? t("Calculated column") : t("Column")],
-        [t("Data type"), item.data_type],
-        [t("Size"), item.size],
-        [t("Data size"), analysisFmtBytes(breakdown.data || 0)],
-        [t("Hierarchy size"), analysisFmtBytes(breakdown.hierarchy || 0)],
-        [t("Dictionary size"), analysisFmtBytes(breakdown.dictionary || 0)],
-        [t("Rows"), item.rows],
-        [t("Format string"), item.format_string],
-        [t("Display folder"), item.display_folder],
-        [t("Hidden"), item.is_hidden ? t("Yes") : t("No")],
-        [t("Status"), tStatus(item.status)],
-        [t("Reason"), tr(item.reason)],
-        [t("Uses"), item.uses],
-        [t("Reports"), item.reports],
-        [t("Has error"), hasError]
+        ["Table", item.table],
+        ["Type", item.is_calculated ? "Calculated column" : "Column"],
+        ["Data type", item.data_type],
+        ["Size", item.size],
+        ["Data size", analysisFmtBytes(breakdown.data || 0)],
+        ["Hierarchy size", analysisFmtBytes(breakdown.hierarchy || 0)],
+        ["Dictionary size", analysisFmtBytes(breakdown.dictionary || 0)],
+        ["Rows", item.rows],
+        ["Format string", item.format_string],
+        ["Display folder", item.display_folder],
+        ["Hidden", item.is_hidden ? "Yes" : "No"],
+        ["Status", tStatus(item.status)],
+        ["Reason", (item.reason)],
+        ["Uses", item.uses],
+        ["Reports", item.reports],
+        ["Has error", hasError]
       ];
     }
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
     }).join("") + "</div>";
     if (item.expression) {
-      html += '<h3 class="detail-heading">' + escapeHtml(t("Expression")) +
+      html += '<h3 class="detail-heading">' + escapeHtml("Expression") +
         "</h3>" + analysisExpressionMarkup(item.expression, "dax");
     }
     return html;
@@ -1949,14 +1948,14 @@ import { state } from "../core/state.js";
     if (!item || !dialog) return;
     var isMeasure = target.kind === "measure";
     $("#analysisDetailsTitle").textContent = mode === "dax"
-      ? t("DAX expression")
-      : (isMeasure ? t("Measure details") : t("Column details"));
+      ? "DAX expression"
+      : (isMeasure ? "Measure details" : "Column details");
     $("#analysisDetailsSub").textContent = analysisItemLabel(item);
     state.analysisDetailsExpression = String(item.expression || "");
     if (mode === "dax") {
       $("#analysisDetailsBody").innerHTML = item.expression
         ? analysisExpressionMarkup(item.expression, "dax")
-        : '<p class="detail-empty">' + escapeHtml(t("(no DAX expression)")) + "</p>";
+        : '<p class="detail-empty">' + escapeHtml("(no DAX expression)") + "</p>";
     } else {
       $("#analysisDetailsBody").innerHTML = analysisDetailsMarkup(item, target.kind);
     }
@@ -2015,7 +2014,7 @@ import { state } from "../core/state.js";
       LINEAGE_CATEGORIES.forEach(function (item) {
         if (item[0] === state.analysisLineageCategory) label = item[1];
       });
-      if (label) text += " \u00b7 " + t(label);
+      if (label) text += " \u00b7 " + (label);
     }
     return text;
   }
@@ -2082,7 +2081,7 @@ import { state } from "../core/state.js";
     $("#analysisLineageEdges").innerHTML = "";
     $("#analysisLineageTreeEdges").innerHTML = "";
     $("#analysisLineageNotice").textContent = "";
-    analysisLineageShowEmpty(t("Loading lineage…"), "");
+    analysisLineageShowEmpty("Loading lineage…", "");
     var depth = state.analysisLineageView === "outline" ? 6 : 4;
     var path = "/api/analysis/lineage?dataset_id=" + encodeURIComponent(datasetId) +
       "&kind=" + encodeURIComponent(target.kind) +
@@ -2098,14 +2097,14 @@ import { state } from "../core/state.js";
       analysisLineageRender();
     }).catch(function (error) {
       state.analysisLineage = null;
-      analysisLineageShowEmpty(t("Lineage could not be loaded"), tr(error.message));
+      analysisLineageShowEmpty("Lineage could not be loaded", (error.message));
       app.reportError(error);
     });
   }
 
   function analysisLineageShowEmpty(title, text) {
     $("#analysisLineageEmpty").hidden = false;
-    $("#analysisLineageEmptyTitle").textContent = title || t("No lineage data");
+    $("#analysisLineageEmptyTitle").textContent = title || "No lineage data";
     $("#analysisLineageEmptyText").textContent = text || "";
   }
 
@@ -2174,8 +2173,8 @@ import { state } from "../core/state.js";
     var graph = state.analysisLineage;
     if (!graph || !(graph.nodes || []).length) {
       analysisLineageShowEmpty(
-        t("No lineage data"),
-        t("No dependencies found")
+        "No lineage data",
+        "No dependencies found"
       );
       return;
     }
@@ -2265,22 +2264,22 @@ import { state } from "../core/state.js";
     };
     var chip = $("#analysisLineageMStatus");
     chip.className = "chip " + (classes[meta.status] || "chip-idle");
-    chip.textContent = t("M lineage") + ": " +
-      t(labels[meta.status] || meta.status);
-    chip.title = tr(meta.reason || "");
+    chip.textContent = "M lineage" + ": " +
+      (labels[meta.status] || meta.status);
+    chip.title = (meta.reason || "");
     var source = $("#analysisLineageMSource");
     if (source) {
       var parts = [];
       if (meta.source) parts.push(String(meta.source));
       if (meta.origin) {
-        parts.push(t(LINEAGE_ORIGIN_LABELS[meta.origin] || meta.origin));
+        parts.push((LINEAGE_ORIGIN_LABELS[meta.origin] || meta.origin));
       }
-      if (meta.native) parts.push(t("Native query"));
+      if (meta.native) parts.push("Native query");
       if (meta.params && meta.params.length) {
-        parts.push(t("Parameters") + ": " + meta.params.join(", "));
+        parts.push("Parameters" + ": " + meta.params.join(", "));
       }
       if (meta.references && meta.references.length) {
-        parts.push(t("Query refs") + ": " + meta.references.join(", "));
+        parts.push("Query refs" + ": " + meta.references.join(", "));
       }
       source.textContent = parts.join(" \u00b7 ");
       source.title = String(meta.detail || "");
@@ -2289,7 +2288,7 @@ import { state } from "../core/state.js";
     var warnings = meta.warnings || [];
     $("#analysisLineageMDetails").hidden = warnings.length === 0;
     $("#analysisLineageMSummary").textContent =
-      t("M warnings") + " (" + warnings.length + ")";
+      "M warnings" + " (" + warnings.length + ")";
     $("#analysisLineageMList").innerHTML = warnings.map(function (warning) {
       var parts = [];
       if (warning.step) {
@@ -2297,7 +2296,7 @@ import { state } from "../core/state.js";
           escapeHtml(warning.step) + "</span>");
       }
       if (warning.column) parts.push(escapeHtml(warning.column));
-      parts.push(escapeHtml(tr(warning.detail || warning.status || "")));
+      parts.push(escapeHtml((warning.detail || warning.status || "")));
       return "<li>" + parts.join(" \u00b7 ") + "</li>";
     }).join("");
   }
@@ -2306,15 +2305,15 @@ import { state } from "../core/state.js";
     var context = String(node.context || "");
     if (!context) return "";
     if (node.kind === "datasource" && LINEAGE_ORIGIN_LABELS[context]) {
-      return t(LINEAGE_ORIGIN_LABELS[context]);
+      return (LINEAGE_ORIGIN_LABELS[context]);
     }
     return context;
   }
 
   function analysisLineageTitle(meta) {
     var label = String(meta.label || "");
-    if (!label && meta.label_key) label = t(meta.label_key);
-    var sub = meta.sub_key ? t(meta.sub_key) : "";
+    if (!label && meta.label_key) label = (meta.label_key);
+    var sub = meta.sub_key ? (meta.sub_key) : "";
     var detail = String(meta.sub || "");
     if (detail && detail === label) detail = "";
     if (detail) sub = sub ? sub + " \u00b7 " + detail : detail;
@@ -2370,7 +2369,7 @@ import { state } from "../core/state.js";
   }
 
   function analysisLineageCardText(node) {
-    var kindLabel = t(LINEAGE_KIND_LABELS[node.kind] || "Node");
+    var kindLabel = (LINEAGE_KIND_LABELS[node.kind] || "Node");
     var context = analysisLineageContext(node);
     var detail = String(node.detail || "").trim();
     var title = String(node.label || "");
@@ -2382,13 +2381,13 @@ import { state } from "../core/state.js";
       note = String(node.label || "");
       if (note === title) note = "";
     } else if (node.kind === "mquery") {
-      sub = t("M query");
+      sub = "M query";
       note = context;
     } else if (node.kind === "datasource") {
       sub = kindLabel;
       note = [context, detail].filter(Boolean).join(" \u00b7 ");
     } else if (node.group === "usage" || node.group === "more") {
-      sub = t("Used in") + " " + kindLabel.toLowerCase() +
+      sub = "Used in" + " " + kindLabel.toLowerCase() +
         (detail ? " (" + detail + ")" : "");
     } else if (
       context && (
@@ -2409,9 +2408,9 @@ import { state } from "../core/state.js";
   }
 
   function analysisLineageStatusClass(status) {
-    if (status === "Tidak dipakai") return "is-unused";
-    if (status === "Wajib dipertahankan") return "is-blocker";
-    if (status === "Perlu dicek") return "is-check";
+    if (status === "Unused") return "is-unused";
+    if (status === "Must keep") return "is-blocker";
+    if (status === "Needs review") return "is-check";
     return "is-used";
   }
 
@@ -2456,18 +2455,18 @@ import { state } from "../core/state.js";
     var sections = [];
     if ((outline.upstream || []).length) {
       sections.push(
-        '<section class="lo-section"><h3>' + t("Depends on") + "</h3>" +
+        '<section class="lo-section"><h3>' + "Depends on" + "</h3>" +
         analysisLineageOutlineList(outline.upstream) + "</section>"
       );
     }
     if ((outline.downstream || []).length) {
       sections.push(
-        '<section class="lo-section"><h3>' + t("Used by") + "</h3>" +
+        '<section class="lo-section"><h3>' + "Used by" + "</h3>" +
         analysisLineageOutlineList(outline.downstream) + "</section>"
       );
     }
     if (!sections.length) {
-      return '<p class="helper">' + t("No dependencies found") + "</p>";
+      return '<p class="helper">' + "No dependencies found" + "</p>";
     }
     return sections.join("");
   }
@@ -2476,13 +2475,13 @@ import { state } from "../core/state.js";
     var kind = String(item.usage_kind || "");
     var detail = String(item.detail || "").trim();
     var text = "";
-    if (kind === "field") text = t("Used in visual");
-    else if (kind === "filter-visual") text = t("Visual level filter");
-    else if (kind === "filter-page") text = t("Page level filter");
-    else if (kind === "filter-report") text = t("Report level filter");
-    else if (kind === "filter-query") text = t("Visual filter");
-    else if (kind === "sort") text = t("Sort");
-    else if (kind === "format") text = t("Formatting");
+    if (kind === "field") text = "Used in visual";
+    else if (kind === "filter-visual") text = "Visual level filter";
+    else if (kind === "filter-page") text = "Page level filter";
+    else if (kind === "filter-report") text = "Report level filter";
+    else if (kind === "filter-query") text = "Visual filter";
+    else if (kind === "sort") text = "Sort";
+    else if (kind === "format") text = "Formatting";
     if (!text) return "";
     return detail ? text + " (" + detail + ")" : text;
   }
@@ -2497,7 +2496,7 @@ import { state } from "../core/state.js";
       if (text.indexOf("ref:") === 0 || text.indexOf("param:") === 0) {
         keep.push(text);
       } else if (text === "native query") {
-        keep.push(t("Native query"));
+        keep.push("Native query");
       }
     });
     return keep.join(" \u00b7 ");
@@ -2507,14 +2506,14 @@ import { state } from "../core/state.js";
     if (!items || !items.length) return "";
     return '<ul class="lo-list">' + items.map(function (item) {
       var icon = ANALYSIS_ICONS[LINEAGE_KIND_ICONS[item.kind] || "group"] || "";
-      var kinds = [t(LINEAGE_KIND_LABELS[item.kind] || "Node")];
+      var kinds = [(LINEAGE_KIND_LABELS[item.kind] || "Node")];
       var usage = analysisLineageOutlineUsage(item);
       if (usage) kinds.push(usage);
       if (item.visual_title && item.visual_title !== item.label) {
         kinds.push(item.visual_title);
       }
       if (item.visual_type) kinds.push(item.visual_type);
-      if (item.hidden) kinds.push(t("Hidden"));
+      if (item.hidden) kinds.push("Hidden");
       var context = analysisLineageContext(item);
       if (context) kinds.push(context);
       var source = analysisLineageOutlineSource(item);
@@ -2532,7 +2531,7 @@ import { state } from "../core/state.js";
         : "";
       var repeat = item.repeat ? '<span class="lo-repeat">\u2026</span>' : "";
       var rowClass = "lo-row" +
-        (item.status === "Tidak dipakai" ? " is-unused" : "");
+        (item.status === "Unused" ? " is-unused" : "");
       var titleText = item.label + (sub ? " \u00b7 " + sub : "");
       if (item.kind === "datasource" && item.detail) {
         titleText += " \u00b7 " + item.detail;
@@ -2624,29 +2623,29 @@ import { state } from "../core/state.js";
   function analysisLineageNotice(graph) {
     return (graph.notices || []).map(function (notice) {
       if (notice.code === "reports_excluded") {
-        return t("Report usage not included");
+        return "Report usage not included";
       }
       if (notice.code === "truncated") {
-        return t("Truncated: {n} nodes").replace("{n}", String(notice.count || 0));
+        return "Truncated: {n} nodes".replace("{n}", String(notice.count || 0));
       }
       if (notice.code === "m_steps_truncated") {
-        return t("Truncated M steps: {n}").replace(
+        return "Truncated M steps: {n}".replace(
           "{n}", String(notice.count || 0)
         );
       }
       if (notice.code === "m_columns_truncated") {
-        return t("M chains limited to {n} columns").replace(
+        return "M chains limited to {n} columns".replace(
           "{n}", String(notice.count || 0)
         );
       }
       if (notice.code === "edges_collapsed") {
         if (notice.level === "report") {
-          return t("Graph simplified: edges point to reports");
+          return "Graph simplified: edges point to reports";
         }
-        return t("Graph simplified: edges point to pages");
+        return "Graph simplified: edges point to pages";
       }
       if (notice.code === "no_dependencies") {
-        return t("No dependencies found");
+        return "No dependencies found";
       }
       return "";
     }).filter(Boolean).join(" \u00b7 ");
@@ -3172,14 +3171,14 @@ import { state } from "../core/state.js";
     }).join(" · ");
     return '<span class="chip ' + cls + '" title="' + escapeHtml(detail) +
       '"><span class="dot"></span>' + percent + "% (" + used + "/" + total +
-      t(") used</span>");
+      ") used</span>";
   }
 
   function analysisItemMatches(item, kind, query, type, unusedOnly) {
     if (type === "columns" && kind !== "column") return false;
     if (type === "measures" && kind !== "measure") return false;
     if (type === "hierarchies" && kind !== "hierarchy") return false;
-    if (unusedOnly && item.status !== "Tidak dipakai") return false;
+    if (unusedOnly && item.status !== "Unused") return false;
     if (!query) return true;
     return [item.name, item.table, item.data_type, item.status, item.reason,
       item.expression, item.levels, kind].join(" ").toLowerCase().indexOf(query) !== -1;
@@ -3193,7 +3192,7 @@ import { state } from "../core/state.js";
     var map = {};
     var order = [];
     function ensure(name) {
-      var key = name || t("(No table)");
+      var key = name || "(No table)";
       if (!map[key]) {
         map[key] = { name: key, columns: [], measures: [], info: null };
         order.push(key);
@@ -3317,7 +3316,7 @@ import { state } from "../core/state.js";
       var showExpression = item.kind === "column" && Boolean(data.expression);
       var expandable = showExpression || (data.children || []).length > 0;
       var open = expandable && analysisIsOpen(id, false, true);
-      if (data.status === "Tidak dipakai") unused += 1;
+      if (data.status === "Unused") unused += 1;
       rows.push({
         level: 0,
         group: true,
@@ -3330,12 +3329,12 @@ import { state } from "../core/state.js";
             menu: item.kind !== "hierarchy"
           }),
           item.kind === "measure"
-            ? t("Measure")
+            ? "Measure"
             : (item.kind === "hierarchy"
-              ? t("Hierarchy")
+              ? "Hierarchy"
               : (data.type === "Field parameter"
-                ? t("Field parameter")
-                : t("Column"))),
+                ? "Field parameter"
+                : "Column")),
           escapeHtml(data.table || "—"),
           "Model",
           escapeHtml(data.data_type || "—"),
@@ -3343,10 +3342,10 @@ import { state } from "../core/state.js";
           analysisStatusChip(data.status),
           String(data.uses || 0),
           escapeHtml(data.format_string || "—"),
-          data.has_error ? t("Yes") : t("No"),
+          data.has_error ? "Yes" : "No",
           escapeHtml(data.display_folder || "—")
         ],
-        cls: data.status === "Tidak dipakai" ? "row-unused" : "",
+        cls: data.status === "Unused" ? "row-unused" : "",
         numCols: [5, 7]
       });
       if (!open) return;
@@ -3358,9 +3357,9 @@ import { state } from "../core/state.js";
       widths: ["24%", "7%", "9%", "6%", "7%", "7%", "13%", "7%", "8%", "5%", "7%"],
       rows: rows,
       summary: (state.analysisNote ? state.analysisNote + " " : "") + items.length +
-        t(" items · ") + columnCount + t(" columns · ") + hierarchyCount +
-        t(" hierarchies · ") + measureCount + t(" measures · ") +
-        unused + t(" unused") + analysisCoverageSuffix(result)
+        " items · " + columnCount + " columns · " + hierarchyCount +
+        " hierarchies · " + measureCount + " measures · " +
+        unused + " unused" + analysisCoverageSuffix(result)
     };
   }
 
@@ -3394,7 +3393,7 @@ import { state } from "../core/state.js";
       var groupId = "role:" + (role.id || role.name);
       var open = analysisIsOpen(groupId, false);
       var status = (role.members || []).length || (role.permissions || []).length
-        ? t("Active") : t("No members");
+        ? "Active" : "No members";
       rows.push({
         id: groupId,
         level: 0,
@@ -3465,28 +3464,28 @@ import { state } from "../core/state.js";
       headers: analysisTreeHeaders(false),
       widths: ["24%", "7%", "9%", "6%", "7%", "7%", "13%", "7%", "8%", "5%", "7%"],
       rows: rows,
-      summary: fmtInt(roles.length) + " " + t("roles") + " · " +
-        fmtInt(memberCount) + " " + t("members shown") + " · " +
-        fmtInt(permissionCount) + " " + t("table permissions")
+      summary: fmtInt(roles.length) + " " + "roles" + " · " +
+        fmtInt(memberCount) + " " + "members shown" + " · " +
+        fmtInt(permissionCount) + " " + "table permissions"
     };
   }
 
   function analysisTreeHeaders(tablesMode) {
     if (tablesMode) {
       return [
-        { label: t("Name") }, { label: t("Type") }, { label: t("Table") },
-        { label: t("Source") }, { label: t("Data type") }, { label: t("Size"), num: true },
-        { label: "Status" }, { label: t("# used"), num: true },
-        { label: "Mode" }, { label: t("Partitions"), num: true }
+        { label: "Name" }, { label: "Type" }, { label: "Table" },
+        { label: "Source" }, { label: "Data type" }, { label: "Size", num: true },
+        { label: "Status" }, { label: "# used", num: true },
+        { label: "Mode" }, { label: "Partitions", num: true }
       ];
     }
     return [
-      { label: t("Name"), key: "name" }, { label: t("Type"), key: "type" },
-      { label: t("Table / page"), key: "table" }, { label: t("Source") },
-      { label: t("Data type"), key: "data_type" },
-      { label: t("Size"), key: "size", num: true },
+      { label: "Name", key: "name" }, { label: "Type", key: "type" },
+      { label: "Table / page", key: "table" }, { label: "Source" },
+      { label: "Data type", key: "data_type" },
+      { label: "Size", key: "size", num: true },
       { label: "Status", key: "status" },
-      { label: t("# used"), key: "uses", num: true },
+      { label: "# used", key: "uses", num: true },
       { label: "Format string", key: "format_string" },
       { label: "Has error", key: "has_error" },
       { label: "Display folder", key: "display_folder" }
@@ -3506,7 +3505,7 @@ import { state } from "../core/state.js";
         ? info.total_items : fallbackItems.length;
       var usedItems = info.used_items != null
         ? info.used_items
-        : fallbackItems.filter(function (item) { return item.status !== "Tidak dipakai"; }).length;
+        : fallbackItems.filter(function (item) { return item.status !== "Unused"; }).length;
       var statuses = info.statuses || fallbackItems.reduce(function (acc, item) {
         acc[item.status] = (acc[item.status] || 0) + 1;
         return acc;
@@ -3522,7 +3521,7 @@ import { state } from "../core/state.js";
           analysisNameCell(group.name, "table", {
             level: 0, toggleId: tableId, open: tableOpen, menu: true
           }),
-          t("Table"), "—", "Model", "—", escapeHtml(size || "—"),
+          "Table", "—", "Model", "—", escapeHtml(size || "—"),
           analysisTableSummary(usedItems, totalItems, statuses), String(usedItems),
           escapeHtml(info.storage_mode || "—"), String(info.partition_count || 0)
         ],
@@ -3545,7 +3544,7 @@ import { state } from "../core/state.js";
         if (measureOpen) {
           group.visibleMeasures.forEach(function (measure) {
             itemCount += 1;
-            if (measure.status === "Tidak dipakai") unused += 1;
+            if (measure.status === "Unused") unused += 1;
             rows.push({
               level: 2,
               itemRow: true,
@@ -3555,7 +3554,7 @@ import { state } from "../core/state.js";
                 "Measure", escapeHtml(group.name), "Model", "DAX", "0 B",
                 analysisStatusChip(measure.status), String(measure.uses || 0), "—", "—"
               ],
-              cls: measure.status === "Tidak dipakai" ? "row-unused" : "",
+              cls: measure.status === "Unused" ? "row-unused" : "",
               numCols: [5, 7]
             });
           });
@@ -3568,7 +3567,7 @@ import { state } from "../core/state.js";
           level: 1,
           group: true,
           cells: [
-            analysisNameCell(t("Columns (") + group.visibleColumns.length + ")", "group", {
+            analysisNameCell("Columns (" + group.visibleColumns.length + ")", "group", {
               level: 1, toggleId: columnId, open: columnOpen
             }),
             "Grup", escapeHtml(group.name), "Model", "—", "—", "—", "—", "—", "—"
@@ -3577,18 +3576,18 @@ import { state } from "../core/state.js";
         if (columnOpen) {
           group.visibleColumns.forEach(function (column) {
             itemCount += 1;
-            if (column.status === "Tidak dipakai") unused += 1;
+            if (column.status === "Unused") unused += 1;
             rows.push({
               level: 2,
               itemRow: true,
               item: { kind: "column", table: column.table || "", name: column.name || "" },
               cells: [
                 analysisNameCell(column.name, "column", { level: 2, menu: true }),
-                t("Column"), escapeHtml(group.name), "Model",
+                "Column", escapeHtml(group.name), "Model",
                 escapeHtml(column.data_type || "—"), escapeHtml(column.size || "—"),
                 analysisStatusChip(column.status), String(column.uses || 0), "—", "—"
               ],
-              cls: column.status === "Tidak dipakai" ? "row-unused" : "",
+              cls: column.status === "Unused" ? "row-unused" : "",
               numCols: [5, 7]
             });
           });
@@ -3600,8 +3599,8 @@ import { state } from "../core/state.js";
       widths: ["27%", "7%", "8%", "8%", "8%", "6%", "15%", "7%", "7%", "7%"],
       rows: rows,
       summary: (state.analysisNote ? state.analysisNote + " " : "") +
-        itemCount + t(" items · ") + groups.length + t(" tables · ") +
-        unused + t(" unused") + analysisCoverageSuffix(result)
+        itemCount + " items · " + groups.length + " tables · " +
+        unused + " unused" + analysisCoverageSuffix(result)
     };
   }
 
@@ -3627,14 +3626,14 @@ import { state } from "../core/state.js";
         level: 0,
         cls: rel.is_active ? "" : "row-unused",
         cells: [
-          analysisNameCell(rel.label || rel.name || t("(relationship)"), "link", { level: 0 }),
+          analysisNameCell(rel.label || rel.name || "(relationship)", "link", { level: 0 }),
           escapeHtml(rel.type || "—"),
           escapeHtml(rel.cross || "—"),
           escapeHtml(rel.cardinality || "—"),
           rel.is_active
-            ? '<span class="chip chip-ok"><span class="dot"></span>' + t("Active") + "</span>"
-            : '<span class="chip chip-idle"><span class="dot"></span>' + t("Inactive") + "</span>",
-          escapeHtml(rel.auto || t("No")),
+            ? '<span class="chip chip-ok"><span class="dot"></span>' + "Active" + "</span>"
+            : '<span class="chip chip-idle"><span class="dot"></span>' + "Inactive" + "</span>",
+          escapeHtml(rel.auto || "No"),
           String(rel.used || 0),
           '<span class="mono-trunc" title="' + escapeHtml(fromText) + '">' +
             escapeHtml(fromText) + "</span>",
@@ -3647,36 +3646,36 @@ import { state } from "../core/state.js";
     var active = items.filter(function (rel) { return rel.is_active; }).length;
     return {
       headers: [
-        { label: t("Relationship name"), key: "label" }, { label: t("Type"), key: "type" },
+        { label: "Relationship name", key: "label" }, { label: "Type", key: "type" },
         { label: "Cross filter", key: "cross" },
-        { label: t("Cardinality"), key: "cardinality" },
+        { label: "Cardinality", key: "cardinality" },
         { label: "Status", key: "status" },
         {
           label: "Auto create", key: "auto",
-          hint: t("Power BI automatic relationship (AutoDetected_ name or GUID)")
+          hint: "Power BI automatic relationship (AutoDetected_ name or GUID)"
         },
         {
-          label: t("# used"), key: "used", num: true,
-          hint: t("Number of model objects that depend on the relationship (DMV DISCOVER_CALC_DEPENDENCY)")
+          label: "# used", key: "used", num: true,
+          hint: "Number of model objects that depend on the relationship (DMV DISCOVER_CALC_DEPENDENCY)"
         },
-        { label: t("From column"), key: "from_column" },
-        { label: t("To column"), key: "to_column" }
+        { label: "From column", key: "from_column" },
+        { label: "To column", key: "to_column" }
       ],
       widths: ["28%", "7%", "8%", "9%", "11%", "8%", "7%", "11%", "11%"],
       rows: rows,
-      summary: items.length + t(" relationships · ") + active + t(" active · ") +
-        (items.length - active) + t(" inactive") + analysisCoverageSuffix(state.analysis)
+      summary: items.length + " relationships · " + active + " active · " +
+        (items.length - active) + " inactive" + analysisCoverageSuffix(state.analysis)
     };
   }
 
   function analysisReportStatus(status) {
     var map = {
-      ok: ["chip-ok", t("Succeeded")],
-      failed: ["chip-danger", t("Failed")],
-      skipped: ["chip-idle", t("Skipped")],
-      cached: ["chip-idle", t("From cache")],
-      unsupported: ["chip-idle", t("Unsupported")],
-      inaccessible: ["chip-warn", t("Inaccessible")],
+      ok: ["chip-ok", "Succeeded"],
+      failed: ["chip-danger", "Failed"],
+      skipped: ["chip-idle", "Skipped"],
+      cached: ["chip-idle", "From cache"],
+      unsupported: ["chip-idle", "Unsupported"],
+      inaccessible: ["chip-warn", "Inaccessible"],
       personal: ["chip-warn", "Personal"],
       app: ["chip-warn", "App"]
     };
@@ -3699,7 +3698,7 @@ import { state } from "../core/state.js";
       analysisRender();
     }).catch(function (error) {
       state.reportLoading[reportId] = false;
-      app.addLog(t("Report details could not be loaded: ") + error.message, "warn");
+      app.addLog("Report details could not be loaded: " + error.message, "warn");
       analysisRender();
     });
   }
@@ -3750,7 +3749,7 @@ import { state } from "../core/state.js";
   };
 
   function analysisHealthRuleLabel(rule) {
-    return t(HEALTH_RULES[rule] || rule);
+    return (HEALTH_RULES[rule] || rule);
   }
 
   var HEALTH_RULE_HELP = [
@@ -3872,8 +3871,8 @@ import { state } from "../core/state.js";
       parts.push(
         '<section class="health-rule-group"><h3 class="health-rule-group-title">' +
         '<span class="chip ' + chipClass + '"><span class="dot"></span>' +
-        escapeHtml(t(group[1])) + "</span>" +
-        '<span class="helper">' + fmtInt(items.length) + " " + t("rules") +
+        escapeHtml((group[1])) + "</span>" +
+        '<span class="helper">' + fmtInt(items.length) + " " + "rules" +
         "</span></h3>"
       );
       items.forEach(function (item) {
@@ -3881,16 +3880,16 @@ import { state } from "../core/state.js";
           '<article class="health-rule" id="healthRule-' + escapeHtml(item.rule) +
           '"><div class="health-rule-head"><h4>' +
           escapeHtml(analysisHealthRuleLabel(item.rule)) + "</h4></div>" +
-          '<p class="health-rule-desc">' + escapeHtml(t(item.description)) + "</p>" +
+          '<p class="health-rule-desc">' + escapeHtml((item.description)) + "</p>" +
           '<dl class="health-rule-meta">' +
-          "<dt>" + escapeHtml(t("Source")) + "</dt><dd>" +
-          escapeHtml(t(item.source)) + "</dd>" +
+          "<dt>" + escapeHtml("Source") + "</dt><dd>" +
+          escapeHtml((item.source)) + "</dd>" +
           (item.threshold
-            ? "<dt>" + escapeHtml(t("Threshold")) + "</dt><dd>" +
-              escapeHtml(t(item.threshold)) + "</dd>"
+            ? "<dt>" + escapeHtml("Threshold") + "</dt><dd>" +
+              escapeHtml((item.threshold)) + "</dd>"
             : "") +
-          "<dt>" + escapeHtml(t("Suggested action")) + "</dt><dd>" +
-          escapeHtml(t(item.action)) + "</dd></dl></article>"
+          "<dt>" + escapeHtml("Suggested action") + "</dt><dd>" +
+          escapeHtml((item.action)) + "</dd></dl></article>"
         );
       });
       parts.push("</section>");
@@ -3898,15 +3897,15 @@ import { state } from "../core/state.js";
     parts.push(
       '<section class="health-rule-group health-rule-group--score">' +
       '<h3 class="health-rule-group-title"><span class="chip chip-accent">' +
-      escapeHtml(t("Practice score")) + "</span></h3>" +
+      escapeHtml("Practice score") + "</span></h3>" +
       '<p class="health-rule-desc">' +
-      escapeHtml(t("Score starts at 100 for reports with status ok and subtracts:")) +
+      escapeHtml("Score starts at 100 for reports with status ok and subtracts:") +
       "</p><ul class=\"health-rule-formula\">" +
-      "<li>" + escapeHtml(t("5 points per visual with unmapped fields (max 30).")) + "</li>" +
-      "<li>" + escapeHtml(t("3 points per page without visuals (max 15).")) + "</li>" +
-      "<li>" + escapeHtml(t("1 point per unmapped field (max 20).")) + "</li>" +
+      "<li>" + escapeHtml("5 points per visual with unmapped fields (max 30).") + "</li>" +
+      "<li>" + escapeHtml("3 points per page without visuals (max 15).") + "</li>" +
+      "<li>" + escapeHtml("1 point per unmapped field (max 20).") + "</li>" +
       "</ul><p class=\"health-rule-desc\">" +
-      escapeHtml(t("Theme and hidden pages do not reduce the score because both can be intentional.")) +
+      escapeHtml("Theme and hidden pages do not reduce the score because both can be intentional.") +
       "</p></section>"
     );
     return parts.join("");
@@ -3992,7 +3991,7 @@ import { state } from "../core/state.js";
       level: level,
       group: true,
       cells: analysisReportCells(
-        analysisNameCell(page.page_name || page.page_id || t("(page)"), "page", {
+        analysisNameCell(page.page_name || page.page_id || "(page)", "page", {
           level: level, toggleId: pageId, open: open, hidden: Boolean(page.is_hidden)
         }),
         "Page", reportName, page.visual_count || 0, null, null, Boolean(page.is_hidden)
@@ -4182,7 +4181,7 @@ import { state } from "../core/state.js";
           kind: "html",
           cls: "analysis-sub",
           html: '<span class="helper">' +
-            (state.reportLoading[report.report_id] ? t("Loading report details…") : t("Details are not available yet.")) +
+            (state.reportLoading[report.report_id] ? "Loading report details…" : "Details are not available yet.") +
             "</span>"
         });
         return;
@@ -4270,22 +4269,22 @@ import { state } from "../core/state.js";
           kind: "html",
           cls: "analysis-sub",
           html: '<span class="helper">' +
-            t("No pages could be read from this report.") + "</span>"
+            "No pages could be read from this report." + "</span>"
         });
       }
     });
 
     return {
       headers: [
-        { label: t("Name") }, { label: t("Type") }, { label: t("Source") },
-        { label: t("Visuals"), num: true }, { label: t("Broken visuals"), num: true },
-        { label: "Views", num: true }, { label: t("Pages"), num: true },
-        { label: t("Theme") }, { label: t("Practice score") }
+        { label: "Name" }, { label: "Type" }, { label: "Source" },
+        { label: "Visuals", num: true }, { label: "Broken visuals", num: true },
+        { label: "Views", num: true }, { label: "Pages", num: true },
+        { label: "Theme" }, { label: "Practice score" }
       ],
       widths: ["30%", "10%", "17%", "7%", "8%", "6%", "7%", "6%", "9%"],
       rows: rows,
-      summary: reportCount + t(" reports · ") + pageTotal + t(" pages · ") +
-        visualTotal + t(" visuals · ") + fieldTotal + t(" fields") +
+      summary: reportCount + " reports · " + pageTotal + " pages · " +
+        visualTotal + " visuals · " + fieldTotal + " fields" +
         analysisCoverageSuffix(result)
     };
   }
@@ -4333,7 +4332,7 @@ import { state } from "../core/state.js";
           .join(" ").toLowerCase().indexOf(query) !== -1;
       });
     }
-    var unused = rows.filter(function (row) { return row.status === "Tidak dipakai"; }).length;
+    var unused = rows.filter(function (row) { return row.status === "Unused"; }).length;
     rows = analysisSortItems(rows);
     var viewRows = [];
     rows.forEach(function (row) {
@@ -4348,7 +4347,7 @@ import { state } from "../core/state.js";
           escapeHtml(row.type),
           analysisStatusChip(row.status),
           String(row.uses),
-          row.has_error ? t("Yes") : t("No"),
+          row.has_error ? "Yes" : "No",
           escapeHtml(row.source)
         ],
         numCols: [4]
@@ -4357,14 +4356,14 @@ import { state } from "../core/state.js";
     });
     return {
       headers: [
-        { label: t("Name / expression"), key: "name" }, { label: t("Table"), key: "table" },
-        { label: t("Type"), key: "type" }, { label: "Status", key: "status" },
-        { label: t("# used"), key: "uses", num: true },
-        { label: "Error", key: "has_error" }, { label: t("Source"), key: "source" }
+        { label: "Name / expression", key: "name" }, { label: "Table", key: "table" },
+        { label: "Type", key: "type" }, { label: "Status", key: "status" },
+        { label: "# used", key: "uses", num: true },
+        { label: "Error", key: "has_error" }, { label: "Source", key: "source" }
       ],
       widths: ["37%", "13%", "11%", "15%", "8%", "6%", "10%"],
       rows: viewRows,
-      summary: rows.length + t(" expressions · ") + unused + t(" unused") +
+      summary: rows.length + " expressions · " + unused + " unused" +
         analysisCoverageSuffix(state.analysis)
     };
   }
@@ -4388,7 +4387,7 @@ import { state } from "../core/state.js";
         : "—";
       viewRows.push({
         cells: [
-          analysisNameCell(row.name, row.kind === "Tabel" ? "query" : "code", {
+          analysisNameCell(row.name, row.kind === "Table" ? "query" : "code", {
             level: 0, toggleId: row.expression ? id : "", open: open
           }),
           escapeHtml(row.kind || "—"),
@@ -4400,14 +4399,14 @@ import { state } from "../core/state.js";
     });
     return {
       headers: [
-        { label: t("Name"), key: "name" }, { label: t("Type"), key: "kind" },
-        { label: t("Source"), key: "source" }, { label: t("Warning"), key: "warning" }
+        { label: "Name", key: "name" }, { label: "Type", key: "kind" },
+        { label: "Source", key: "source" }, { label: "Warning", key: "warning" }
       ],
       widths: ["35%", "13%", "37%", "15%"],
       rows: viewRows,
-      summary: items.length + t(" queries · ") +
-        items.filter(function (row) { return row.kind === "Tabel"; }).length +
-        t(" tables") + analysisCoverageSuffix(state.analysis)
+      summary: items.length + " queries · " +
+        items.filter(function (row) { return row.kind === "Table"; }).length +
+        " tables" + analysisCoverageSuffix(state.analysis)
     };
   }
 
@@ -4416,16 +4415,16 @@ import { state } from "../core/state.js";
     var parts = [];
     if (item.detail) parts.push(item.detail);
     if (item.rule === "unused_table" || item.rule === "isolated_table") {
-      parts.push(fmtInt(metrics.columns || 0) + " " + t("columns") +
-        " · " + fmtInt(metrics.measures || 0) + " " + t("measures"));
+      parts.push(fmtInt(metrics.columns || 0) + " " + "columns" +
+        " · " + fmtInt(metrics.measures || 0) + " " + "measures");
     } else if (item.rule === "large_dictionary") {
-      parts.push(t("dictionary") + " " +
+      parts.push("dictionary" + " " +
         Math.round(Number(metrics.share || 0) * 100) + "% · " +
         analysisFmtBytes(metrics.dictionary || 0));
     } else if (item.rule === "hidden_page_with_visuals") {
-      parts.push(fmtInt(metrics.visuals || 0) + " " + t("visuals"));
+      parts.push(fmtInt(metrics.visuals || 0) + " " + "visuals");
     } else if (item.rule === "broken_visual") {
-      parts.push(fmtInt(metrics.unresolved || 0) + " " + t("unmapped fields"));
+      parts.push(fmtInt(metrics.unresolved || 0) + " " + "unmapped fields");
     }
     return parts.filter(Boolean).join(" · ") || "—";
   }
@@ -4461,13 +4460,13 @@ import { state } from "../core/state.js";
         level: 0,
         cells: [
           '<span class="chip ' + severityClass + '"><span class="dot"></span>' +
-            escapeHtml(t(severityLabel)) + "</span>",
-          escapeHtml(t(item.area === "report" ? "Report" : "Model")),
+            escapeHtml((severityLabel)) + "</span>",
+          escapeHtml((item.area === "report" ? "Report" : "Model")),
           '<span class="health-rule-cell">' +
             escapeHtml(analysisHealthRuleLabel(item.rule)) +
             '<button type="button" class="health-rule-info" data-health-rule-info="' +
-            escapeHtml(item.rule) + '" title="' + escapeHtml(t("About this rule")) +
-            '" aria-label="' + escapeHtml(t("About this rule")) + '">i</button>' +
+            escapeHtml(item.rule) + '" title="' + escapeHtml("About this rule") +
+            '" aria-label="' + escapeHtml("About this rule") + '">i</button>' +
           "</span>",
           analysisNameCell(item.object || "—", icons[item.kind] || "group", {
             level: 0, menu: isModelItem
@@ -4496,16 +4495,16 @@ import { state } from "../core/state.js";
     });
     return {
       headers: [
-        { label: t("Severity"), key: "severity" },
-        { label: t("Area"), key: "area" },
-        { label: t("Rule"), key: "rule" },
-        { label: t("Object"), key: "object_name" },
-        { label: t("Detail") },
-        { label: t("Size"), key: "size", num: true }
+        { label: "Severity", key: "severity" },
+        { label: "Area", key: "area" },
+        { label: "Rule", key: "rule" },
+        { label: "Object", key: "object_name" },
+        { label: "Detail" },
+        { label: "Size", key: "size", num: true }
       ],
       widths: ["10%", "9%", "21%", "25%", "27%", "8%"],
       rows: viewRows,
-      summary: t("{n} findings · {c} critical · {w} warning · {i} info")
+      summary: "{n} findings · {c} critical · {w} warning · {i} info"
         .replace("{n}", fmtInt(items.length))
         .replace("{c}", fmtInt(counts.critical || 0))
         .replace("{w}", fmtInt(counts.warning || 0))
@@ -4561,7 +4560,7 @@ import { state } from "../core/state.js";
     var cls = value >= 3 ? "chip-danger" : (value === 2 ? "chip-warn" : "chip-info");
     var label = value >= 3 ? "High" : (value === 2 ? "Medium" : "Low");
     return '<span class="chip ' + cls + '"><span class="dot"></span>' +
-      escapeHtml(t(label)) + "</span>";
+      escapeHtml((label)) + "</span>";
   }
 
   function analysisRenderBestPracticeSummary() {
@@ -4572,11 +4571,11 @@ import { state } from "../core/state.js";
     var verdict = $("#bpVerdict");
     verdict.setAttribute("data-verdict", bp.verdict_key || "pro");
     $("#bpVerdictText").textContent = bp.available === false
-      ? t("Catalog unavailable") : t(bp.verdict || "—");
+      ? "Catalog unavailable" : (bp.verdict || "—");
     var counts = bp.counts || {};
     $("#bpMeta").textContent = bp.available === false
-      ? tr(bp.error || "")
-      : t("{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated")
+      ? (bp.error || "")
+      : "{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated"
         .replace("{v}", fmtInt(counts.violations || 0))
         .replace("{r}", fmtInt(counts.rules || 0))
         .replace("{e}", fmtInt(bp.evaluated || 0))
@@ -4589,7 +4588,7 @@ import { state } from "../core/state.js";
     var items = bp.items || [];
     var rules = bp.rules || [];
     if (bp.available === false) {
-      return { headers: [], widths: [], rows: [], summary: tr(bp.error || "") };
+      return { headers: [], widths: [], rows: [], summary: (bp.error || "") };
     }
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var category = getSelectValue("typeAnalyze") || "all";
@@ -4661,14 +4660,14 @@ import { state } from "../core/state.js";
     });
     return {
       headers: [
-        { label: t("Rule") },
-        { label: t("Violation score") },
-        { label: t("Severity") },
-        { label: t("Objects") }
+        { label: "Rule" },
+        { label: "Violation score" },
+        { label: "Severity" },
+        { label: "Objects" }
       ],
       widths: ["55%", "13%", "14%", "18%"],
       rows: rows,
-      summary: t("{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated")
+      summary: "{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated"
         .replace("{v}", fmtInt((bp.counts || {}).violations || 0))
         .replace("{r}", fmtInt((bp.counts || {}).rules || 0))
         .replace("{e}", fmtInt(bp.evaluated || 0))
@@ -4702,8 +4701,8 @@ import { state } from "../core/state.js";
       });
       parts.push(
         '<section class="health-rule-group"><h3 class="health-rule-group-title">' +
-        '<span class="chip chip-idle">' + escapeHtml(t(category)) + "</span>" +
-        '<span class="helper">' + fmtInt(groupRows.length) + " " + t("rules") +
+        '<span class="chip chip-idle">' + escapeHtml((category)) + "</span>" +
+        '<span class="helper">' + fmtInt(groupRows.length) + " " + "rules" +
         "</span></h3>"
       );
       groupRows.forEach(function (rule) {
@@ -4714,23 +4713,23 @@ import { state } from "../core/state.js";
           '<article class="health-rule"><div class="health-rule-head"><h4>' +
           escapeHtml(rule.name) + "</h4>" +
           '<span class="chip ' + cls + '"><span class="dot"></span>' +
-          escapeHtml(t(BP_STATUS_LABELS[status] || status)) + "</span>" +
+          escapeHtml((BP_STATUS_LABELS[status] || status)) + "</span>" +
           '<span class="helper">' + fmtInt(rule.score || 0) + "</span></div>" +
           '<p class="health-rule-desc">' + escapeHtml(rule.description || "") + "</p>" +
           '<dl class="health-rule-meta">' +
-          "<dt>" + escapeHtml(t("Severity")) + "</dt><dd>" +
-          escapeHtml(t(rule.severity_label || "")) + "</dd>" +
+          "<dt>" + escapeHtml("Severity") + "</dt><dd>" +
+          escapeHtml((rule.severity_label || "")) + "</dd>" +
           (rule.expression
-            ? "<dt>" + escapeHtml(t("Expression")) + "</dt><dd><code>" +
+            ? "<dt>" + escapeHtml("Expression") + "</dt><dd><code>" +
               escapeHtml(rule.expression) + "</code></dd>"
             : "") +
           (rule.fix_expression
-            ? "<dt>" + escapeHtml(t("Suggested fix")) + "</dt><dd><code>" +
+            ? "<dt>" + escapeHtml("Suggested fix") + "</dt><dd><code>" +
               escapeHtml(rule.fix_expression) + "</code></dd>"
             : "") +
           (rule.reason
-            ? "<dt>" + escapeHtml(t("Reason")) + "</dt><dd>" +
-              escapeHtml(tr(rule.reason)) + "</dd>"
+            ? "<dt>" + escapeHtml("Reason") + "</dt><dd>" +
+              escapeHtml((rule.reason)) + "</dd>"
             : "") +
           "</dl></article>"
         );
@@ -4771,8 +4770,8 @@ import { state } from "../core/state.js";
         a = left[key] ? 1 : 0;
         b = right[key] ? 1 : 0;
       } else if (key === "type" && left.type == null) {
-        a = "relasi";
-        b = "relasi";
+        a = "relationship";
+        b = "relationship";
       } else {
         a = String(a == null ? "" : a).toLowerCase();
         b = String(b == null ? "" : b).toLowerCase();
@@ -4829,7 +4828,7 @@ import { state } from "../core/state.js";
         var codeHtml = row.language === "plain"
           ? escapeHtml(row.code)
           : highlightCode(row.code, row.language || "dax");
-        var copyLabel = escapeHtml(t("Copy code"));
+        var copyLabel = escapeHtml("Copy code");
         return '<tr class="code-row"><td colspan="' + headers.length +
           '"><div class="code-cell"><button type="button" class="code-copy" data-copy-code aria-label="' +
           copyLabel + '" title="' + copyLabel + '">' + MENU_ICONS.copy +
@@ -4893,12 +4892,12 @@ import { state } from "../core/state.js";
       empty.hidden = false;
       var hasModel = Boolean(getSelectValue("modelSelect"));
       $("#analyzeSummary").textContent = hasModel
-        ? t("Ready to analyze") : t("Not analyzed yet");
+        ? "Ready to analyze" : "Not analyzed yet";
       $("#analyzeEmptyTitle").textContent = hasModel
-        ? t("Ready to analyze") : t("No analysis results yet");
+        ? "Ready to analyze" : "No analysis results yet";
       $("#analyzeEmptyText").textContent = hasModel
-        ? t("Press Analyze now or Analysis to start. Only reads the model.")
-        : t("Choose a workspace and semantic model, then press Analyze now.");
+        ? "Press Analyze now or Analysis to start. Only reads the model."
+        : "Choose a workspace and semantic model, then press Analyze now.";
       $("#analyzeFromEmpty").hidden = !hasModel;
       return;
     }
@@ -4935,23 +4934,21 @@ import { state } from "../core/state.js";
       tableWrap.hidden = true;
       empty.hidden = false;
       if (tab === "report" && result.reports_included === false) {
-        $("#analyzeEmptyTitle").textContent = t("Report usage not included");
-        $("#analyzeEmptyText").textContent = t(
-          "Enable “Include report usage” and run the analysis again to see pages, visuals, and filters.");
+        $("#analyzeEmptyTitle").textContent = "Report usage not included";
+        $("#analyzeEmptyText").textContent = "Enable “Include report usage” and run the analysis again to see pages, visuals, and filters.";
       } else if (tab === "bestpractice") {
         if (result.best_practice && result.best_practice.available === false) {
-          $("#analyzeEmptyTitle").textContent = t("Catalog unavailable");
+          $("#analyzeEmptyTitle").textContent = "Catalog unavailable";
           $("#analyzeEmptyText").textContent =
-            tr(result.best_practice.error || "");
+            (result.best_practice.error || "");
         } else {
-          $("#analyzeEmptyTitle").textContent = t("No best practice violations");
-          $("#analyzeEmptyText").textContent = t(
-            "Every evaluated rule passed. Open Rules to review the full catalog and unsupported rules.");
+          $("#analyzeEmptyTitle").textContent = "No best practice violations";
+          $("#analyzeEmptyText").textContent = "Every evaluated rule passed. Open Rules to review the full catalog and unsupported rules.";
         }
       } else {
-        $("#analyzeEmptyTitle").textContent = t("No matching items");
+        $("#analyzeEmptyTitle").textContent = "No matching items";
         $("#analyzeEmptyText").textContent =
-          t("Change the keyword or filter to see other items in this tab.");
+          "Change the keyword or filter to see other items in this tab.";
       }
       $("#analyzeFromEmpty").hidden = true;
     } else {
@@ -5169,11 +5166,11 @@ import { state } from "../core/state.js";
       escapeHtml((rel.from_table || "") + "[" + (rel.from_column || "") + "]") + " → " +
       escapeHtml((rel.to_table || "") + "[" + (rel.to_column || "") + "]") + "</code>" +
       '<div class="rel-meta">' +
-      analysisRelChip(tStatus(rel.status || "Dipakai"), rel.is_active ? "chip-ok" : "chip-idle") +
+      analysisRelChip(tStatus(rel.status || "Used"), rel.is_active ? "chip-ok" : "chip-idle") +
       analysisRelChip(rel.type || "") +
       analysisRelChip(rel.cross || "") +
       analysisRelChip(rel.cardinality || "") +
-      analysisRelChip("auto: " + (rel.auto || t("No"))) +
+      analysisRelChip("auto: " + (rel.auto || "No")) +
       "</div></div>";
   }
 
@@ -5183,18 +5180,18 @@ import { state } from "../core/state.js";
       var pair = allPairs[selected.value];
       if (!pair) {
         side.innerHTML = '<p class="helper">' +
-        t("No relationships match the current filter.") + "</p>";
+        "No relationships match the current filter." + "</p>";
         return;
       }
       var status = analysisPairStatus(pair);
       side.innerHTML =
         '<p class="rel-side-title">' + escapeHtml(pair.from) + " → " +
         escapeHtml(pair.to) + "</p>" +
-        '<p class="rel-side-sub">' + pair.rels.length + t(" relationships · ") +
-        status.active + t(" active · ") + status.inactive + t(" inactive</p>") +
+        '<p class="rel-side-sub">' + pair.rels.length + " relationships · " +
+        status.active + " active · " + status.inactive + " inactive</p>" +
         '<div class="rel-side-list">' + pair.rels.map(analysisPairCard).join("") + "</div>" +
         '<button class="btn btn-sm rel-side-back" type="button" data-rel-back="' +
-        escapeHtml(pair.from) + '">' + t("View all relationships ") + escapeHtml(pair.from) + "</button>";
+        escapeHtml(pair.from) + '">' + "View all relationships " + escapeHtml(pair.from) + "</button>";
       return;
     }
     if (selected && selected.kind === "table") {
@@ -5208,13 +5205,13 @@ import { state } from "../core/state.js";
       var active = rels.filter(function (rel) { return rel.is_active; }).length;
       side.innerHTML =
         '<p class="rel-side-title">' + escapeHtml(name) + "</p>" +
-        '<p class="rel-side-sub">Tabel · ' + info.column_count + t(" columns · ") +
-        info.measure_count + t(" measures · ") + (info.rows || 0) + t(" rows</p>") +
+        '<p class="rel-side-sub">Table · ' + info.column_count + " columns · " +
+        info.measure_count + " measures · " + (info.rows || 0) + " rows</p>" +
         '<div class="rel-side-stats">' +
-        analysisGraphStat(t("Relationships"), rels.length) +
-        analysisGraphStat(t("Active"), active) +
-        analysisGraphStat(t("Inactive"), rels.length - active) +
-        analysisGraphStat(t("Related tables"), keys.length) +
+        analysisGraphStat("Relationships", rels.length) +
+        analysisGraphStat("Active", active) +
+        analysisGraphStat("Inactive", rels.length - active) +
+        analysisGraphStat("Related tables", keys.length) +
         "</div>" +
         (keys.length
           ? '<div class="rel-side-list">' + keys.map(function (key) {
@@ -5223,18 +5220,18 @@ import { state } from "../core/state.js";
             var pairStatus = analysisPairStatus(pair);
             return '<button type="button" class="rel-side-item" data-rel-pair="' +
               escapeHtml(key) + '"><strong>' + escapeHtml(target) + "</strong><span>" +
-              pair.rels.length + t(" relationships · ") + pairStatus.inactive +
-              t(" inactive</span></button>");
+              pair.rels.length + " relationships · " + pairStatus.inactive +
+              " inactive</span></button>";
           }).join("") + "</div>"
-          : '<p class="rel-side-note">' + t("No relationships match the current filter.") + "</p>") +
-        '<p class="rel-side-note">' + t("Click a line in the graph to see the relationship columns.") + "</p>";
+          : '<p class="rel-side-note">' + "No relationships match the current filter." + "</p>") +
+        '<p class="rel-side-note">' + "Click a line in the graph to see the relationship columns." + "</p>";
       return;
     }
-    side.innerHTML = '<p class="rel-side-title">' + t("Relationship graph") + "</p>" +
-      '<p class="rel-side-sub">' + names.length + t(" tables · ") +
-      Object.keys(visiblePairs).length + t(" table pairs in this filter.</p>") +
+    side.innerHTML = '<p class="rel-side-title">' + "Relationship graph" + "</p>" +
+      '<p class="rel-side-sub">' + names.length + " tables · " +
+      Object.keys(visiblePairs).length + " table pairs in this filter.</p>" +
       '<p class="rel-side-note">' +
-      t("Click a table or line to see relationship details.") + "</p>";
+      "Click a table or line to see relationship details." + "</p>";
   }
 
   export function applyAnalysisZoom() {
@@ -5271,8 +5268,8 @@ import { state } from "../core/state.js";
     var visiblePairs = analysisRelPairs(relations);
     var tree = analysisRelTreeLayout();
     $("#relGraph").hidden = false;
-    $("#analyzeSummary").textContent = relations.length + t(" relationships · ") +
-      Object.keys(visiblePairs).length + t(" table pairs") +
+    $("#analyzeSummary").textContent = relations.length + " relationships · " +
+      Object.keys(visiblePairs).length + " table pairs" +
       analysisCoverageSuffix(state.analysis);
     if (!relations.length) {
       layer.innerHTML = "";
@@ -5283,9 +5280,9 @@ import { state } from "../core/state.js";
       analysisSetZoom(1);
       $("#relGraphSide").innerHTML =
         '<div class="empty" style="padding:18px 8px"><div class="empty-title">' +
-        t("No relationships") + "</div>" +
+        "No relationships" + "</div>" +
         '<p class="empty-text">' +
-        t("Change the keyword or status filter to see other relationships.") +
+        "Change the keyword or status filter to see other relationships." +
         "</p></div>";
       return;
     }
@@ -5347,7 +5344,7 @@ import { state } from "../core/state.js";
         (dim ? ' opacity=".45"' : "") + ' marker-end="url(#' +
         (hot ? "relArrowActive" : "relArrow") + ')" data-rel-pair="' +
         escapeHtml(key) + '"><title>' + escapeHtml(pair.from + " → " + pair.to +
-          " · " + pair.rels.length + " relasi") + "</title></path>");
+          " · " + pair.rels.length + " relationships") + "</title></path>");
       parts.push('<path class="rel-edge-hit" d="' + path + '" data-rel-pair="' +
         escapeHtml(key) + '"></path>');
       if (pair.rels.length > 1) {
@@ -5368,19 +5365,19 @@ import { state } from "../core/state.js";
       var isSelected = selectedTable === name;
       var cls = "node rel-node" + (touches ? "" : " is-dim");
       parts.push('<g class="' + cls + '" tabindex="0" role="button" data-rel-table="' +
-        escapeHtml(name) + '" aria-label="' + t("Table ") + escapeHtml(name) +
-        (touches ? t(", has relationships") : t(", no relationships")) + '" aria-current="' +
+        escapeHtml(name) + '" aria-label="' + "Table " + escapeHtml(name) +
+        (touches ? ", has relationships" : ", no relationships") + '" aria-current="' +
         (isSelected ? "true" : "false") + '">' +
         '<rect class="node-box' + (isSelected ? " sel" : "") + '" x="' + pos.x +
         '" y="' + pos.y + '" width="' + REL_NODE_W + '" height="' + REL_NODE_H +
         '" rx="6"></rect>' +
         '<text class="node-type" x="' + (pos.x + 11) + '" y="' + (pos.y + 16) +
-        '">' + t("Table") + "</text>" +
+        '">' + "Table" + "</text>" +
         '<text class="node-name" x="' + (pos.x + 11) + '" y="' + (pos.y + 33) +
         '">' + escapeHtml(analysisTruncate(name, 20)) + "</text>" +
         '<text class="rel-node-meta" x="' + (pos.x + 11) + '" y="' + (pos.y + 48) +
-        '">' + info.column_count + t(" columns · ") + info.measure_count +
-        t(" measures</text></g>"));
+        '">' + info.column_count + " columns · " + info.measure_count +
+        " measures</text></g>");
     });
 
     layer.innerHTML = parts.join("");
@@ -5425,19 +5422,19 @@ import { state } from "../core/state.js";
   export function analysisRun() {
     if (!app.apiReady()) return;
     if (!getSelectValue("wsSelect") || !getSelectValue("modelSelect")) {
-      app.toast(t("Choose a workspace and semantic model first"));
+      app.toast("Choose a workspace and semantic model first");
       return;
     }
     state.analysisRunning = true;
     state.analysisTarget = getSelectValue("modelSelect");
     var target = state.analysisTarget;
     $("#stopAnalyze").hidden = false;
-    $("#analyzeSummary").textContent = t("Analyzing the semantic model…");
+    $("#analyzeSummary").textContent = "Analyzing the semantic model…";
     app.startJob({
       kind: "analysis",
       path: "/api/analysis/run",
       body: analysisPayload(),
-      label: t("Semantic Model Analysis"),
+      label: "Semantic Model Analysis",
       button: $("#runAnalyze"),
       onDone: function (snapshot) {
         state.analysisRunning = false;
@@ -5445,7 +5442,7 @@ import { state } from "../core/state.js";
         var same = target === getSelectValue("modelSelect");
         state.analysisTarget = null;
         if (!same) {
-          app.toast(t("Analysis finished for a previous model and was not applied."));
+          app.toast("Analysis finished for a previous model and was not applied.");
           analysisRender();
           return;
         }
@@ -5465,25 +5462,25 @@ import { state } from "../core/state.js";
   export function analysisStop() {
     if (!state.jobId || !app.apiReady()) return;
     app.api().post("/api/jobs/" + encodeURIComponent(state.jobId) + "/cancel", {})
-      .then(function () { app.toast(t("Stop request sent")); })
+      .then(function () { app.toast("Stop request sent"); })
       .catch(app.reportError);
   }
 
   export function analysisExport() {
     if (!app.apiReady() || !getSelectValue("modelSelect")) {
-      app.toast(t("Choose a semantic model first"));
+      app.toast("Choose a semantic model first");
       return;
     }
     var tab = state.analysisTab || "all";
     if (tab !== "all") {
-      app.toast(t("Coming soon"));
+      app.toast("Coming soon");
       return;
     }
     app.api().post("/api/analysis/export", {
       dataset_id: getSelectValue("modelSelect"),
       tab: "all"
     }).then(function (data) {
-      app.toast(t("Export: ") + data.path);
+      app.toast("Export: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })
         .catch(function () {});
     }).catch(app.reportError);

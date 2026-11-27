@@ -22,7 +22,6 @@ from ..settings_store import SettingsStore
 from .formatting import format_time
 
 THEMES = ("dark", "light")
-LANGUAGES = ("en", "id")
 
 
 def effective_database(store: SettingsStore) -> str:
@@ -47,7 +46,6 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
     if active_tab not in keys.ACTIVE_TABS:
         active_tab = "local"
     theme = store.get_str(keys.SETTINGS_UI_THEME_KEY, "dark")
-    language = store.get_str(keys.SETTINGS_UI_LANGUAGE_KEY, "en")
     return {
         "auth": auth,
         "snapshot": snapshot_status(store),
@@ -64,7 +62,6 @@ def build_state(store: SettingsStore) -> dict[str, Any]:
         },
         "ui": {
             "theme": theme if theme in THEMES else "dark",
-            "language": language if language in LANGUAGES else "en",
             "motion": store.get_bool(keys.SETTINGS_UI_MOTION_KEY, True),
             "show_console": store.get_bool(keys.SETTINGS_UI_CONSOLE_KEY, True),
         },
@@ -93,7 +90,7 @@ def catalog_status(store: SettingsStore) -> dict[str, Any]:
         summary = workspace_status(path)
     except ExtractionError as exc:
         payload.update(
-            text=f"Database tidak bisa dibaca: {exc}", tone="error", error=str(exc)
+            text=f"Database could not be read: {exc}", tone="error", error=str(exc)
         )
         return payload
     database = database_summary(path)
@@ -101,7 +98,7 @@ def catalog_status(store: SettingsStore) -> dict[str, Any]:
     payload["readable"] = database.readable
     if database.exists and not database.readable:
         payload.update(
-            text=f"Database tidak bisa dibaca: {database.error}",
+            text=f"Database could not be read: {database.error}",
             tone="error",
             error=database.error,
         )
@@ -114,18 +111,18 @@ def catalog_status(store: SettingsStore) -> dict[str, Any]:
     last_mode = str(summary.get("last_mode") or "")
     last_scan = format_time(database.last_scan)
     if total:
-        text = f"{selectable} workspace siap dipilih dari {total} tersimpan"
+        text = f"{selectable} workspaces selectable out of {total} saved"
         if last_sync:
             suffix = f" ({last_mode})" if last_mode else ""
-            text += f" · sync katalog {last_sync}{suffix}"
+            text += f" · catalog sync {last_sync}{suffix}"
         tone = "ok" if selectable else "error"
     else:
-        text = "Belum ada katalog workspace tersimpan"
+        text = "No saved workspace catalog"
         tone = "idle"
     text += (
-        f" · scan lineage {last_scan}"
+        f" · lineage scan {last_scan}"
         if last_scan
-        else " · scan lineage belum pernah dijalankan"
+        else " · lineage scan has not run yet"
     )
     payload.update(
         text=text,
@@ -151,7 +148,7 @@ def save_paths(store: SettingsStore, lineage_db: str) -> dict[str, Any]:
     if text:
         path = Path(text).expanduser()
         if not path.is_absolute():
-            raise ExtractionError("Path database harus absolut.")
+            raise ExtractionError("Database path must be absolute.")
         store.set_lineage_db(path)
     else:
         store.set(keys.PATHS_LINEAGE_DB_KEY, "")
@@ -163,19 +160,13 @@ def save_ui(
     theme: str | None = None,
     motion: bool | None = None,
     show_console: bool | None = None,
-    language: str | None = None,
 ) -> dict[str, Any]:
     changes: dict[str, Any] = {}
     if theme is not None:
         value = str(theme).strip()
         if value not in THEMES:
-            raise ExtractionError(f"Tema tidak dikenal: {theme}")
+            raise ExtractionError(f"Unknown theme: {theme}")
         changes[keys.SETTINGS_UI_THEME_KEY] = value
-    if language is not None:
-        value = str(language).strip().lower()
-        if value not in LANGUAGES:
-            raise ExtractionError(f"Bahasa tidak dikenal: {language}")
-        changes[keys.SETTINGS_UI_LANGUAGE_KEY] = value
     if motion is not None:
         changes[keys.SETTINGS_UI_MOTION_KEY] = bool(motion)
     if show_console is not None:
@@ -202,19 +193,19 @@ def save_extraction(
             continue
         text = str(value).strip()
         if text not in SCOPES:
-            raise ExtractionError(f"Cakupan {name} tidak dikenal: {value}")
+            raise ExtractionError(f"Unknown {name} scope: {value}")
         changes[key] = text
     if active_tab is not None:
         text = str(active_tab).strip()
         if text not in keys.ACTIVE_TABS:
-            raise ExtractionError(f"Sub-tab tidak dikenal: {active_tab}")
+            raise ExtractionError(f"Unknown sub-tab: {active_tab}")
         changes[keys.SETTINGS_ACTIVE_TAB_KEY] = text
     if out_dir is not None:
         text = str(out_dir).strip().strip('"')
         if text:
             path = Path(text).expanduser()
             if not path.is_absolute():
-                raise ExtractionError("Folder output harus absolut.")
+                raise ExtractionError("Output folder must be absolute.")
             text = str(path)
         changes[keys.SETTINGS_OUT_DIR_KEY] = text
     if changes:
@@ -229,7 +220,7 @@ def save_shared_db(
     if text:
         path = Path(text).expanduser()
         if not path.is_absolute():
-            raise ExtractionError("Lokasi snapshot harus absolut.")
+            raise ExtractionError("Snapshot location must be absolute.")
         text = str(path)
     store.update(
         {

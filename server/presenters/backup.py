@@ -35,7 +35,7 @@ def _folder(store: SettingsStore, value: str = "") -> Path:
     if text:
         folder = Path(text).expanduser()
         if not folder.is_absolute():
-            raise ExtractionError("Folder backup harus absolut.")
+            raise ExtractionError("Backup folder must be absolute.")
         return folder
     saved = store.get_str(keys.BACKUP_FOLDER_KEY)
     if saved:
@@ -134,7 +134,7 @@ def run_job(
     workspace_name = option.name if option and option.name else request.workspace_name
     if not workspace_name:
         raise ExtractionError(
-            "Nama workspace tidak ditemukan di katalog; pilih workspace dari daftar."
+            "Workspace name was not found in the catalog; choose a workspace from the list."
         )
     options = BackupOptions(
         workspace_id=request.workspace_id,
@@ -187,7 +187,7 @@ def restore_job(
     workspace_name = option.name if option and option.name else request.workspace_name
     if not workspace_name:
         raise ExtractionError(
-            "Nama workspace tujuan tidak ditemukan di katalog; pilih workspace dari daftar."
+            "Target workspace name was not found in the catalog; choose a workspace from the list."
         )
     options = request.to_options()
     options = type(options)(

@@ -835,7 +835,7 @@ def build_roles(model: LiveModel) -> tuple[list[dict[str, Any]], int]:
 def build_role_details(model: LiveModel) -> list[dict[str, Any]]:
     """Role lengkap dengan member dan table permission (RLS/OLS).
 
-    Dipakai tab Roles di halaman Analisa dan halaman Compare (read-only).
+    Used tab Roles di halaman Analisa dan halaman Compare (read-only).
     ``TMSCHEMA_ROLE_MEMBERSHIPS`` tidak tersedia di semua engine lama; bagian
     member dibiarkan kosong tanpa mengarang data.
     """
@@ -1251,17 +1251,17 @@ def resolve_report_pbix(report: Path | None, no_report: bool) -> Path | None:
         return None
     if report is None:
         raise ExtractionError(
-            "File .pbix wajib ditentukan (--report) atau lewati dengan --no-report."
+            "A .pbix file is required (--report) or skip it with --no-report."
         )
     pbix = report.resolve()
     if not pbix.exists():
         raise ExtractionError(
-            f"File .pbix tidak ditemukan: {display_path(pbix)}. Pilih file .pbix sumber."
+            f".pbix file not found: {display_path(pbix)}. Choose the source .pbix file."
         )
     if pbix.is_dir() or pbix.suffix.lower() != ".pbix":
         raise ExtractionError(
-            f"Sumber report harus file .pbix, bukan folder: {pbix}. "
-            "Dukungan folder PBIR sudah dihapus."
+            f"Report source must be a .pbix file, not a folder: {pbix}. "
+            "PBIR folder support has been removed."
         )
     return pbix
 
@@ -1286,8 +1286,8 @@ def _resolve_report_usage(
             report_def / "report.json"
         ).exists():
             raise ExtractionError(
-                f"Folder report definition tidak lengkap: {display_path(report_def)}. "
-                "Dibutuhkan pages/pages.json dan report.json."
+                f"Incomplete report definition folder: {display_path(report_def)}. "
+                "pages/pages.json and report.json are required."
             )
         measures, columns = scan_report_usage(report_def)
         label = report_label or f"definition {display_path(report_def)}"
@@ -1302,7 +1302,7 @@ def _resolve_report_usage(
             f"pbix {display_path(pbix)} (Report/definition)",
             True,
         )
-    return {}, {}, "Tidak tersedia (report tidak dipilih).", False
+    return {}, {}, "Not available (no report selected).", False
 
 
 def run_model(
@@ -1471,15 +1471,15 @@ def run_model(
                 "report_pages": measure["report_pages"],
                 "note": ""
                 if measure["report_usage_count"]
-                else ("Tidak dipakai langsung oleh visual" if report_available else "Report tidak tersedia"),
+                else ("Unused langsung oleh visual" if report_available else "Report tidak tersedia"),
             }
         )
     for column in columns:
         aggregations = column.get("report_aggregations") or ""
         if column["report_usage_count"]:
-            note = f"Dipakai visual lewat agregasi: {aggregations}" if aggregations else ""
+            note = f"Used visual lewat agregasi: {aggregations}" if aggregations else ""
         else:
-            note = "Tidak dipakai langsung oleh visual" if report_available else "Report tidak tersedia"
+            note = "Unused langsung oleh visual" if report_available else "Report tidak tersedia"
         cross_rows.append(
             {
                 "object_type": "Column",
@@ -1501,7 +1501,7 @@ def run_model(
                     "object": name,
                     "direct_visual_usage": len(usage["visuals"]),
                     "report_pages": fmt_pages(usage["pages"]),
-                    "note": "Dipakai report tapi TIDAK ADA di model",
+                    "note": "Used report tapi TIDAK ADA di model",
                 }
             )
     for (table, name), usage in report_columns.items():
@@ -1513,7 +1513,7 @@ def run_model(
                     "object": name,
                     "direct_visual_usage": len(usage["visuals"]),
                     "report_pages": fmt_pages(usage["pages"]),
-                    "note": "Dipakai report tapi TIDAK ADA di model",
+                    "note": "Used report tapi TIDAK ADA di model",
                 }
             )
 
@@ -1983,7 +1983,7 @@ def run_model(
                         "step": "",
                         "column": "",
                         "status": "no_warning",
-                        "detail": "Semua kolom berhasil dipetakan ke sumbernya melalui query M.",
+                        "detail": "All columns were mapped to their source through the M query.",
                     }
                 ],
                 ["step", "column", "status", "detail"],

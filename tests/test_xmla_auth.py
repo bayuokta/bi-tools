@@ -304,7 +304,7 @@ class ChannelCacheRetryTests(unittest.TestCase):
         with self.assertRaises(XmlaError) as ctx:
             self._connect()
         message = str(ctx.exception)
-        self.assertIn("cache channel ADOMD", message)
+        self.assertIn("ADOMD channel cache", message)
         self.assertIn("DAX Studio", message)
         self.assertEqual(type(self).FlakyConnection.attempts, 2)
 

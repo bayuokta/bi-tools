@@ -11,10 +11,10 @@ import re
 from typing import Any, Iterable, Mapping
 
 STATUS_LABELS = {
-    "Dipakai": "Used",
-    "Tidak dipakai": "Unused",
-    "Perlu dicek": "Needs review",
-    "Wajib dipertahankan": "Must keep",
+    "Used": "Used",
+    "Unused": "Unused",
+    "Needs review": "Needs review",
+    "Must keep": "Must keep",
 }
 
 UNSUPPORTED_FLAGS = (
@@ -225,7 +225,7 @@ def item_details(
         analysis, "column", None
     )
     if node is None:
-        raise ValueError("Objek analisa tidak dikenal.")
+        raise ValueError("Unknown analysis object.")
     table = str(getattr(node, "table", "") or "")
     name = str(
         getattr(node, "measure", "") if is_measure else getattr(node, "column", "")

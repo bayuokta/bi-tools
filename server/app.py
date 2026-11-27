@@ -116,7 +116,7 @@ def create_app(
     async def _job_missing(_request: Request, exc: JobNotFound) -> JSONResponse:
         return JSONResponse(
             status_code=404,
-            content={"detail": f"Job tidak ditemukan: {exc.args[0] if exc.args else ''}"},
+            content={"detail": f"Job not found: {exc.args[0] if exc.args else ''}"},
         )
 
     @app.get("/favicon.ico", include_in_schema=False)
@@ -136,7 +136,7 @@ def create_app(
             return JSONResponse(
                 status_code=503,
                 content={
-                    "detail": f"Aset web tidak ditemukan: {app.state.web_root}",
+                    "detail": f"Web asset not found: {app.state.web_root}",
                 },
             )
 

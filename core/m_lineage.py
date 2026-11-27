@@ -109,7 +109,7 @@ class State:
     # Level path sumber dari luar ke dalam (mis. ["dbo", "Sales"] atau
     # ["proyek", "dataset", "tabel"]). `source_object` adalah turunannya.
     source_path: list[str] = field(default_factory=list)
-    # Level koneksi dari argumen fungsi (server/database/proyek). Dipakai
+    # Level koneksi dari argumen fungsi (server/database/proyek). Used
     # sebagai label hanya bila tidak ada navigasi tabel yang lebih spesifik.
     connection_path: list[str] = field(default_factory=list)
     columns_known: bool = False
@@ -229,7 +229,7 @@ CONNECTOR_SPECS: dict[str, ConnectorSpec] = {
     "html.browsercontents": ConnectorSpec("web", "url", (0,)),
 }
 
-# Dipakai pemanggil lama/uji: nama fungsi -> origin.
+# Used pemanggil lama/uji: nama fungsi -> origin.
 CONNECTOR_ORIGINS: dict[str, str] = {
     name: spec.origin for name, spec in CONNECTOR_SPECS.items()
 }
@@ -1267,7 +1267,7 @@ def _ensure_column(state: State, name: str, step: str, warnings: list[Warning]) 
     if state.columns_known:
         column.status = "orphan_rename"
         column.confidence = "low"
-        column.detail = f"Kolom '{name}' tidak ada pada langkah sebelumnya."
+        column.detail = f"Column '{name}' did not exist in the previous step."
         warnings.append(Warning(step, name, "orphan_rename", column.detail))
     state.columns[name] = column
     return column
@@ -1479,7 +1479,7 @@ def _apply_function(
             columns = _parse_type_table(args[1])
         if columns is None:
             warnings.append(
-                Warning(step, "", "unresolved", "Table.FromRows tanpa definisi kolom yang bisa dibaca.")
+                Warning(step, "", "unresolved", "Table.FromRows without a readable column definition.")
             )
             state.columns_known = False
             return state
@@ -1493,7 +1493,7 @@ def _apply_function(
                 confidence="high",
                 chain=[column_name],
                 step=step,
-                detail="Kolom didefinisikan langsung di dalam M (tabel inline).",
+                detail="Column defined directly in M (inline table).",
                 steps=[StepLink(step=step, function=name, column=column_name)],
             )
         return state
@@ -1545,7 +1545,7 @@ def _apply_function(
     if lowered == "table.selectcolumns":
         selected = _parse_string_list(args[1]) if len(args) >= 2 else None
         if selected is None:
-            warnings.append(Warning(step, "", "dynamic_columns", "Table.SelectColumns memakai daftar kolom dinamis."))
+            warnings.append(Warning(step, "", "dynamic_columns", "Table.SelectColumns uses a dynamic column list."))
             state.columns_known = False
             return state
         chosen: dict[str, ColumnLineage] = {}
@@ -1560,7 +1560,7 @@ def _apply_function(
     if lowered == "table.removecolumns":
         removed = _parse_string_list(args[1]) if len(args) >= 2 else None
         if removed is None:
-            warnings.append(Warning(step, "", "dynamic_columns", "Table.RemoveColumns memakai daftar kolom dinamis."))
+            warnings.append(Warning(step, "", "dynamic_columns", "Table.RemoveColumns uses a dynamic column list."))
             state.columns_known = False
             return state
         for column_name in removed:
@@ -1576,7 +1576,7 @@ def _apply_function(
                 pairs = [(single[0], single[1])]
         if pairs is None:
             warnings.append(
-                Warning(step, "", "dynamic_rename", "Table.RenameColumns memakai daftar rename dinamis.")
+                Warning(step, "", "dynamic_rename", "Table.RenameColumns uses a dynamic rename list.")
             )
             state.columns_known = False
             return state
@@ -1587,7 +1587,7 @@ def _apply_function(
                 existing = state.columns[new]
                 existing.status = "rename_conflict"
                 existing.confidence = "low"
-                existing.detail = f"Rename '{old}' -> '{new}': nama tujuan sudah ada."
+                existing.detail = f"Rename '{old}' -> '{new}': the target name already exists."
                 column.status = "rename_conflict"
                 column.confidence = "low"
                 column.detail = existing.detail
@@ -1609,7 +1609,7 @@ def _apply_function(
         source_name = _parse_name(args[1])
         new_name = _parse_name(args[2])
         if source_name is None or new_name is None:
-            warnings.append(Warning(step, "", "dynamic_rename", "Table.DuplicateColumn tanpa nama statis."))
+            warnings.append(Warning(step, "", "dynamic_rename", "Table.DuplicateColumn without a static name."))
             state.columns_known = False
             return state
         source = _ensure_column(state, source_name, step, warnings)
@@ -1669,7 +1669,7 @@ def _apply_function(
     if lowered == "table.splitcolumn":
         if len(args) < 4:
             warnings.append(
-                Warning(step, "", "unresolved", "Table.SplitColumn tanpa argumen lengkap.")
+                Warning(step, "", "unresolved", "Table.SplitColumn without complete arguments.")
             )
             state.columns_known = False
             return state
@@ -1681,7 +1681,7 @@ def _apply_function(
                     step,
                     "",
                     "dynamic_columns",
-                    "Table.SplitColumn memakai kolom hasil split dinamis.",
+                    "Table.SplitColumn uses a dynamic split column result.",
                 )
             )
             state.columns_known = False
@@ -1694,7 +1694,7 @@ def _apply_function(
                 new_name,
                 [source],
                 step,
-                detail="Kolom hasil split.",
+                detail="Column produced by split.",
                 logic=logic,
                 function=name,
             )
@@ -1712,7 +1712,7 @@ def _apply_function(
                     step,
                     "",
                     "dynamic_columns",
-                    "Table.TransformColumns memakai daftar kolom dinamis.",
+                    "Table.TransformColumns uses a dynamic column list.",
                 )
             )
             state.columns_known = False
@@ -1772,7 +1772,7 @@ def _apply_function(
         anchors = _parse_string_list(args[1]) if len(args) >= 2 else None
         if anchors is None or len(args) < 4:
             state.columns_known = False
-            warnings.append(Warning(step, "", "unresolved", f"{name} tidak bisa dipastikan kolomnya."))
+            warnings.append(Warning(step, "", "unresolved", f"the columns of {name} cannot be determined."))
             return state
         attribute = _parse_name(args[2])
         value_name = _parse_name(args[3])
@@ -1826,12 +1826,12 @@ def _apply_function(
         old_names = _parse_string_list(args[3]) if len(args) >= 4 else None
         if new_names is None:
             state.columns_known = False
-            warnings.append(Warning(step, "", "dynamic_columns", f"{name} memakai daftar kolom dinamis."))
+            warnings.append(Warning(step, "", "dynamic_columns", f"{name} uses a dynamic column list."))
             return state
         for index, new_name in enumerate(new_names):
             refs = [old_names[index]] if old_names and index < len(old_names) else []
             column = _derived_column(
-                state, new_name, refs, step, "Kolom hasil expand.", function=name
+                state, new_name, refs, step, "Column produced by expand.", function=name
             )
             column.confidence = "medium"
             state.columns[new_name] = column
@@ -1839,7 +1839,7 @@ def _apply_function(
 
     if lowered in {"table.pivot", "table.transformcolumnnames"}:
         detail = (
-            "Rename kolom dinamis (Table.TransformColumnNames) tidak bisa dipastikan."
+            "Dynamic column rename (Table.TransformColumnNames) cannot be determined."
             if lowered == "table.transformcolumnnames"
             else "Table.Pivot mengubah nama kolom secara dinamis."
         )
@@ -1859,13 +1859,13 @@ def _apply_function(
 
     # Fungsi tak dikenal: anggap passthrough tetapi turunkan keyakinan.
     warnings.append(
-        Warning(step, "", "unknown_function", f"Fungsi '{name}' belum dikenali; lineage kolom diturunkan sebagai passthrough.")
+        Warning(step, "", "unknown_function", f"Function '{name}' is not recognized yet; column lineage is treated as passthrough.")
     )
     for column in state.columns.values():
         if column.confidence == "high":
             column.confidence = "medium"
         if not column.detail:
-            column.detail = f"Melewati fungsi yang belum dikenali: {name}."
+            column.detail = f"Skipping unrecognized function: {name}."
     return state
 
 
@@ -2156,7 +2156,7 @@ def apply_lineage(
                     "<final>",
                     name,
                     "missing_column",
-                    "Kolom tidak ditemukan pada hasil akhir query M.",
+                    "Column was not found in the final M query result.",
                 )
             )
             continue
