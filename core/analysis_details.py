@@ -138,6 +138,7 @@ def _relationship_rows(
     *,
     table: str,
     name: str,
+    is_key: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     mine: list[dict[str, Any]] = []
     keys: list[dict[str, Any]] = []
@@ -173,15 +174,17 @@ def _relationship_rows(
                 "target_name": to_column if is_from else from_column,
             }
         )
-        if is_to:
+        if is_key and (is_from or is_to):
+            other_table = from_table if is_to else to_table
+            other_column = from_column if is_to else to_column
             keys.append(
                 {
-                    "table": from_table,
-                    "column": from_column,
+                    "table": other_table,
+                    "column": other_column,
                     "relationship": str(relation.get("name") or ""),
                     "target_kind": "column",
-                    "target_table": from_table,
-                    "target_name": from_column,
+                    "target_table": other_table,
+                    "target_name": other_column,
                 }
             )
     return mine, keys
@@ -237,8 +240,12 @@ def item_details(
         for row in (getattr(result, "relationships", []) or [])
         if isinstance(row, Mapping)
     ]
+    has_key = any(
+        str(getattr(ref, "kind", "") or "").casefold() == "key column"
+        for ref in refs
+    )
     relationship_rows, key_rows = _relationship_rows(
-        relationships, table=table, name=name
+        relationships, table=table, name=name, is_key=has_key
     )
 
     size = int(getattr(node, "size_total_bytes", 0) or 0) if not is_measure else 0
@@ -319,7 +326,7 @@ def item_details(
         "sort_dependencies": _record_rows(records, {"sort"}),
     }
     details.update(_flag_common(analysis, refs, records))
-    details["is_used_key"] = bool(key_rows)
+    details["is_used_key"] = has_key
     for key in UNSUPPORTED_FLAGS:
         details[key] = None
     for key in UNSUPPORTED_ARRAYS:

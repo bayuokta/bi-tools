@@ -33,6 +33,15 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Perbaikan
 
+- Halaman Analisa: grup `Used as key column` hanya diisi dari `IsKey`
+  (`ModelReference` kind `key column`), tidak lagi diturunkan dari relasi.
+  Sebelumnya setiap relasi yang menyentuh kolom menambahkan tabel tujuan sebagai
+  key column, sehingga foreign key seperti `Stock Level[Material No]` dan
+  `Master Material[Material Code]` ikut tampil sebagai key. Sekarang keduanya
+  hanya tampil di `Used in relationships`, sama seperti Measure Killer, sedangkan
+  kolom `IsKey` (`Dates[Dates]`, `Dealer Code Old`, `Dealer Code New`,
+  `Main Dealer Code`) tetap tampil. `key_column_dependencies`/`is_used_key` di
+  dialog detail mengikuti aturan yang sama.
 - Aset statis (`/index.html`, `/app.js`, `styles.css`, modul `js/`) dikirim dengan
   `Cache-Control: no-store`. Sebelumnya Chrome memakai heuristic caching sehingga
   tampilan lama bisa bertahan berhari-hari setelah aplikasi diperbarui; port lokal

@@ -531,7 +531,6 @@ def _usage_groups(
     """
     ctx = context or {}
     relations = [row for row in ctx.get("relationships") or [] if isinstance(row, Mapping)]
-    tables = ctx.get("tables") or {}
     columns = ctx.get("columns") or {}
     measures = ctx.get("measures") or {}
     name, table = _owner(analysis)
@@ -662,30 +661,9 @@ def _usage_groups(
             )
         )
 
-    keys: dict[str, dict[str, Any]] = {}
-    for relation in mine:
-        key = str(relation.get("to_table") or "")
-        if not key:
-            continue
-        entry = keys.setdefault(key.casefold(), {"name": key, "count": 0})
-        entry["count"] += 1
-    for entry in keys.values():
-        info = tables.get(entry["name"].casefold()) or {}
-        groups[GROUP_KEY_COLUMN].append(
-            _child(
-                entry["name"],
-                "table",
-                {
-                    1: "Table",
-                    2: entry["name"],
-                    3: "Model",
-                    5: info.get("size") or "",
-                    6: "Used",
-                    7: entry["count"],
-                },
-            )
-        )
-
+    # Key column hanya berasal dari IsKey (ModelReference "key column").
+    # Relasi tidak boleh menambah grup ini: sisi many adalah foreign key, bukan
+    # key column, dan Measure Killer juga hanya melaporkan IsKey di sini.
     for ref in refs:
         if ref["kind"] != "key column":
             continue

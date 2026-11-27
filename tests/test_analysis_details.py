@@ -141,18 +141,23 @@ class ColumnDetailsTests(unittest.TestCase):
         self.assertTrue(
             details["relationship_dependencies"][0]["target_table"]
         )
-        self.assertEqual(details["key_column_dependencies"][0]["table"], "Dim Date")
-        self.assertEqual(
-            details["key_column_dependencies"][0]["target_kind"], "column"
-        )
-        self.assertEqual(
-            details["key_column_dependencies"][0]["target_name"], "Date"
-        )
+        self.assertEqual(details["key_column_dependencies"], [])
+        self.assertFalse(details["is_used_key"])
         self.assertEqual(details["visual_dependencies"][0]["page"], "Halaman 1")
         self.assertEqual(
             details["page_level_filters_dependencies"][0]["detail"], "Categorical"
         )
         self.assertIsNone(details["mobile_layout_dependencies"])
+
+    def test_key_columns_require_is_key_reference(self) -> None:
+        result, analysis = column_fixture()
+        analysis.model_refs.append(ref("key column", "'Sales'[Amount]"))
+        details = item_details(result, analysis, kind="column")
+        self.assertTrue(details["is_used_key"])
+        self.assertEqual(
+            {row["table"] for row in details["key_column_dependencies"]},
+            {"Dim Date"},
+        )
 
 
 class MeasureDetailsTests(unittest.TestCase):

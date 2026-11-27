@@ -290,12 +290,12 @@ class AnalysisPresenterTests(unittest.TestCase):
                 "Used in page level filters",
                 "Used in relationships",
                 "Used in row/object level security",
-                "Used as key column",
                 "Used in column sorting",
                 "Used in field parameters",
             ],
         )
         by_label = {group["label"]: group for group in groups}
+        self.assertNotIn("Used as key column", by_label)
         artifacts = by_label["Used in artifacts"]
         self.assertEqual(artifacts["count"], 1)
         self.assertNotIn(
@@ -338,9 +338,6 @@ class AnalysisPresenterTests(unittest.TestCase):
         security = by_label["Used in row/object level security"]
         self.assertEqual(security["rows"][0]["cells"]["1"], "RLS")
         self.assertEqual(security["rows"][0]["cells"]["2"], "Dim Customer")
-        key_column = by_label["Used as key column"]
-        self.assertEqual(key_column["rows"][0]["cells"]["2"], "Dim Customer")
-        self.assertEqual(key_column["rows"][0]["cells"]["5"], "1.0 KB")
         sorting = by_label["Used in column sorting"]
         self.assertEqual(sorting["rows"][0]["cells"]["2"], "Dim Customer")
         self.assertEqual(sorting["rows"][0]["cells"]["4"], "Text")
@@ -378,6 +375,61 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["m_queries"][0]["kind"], "Table")
         self.assertEqual(data["totals"]["pages"], 3)
         self.assertEqual(data["totals"]["tables"], 1)
+
+    def test_key_column_group_comes_from_model_reference(self) -> None:
+        node = SimpleNamespace(table="Stock Level", column="Material No")
+        relation = {
+            "from_table": "Stock Level",
+            "from_column": "Material No",
+            "to_table": "Master Material",
+            "to_column": "Material Code",
+            "from_cardinality": "many",
+            "to_cardinality": "one",
+            "is_active": True,
+        }
+        analysis = SimpleNamespace(
+            column=node,
+            measure=None,
+            status="Used",
+            reason="",
+            model_refs=[
+                SimpleNamespace(
+                    kind="relationship",
+                    object="'Master Material'[Material Code]",
+                    detail="relationship to 'Master Material'[Material Code]",
+                    blocking=True,
+                )
+            ],
+            report_records=[],
+        )
+        context = {
+            "relationships": [relation],
+            "tables": {"master material": {"size": "1 KB"}},
+            "columns": {},
+            "measures": {},
+        }
+        groups = {
+            group["label"]: group
+            for group in presenter._usage_groups(analysis, context)
+        }
+        self.assertIn("Used in relationships", groups)
+        self.assertNotIn("Used as key column", groups)
+
+        analysis.model_refs.append(
+            SimpleNamespace(
+                kind="key column",
+                object="'Stock Level'[Material No]",
+                detail="key column of table 'Stock Level'",
+                blocking=True,
+            )
+        )
+        groups = {
+            group["label"]: group
+            for group in presenter._usage_groups(analysis, context)
+        }
+        key_column = groups["Used as key column"]
+        self.assertEqual(key_column["rows"][0]["cells"]["1"], "Key column")
+        self.assertEqual(key_column["rows"][0]["cells"]["2"], "Stock Level")
 
     def test_preferences_validation_and_roundtrip(self) -> None:
         saved = presenter.save_preferences(
@@ -654,7 +706,7 @@ class AnalysisPresenterTests(unittest.TestCase):
         details = data["details"]
         self.assertEqual(details["type"], "Column")
         self.assertTrue(details["is_used_relationships"])
-        self.assertTrue(details["is_used_key"])
+        self.assertFalse(details["is_used_key"])
         self.assertEqual(
             details["relationship_dependencies"][0]["table2"], "Dim Customer"
         )
