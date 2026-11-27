@@ -59,7 +59,8 @@ perubahan `server\app.py` atau `packaging\bi_tools.spec`.
   hasil ekspor lineage, yang memang menggambar sendiri.
 - `tests\test_web_icons.py` menjaga agar semua `#i-…` teresolusi, sprite sama dengan
   manifest, tidak ada ikon yatim, dan tidak ada sumber ikon eksternal/CDN.
-  `web\vendor\lucide\README.md` memuat cara regenerasi.
+  `web\vendor\lucide\README.md` memuat cara regenerasi. Daftar ikon, lokasi tiap
+  pemakaian, dan langkah mengganti secara manual ada di `web\ICONS.md`.
 
 ## Titik masuk
 

@@ -28,7 +28,8 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   `partitions-lineage.js` dihapus; JS memakai helper `icon()` di
   `web/js/core/icons.js`. Ukuran ikon baris naik 13→14px. Tidak ada CDN atau build
   step. `tests/test_web_icons.py` menjaga sprite, rujukan `#i-...`, dan manifest
-  tetap sinkron.
+  tetap sinkron. Daftar ikon, lokasi tiap pemakaian, dan langkah mengganti secara
+  manual ada di `web/ICONS.md`.
 
 ### Perbaikan
 

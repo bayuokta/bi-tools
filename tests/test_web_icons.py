@@ -8,10 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 MANIFEST = WEB / "vendor" / "lucide" / "icons.json"
+DOC = WEB / "ICONS.md"
 SYMBOL = re.compile(r'<symbol id="(i-[a-z0-9-]+)" viewBox="0 0 24 24">(.*?)</symbol>', re.S)
 REFERENCE = re.compile(r"#(i-[a-z0-9-]+)")
 HELPER_CALL = re.compile(r'icon\("([a-z0-9-]+)"')
 UI_SVG = re.compile(r'<svg class="[^"]*od-icon[^"]*"[^>]*>(.*?)</svg>', re.S)
+INVENTORY_ROW = re.compile(r"^\| `([a-z0-9-]+)` \| \d+ \|", re.M)
 
 
 def manifest() -> dict:
@@ -70,6 +72,13 @@ class LucideSpriteTests(unittest.TestCase):
             self.assertNotIn("unpkg.com", text, str(path))
             self.assertNotIn("<script", text, str(path))
         self.assertNotRegex(self.markup, r"<script[^>]+src=\"https?://")
+
+    def test_documentation_lists_every_icon(self) -> None:
+        text = DOC.read_text(encoding="utf-8")
+        start = text.index("<!-- icon-inventory:begin -->")
+        end = text.index("<!-- icon-inventory:end -->")
+        documented = set(INVENTORY_ROW.findall(text[start:end]))
+        self.assertEqual(set(self.data["icons"]), documented)
 
 
 if __name__ == "__main__":
