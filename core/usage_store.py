@@ -50,8 +50,12 @@ CREATE TABLE IF NOT EXISTS usage_report (
   report_format TEXT, modified_at TEXT, scanned_at TEXT,
   status TEXT, message TEXT,
   page_count INTEGER DEFAULT 0, visual_count INTEGER DEFAULT 0,
+  container_count INTEGER DEFAULT 0,
   field_count INTEGER DEFAULT 0, unresolved_count INTEGER DEFAULT 0,
   theme TEXT,
+  practice_score INTEGER DEFAULT 0, practice_label TEXT,
+  practice_passed INTEGER DEFAULT 0, practice_total INTEGER DEFAULT 0,
+  practice_failed INTEGER DEFAULT 0, practice_rules TEXT,
   is_active INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS ix_usage_report_dataset ON usage_report(dataset_id);
@@ -70,10 +74,20 @@ CREATE TABLE IF NOT EXISTS usage_field (
   table_name TEXT, field_name TEXT,
   aggregation TEXT, detail TEXT,
   is_hidden INTEGER DEFAULT 0,
+  order_index INTEGER DEFAULT 0,
   PRIMARY KEY (report_id, page_id, visual_id, usage_kind, table_name, field_name, detail)
 );
 CREATE INDEX IF NOT EXISTS ix_usage_field_dataset ON usage_field(dataset_id);
 CREATE INDEX IF NOT EXISTS ix_usage_field_column ON usage_field(table_name, field_name);
+CREATE TABLE IF NOT EXISTS usage_visual (
+  report_id TEXT, dataset_id TEXT,
+  page_id TEXT, page_name TEXT,
+  visual_id TEXT, visual_type TEXT, visual_title TEXT,
+  parent_id TEXT, is_group INTEGER DEFAULT 0, is_hidden INTEGER DEFAULT 0,
+  order_index INTEGER DEFAULT 0,
+  PRIMARY KEY (report_id, page_id, visual_id)
+);
+CREATE INDEX IF NOT EXISTS ix_usage_visual_dataset ON usage_visual(dataset_id);
 CREATE TABLE IF NOT EXISTS usage_column (
   dataset_id TEXT, table_name TEXT, column_name TEXT,
   column_id INTEGER, column_type TEXT, data_type TEXT,
@@ -166,6 +180,16 @@ MIGRATIONS = {
     },
     "usage_report": {
         "theme": "TEXT",
+        "container_count": "INTEGER DEFAULT 0",
+        "practice_score": "INTEGER DEFAULT 0",
+        "practice_label": "TEXT",
+        "practice_passed": "INTEGER DEFAULT 0",
+        "practice_total": "INTEGER DEFAULT 0",
+        "practice_failed": "INTEGER DEFAULT 0",
+        "practice_rules": "TEXT",
+    },
+    "usage_field": {
+        "order_index": "INTEGER DEFAULT 0",
     },
 }
 
@@ -217,26 +241,39 @@ def save_report(
     """Simpan status satu report beserta baris pemakaiannya (replace)."""
     page_count = int(usage.pages) if usage else 0
     visual_count = int(usage.visuals) if usage else 0
+    container_count = len(usage.visual_rows) if usage else 0
     unresolved = len(usage.unresolved) if usage else 0
     records = list(usage.records) if usage else []
     theme_name = theme or (str(usage.theme) if usage else "")
+    practice = usage.practice if usage and isinstance(usage.practice, Mapping) else {}
+    practice_rules = json.dumps(practice.get("rules") or [], ensure_ascii=False)
 
     conn.execute(
         """
         INSERT INTO usage_report (
           report_id, workspace_id, dataset_id, name, report_format, modified_at,
-          scanned_at, status, message, page_count, visual_count, field_count,
-          unresolved_count, theme, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          scanned_at, status, message, page_count, visual_count, container_count,
+          field_count, unresolved_count, theme, practice_score, practice_label,
+          practice_passed, practice_total, practice_failed, practice_rules,
+          is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(report_id) DO UPDATE SET
           workspace_id=excluded.workspace_id, dataset_id=excluded.dataset_id,
           name=excluded.name, report_format=excluded.report_format,
           modified_at=excluded.modified_at, scanned_at=excluded.scanned_at,
           status=excluded.status, message=excluded.message,
           page_count=excluded.page_count, visual_count=excluded.visual_count,
+          container_count=excluded.container_count,
           field_count=excluded.field_count,
           unresolved_count=excluded.unresolved_count,
-          theme=excluded.theme, is_active=1
+          theme=excluded.theme,
+          practice_score=excluded.practice_score,
+          practice_label=excluded.practice_label,
+          practice_passed=excluded.practice_passed,
+          practice_total=excluded.practice_total,
+          practice_failed=excluded.practice_failed,
+          practice_rules=excluded.practice_rules,
+          is_active=1
         """,
         (
             report_id,
@@ -250,9 +287,16 @@ def save_report(
             message,
             page_count,
             visual_count,
+            container_count,
             len(records),
             unresolved,
             theme_name,
+            int(practice.get("score") or 0),
+            str(practice.get("label") or ""),
+            int(practice.get("passed") or 0),
+            int(practice.get("total") or 0),
+            int(practice.get("failed") or 0),
+            practice_rules,
         ),
     )
     conn.execute("DELETE FROM usage_page WHERE report_id = ?", (report_id,))
@@ -277,6 +321,35 @@ def save_report(
                 )
                 for row in page_rows
                 if str(row.get("page_id") or "")
+            ],
+        )
+    conn.execute("DELETE FROM usage_visual WHERE report_id = ?", (report_id,))
+    visual_rows = list(usage.visual_rows) if usage else []
+    if visual_rows:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO usage_visual (
+              report_id, dataset_id, page_id, page_name, visual_id,
+              visual_type, visual_title, parent_id, is_group, is_hidden,
+              order_index
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    report_id,
+                    dataset_id,
+                    str(row.get("page_id") or ""),
+                    str(row.get("page_name") or ""),
+                    str(row.get("visual_id") or ""),
+                    str(row.get("visual_type") or ""),
+                    str(row.get("visual_title") or ""),
+                    str(row.get("parent_id") or ""),
+                    1 if row.get("is_group") else 0,
+                    1 if row.get("is_hidden") else 0,
+                    int(row.get("order_index") or 0),
+                )
+                for row in visual_rows
+                if str(row.get("visual_id") or "")
             ],
         )
     conn.execute("DELETE FROM usage_field WHERE report_id = ?", (report_id,))
@@ -310,8 +383,9 @@ def save_fields(
             record.aggregation,
             record.detail,
             1 if record.is_hidden else 0,
+            index,
         )
-        for record in records
+        for index, record in enumerate(records)
     ]
     if not rows:
         return
@@ -320,8 +394,8 @@ def save_fields(
         INSERT OR REPLACE INTO usage_field (
           report_id, dataset_id, page_id, page_name, visual_id, visual_type,
           visual_title, usage_kind, field_kind, table_name, field_name,
-          aggregation, detail, is_hidden
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          aggregation, detail, is_hidden, order_index
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -458,6 +532,18 @@ def report_pages(
             "visual_count": int(row["visual_count"] or 0),
             "field_count": int(row["field_count"] or 0),
         }
+    container_counts: dict[tuple[str, str], int] = {
+        (str(row["report_id"]), str(row["page_id"])): int(row["container_count"] or 0)
+        for row in conn.execute(
+            """
+            SELECT report_id, page_id, COUNT(*) AS container_count
+              FROM usage_visual
+             WHERE dataset_id = ?
+             GROUP BY report_id, page_id
+            """,
+            (dataset_id,),
+        )
+    }
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     seen: set[tuple[str, str]] = set()
@@ -481,6 +567,11 @@ def report_pages(
                 "order_index": int(row["order_index"] or 0),
                 "is_hidden": bool(row["is_hidden"]),
                 "visual_count": int(row["visual_count"] or 0),
+                "container_count": int(
+                    container_counts.get(
+                        (report_id, page_id), int(row["visual_count"] or 0)
+                    )
+                ),
                 "field_count": int(stat.get("field_count") or 0),
             }
         )
@@ -504,6 +595,11 @@ def report_pages(
                 "order_index": 0,
                 "is_hidden": False,
                 "visual_count": int(stat.get("visual_count") or 0),
+                "container_count": int(
+                    container_counts.get(
+                        (report_id, page_id), int(stat.get("visual_count") or 0)
+                    )
+                ),
                 "field_count": int(stat.get("field_count") or 0),
             }
         )
@@ -512,12 +608,165 @@ def report_pages(
     return grouped
 
 
+def _hierarchy_name(field: str) -> str:
+    """Nama hierarchy dari field level ``Date.Year``."""
+    text = str(field or "")
+    return text.split(".", 1)[0] if "." in text else text
+
+
 def _field_ref(row: Mapping[str, Any]) -> dict[str, str]:
     return {
         "table": str(row.get("table_name") or ""),
         "field": str(row.get("field_name") or ""),
         "kind": str(row.get("field_kind") or ""),
     }
+
+
+def _field_type(
+    row: Mapping[str, Any],
+    column_types: Mapping[tuple[str, str], str],
+    measure_names: set[tuple[str, str]],
+) -> str:
+    kind = str(row.get("field_kind") or "")
+    table = str(row.get("table_name") or "")
+    name = str(row.get("field_name") or "")
+    key = (table.casefold(), name.casefold())
+    if kind == "HierarchyLevel":
+        return "Hierarchy"
+    if kind == "Hierarchy":
+        return "Hierarchy"
+    if kind == "Measure" or key in measure_names:
+        return "Measure"
+    if str(column_types.get(key) or "").casefold() == "calculated":
+        return "Calculated Column"
+    return "Column"
+
+
+def _resolve_field(
+    row: Mapping[str, Any],
+    column_types: Mapping[tuple[str, str], str],
+    measure_names: set[tuple[str, str]],
+) -> dict[str, Any]:
+    table = str(row.get("table_name") or "")
+    name = str(row.get("field_name") or "")
+    kind = str(row.get("field_kind") or "")
+    if kind == "HierarchyLevel":
+        name = _hierarchy_name(name)
+    return {
+        "table": table,
+        "field": name,
+        "kind": _field_type(row, column_types, measure_names),
+        "order": int(row.get("order_index") or 0),
+    }
+
+
+def _filter_parts(detail: Any, fallback: str = "") -> tuple[str, str]:
+    parts = [part.strip() for part in str(detail or "").split(" \u00b7 ") if part.strip()]
+    kind = parts[0] if parts else "Filter"
+    name = parts[-1] if len(parts) > 1 else (fallback or kind)
+    return kind, name
+
+
+def _filter_entries(
+    rows: Iterable[Mapping[str, Any]],
+    column_types: Mapping[tuple[str, str], str],
+    measure_names: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for row in rows:
+        kind, name = _filter_parts(
+            row.get("detail"), str(row.get("field_name") or "")
+        )
+        key = f"{kind}\u0000{name}"
+        if key not in grouped:
+            grouped[key] = {
+                "name": name,
+                "type": kind,
+                "detail": str(row.get("detail") or ""),
+                "columns": [],
+                "fields": [],
+                "_order": int(row.get("order_index") or 0),
+            }
+            order.append(key)
+        entry = grouped[key]
+        field = _resolve_field(row, column_types, measure_names)
+        if not field["field"]:
+            continue
+        fingerprint = (
+            field["table"].casefold(),
+            field["field"].casefold(),
+            field["kind"],
+        )
+        if any(
+            (
+                str(item.get("table") or "").casefold(),
+                str(item.get("field") or "").casefold(),
+                str(item.get("kind") or ""),
+            )
+            == fingerprint
+            for item in entry["fields"]
+        ):
+            continue
+        entry["fields"].append(field)
+        entry["columns"].append(
+            {
+                "table": field["table"],
+                "field": field["field"],
+                "kind": field["kind"],
+            }
+        )
+        entry["_order"] = min(entry["_order"], field["order"])
+    entries = [grouped[key] for key in order]
+    for entry in entries:
+        entry.pop("_order", None)
+    return entries
+
+
+def _visual_fields(
+    fields: Iterable[Mapping[str, Any]],
+    formats: Iterable[Mapping[str, Any]],
+    column_types: Mapping[tuple[str, str], str],
+    measure_names: set[tuple[str, str]],
+    model_tables: set[str],
+) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    names: set[str] = set()
+    for row in fields:
+        item = _resolve_field(row, column_types, measure_names)
+        if not item["field"]:
+            continue
+        key = (
+            item["table"].casefold(),
+            item["field"].casefold(),
+            item["kind"],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        names.add(item["field"].casefold())
+        resolved.append(item)
+
+    extras: list[dict[str, Any]] = []
+    extra_seen: set[tuple[str, str, str]] = set()
+    for row in formats:
+        table = str(row.get("table_name") or "")
+        if not table or table.casefold() not in model_tables:
+            continue
+        item = _resolve_field(row, column_types, measure_names)
+        if not item["field"] or item["field"].casefold() in names:
+            continue
+        key = (
+            item["table"].casefold(),
+            item["field"].casefold(),
+            item["kind"],
+        )
+        if key in extra_seen:
+            continue
+        extra_seen.add(key)
+        extras.append(item)
+    return extras + resolved
 
 
 def report_detail(
@@ -530,132 +779,189 @@ def report_detail(
             """
             SELECT * FROM usage_field
              WHERE dataset_id = ? AND report_id = ?
-             ORDER BY page_name, visual_title, usage_kind, table_name, field_name
+             ORDER BY order_index, rowid
             """,
             (dataset_id, report_id),
         ).fetchall()
     ]
     pages = report_pages(conn, dataset_id).get(report_id, [])
-    page_map: dict[str, dict[str, Any]] = {}
-    for page in pages:
-        page_map[page["page_id"]] = {
-            "page_id": page["page_id"],
-            "page_name": page["page_name"],
-            "is_hidden": bool(page.get("is_hidden")),
-            "visual_count": int(page.get("visual_count") or 0),
-            "field_count": int(page.get("field_count") or 0),
-            "visuals": {},
-            "page_filters": {},
-        }
-    report_filters: dict[str, dict[str, Any]] = {}
-
-    def ensure_page(row: Mapping[str, Any]) -> dict[str, Any] | None:
-        page_id = str(row.get("page_id") or "")
-        name = str(row.get("page_name") or "")
-        if not page_id and not name:
-            return None
-        key = page_id or name
-        page = page_map.get(key)
-        if page is None:
-            page = {
-                "page_id": page_id,
-                "page_name": name,
-                "is_hidden": False,
-                "visual_count": 0,
-                "field_count": 0,
-                "visuals": {},
-                "page_filters": {},
-            }
-            page_map[key] = page
-        return page
-
-    def filter_entry(
-        bucket: dict[str, dict[str, Any]], row: Mapping[str, Any]
-    ) -> dict[str, Any]:
-        detail = str(row.get("detail") or "") or "Filter"
-        entry = bucket.setdefault(
-            detail,
-            {
-                "name": str(row.get("field_name") or detail),
-                "type": detail.split(" · ")[0],
-                "detail": detail,
-                "columns": [],
-            },
-        )
-        column = _field_ref(row)
-        if column["field"] and column not in entry["columns"]:
-            entry["columns"].append(column)
-        return entry
-
-    for row in rows:
-        kind = str(row.get("usage_kind") or "")
-        if kind == "filter-report":
-            filter_entry(report_filters, row)
-            continue
-        page = ensure_page(row)
-        if page is None:
-            continue
-        if kind == "filter-page":
-            filter_entry(page["page_filters"], row)
-            continue
-        visual_id = str(row.get("visual_id") or "")
-        if kind in {"filter-visual", "filter-query"}:
-            if not visual_id:
+    visual_rows = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT * FROM usage_visual
+             WHERE dataset_id = ? AND report_id = ?
+             ORDER BY page_id, order_index
+            """,
+            (dataset_id, report_id),
+        ).fetchall()
+    ]
+    if not visual_rows:
+        seen_visuals: set[tuple[str, str]] = set()
+        for row in rows:
+            visual_id = str(row.get("visual_id") or "")
+            page_id = str(row.get("page_id") or "")
+            if not visual_id or (page_id, visual_id) in seen_visuals:
                 continue
-            visual = page["visuals"].setdefault(
-                visual_id,
+            seen_visuals.add((page_id, visual_id))
+            visual_rows.append(
                 {
+                    "page_id": page_id,
+                    "page_name": str(row.get("page_name") or ""),
                     "visual_id": visual_id,
                     "visual_type": str(row.get("visual_type") or ""),
                     "visual_title": str(row.get("visual_title") or ""),
-                    "is_hidden": bool(row.get("is_hidden")),
-                    "artifacts": [],
-                    "filters": {},
-                },
+                    "parent_id": "",
+                    "is_group": 0,
+                    "is_hidden": int(row.get("is_hidden") or 0),
+                    "order_index": len(seen_visuals),
+                }
             )
-            filter_entry(visual["filters"], row)
-            continue
-        if kind != "field" or not visual_id:
-            continue
-        visual = page["visuals"].setdefault(
-            visual_id,
-            {
-                "visual_id": visual_id,
-                "visual_type": str(row.get("visual_type") or ""),
-                "visual_title": str(row.get("visual_title") or ""),
-                "is_hidden": bool(row.get("is_hidden")),
-                "artifacts": [],
-                "filters": {},
-            },
+
+    column_types = {
+        (str(row["table_name"]).casefold(), str(row["column_name"]).casefold()):
+        str(row["column_type"] or "")
+        for row in conn.execute(
+            "SELECT table_name, column_name, column_type FROM usage_column "
+            "WHERE dataset_id = ?",
+            (dataset_id,),
         )
-        artifact = _field_ref(row)
-        if artifact["field"] and artifact not in visual["artifacts"]:
-            visual["artifacts"].append(artifact)
+    }
+    measure_names = {
+        (str(row["table_name"]).casefold(), str(row["measure_name"]).casefold())
+        for row in conn.execute(
+            "SELECT table_name, measure_name FROM usage_measure WHERE dataset_id = ?",
+            (dataset_id,),
+        )
+    }
+    model_tables = {
+        str(row["table_name"]).casefold()
+        for row in conn.execute(
+            "SELECT table_name FROM usage_column WHERE dataset_id = ? "
+            "UNION SELECT table_name FROM usage_measure WHERE dataset_id = ?",
+            (dataset_id, dataset_id),
+        )
+    }
+    broken = {
+        str(row["visual_id"])
+        for row in conn.execute(
+            "SELECT visual_id FROM usage_unresolved WHERE dataset_id = ? "
+            "AND report_id = ?",
+            (dataset_id, report_id),
+        )
+    }
+
+    field_rows: dict[str, list[dict[str, Any]]] = {}
+    format_rows: dict[str, list[dict[str, Any]]] = {}
+    visual_filters: dict[str, list[dict[str, Any]]] = {}
+    page_filters: dict[str, list[dict[str, Any]]] = {}
+    report_filter_rows: list[dict[str, Any]] = []
+    for row in rows:
+        kind = str(row.get("usage_kind") or "")
+        if kind == "filter-report":
+            report_filter_rows.append(row)
+            continue
+        page_id = str(row.get("page_id") or "")
+        if kind == "filter-page":
+            page_filters.setdefault(page_id, []).append(row)
+            continue
+        visual_id = str(row.get("visual_id") or "")
+        if kind == "filter-visual":
+            visual_filters.setdefault(visual_id, []).append(row)
+        elif kind == "field":
+            field_rows.setdefault(visual_id, []).append(row)
+        elif kind == "format":
+            format_rows.setdefault(visual_id, []).append(row)
+
+    page_map: dict[str, dict[str, Any]] = {}
+    for page in pages:
+        page_map[str(page["page_id"])] = {
+            "page_id": str(page["page_id"]),
+            "page_name": str(page["page_name"]),
+            "is_hidden": bool(page.get("is_hidden")),
+            "order_index": int(page.get("order_index") or 0),
+            "visual_count": int(page.get("visual_count") or 0),
+            "container_count": int(
+                page.get("container_count") or page.get("visual_count") or 0
+            ),
+            "field_count": int(page.get("field_count") or 0),
+            "visuals": [],
+            "page_filters": [],
+        }
+    for row in visual_rows:
+        page_id = str(row.get("page_id") or "")
+        page_name = str(row.get("page_name") or "")
+        if page_id not in page_map:
+            page_map[page_id or page_name] = {
+                "page_id": page_id,
+                "page_name": page_name or page_id,
+                "is_hidden": False,
+                "order_index": 0,
+                "visual_count": 0,
+                "container_count": 0,
+                "field_count": 0,
+                "visuals": [],
+                "page_filters": [],
+            }
+        page = page_map[page_id or page_name]
+        visual_id = str(row.get("visual_id") or "")
+        visual = {
+            "visual_id": visual_id,
+            "parent_id": str(row.get("parent_id") or ""),
+            "visual_type": str(row.get("visual_type") or ""),
+            "visual_title": str(row.get("visual_title") or ""),
+            "is_group": bool(row.get("is_group")),
+            "is_hidden": bool(row.get("is_hidden")),
+            "is_broken": visual_id in broken,
+            "order_index": int(row.get("order_index") or 0),
+            "artifacts": [],
+            "fields": [],
+            "filters": [],
+        }
+        fields = _visual_fields(
+            field_rows.get(visual_id, []),
+            format_rows.get(visual_id, []),
+            column_types,
+            measure_names,
+            model_tables,
+        )
+        visual["fields"] = fields
+        visual["artifacts"] = fields
+        visual["filters"] = _filter_entries(
+            visual_filters.get(visual_id, []), column_types, measure_names
+        )
+        page["visuals"].append(visual)
 
     output_pages: list[dict[str, Any]] = []
-    for page in sorted(
-        page_map.values(), key=lambda item: (item["page_name"] or "", item["page_id"])
-    ):
-        visuals = list(page["visuals"].values())
-        for visual in visuals:
-            visual["filters"] = list(visual["filters"].values())
-            visual["artifacts"].sort(key=lambda item: (item["kind"], item["table"], item["field"]))
-        visuals.sort(key=lambda item: (item["visual_title"], item["visual_id"]))
-        output_pages.append(
-            {
-                "page_id": page["page_id"],
-                "page_name": page["page_name"],
-                "is_hidden": bool(page["is_hidden"]),
-                "visual_count": int(page["visual_count"] or len(visuals)),
-                "field_count": int(page["field_count"]),
-                "visuals": visuals,
-                "page_filters": list(page["page_filters"].values()),
-            }
+    for page in page_map.values():
+        visuals = sorted(
+            page["visuals"], key=lambda item: (item["order_index"], item["visual_id"])
         )
+        page["visuals"] = visuals
+        page["page_filters"] = _filter_entries(
+            page_filters.get(page["page_id"], []), column_types, measure_names
+        )
+        page["broken_visuals"] = len(
+            {item["visual_id"] for item in visuals if item["is_broken"]}
+        )
+        output_pages.append(page)
+    output_pages.sort(
+        key=lambda item: (int(item.get("order_index") or 0), item["page_name"])
+    )
+    report_filters = _filter_entries(
+        report_filter_rows, column_types, measure_names
+    )
+    container_count = sum(
+        int(page.get("container_count") or 0) for page in output_pages
+    )
     return {
         "report_id": report_id,
+        "page_count": len(output_pages),
+        "visual_count": sum(int(page.get("visual_count") or 0) for page in output_pages),
+        "container_count": container_count,
+        "broken_visuals": len(broken),
         "pages": output_pages,
-        "report_filters": list(report_filters.values()),
+        "report_filters": report_filters,
     }
 
 

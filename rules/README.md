@@ -31,3 +31,22 @@ ganti berkas ini dengan versi terbaru dari sumber di atas lalu jalankan uji
 
 Jangan mengedit `m_connectors.json` secara manual; perbarui lewat skrip
 sinkronisasi lalu jalankan `tests/test_tsd.py`.
+
+# Rule Report PBI Inspector
+
+`PBIInspector-rules.json` adalah salinan `Rules/Base-rules.json` dari
+**PBI Inspector** (NatVanG):
+
+- Sumber: https://github.com/NatVanG/PBI-Inspector
+- Berkas: `Rules/Base-rules.json`
+- Lisensi: MIT (repositori PBI Inspector)
+- Disalin: 2026-11-28
+
+`core/report_practice.py` mengevaluasi rule **per report** untuk tab Report
+results. Rule yang `disabled` (mis. `ENSURE_ALTTEXT` dan `template`) dilewati.
+Skor = 10 x rule lulus (maksimum 100 dengan 10 rule aktif); label `Ok` bila semua
+lulus, `Warning` bila hanya warning yang gagal, dan `Critical` bila rule
+`ENSURE_THEME_COLOURS` gagal.
+
+Jangan mengedit berkas ini secara manual tanpa menyesuaikan evaluator dan
+`tests/test_report_practice.py`.

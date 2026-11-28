@@ -58,6 +58,23 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   `AnalysisResult.table_dependencies`. Tabel UI ikut menyesuaikan: 11 kolom
   (termasuk **Has error**), tipe tabel sebenarnya, `# used` = `Table_uses`, dan
   baris anak 8 grup di atas; tombol toolbar menjadi **Export tables**.
+- Tab **Report results** kini punya ekspor sendiri:
+  `Report_Result_<dataset>_<id8>.xlsx` dengan **28 kolom** template Measure
+  Killer (`Report_name`..`Obj5_source`) dan satu baris per jalur pohon report →
+  page/report filter → visual/page filter → nested visual/visual filter → field.
+  Filter memakai ID filter, hierarchy diringkas menjadi satu baris `Hierarchy`,
+  formatting field navigasi ikut tampil, dan leaf berjudul ditulis ber-kutip.
+  UI tab Report results memakai pohon yang sama dengan 9 kolom (tanpa label grup
+  `Pages`/`Visuals`), `Visuals` report/page = jumlah container (termasuk
+  `visualGroup`), dan tombol **Export reports**.
+- **Practice score report** kini berasal dari **PBI Inspector**
+  (`rules/PBIInspector-rules.json`, 10 rule aktif) dan dihitung **per report**:
+  skor = 10 × rule lulus (maks 100), label `Ok`/`Warning`/`Critical`. Satu rule
+  yang gagal di banyak page/visual hanya mengurangi skor sekali. Theme report
+  diisi dari definisi report. Scanner menyimpan `usage_visual` (semua container,
+  parent, hidden, urutan), `usage_field.order_index`, dan `usage_report`
+  `container_count`/`practice_*`; `report_detail` menyusun pohon visual, field,
+  filter, dan formatting field dari data itu.
 
 ### Perbaikan
 

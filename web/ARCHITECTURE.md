@@ -212,7 +212,9 @@ dengan `grep`, lalu baca jendela kecil.
 - Tabel dan baris: `analysisTableSummary`, `analysisStatusCell`,
   `analysisTreeGroups`, `analysisChildGroups`, `analysisFlatRows`,
   `analysisTreeView`, `analysisFilteredRelationships`,
-  `analysisRelationshipRows`, `analysisReportRows`, `analysisDaxRows`,
+  `analysisRelationshipRows`, `analysisReportRows`, `analysisReportPageRows`,
+  `analysisReportVisualRows`, `analysisReportFilterRows`,
+  `analysisReportVisualName`, `analysisReportFieldRows`, `analysisDaxRows`,
   `analysisMRows`, `analysisHealthRows`, `analysisBestPracticeRows`,
   `analysisSortItems`, `analysisRoleRows`, `analysisHead`, `analysisBody`,
   `analysisRender`. `analysisFlatRows` menyertakan `state.analysis.functions`
@@ -224,9 +226,18 @@ dengan `grep`, lalu baca jendela kecil.
   (`build_table_groups`): 8 grup template Measure Killer. `analysisChildGroups`
   dipanggil dengan `{statusChip, menus}` untuk tab ini, sedangkan All results
   memakai perilaku lama (tanpa chip/menu anak).
-- Ekspor: `analysisExportState`/`analysisExport` mengizinkan tab `all` dan
-  `tables`. Label tombol menjadi **Export tables** untuk tab Tables dan
-  memanggil `POST /api/analysis/export` dengan `tab: "tables"`.
+- Tab `Report results` memakai 9 kolom (`Name | Type | Source | Visuals |
+  Broken visuals | Views | Pages | Theme | Practice score`) dan pohon report →
+  page/report filter → visual/page filter → nested visual/visual filter →
+  field. `analysisReportPageRows`/`analysisReportVisualRows`/
+  `analysisReportFilterRows` merender payload `reportDetail.pages[].visuals`
+  (flat dengan `parent_id`) + `report_filters`; tidak ada label grup
+  `Pages`/`Visuals`. `Visuals` report/page memakai `container_count`, dan
+  `Practice score` memakai skor PBI Inspector dari payload report.
+- Ekspor: `analysisExportState`/`analysisExport` mengizinkan tab `all`,
+  `tables`, dan `report`. Label tombol menjadi **Export tables** /
+  **Export reports** dan memanggil `POST /api/analysis/export` dengan
+  `tab: "tables"` atau `tab: "report"`.
 - Health/best practice: `analysisHealthRuleLabel`, `analysisHealthRulesMarkup`,
   `analysisPracticeTitle`, `analysisHealthDetail`, `analysisHealthOpen`,
   `analysisBestPracticeIcon`, `analysisBestPracticeSeverity`,

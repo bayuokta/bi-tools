@@ -494,8 +494,11 @@ import { state } from "../core/state.js";
   function analysisExportState() {
     var button = $("#exportXlsx");
     if (!button) return;
-    var canExport = state.analysisTab === "all" || state.analysisTab === "tables";
-    var label = state.analysisTab === "tables" ? "Export tables" : "Export Result";
+    var canExport = state.analysisTab === "all" ||
+      state.analysisTab === "tables" ||
+      state.analysisTab === "report";
+    var label = state.analysisTab === "tables" ? "Export tables"
+      : (state.analysisTab === "report" ? "Export reports" : "Export Result");
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -4311,182 +4314,132 @@ import { state } from "../core/state.js";
     }).join(" · ");
   }
 
-  function analysisFilterRows(entry, baseId, level, sourceName, detail) {
+  function analysisReportVisualName(visual) {
+    var title = String(visual.visual_title || "").trim();
+    var type = String(visual.visual_type || "visual");
+    if (visual.is_group) return title || "visualGroup";
+    if (title.indexOf("(untitled) ") === 0) return type || "visual";
+    return title ? "'" + title + "'" : (type || "visual");
+  }
+
+  function analysisReportFieldRows(fields, level, baseId) {
     var rows = [];
-    var filterId = baseId + ":filter";
-    var open = analysisIsOpen(filterId, false, true);
-    var hasColumns = (entry.columns || []).length > 0;
-    rows.push({
-      level: level,
-      group: hasColumns,
-      cells: analysisReportCells(
-        analysisNameCell(entry.name || entry.detail || "Filter", "filter", {
-          level: level, toggleId: hasColumns ? filterId : "", open: open
-        }),
-        entry.type || "Filter",
-        sourceName,
-        null, null, null
-      )
-    });
-    if (!hasColumns || !open) return rows;
-    var columnsId = filterId + ":columns";
-    var columnsOpen = analysisIsOpen(columnsId, false, true);
-    rows.push({
-      level: level + 1,
-      group: true,
-      cells: analysisReportCells(
-        analysisNameCell("Columns used (" + entry.columns.length + ")", "table", {
-          level: level + 1, toggleId: columnsId, open: columnsOpen
-        }),
-        "", "", null, null, null
-      )
-    });
-    if (!columnsOpen) return rows;
-    entry.columns.forEach(function (column) {
+    (fields || []).forEach(function (field) {
       rows.push({
-        level: level + 2,
+        level: level,
         cells: analysisReportCells(
           analysisNameCell(
-            (column.table ? column.table + "[" + column.field + "]" : column.field),
-            "column", { level: level + 2 }
+            field.field || field.name || "",
+            field.kind === "Measure" ? "measure" : "column",
+            { level: level }
           ),
-          "Column", column.table || "—", null, null, null
+          field.kind || "Column",
+          field.table || "",
+          null, null, null, false
         )
       });
     });
     return rows;
   }
 
-  function analysisPageRows(page, reportName, baseId, level) {
+  function analysisReportFilterRows(entry, level, baseId, source) {
+    var fields = entry.fields || entry.columns || [];
+    var id = baseId + ":filter:" + (entry.name || entry.detail || "filter");
+    var open = analysisIsOpen(id, false, true);
+    var rows = [{
+      level: level,
+      group: fields.length > 0,
+      cells: analysisReportCells(
+        analysisNameCell(entry.name || entry.detail || "Filter", "filter", {
+          level: level, toggleId: fields.length ? id : "", open: open
+        }),
+        entry.type || "Filter",
+        source,
+        null, null, null, false
+      )
+    }];
+    if (!open) return rows;
+    return rows.concat(analysisReportFieldRows(fields, level + 1, id));
+  }
+
+  function analysisReportVisualRows(page, parentId, level, baseId) {
     var rows = [];
-    var pageId = baseId + ":page:" + (page.page_id || page.page_name);
-    var open = analysisIsOpen(pageId, false, true);
-    rows.push({
+    var visuals = (page.visuals || []).filter(function (visual) {
+      return String(visual.parent_id || "") === parentId;
+    }).sort(function (left, right) {
+      return (left.order_index || 0) - (right.order_index || 0);
+    });
+    visuals.forEach(function (visual) {
+      var visualId = String(visual.visual_id || visual.visual_title || "");
+      var id = baseId + ":v:" + visualId;
+      var children = (page.visuals || []).filter(function (item) {
+        return String(item.parent_id || "") === visualId;
+      });
+      var fields = visual.fields || visual.artifacts || [];
+      var filters = visual.filters || [];
+      var expandable = children.length > 0 || fields.length > 0 || filters.length > 0;
+      var open = analysisIsOpen(id, false, true);
+      var broken = visual.is_group ? 0 : (visual.is_broken ? 1 : 0);
+      rows.push({
+        level: level,
+        group: expandable,
+        cells: analysisReportCells(
+          analysisNameCell(analysisReportVisualName(visual), "visual", {
+            level: level, toggleId: expandable ? id : "", open: open,
+            hidden: Boolean(visual.is_hidden)
+          }),
+          visual.is_group ? "visualGroup" : (visual.visual_type || "visual"),
+          page.page_name || "",
+          null, null, null, Boolean(visual.is_hidden),
+          { broken: broken }
+        )
+      });
+      if (!expandable || !open) return;
+      if (children.length) {
+        rows = rows.concat(
+          analysisReportVisualRows(page, visualId, level + 1, id)
+        );
+        return;
+      }
+      rows = rows.concat(analysisReportFieldRows(fields, level + 1, id));
+      filters.forEach(function (entry, index) {
+        rows = rows.concat(
+          analysisReportFilterRows(entry, level + 1, id + ":f" + index, "")
+        );
+      });
+    });
+    return rows;
+  }
+
+  function analysisReportPageRows(page, reportName, level, baseId) {
+    var id = baseId + ":p:" + (page.page_id || page.page_name);
+    var open = analysisIsOpen(id, false, true);
+    var visuals = page.container_count != null
+      ? page.container_count : (page.visual_count || 0);
+    var rows = [{
       level: level,
       group: true,
       cells: analysisReportCells(
         analysisNameCell(page.page_name || page.page_id || "(page)", "page", {
-          level: level, toggleId: pageId, open: open, hidden: Boolean(page.is_hidden)
+          level: level, toggleId: id, open: open,
+          hidden: Boolean(page.is_hidden)
         }),
-        "Page", reportName, page.visual_count || 0, null, null, Boolean(page.is_hidden)
+        "Page",
+        reportName,
+        visuals,
+        null, null, Boolean(page.is_hidden),
+        { broken: page.broken_visuals || 0 }
       )
-    });
+    }];
     if (!open) return rows;
-
-    var visuals = page.visuals || [];
-    var visualsId = pageId + ":visuals";
-    var visualsOpen = analysisIsOpen(visualsId, false, true);
-    if (visuals.length) {
-      rows.push({
-        level: level + 1,
-        group: true,
-        cells: analysisReportCells(
-          analysisNameCell("Visuals (" + visuals.length + ")", "visual", {
-            level: level + 1, toggleId: visualsId, open: visualsOpen
-          }),
-          "", "", null, null, null
+    rows = rows.concat(analysisReportVisualRows(page, "", level + 1, id));
+    (page.page_filters || []).forEach(function (entry, index) {
+      rows = rows.concat(
+        analysisReportFilterRows(
+          entry, level + 1, id + ":pf" + index, page.page_name || reportName
         )
-      });
-      if (visualsOpen) {
-        visuals.forEach(function (visual) {
-          var visualId = visualsId + ":" + (visual.visual_id || visual.visual_title);
-          var visualOpen = analysisIsOpen(visualId, false, true);
-          var expandable = (visual.artifacts || []).length > 0 ||
-            (visual.filters || []).length > 0;
-          rows.push({
-            level: level + 2,
-            group: expandable,
-            cells: analysisReportCells(
-              analysisNameCell(visual.visual_title || visual.visual_id || "(visual)", "visual", {
-                level: level + 2, toggleId: expandable ? visualId : "", open: visualOpen,
-                hidden: Boolean(visual.is_hidden)
-              }),
-              visual.visual_type || "visual",
-              page.page_name || reportName, null, null, null, Boolean(visual.is_hidden)
-            )
-          });
-          if (!expandable || !visualOpen) return;
-          var artifacts = visual.artifacts || [];
-          if (artifacts.length) {
-            var artifactsId = visualId + ":artifacts";
-            var artifactsOpen = analysisIsOpen(artifactsId, false, true);
-            rows.push({
-              level: level + 3,
-              group: true,
-              cells: analysisReportCells(
-                analysisNameCell("Artifacts used (" + artifacts.length + ")", "table", {
-                  level: level + 3, toggleId: artifactsId, open: artifactsOpen
-                }),
-                "", "", null, null, null
-              )
-            });
-            if (artifactsOpen) {
-              artifacts.forEach(function (artifact) {
-                rows.push({
-                  level: level + 4,
-                  cells: analysisReportCells(
-                    analysisNameCell(
-                      artifact.table
-                        ? artifact.table + "[" + artifact.field + "]"
-                        : artifact.field,
-                      artifact.kind === "Measure" ? "measure" : "column",
-                      { level: level + 4 }
-                    ),
-                    artifact.kind || "Column",
-                    artifact.table || "—", null, null, null
-                  )
-                });
-              });
-            }
-          }
-          var filters = visual.filters || [];
-          if (filters.length) {
-            var filtersId = visualId + ":filters";
-            var filtersOpen = analysisIsOpen(filtersId, false, true);
-            rows.push({
-              level: level + 3,
-              group: true,
-              cells: analysisReportCells(
-                analysisNameCell("Visual level filters (" + filters.length + ")", "filter", {
-                  level: level + 3, toggleId: filtersId, open: filtersOpen
-                }),
-                "", "", null, null, null
-              )
-            });
-            if (filtersOpen) {
-              filters.forEach(function (entry) {
-                rows = rows.concat(
-                  analysisFilterRows(entry, filtersId, level + 4, page.page_name || reportName)
-                );
-              });
-            }
-          }
-        });
-      }
-    }
-
-    var pageFilters = page.page_filters || [];
-    if (pageFilters.length) {
-      var pageFiltersId = pageId + ":pagefilters";
-      var pageFiltersOpen = analysisIsOpen(pageFiltersId, false, true);
-      rows.push({
-        level: level + 1,
-        group: true,
-        cells: analysisReportCells(
-          analysisNameCell("Page level filters (" + pageFilters.length + ")", "filter", {
-            level: level + 1, toggleId: pageFiltersId, open: pageFiltersOpen
-          }),
-          "", "", null, null, null
-        )
-      });
-      if (pageFiltersOpen) {
-        pageFilters.forEach(function (entry) {
-          rows = rows.concat(
-            analysisFilterRows(entry, pageFiltersId, level + 2, page.page_name || reportName)
-          );
-        });
-      }
-    }
+      );
+    });
     return rows;
   }
 
@@ -4503,47 +4456,42 @@ import { state } from "../core/state.js";
     ((result && result.reports) || []).forEach(function (report, index) {
       var reportId = report.report_id || String(index);
       var reportName = report.report_name || report.report_id || "(report)";
-      var allPages = report.pages || [];
+      var isApp = /\[App\]/i.test(reportName);
+      var reportType = report.report_type || (isApp ? "Apps" : "Local report");
+      var reportSource = report.report_source || report.format || "—";
       var rootMatch = !query || [
-        reportName, report.workspace_name, report.format, report.status, report.message
+        reportName, report.workspace_name, report.status, report.format,
+        reportType, reportSource
       ].join(" ").toLowerCase().indexOf(query) !== -1;
-      var visiblePages = allPages.filter(function (page) {
-        var used = (page.field_count || 0) > 0 || (page.visual_count || 0) > 0;
-        if (type === "used" && !used) return false;
-        if (type === "unused" && used) return false;
-        if (!query) return true;
-        return [page.page_name, reportName, report.workspace_name]
-          .join(" ").toLowerCase().indexOf(query) !== -1;
-      });
-      if (query && !rootMatch && !visiblePages.length) return;
-      if ((type === "used" || type === "unused") && !visiblePages.length) return;
-
-      reportCount += 1;
-      visiblePages.forEach(function (page) {
-        pageTotal += 1;
-        visualTotal += page.visual_count || 0;
-        fieldTotal += page.field_count || 0;
-      });
-
       var rootId = "report:" + reportId;
       var rootOpen = analysisIsOpen(rootId, false, true);
-      var isApp = /\[App\]/i.test(reportName);
-      var reportCell = analysisNameCell(reportName, "report", {
-        level: 0, toggleId: rootId, open: rootOpen,
-        href: analysisReportUrl(report.workspace_id, report.report_id)
-      });
+      var practiceScore = report.practice_total
+        ? report.practice_score : report.health_score;
+      var practiceTitle = report.practice_label
+        ? "PBI Inspector: " + report.practice_score + " (" + report.practice_label +
+          ") — " + (report.practice_passed || 0) + "/" +
+          (report.practice_total || 0) + " rules passed"
+        : analysisPracticeTitle(report);
+      reportCount += 1;
       rows.push({
         level: 0,
         group: true,
         cells: analysisReportCells(
-          reportCell,
-          isApp ? "Apps" : "Local report", report.format || report.workspace_name || "—",
-          report.visual_count || 0, report.page_count || 0, report.theme || "—",
+          analysisNameCell(reportName, "report", {
+            level: 0, toggleId: rootId, open: rootOpen,
+            href: analysisReportUrl(report.workspace_id, report.report_id)
+          }),
+          reportType,
+          reportSource,
+          report.container_count != null
+            ? report.container_count : (report.visual_count || 0),
+          report.page_count || 0,
+          report.theme || "",
           undefined,
           {
             broken: report.status === "ok" ? report.broken_visuals : null,
-            score: report.health_score,
-            scoreTitle: analysisPracticeTitle(report)
+            score: practiceScore,
+            scoreTitle: practiceTitle
           }
         )
       });
@@ -4555,90 +4503,33 @@ import { state } from "../core/state.js";
           kind: "html",
           cls: "analysis-sub",
           html: '<span class="helper">' +
-            (state.reportLoading[report.report_id] ? "Loading report details…" : "Details are not available yet.") +
+            (state.reportLoading[report.report_id]
+              ? "Loading report details…" : "Details are not available yet.") +
             "</span>"
         });
         return;
       }
-      var detailPages = null;
-      var detailById = {};
-      (detail.pages || []).forEach(function (page) {
-        detailById[page.page_id] = page;
+      var pages = (detail.pages || []).filter(function (page) {
+        if (type === "used" && !(page.field_count > 0)) return false;
+        if (type === "unused" && page.field_count > 0) return false;
+        if (!query || rootMatch) return true;
+        return String(page.page_name || "").toLowerCase().indexOf(query) !== -1;
       });
-      detailPages = visiblePages.map(function (page) {
-        return detailById[page.page_id] || page;
+      pages.forEach(function (page) {
+        pageTotal += 1;
+        visualTotal += page.container_count != null
+          ? page.container_count : (page.visual_count || 0);
+        fieldTotal += page.field_count || 0;
+        rows = rows.concat(analysisReportPageRows(page, reportName, 1, rootId));
       });
-
-      var hiddenPages = detailPages.filter(function (page) { return page.is_hidden; });
-      var normalPages = detailPages.filter(function (page) { return !page.is_hidden; });
-
-      if (hiddenPages.length) {
-        var hiddenId = rootId + ":hidden";
-        var hiddenOpen = analysisIsOpen(hiddenId, false, true);
-        var hiddenVisuals = hiddenPages.reduce(function (sum, page) {
-          return sum + (page.visual_count || 0);
-        }, 0);
-        rows.push({
-          level: 1,
-          group: true,
-          cells: analysisReportCells(
-            analysisNameCell("Hidden pages", "hidden", {
-              level: 1, toggleId: hiddenId, open: hiddenOpen
-            }),
-            "", "", null, null, null
+      (detail.report_filters || []).forEach(function (entry, index) {
+        rows = rows.concat(
+          analysisReportFilterRows(
+            entry, 1, rootId + ":rf" + index, reportName
           )
-        });
-        if (hiddenOpen) {
-          hiddenPages.forEach(function (page) {
-            rows = rows.concat(analysisPageRows(page, reportName, hiddenId, 2));
-          });
-        }
-      }
-
-      var pagesId = rootId + ":pages";
-      var pagesOpen = analysisIsOpen(pagesId, false, true);
-      var normalVisuals = normalPages.reduce(function (sum, page) {
-        return sum + (page.visual_count || 0);
-      }, 0);
-      rows.push({
-        level: 1,
-        group: true,
-        cells: analysisReportCells(
-          analysisNameCell("Pages", "group", {
-            level: 1, toggleId: pagesId, open: pagesOpen
-          }),
-          "", "", null, null, null
-        )
+        );
       });
-      if (pagesOpen) {
-        normalPages.forEach(function (page) {
-          rows = rows.concat(analysisPageRows(page, reportName, pagesId, 2));
-        });
-      }
-
-      var reportFilters = detail.report_filters || [];
-      if (reportFilters.length) {
-        var reportFiltersId = rootId + ":reportfilters";
-        var reportFiltersOpen = analysisIsOpen(reportFiltersId, false, true);
-        rows.push({
-          level: 1,
-          group: true,
-          cells: analysisReportCells(
-            analysisNameCell("Report level filters (" + reportFilters.length + ")", "filter", {
-              level: 1, toggleId: reportFiltersId, open: reportFiltersOpen
-            }),
-            "", "", null, null, null
-          )
-        });
-        if (reportFiltersOpen) {
-          reportFilters.forEach(function (entry) {
-            rows = rows.concat(
-              analysisFilterRows(entry, reportFiltersId, 2, reportName)
-            );
-          });
-        }
-      }
-      if (!normalPages.length && !hiddenPages.length) {
+      if (!pages.length && !(detail.report_filters || []).length) {
         rows.push({
           kind: "html",
           cls: "analysis-sub",
@@ -5846,7 +5737,7 @@ import { state } from "../core/state.js";
       return;
     }
     var tab = state.analysisTab || "all";
-    if (tab !== "all" && tab !== "tables") {
+    if (tab !== "all" && tab !== "tables" && tab !== "report") {
       app.toast("Coming soon");
       return;
     }

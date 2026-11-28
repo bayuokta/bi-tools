@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping
 
 from .fabric_api import PBIR, PBIR_LEGACY, ReportDefinition
+from .report_practice import build_report_practice
 from .metadata_common import (
     AGGREGATED_QUERY_REF,
     QUERY_AGGREGATE_FUNCTION,
@@ -100,6 +101,8 @@ class ReportUsage:
     unresolved_rows: list[dict[str, str]] = field(default_factory=list)
     theme: str = ""
     page_rows: list[dict[str, Any]] = field(default_factory=list)
+    visual_rows: list[dict[str, Any]] = field(default_factory=list)
+    practice: dict[str, Any] = field(default_factory=dict)
 
     @property
     def columns(self) -> dict[tuple[str, str], list[UsageRecord]]:
@@ -179,6 +182,8 @@ class _Collector:
         self.visuals = 0
         self.theme = ""
         self.page_rows: list[dict[str, Any]] = []
+        self.visual_rows: list[dict[str, Any]] = []
+        self.practice: dict[str, Any] = {}
         self._seen_format: set[tuple] = set()
         self._seen_field: set[tuple] = set()
         self._seen_filter: set[tuple] = set()
@@ -611,9 +616,11 @@ def _scan_pbir(
         group_parent: dict[str, str] = {}
         group_hidden: dict[str, bool] = {}
         visuals: list[tuple[str, dict[str, Any]]] = []
+        containers: list[tuple[str, dict[str, Any]]] = []
         for path in by_page.get(page_id, []):
             vjson = parts.json(path)
             visual_id = path.split("/")[4]
+            containers.append((visual_id, vjson))
             if "visualGroup" in vjson:
                 group_parent[visual_id] = str(vjson.get("parentGroupName") or "")
                 group_hidden[visual_id] = bool(vjson.get("isHidden", False))
@@ -631,6 +638,35 @@ def _scan_pbir(
                     return True
                 parent = group_parent.get(parent, "")
             return False
+
+        for index, (visual_id, vjson) in enumerate(containers):
+            group = vjson.get("visualGroup") if isinstance(
+                vjson.get("visualGroup"), dict
+            ) else None
+            visual = vjson.get("visual") if isinstance(
+                vjson.get("visual"), dict
+            ) else None
+            if group is not None:
+                visual_type = "visualGroup"
+                title = str(group.get("displayName") or "")
+            elif visual is not None:
+                visual_type = str(visual.get("visualType") or "")
+                title = _pbir_title(visual, visual_id)
+            else:
+                continue
+            collector.visual_rows.append(
+                {
+                    "page_id": page_id,
+                    "page_name": page_name,
+                    "visual_id": visual_id,
+                    "visual_type": visual_type,
+                    "visual_title": title,
+                    "parent_id": str(vjson.get("parentGroupName") or ""),
+                    "is_group": group is not None,
+                    "is_hidden": hidden(visual_id, vjson),
+                    "order_index": index,
+                }
+            )
 
         for visual_id, vjson in visuals:
             visual = vjson.get("visual") or {}
@@ -978,18 +1014,52 @@ def _scan_legacy(
             )
 
         visuals = 0
-        for container in section.get("visualContainers") or []:
+        for index, container in enumerate(section.get("visualContainers") or []):
             config = _loads(container.get("config"))
             if not isinstance(config, dict):
                 continue
             visual = config.get("singleVisual")
-            if not isinstance(visual, dict):
+            group = config.get("singleVisualGroup")
+            if not isinstance(visual, dict) and not isinstance(group, dict):
+                continue
+            visual_id = str(config.get("name") or container.get("name") or f"v{index}")
+            parent_id = str(config.get("parentGroupName") or "")
+            if isinstance(group, dict):
+                collector.visual_rows.append(
+                    {
+                        "page_id": page_id,
+                        "page_name": page_name,
+                        "visual_id": visual_id,
+                        "visual_type": "visualGroup",
+                        "visual_title": str(group.get("displayName") or ""),
+                        "parent_id": parent_id,
+                        "is_group": True,
+                        "is_hidden": bool(container.get("isHidden")),
+                        "order_index": index,
+                    }
+                )
                 continue
             visuals += 1
             collector.visuals += 1
-            visual_id = str(config.get("name") or container.get("name") or f"v{visuals}")
             visual_type = str(visual.get("visualType") or "")
             title = _legacy_title(visual, visual_id)
+            collector.visual_rows.append(
+                {
+                    "page_id": page_id,
+                    "page_name": page_name,
+                    "visual_id": visual_id,
+                    "visual_type": visual_type,
+                    "visual_title": title,
+                    "parent_id": parent_id,
+                    "is_group": False,
+                    "is_hidden": str(
+                        ((visual.get("display") or {}).get("mode") or "")
+                    )
+                    == "hidden"
+                    or bool(container.get("isHidden")),
+                    "order_index": index,
+                }
+            )
 
             query = visual.get("prototypeQuery") or {}
             alias = {
@@ -1225,6 +1295,7 @@ def scan_definition(
             "No fields were read; the report may be empty or use "
             "visuals that do not reference fields."
         )
+    collector.practice = build_report_practice(definition)
     return ReportUsage(
         report_format=report_format,
         pages=collector.pages,
@@ -1234,4 +1305,6 @@ def scan_definition(
         unresolved_rows=collector.unresolved_rows,
         theme=collector.theme,
         page_rows=collector.page_rows,
+        visual_rows=collector.visual_rows,
+        practice=collector.practice,
     )

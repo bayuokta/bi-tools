@@ -61,6 +61,7 @@ from core.raw_metadata import (
     find_row,
     metadata_payload,
 )
+from core.report_export import write_report_export
 from core.result_export import write_result_export
 from core.table_export import (
     GROUP_ICONS as TABLE_GROUP_ICONS,
@@ -1273,15 +1274,26 @@ def serialize_result(
     broken_counts = broken_visual_counts(result)
     reports = []
     pages_map = dict(getattr(result, "report_pages", {}) or {})
+    local = str(getattr(result, "method", "") or "").casefold() == "local"
+    report_type = "Local report" if local else "Service report"
+    report_source = "File" if local else "Service"
     for item in result.reports or []:
         if not isinstance(item, Mapping):
             continue
         workspace_id = str(item.get("workspace_id") or "")
         report_id = str(item.get("report_id") or item.get("id") or "")
+        practice_rules: Any = item.get("practice_rules") or []
+        if isinstance(practice_rules, str):
+            try:
+                practice_rules = json.loads(practice_rules)
+            except json.JSONDecodeError:
+                practice_rules = []
+        name = str(item.get("report_name") or item.get("name") or "")
+        is_app = "[app]" in name.casefold()
         reports.append(
             {
                 "report_id": report_id,
-                "report_name": str(item.get("report_name") or item.get("name") or ""),
+                "report_name": name,
                 "workspace_id": workspace_id,
                 "workspace_name": str(
                     item.get("workspace_name") or names.get(workspace_id) or ""
@@ -1289,15 +1301,26 @@ def serialize_result(
                 "format": str(
                     item.get("report_format") or item.get("format") or ""
                 ),
+                "report_type": "Apps" if is_app else report_type,
+                "report_source": report_source,
                 "status": str(item.get("status") or ""),
                 "message": str(item.get("message") or ""),
                 "modified_at": str(item.get("modified_at") or ""),
                 "page_count": int(item.get("page_count") or 0),
                 "visual_count": int(item.get("visual_count") or 0),
+                "container_count": int(
+                    item.get("container_count") or item.get("visual_count") or 0
+                ),
                 "field_count": int(item.get("field_count") or 0),
                 "unresolved_count": int(item.get("unresolved_count") or 0),
                 "broken_visuals": int(broken_counts.get(report_id, 0)),
                 "health_score": (health["practice"].get(report_id) or {}).get("score"),
+                "practice_score": item.get("practice_score"),
+                "practice_label": str(item.get("practice_label") or ""),
+                "practice_passed": int(item.get("practice_passed") or 0),
+                "practice_total": int(item.get("practice_total") or 0),
+                "practice_failed": int(item.get("practice_failed") or 0),
+                "practice_rules": practice_rules,
                 "is_active": bool(item.get("is_active", 1)),
                 "theme": str(item.get("theme") or ""),
                 "pages": [
@@ -1307,6 +1330,11 @@ def serialize_result(
                         "order_index": int(page.get("order_index") or 0),
                         "is_hidden": bool(page.get("is_hidden")),
                         "visual_count": int(page.get("visual_count") or 0),
+                        "container_count": int(
+                            page.get("container_count")
+                            or page.get("visual_count")
+                            or 0
+                        ),
                         "field_count": int(page.get("field_count") or 0),
                     }
                     for page in pages_map.get(report_id, [])
@@ -1966,6 +1994,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Result_{safe}_{suffix}.xlsx"
         elif tab == "tables":
             target = outputs_dir() / f"Table_Result_{safe}_{suffix}.xlsx"
+        elif tab in {"report", "reports"}:
+            target = outputs_dir() / f"Report_Result_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -1974,12 +2004,24 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_result_export(result, target)
     elif tab == "tables":
         write_table_export(result, target)
+    elif tab in {"report", "reports"}:
+        details: dict[str, dict[str, Any]] = {}
+        with session.lock:
+            for item in result.reports or []:
+                if not isinstance(item, Mapping):
+                    continue
+                report_id = str(item.get("report_id") or "")
+                if not report_id:
+                    continue
+                details[report_id] = report_detail(
+                    session.conn, dataset_id, report_id
+                )
+        write_report_export(result, details, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
         "relationships",
         "roles",
-        "report",
         "dax",
         "m",
         "health",

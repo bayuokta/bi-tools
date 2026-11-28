@@ -388,6 +388,11 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["functions"][0]["uses"], 0)
         self.assertEqual(data["counts"]["functions"]["Unused"], 1)
         self.assertEqual(data["reports"][0]["report_name"], "Report Uji")
+        self.assertEqual(data["reports"][0]["report_type"], "Service report")
+        self.assertEqual(data["reports"][0]["report_source"], "Service")
+        self.assertEqual(data["reports"][0]["container_count"], 12)
+        self.assertEqual(data["reports"][0]["practice_score"], None)
+        self.assertEqual(data["reports"][0]["practice_label"], "")
         self.assertEqual(data["reports"][0]["page_count"], 3)
         self.assertEqual(data["reports"][0]["pages"][0]["page_name"], "Halaman 1")
         self.assertEqual(data["reports"][0]["pages"][0]["field_count"], 5)
@@ -615,6 +620,24 @@ class AnalysisPresenterTests(unittest.TestCase):
         ) as write:
             data = presenter.export(
                 {"dataset_id": DATASET, "output": str(target), "tab": "tables"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
+    def test_export_writes_report_template(self) -> None:
+        target = self.root / "report.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "report_detail", return_value={"pages": []}
+        ), patch.object(
+            presenter, "write_report_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "report"},
                 self.store,
             )
         self.assertEqual(data["path"], str(target))

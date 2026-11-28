@@ -195,6 +195,165 @@ class UsageStoreTests(unittest.TestCase):
         self.assertEqual(detail["report_filters"][0]["columns"][0]["field"], "Channel")
         self.assertEqual(reports(self.conn, "ds")[0]["theme"], "Corporate")
 
+    def test_report_detail_visual_tree_practice_and_order(self) -> None:
+        save_columns(
+            self.conn,
+            "ds",
+            [
+                ColumnStat(
+                    table="Sales",
+                    column="Region",
+                    column_id=10,
+                    column_type="data",
+                    data_type="string",
+                    format_string="",
+                    display_folder="",
+                    is_hidden=False,
+                    is_calculated=False,
+                    sort_by_column="",
+                    expression="",
+                    size_data_bytes=100,
+                    size_hierarchy_bytes=0,
+                    rows=10,
+                ),
+                ColumnStat(
+                    table="Sales",
+                    column="Zone",
+                    column_id=11,
+                    column_type="calculated",
+                    data_type="string",
+                    format_string="",
+                    display_folder="",
+                    is_hidden=False,
+                    is_calculated=True,
+                    sort_by_column="",
+                    expression="[Region]",
+                    size_data_bytes=100,
+                    size_hierarchy_bytes=0,
+                    rows=10,
+                ),
+            ],
+        )
+        usage_value = ReportUsage(
+            report_format="PBIR",
+            pages=1,
+            visuals=2,
+            page_rows=[
+                {
+                    "page_id": "p1",
+                    "page_name": "Overview",
+                    "order_index": 1,
+                    "is_hidden": False,
+                    "visual_count": 2,
+                }
+            ],
+            visual_rows=[
+                {
+                    "page_id": "p1",
+                    "page_name": "Overview",
+                    "visual_id": "g1",
+                    "visual_type": "visualGroup",
+                    "visual_title": "Header",
+                    "parent_id": "",
+                    "is_group": True,
+                    "is_hidden": False,
+                    "order_index": 0,
+                },
+                {
+                    "page_id": "p1",
+                    "page_name": "Overview",
+                    "visual_id": "v1",
+                    "visual_type": "tableEx",
+                    "visual_title": "(untitled) tableEx 12345678",
+                    "parent_id": "g1",
+                    "is_group": False,
+                    "is_hidden": False,
+                    "order_index": 1,
+                },
+                {
+                    "page_id": "p1",
+                    "page_name": "Overview",
+                    "visual_id": "v2",
+                    "visual_type": "pivotTable",
+                    "visual_title": "Summary",
+                    "parent_id": "",
+                    "is_group": False,
+                    "is_hidden": False,
+                    "order_index": 2,
+                },
+            ],
+            records=[
+                UsageRecord(
+                    "field", "Column", "Sales", "Region",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="Values",
+                ),
+                UsageRecord(
+                    "field", "Column", "Sales", "Zone",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="Tooltip",
+                ),
+                UsageRecord(
+                    "filter-visual", "Column", "Sales", "Region",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="Categorical \u00b7 A \u00b7 f1",
+                ),
+                UsageRecord(
+                    "format", "Column", "Sales", "Region",
+                    page_id="p1", page_name="Overview",
+                    visual_id="v1", visual_type="tableEx", visual_title="Tabel",
+                    detail="formatting objects",
+                ),
+            ],
+            practice={
+                "available": True,
+                "score": 90,
+                "label": "Warning",
+                "passed": 9,
+                "total": 10,
+                "failed": 1,
+                "rules": [{"id": "REDUCE_PAGES", "passed": False}],
+            },
+        )
+        save_report(
+            self.conn,
+            report_id="r1",
+            workspace_id="ws",
+            dataset_id="ds",
+            name="Report A",
+            report_format="PBIR",
+            modified_at="2026-01-01T00:00:00Z",
+            status="ok",
+            usage=usage_value,
+        )
+
+        detail = report_detail(self.conn, "ds", "r1")
+        page = detail["pages"][0]
+        self.assertEqual(page["container_count"], 3)
+        self.assertEqual(
+            [visual["visual_id"] for visual in page["visuals"]],
+            ["g1", "v1", "v2"],
+        )
+        self.assertTrue(page["visuals"][0]["is_group"])
+        self.assertEqual(page["visuals"][1]["parent_id"], "g1")
+        fields = page["visuals"][1]["fields"]
+        self.assertEqual(
+            [(field["field"], field["kind"]) for field in fields],
+            [("Region", "Column"), ("Zone", "Calculated Column")],
+        )
+        filters = page["visuals"][1]["filters"]
+        self.assertEqual(filters[0]["name"], "f1")
+        self.assertEqual(filters[0]["type"], "Categorical")
+        self.assertEqual(filters[0]["fields"][0]["field"], "Region")
+        stored = reports(self.conn, "ds")[0]
+        self.assertEqual(stored["practice_score"], 90)
+        self.assertEqual(stored["practice_label"], "Warning")
+        self.assertEqual(stored["container_count"], 3)
+        self.assertEqual(stored["visual_count"], 2)
+
     def test_rescan_replaces_fields(self) -> None:
         self.save()
         save_report(

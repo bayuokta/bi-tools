@@ -813,6 +813,37 @@ class WebLayerTests(unittest.TestCase):
         self.assertEqual(js.count("function analysisChildGroups("), 1)
         self.assertIn("function analysisTableSummary(", js)
 
+    def test_web_reports_export_uses_template_tree_and_pbi_inspector(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        report_export = (ROOT / "core" / "report_export.py").read_text(
+            encoding="utf-8"
+        )
+        report_usage = (ROOT / "core" / "report_usage.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertTrue((ROOT / "rules" / "PBIInspector-rules.json").exists())
+        self.assertTrue((ROOT / "core" / "report_practice.py").exists())
+        self.assertIn("REPORT_RESULT_COLUMNS", report_export)
+        self.assertIn("write_report_export", presenter)
+        self.assertIn("build_report_practice", report_usage)
+        for name in (
+            "analysisReportVisualRows",
+            "analysisReportFilterRows",
+            "analysisReportPageRows",
+        ):
+            self.assertEqual(
+                js.count(f"function {name}("),
+                1,
+                f"helper {name} harus dideklarasikan tepat satu kali",
+            )
+        self.assertIn("Export reports", js)
+        self.assertIn("report_type", js)
+        self.assertIn("practice_label", js)
+        self.assertNotIn("Hidden pages", js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()
