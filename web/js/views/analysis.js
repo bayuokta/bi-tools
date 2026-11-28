@@ -515,7 +515,8 @@ import { state } from "../core/state.js";
       state.analysisTab === "m" ||
       state.analysisTab === "bestpractice" ||
       state.analysisTab === "unloaded" ||
-      state.analysisTab === "health";
+      state.analysisTab === "health" ||
+      state.analysisTab === "roles";
     var label = state.analysisTab === "tables" ? "Export tables"
       : (state.analysisTab === "report" ? "Export reports"
         : (state.analysisTab === "relationships"
@@ -529,7 +530,9 @@ import { state } from "../core/state.js";
                 : (state.analysisTab === "unloaded"
                   ? "Export unloaded power query"
                   : (state.analysisTab === "health"
-                    ? "Export health" : "Export Result")))))));
+                    ? "Export health"
+                    : (state.analysisTab === "roles"
+                      ? "Export roles" : "Export Result"))))))));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -6023,7 +6026,8 @@ import { state } from "../core/state.js";
     var tab = state.analysisTab || "all";
     if (tab !== "all" && tab !== "tables" && tab !== "report" &&
         tab !== "relationships" && tab !== "dax" && tab !== "m" &&
-        tab !== "bestpractice" && tab !== "unloaded" && tab !== "health") {
+        tab !== "bestpractice" && tab !== "unloaded" && tab !== "health" &&
+        tab !== "roles") {
       app.toast("Coming soon");
       return;
     }

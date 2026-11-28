@@ -147,6 +147,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   visuals, unmapped fields), ukuran 0 ditulis kosong, dan konteks
   report/page/visual diisi untuk temuan report-level. Tombol toolbar menjadi
   **Export health**; ekspor memuat semua temuan, bukan hanya hasil filter.
+- Tab **Roles** kini punya ekspor sendiri (format internal):
+  `Roles_<dataset>_<id8>.xlsx` dengan 13 kolom — `Role`, `Type`, `Object`,
+  `Model permission`, `Member type`, `Provider`, `Member ID`,
+  `Filter expression`, `OLS`, `Modified`, `Description`, `Member count`, dan
+  `Table permission count`. Satu baris per role/member/table permission
+  (role → member → permission), ekspresi RLS tidak dipotong, dan `OLS`
+  ditulis `Yes`/`No`. Tombol toolbar menjadi **Export roles**; ekspor memuat
+  semua role, bukan hanya hasil filter.
 
 ### Perbaikan
 

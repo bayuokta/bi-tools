@@ -66,6 +66,7 @@ from core.dax_export import write_dax_export
 from core.health_export import write_health_export
 from core.m_export import write_m_export
 from core.relationship_export import relationship_row, write_relationship_export
+from core.roles_export import write_roles_export
 from core.unloaded_export import write_unloaded_export
 from core.unloaded_queries import build_unloaded_queries
 from core.report_export import write_report_export
@@ -1993,6 +1994,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Unloaded_Power_Query_{safe}_{suffix}.xlsx"
         elif tab == "health":
             target = outputs_dir() / f"Health_{safe}_{suffix}.xlsx"
+        elif tab == "roles":
+            target = outputs_dir() / f"Roles_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -2026,14 +2029,10 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_unloaded_export(result, target)
     elif tab == "health":
         write_health_export(result, target)
+    elif tab == "roles":
+        write_roles_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
-    elif tab in {
-        "roles",
-    }:
-        raise ExtractionError(
-            "Export for this tab is not available yet (coming soon)."
-        )
     else:
         raise ExtractionError(f"Unknown export tab: {tab}")
     return {

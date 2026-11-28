@@ -989,6 +989,31 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("write_health_export", presenter)
         self.assertIn('"Export health"', js)
 
+    def test_web_roles_export_uses_internal_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        export = (ROOT / "core" / "roles_export.py").read_text(encoding="utf-8")
+        for column in (
+            "Role",
+            "Type",
+            "Object",
+            "Model permission",
+            "Member type",
+            "Provider",
+            "Member ID",
+            "Filter expression",
+            "OLS",
+            "Modified",
+            "Description",
+            "Member count",
+            "Table permission count",
+        ):
+            self.assertIn(f'"{column}"', export, column)
+        self.assertIn("write_roles_export", presenter)
+        self.assertIn('"Export roles"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

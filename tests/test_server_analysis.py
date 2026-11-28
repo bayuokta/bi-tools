@@ -755,6 +755,22 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["path"], str(target))
         write.assert_called_once()
 
+    def test_export_writes_roles_template(self) -> None:
+        target = self.root / "roles.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "write_roles_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "roles"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
     def test_export_full_workbook_option(self) -> None:
         target = self.root / "semua.xlsx"
         target.write_bytes(b"xlsx")
@@ -769,14 +785,14 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["path"], str(target))
         write.assert_called_once()
 
-    def test_export_other_tab_is_coming_soon(self) -> None:
+    def test_export_unknown_tab_is_rejected(self) -> None:
         presenter._session(DATASET)
         with patch.object(
             presenter, "snapshot_from_connection", return_value=fake_result()
         ):
             with self.assertRaises(ExtractionError) as ctx:
-                presenter.export({"dataset_id": DATASET, "tab": "roles"}, self.store)
-        self.assertIn("not available", str(ctx.exception))
+                presenter.export({"dataset_id": DATASET, "tab": "unknown"}, self.store)
+        self.assertIn("Unknown export tab", str(ctx.exception))
 
     def test_snapshot_payload_reads_session(self) -> None:
         presenter._session(DATASET)

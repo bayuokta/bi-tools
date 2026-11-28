@@ -750,6 +750,72 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("Export health", page.inner_text("#exportXlsx"))
         self.assertIn("1 findings", page.inner_text("#analyzeSummary"))
 
+    def test_analysis_roles_tab_enables_export(self) -> None:
+        """Tab Roles memakai pohon 11 kolom dan tombol Export roles."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 0, "measures": 0, "hierarchies": 0, "functions": 0},
+            "measures": [],
+            "columns": [],
+            "functions": [],
+            "tables": [],
+            "m_queries": [],
+            "unloaded_queries": [],
+            "relationships": [],
+            "reports": [],
+            "coverage": {"complete": True},
+            "reports_included": True,
+            "roles": [
+                {
+                    "id": 1,
+                    "name": "Dealer",
+                    "model_permission": "read",
+                    "description": "",
+                    "modified": "",
+                    "members": [
+                        {
+                            "name": "Dealer A",
+                            "member_id": "m1",
+                            "member_type": "User",
+                            "provider": "AzureAD",
+                            "modified": "",
+                        }
+                    ],
+                    "permissions": [
+                        {
+                            "table": "RLS Dealer",
+                            "expression": "[Email] = USERPRINCIPALNAME()",
+                            "has_ols": False,
+                        }
+                    ],
+                }
+            ],
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'roles';
+                state.analysisOpen = {'role:1': true};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 11)
+        self.assertEqual(page.locator("#analyzeBody tr").count(), 3)
+        self.assertIn("Export roles", page.inner_text("#exportXlsx"))
+        body = page.inner_text("#analyzeBody")
+        self.assertIn("Dealer", body)
+        self.assertIn("Dealer A", body)
+        self.assertIn("RLS Dealer", body)
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")
