@@ -738,6 +738,7 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
         meta = parse_meta(match.group("meta")) if match else {}
         body = raw[: match.start()].strip() if match else raw.strip()
         is_parameter = meta.get("IsParameterQuery", "false").strip().lower() in {"true", "1"}
+        is_function = bool(re.search(r"\([^()]*\)\s*=>", body))
         value = body
         if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
             value = value[1:-1].replace('""', '"')
@@ -746,7 +747,11 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
             {
                 "expression_id": int(expression_id),
                 "name": str(row["Name"]),
-                "kind": "Parameter" if is_parameter else "Expression",
+                "kind": (
+                    "Parameter"
+                    if is_parameter
+                    else ("Function" if is_function else "Expression")
+                ),
                 "data_type": meta.get("Type", ""),
                 "is_required": meta.get("IsParameterQueryRequired", "false").strip().lower() in {"true", "1"},
                 "query_group": str(group["Folder"]) if group else "",

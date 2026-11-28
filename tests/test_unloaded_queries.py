@@ -133,13 +133,13 @@ class UnloadedQueryTests(unittest.TestCase):
         self.assertEqual(
             [row["name"] for row in build_unloaded_queries(analysis_result(SAMPLE_QUERIES))],
             [
-                "Base Query",
-                "Pages Testing",
                 "RangeStart",
                 "ServerURL",
                 "projectID",
                 "DataSize",
                 "LimitClause",
+                "Base Query",
+                "Pages Testing",
             ],
         )
         self.assertEqual(rows["Pages Testing"]["status"], "Unused")
@@ -207,6 +207,43 @@ class UnloadedQueryTests(unittest.TestCase):
         self.assertEqual([usage["name"] for usage in rows["A"]["usages"]], ["Sales"])
         self.assertEqual([usage["name"] for usage in rows["B"]["usages"]], ["Sales"])
         self.assertEqual(rows["StartParam"]["uses"], 1)
+
+    def test_m_function_usage_and_quoted_steps(self) -> None:
+        rows = self.by_name(
+            build_unloaded_queries(
+                analysis_result(
+                    [
+                        {"name": "ServerURL", "kind": "M Parameter", "expression": "1"},
+                        {
+                            "name": "TransformFile",
+                            "kind": "M Function",
+                            "expression": (
+                                "let Source = (File as binary, Name as text) => "
+                                "let X = ServerURL in X in Source"
+                            ),
+                        },
+                        {
+                            "name": "Sales",
+                            "kind": "Table",
+                            "expression": (
+                                'let #"Step 1" = 1, '
+                                '#"Step 2" = TransformFile([Content], "a") '
+                                'in #"Step 2"'
+                            ),
+                        },
+                    ]
+                )
+            )
+        )
+        self.assertEqual(rows["TransformFile"]["type"], "M Function")
+        self.assertEqual(
+            [usage["name"] for usage in rows["TransformFile"]["usages"]],
+            ["Sales"],
+        )
+        self.assertEqual(
+            [usage["name"] for usage in rows["ServerURL"]["usages"]],
+            ["Sales"],
+        )
 
     def test_policy_expression_is_scanned(self) -> None:
         rows = self.by_name(

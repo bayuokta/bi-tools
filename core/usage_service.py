@@ -1949,10 +1949,15 @@ def m_query_rows(
     for position, row in enumerate(expressions):
         kind = str(row.get("kind") or "Expression")
         is_parameter = kind == "Parameter"
+        is_function = kind == "Function"
         rows.append(
             {
                 "name": str(row.get("name") or ""),
-                "kind": "M Parameter" if is_parameter else "M Query",
+                "kind": (
+                    "M Parameter"
+                    if is_parameter
+                    else ("M Function" if is_function else "M Query")
+                ),
                 "source": str(row.get("query_group") or "Model"),
                 "expression": (
                     _parameter_expression(row)
@@ -1965,15 +1970,17 @@ def m_query_rows(
                 "entry_key": (
                     f"parameter:{row.get('name')}"
                     if is_parameter
-                    else f"query:{row.get('name')}"
+                    else (
+                        f"function:{row.get('name')}"
+                        if is_function
+                        else f"query:{row.get('name')}"
+                    )
                 ),
             }
         )
-    kind_order = {"M Query": 0, "M Parameter": 1}
     rows.sort(
         key=lambda item: (
             item["kind"] != "Table",
-            kind_order.get(item["kind"], 2),
             int(item.get("position") or 0),
             item["name"].casefold(),
         )

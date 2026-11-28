@@ -17,8 +17,9 @@ from .table_export import build_table_groups
 
 _QUERY_KINDS = {"m query", "expression"}
 _PARAMETER_KINDS = {"m parameter", "parameter"}
+_FUNCTION_KINDS = {"m function", "function"}
 
-_STRING_LITERAL = re.compile(r'(?<!#)"(?:[^"]|"")*"')
+_STRING_OR_REFERENCE = re.compile(r'#"[^"]+"|"(?:[^"]|"")*"')
 _SHARED_REFERENCE = re.compile(r'#"[^"]+"')
 
 
@@ -29,12 +30,18 @@ def _kind(value: Any) -> str:
         return "M Query"
     if lowered in _PARAMETER_KINDS:
         return "M Parameter"
+    if lowered in _FUNCTION_KINDS:
+        return "M Function"
     return ""
 
 
 def _visible_text(expression: str) -> str:
     """Buang komentar dan string literal; pertahankan referensi ``#"Nama"``."""
-    return _STRING_LITERAL.sub('""', strip_comments(expression))
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        return token if token.startswith('#"') else '""'
+
+    return _STRING_OR_REFERENCE.sub(replace, strip_comments(expression))
 
 
 def _identifiers(text: str, names: Iterable[str]) -> set[str]:
@@ -141,7 +148,7 @@ def build_unloaded_queries(result: Any) -> list[dict[str, Any]]:
     shared = {
         item["name"]: item["expression"]
         for item in expressions
-        if item["kind"] == "M Query"
+        if item["kind"] in {"M Query", "M Function"}
     }
     usage_params: dict[str, set[str]] = {name: set() for name in parameters}
     usage_queries: dict[str, set[str]] = {name: set() for name in shared}
@@ -165,7 +172,6 @@ def build_unloaded_queries(result: Any) -> list[dict[str, Any]]:
 
     expressions.sort(
         key=lambda item: (
-            0 if item["kind"] == "M Query" else 1,
             int(item["position"]),
             item["name"].casefold(),
         )
@@ -175,7 +181,7 @@ def build_unloaded_queries(result: Any) -> list[dict[str, Any]]:
         name = item["name"]
         used_by = (
             usage_queries.get(name, set())
-            if item["kind"] == "M Query"
+            if item["kind"] in {"M Query", "M Function"}
             else usage_params.get(name, set())
         )
         usages: list[dict[str, Any]] = []

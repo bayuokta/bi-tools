@@ -59,13 +59,13 @@ class UnloadedExportTests(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "Base Query",
-                "Pages Testing",
                 "RangeStart",
                 "ServerURL",
                 "projectID",
                 "DataSize",
                 "LimitClause",
+                "Base Query",
+                "Pages Testing",
             ],
         )
 

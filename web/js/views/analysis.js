@@ -229,13 +229,13 @@ import { state } from "../core/state.js";
     },
     m: {
       placeholder: "Table, M query, parameter, or expression",
-      filters: [["all", "All types"], ["Table", "Table"], ["M Query", "M Query"], ["M Parameter", "M Parameter"]],
+      filters: [["all", "All types"], ["Table", "Table"], ["M Query", "M Query"], ["M Parameter", "M Parameter"], ["M Function", "M Function"]],
       unused: false,
       expandable: true
     },
     unloaded: {
       placeholder: "Unloaded query or parameter",
-      filters: [["all", "All types"], ["M Query", "M Query"], ["M Parameter", "M Parameter"]],
+      filters: [["all", "All types"], ["M Query", "M Query"], ["M Parameter", "M Parameter"], ["M Function", "M Function"]],
       unused: false,
       expandable: true
     },
