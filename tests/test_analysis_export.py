@@ -10,11 +10,14 @@ from types import SimpleNamespace
 
 from core.analysis_export import (
     dependency_rows,
+    object_details_payload,
     output_stem,
     safe_name,
     write_dependencies_csv,
     write_lineage_files,
     write_lineage_image,
+    write_object_json,
+    write_uses_xlsx,
 )
 
 
@@ -59,7 +62,63 @@ def analysis_fixture() -> SimpleNamespace:
         model_refs=[],
         report_records=[],
     )
-    return SimpleNamespace(columns=[column_item], measures=[measure_item])
+    function_item = SimpleNamespace(
+        function=SimpleNamespace(
+            name="PercentageGrowth",
+            function_id=56708,
+            expression="(x) => x",
+            description="",
+            lineage_tag="",
+            is_hidden=False,
+        ),
+        status="Used",
+        reason="",
+        model_refs=[
+            SimpleNamespace(
+                kind="measure",
+                object="'KPI'[Total]",
+                detail="measure 'KPI'[Total]",
+                blocking=False,
+            )
+        ],
+        report_records=[],
+    )
+    hierarchy_item = SimpleNamespace(
+        hierarchy={
+            "table": "Sales",
+            "hierarchy": "Date",
+            "levels": "Year > Month",
+            "level_count": 2,
+            "is_hidden": False,
+            "display_folder": "",
+            "description": "",
+            "lineage_tag": "",
+        },
+        status="Used",
+        reason="",
+        report_records=[
+            {
+                "usage_kind": "field",
+                "visual_title": "Tabel",
+                "visual_type": "tableEx",
+                "detail": "Rows",
+                "report_name": "Report Uji",
+                "page_name": "Halaman 1",
+                "is_hidden": False,
+            }
+        ],
+    )
+    hierarchy_item.table = "Sales"
+    hierarchy_item.name = "Date"
+    return SimpleNamespace(
+        columns=[column_item],
+        measures=[measure_item],
+        functions=[function_item],
+        hierarchies=[hierarchy_item],
+        dataset_name="Model Uji",
+        stats=SimpleNamespace(tables=[]),
+        reports=[],
+    )
 
 
 class ExportNameTests(unittest.TestCase):
@@ -243,6 +302,69 @@ class DependencyExportTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8-sig")
             self.assertTrue(text.startswith("source,type,kind"))
             self.assertIn("'Sales'[Amount]", text)
+
+
+class ObjectExportTests(unittest.TestCase):
+    def test_function_uses_and_json_modes(self) -> None:
+        result = analysis_fixture()
+        rows = dependency_rows(
+            result,
+            kind="function",
+            table="",
+            name="PercentageGrowth",
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source"], "function 'PercentageGrowth'")
+
+        full = object_details_payload(
+            result, kind="function", table="", name="PercentageGrowth", mode="full"
+        )
+        self.assertEqual(full["details"]["kind"], "function")
+        self.assertEqual(full["dependencies"][0]["source"], "function 'PercentageGrowth'")
+
+        simple = object_details_payload(
+            result, kind="function", table="", name="PercentageGrowth", mode="simple"
+        )
+        self.assertEqual(simple["expression"], "(x) => x")
+        no_dax = object_details_payload(
+            result, kind="function", table="", name="PercentageGrowth", mode="no_dax"
+        )
+        self.assertNotIn("expression", no_dax)
+
+    def test_writes_object_json_and_uses_xlsx(self) -> None:
+        result = analysis_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_object_json(
+                result,
+                tmp,
+                kind="function",
+                table="",
+                name="PercentageGrowth",
+                mode="full",
+            )
+            self.assertTrue(path.name.endswith(".json"))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["details"]["kind"], "function")
+
+            uses = write_uses_xlsx(
+                result,
+                tmp,
+                kind="function",
+                table="",
+                name="PercentageGrowth",
+            )
+            self.assertTrue(uses.name.endswith(".xlsx"))
+            import pandas as pd
+
+            frame = pd.read_excel(uses, "Uses")
+            self.assertEqual(frame.loc[0, "Source"], "function 'PercentageGrowth'")
+
+    def test_hierarchy_dependencies(self) -> None:
+        rows = dependency_rows(
+            analysis_fixture(), kind="hierarchy", table="Sales", name="Date"
+        )
+        self.assertEqual(rows[0]["source"], "'Sales'[Date]")
+        self.assertEqual(rows[0]["type"], "report")
 
 
 if __name__ == "__main__":

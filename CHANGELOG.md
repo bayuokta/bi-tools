@@ -30,6 +30,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   step. `tests/test_web_icons.py` menjaga sprite, rujukan `#i-...`, dan manifest
   tetap sinkron. Daftar ikon, lokasi tiap pemakaian, dan langkah mengganti secara
   manual ada di `web/ICONS.md`.
+- Menu **Function** dan **Hierarchy** di tab All results kini lengkap:
+  `View dependencies` (impacted/artifact/visual/filter), `Exports` (full/simple/
+  no-DAX JSON + uses XLSX), `Table options` bertingkat (M expression, artifacts,
+  table details/raw, isAvailableInMdx, model options, exports), dan
+  **Model details** dalam format **TMSL** dari Fabric API
+  (`getDefinition?format=TMSL`), bukan TOM. Inline DAX function dihapus dari
+  baris; akses lewat `View DAX expression`. Detail/raw metadata mendukung
+  function, hierarchy, dan tabel.
 
 ### Perbaikan
 

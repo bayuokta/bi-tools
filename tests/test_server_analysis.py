@@ -18,7 +18,11 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from core.errors import ExtractionError  # noqa: E402
 from core.column_stats import FunctionStat  # noqa: E402
-from core.usage_service import FunctionAnalysis, ModelReference  # noqa: E402
+from core.usage_service import (  # noqa: E402
+    FunctionAnalysis,
+    HierarchyAnalysis,
+    ModelReference,
+)
 from server.app import create_app  # noqa: E402
 from server.presenters import analysis as presenter  # noqa: E402
 from server.settings_store import SettingsStore  # noqa: E402
@@ -232,6 +236,23 @@ def fake_result() -> SimpleNamespace:
                 ),
                 status="Unused",
                 reason="No references in the model.",
+            )
+        ],
+        hierarchies=[
+            HierarchyAnalysis(
+                hierarchy={
+                    "table": "Dim Customer",
+                    "hierarchy": "Geography",
+                    "levels": "Country > City",
+                    "level_count": 2,
+                    "is_hidden": False,
+                    "display_folder": "",
+                    "description": "",
+                    "lineage_tag": "",
+                },
+                status="Used",
+                reason="Used at 1 point.",
+                report_records=[record],
             )
         ],
         function_status_counts={"Unused": 1},
@@ -764,6 +785,73 @@ class AnalysisPresenterTests(unittest.TestCase):
         )
         self.assertIsNone(details["is_used_excel"])
         self.assertIn("is_used_excel", details["unsupported"])
+
+    def test_details_payload_for_function(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ):
+            data = presenter.details_payload(
+                self.store, DATASET, "function", "", "PercentageGrowth"
+            )
+        details = data["details"]
+        self.assertEqual(details["kind"], "function")
+        self.assertEqual(details["type"], "User-defined function")
+        self.assertEqual(details["expression"], "(x: SCALAR) => x")
+
+    def test_details_payload_for_hierarchy(self) -> None:
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ):
+            data = presenter.details_payload(
+                self.store, DATASET, "hierarchy", "Dim Customer", "Geography"
+            )
+        details = data["details"]
+        self.assertEqual(details["kind"], "hierarchy")
+        self.assertEqual(details["type"], "Hierarchy")
+        self.assertEqual(details["levels"], "Country > City")
+        self.assertEqual(len(details["visual_dependencies"]), 1)
+
+    def test_tmsl_payload_uses_fabric_api(self) -> None:
+        with patch.object(
+            presenter, "_session_result", return_value=fake_result()
+        ), patch.object(
+            presenter, "EntraTokens", return_value=object()
+        ), patch.object(presenter, "FabricReportClient") as client_cls:
+            client_cls.return_value.get_semantic_model_tmsl.return_value = {
+                "name": "Model Uji",
+                "model": {},
+            }
+            data = presenter.tmsl_payload(self.store, DATASET)
+        self.assertIn('"name": "Model Uji"', data["tmsl"])
+        client_cls.return_value.close.assert_called_once()
+
+    def test_export_object_and_uses(self) -> None:
+        with patch.object(
+            presenter, "_session_result", return_value=fake_result()
+        ), patch.object(presenter, "outputs_dir", return_value=self.root):
+            obj = presenter.export_object(
+                self.store,
+                {
+                    "dataset_id": DATASET,
+                    "kind": "function",
+                    "table": "",
+                    "name": "PercentageGrowth",
+                    "mode": "simple",
+                },
+            )
+            uses = presenter.export_uses(
+                self.store,
+                {
+                    "dataset_id": DATASET,
+                    "kind": "function",
+                    "table": "",
+                    "name": "PercentageGrowth",
+                },
+            )
+        self.assertTrue(Path(obj["path"]).exists())
+        self.assertTrue(Path(uses["path"]).exists())
 
     def test_raw_metadata_payload_finds_column(self) -> None:
         presenter._session(DATASET)

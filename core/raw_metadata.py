@@ -14,6 +14,8 @@ from .analysis_query import normalize_value
 COLUMN_DMV = "TMSCHEMA_COLUMNS"
 MEASURE_DMV = "TMSCHEMA_MEASURES"
 TABLE_DMV = "TMSCHEMA_TABLES"
+FUNCTION_DMV = "TMSCHEMA_FUNCTIONS"
+HIERARCHY_DMV = "TMSCHEMA_HIERARCHIES"
 
 
 def normalize_row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -61,9 +63,10 @@ def find_row(
     column_id: int | None = None,
     tables: Iterable[Mapping[str, Any]] | None = None,
 ) -> Mapping[str, Any] | None:
-    """Cari baris TMSCHEMA untuk kolom/measure tertentu."""
+    """Cari baris TMSCHEMA untuk kolom/measure/function/hierarchy/table."""
     rows = list(rows)
-    is_column = str(kind).lower() != "measure"
+    wanted_kind = str(kind or "").lower()
+    is_column = wanted_kind == "column"
     by_id, by_name = table_lookup(tables or [])
     wanted_table = by_name.get(str(table or "").casefold())
 
@@ -76,7 +79,7 @@ def find_row(
                 continue
 
     candidates = [row for row in rows if _name_matches(row, name, column=is_column)]
-    if wanted_table is not None:
+    if wanted_table is not None and wanted_kind != "table":
         matched = [
             row for row in candidates if _table_id(row) == wanted_table
         ]
@@ -100,10 +103,13 @@ def metadata_payload(
     name: str,
 ) -> dict[str, Any]:
     """Payload dialog raw metadata (seluruh baris DMV)."""
+    wanted = str(kind or "").lower()
+    if wanted not in {"measure", "column", "function", "hierarchy", "table"}:
+        wanted = "column"
     if row is None:
         return {
             "found": False,
-            "kind": "measure" if str(kind).lower() == "measure" else "column",
+            "kind": wanted,
             "dmv": dmv,
             "table": table,
             "name": name,
@@ -111,7 +117,7 @@ def metadata_payload(
         }
     return {
         "found": True,
-        "kind": "measure" if str(kind).lower() == "measure" else "column",
+        "kind": wanted,
         "dmv": dmv,
         "table": table,
         "name": name,

@@ -160,6 +160,110 @@ class ColumnDetailsTests(unittest.TestCase):
         )
 
 
+class FunctionHierarchyDetailsTests(unittest.TestCase):
+    def function_fixture(self) -> SimpleNamespace:
+        caller_measure = SimpleNamespace(
+            measure=SimpleNamespace(table="Sales", measure="Caller"),
+            report_records=[
+                {
+                    "usage_kind": "field",
+                    "report_name": "R",
+                    "page_name": "P",
+                    "visual_title": "V",
+                    "visual_type": "tableEx",
+                    "is_hidden": False,
+                }
+            ],
+        )
+        caller_column = SimpleNamespace(
+            column=SimpleNamespace(table="Sales", column="Calc"),
+            report_records=[
+                {
+                    "usage_kind": "filter-visual",
+                    "report_name": "R",
+                    "page_name": "P",
+                    "visual_title": "V2",
+                    "visual_type": "slicer",
+                    "is_hidden": False,
+                }
+            ],
+        )
+        target = SimpleNamespace(
+            function=SimpleNamespace(
+                name="PercentageGrowth",
+                function_id=56708,
+                expression="(x) => x",
+                description="Growth",
+                lineage_tag="tag",
+                is_hidden=False,
+            ),
+            status="Used",
+            reason="Used by model objects: measure.",
+            model_refs=[
+                ref("measure", "'Sales'[Caller]"),
+                ref("calculated column", "'Sales'[Calc]"),
+                ref("user-defined function", "function 'Helper'"),
+            ],
+        )
+        helper = SimpleNamespace(
+            function=SimpleNamespace(name="Helper"),
+            model_refs=[ref("measure", "'Sales'[Caller]")],
+        )
+        return SimpleNamespace(
+            dataset_name="Model",
+            measures=[caller_measure],
+            columns=[caller_column],
+            functions=[target, helper],
+            relationships=[],
+        )
+
+    def test_function_details(self) -> None:
+        result = self.function_fixture()
+        analysis = result.functions[0]
+        details = item_details(result, analysis, kind="function")
+        self.assertEqual(details["kind"], "function")
+        self.assertEqual(details["type"], "User-defined function")
+        self.assertEqual(details["name"], "PercentageGrowth")
+        self.assertEqual(details["expression"], "(x) => x")
+        self.assertEqual(len(details["model_dependencies"]), 3)
+        self.assertEqual(len(details["visual_dependencies"]), 1)
+        self.assertEqual(len(details["visual_level_filters_dependencies"]), 1)
+        self.assertTrue(details["is_used_visuals"])
+
+    def test_hierarchy_details(self) -> None:
+        analysis = SimpleNamespace(
+            hierarchy={
+                "table": "Dates",
+                "hierarchy": "Date",
+                "levels": "Year > Month",
+                "level_count": 2,
+                "display_folder": "",
+                "is_hidden": False,
+                "description": "Date hierarchy",
+                "lineage_tag": "tag",
+            },
+            status="Used",
+            reason="Used at 1 point.",
+            report_records=[
+                {
+                    "usage_kind": "field",
+                    "report_name": "R",
+                    "page_name": "P",
+                    "visual_title": "V",
+                    "visual_type": "tableEx",
+                    "is_hidden": False,
+                }
+            ],
+        )
+        result = SimpleNamespace(dataset_name="Model", relationships=[])
+        details = item_details(result, analysis, kind="hierarchy")
+        self.assertEqual(details["kind"], "hierarchy")
+        self.assertEqual(details["type"], "Hierarchy")
+        self.assertEqual(details["levels"], "Year > Month")
+        self.assertEqual(details["level_count"], 2)
+        self.assertEqual(len(details["visual_dependencies"]), 1)
+
+
 class MeasureDetailsTests(unittest.TestCase):
     def test_measure_details(self) -> None:
         measure = SimpleNamespace(

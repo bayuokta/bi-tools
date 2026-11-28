@@ -378,6 +378,42 @@ class FabricReportClient:
         )
         return parse_definition_response(data)
 
+    def get_semantic_model_tmsl(
+        self, workspace_id: str, model_id: str
+    ) -> dict[str, Any]:
+        """Ambil definisi semantic model dalam format TMSL (``model.bim``)."""
+        path = (
+            f"workspaces/{workspace_id}"
+            f"/semanticModels/{model_id}/getDefinition?format=TMSL"
+        )
+        response = self._transport.request("POST", path, allow=(200, 202))
+        data = (
+            self._json(response, "getDefinition model TMSL")
+            if int(response.status_code) == 200
+            else self._poll_operation(response)
+        )
+        parts = ((data.get("definition") or {}).get("parts") or [])
+        part = next(
+            (
+                item
+                for item in parts
+                if str(item.get("path") or "") == "model.bim"
+            ),
+            None,
+        )
+        if part is None:
+            raise ExtractionError(
+                "The TMSL semantic model definition has no model.bim part."
+            )
+        payload = _decode_payload("model.bim", part)
+        try:
+            result = json.loads(payload.decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ExtractionError("model.bim is not valid JSON.") from exc
+        if not isinstance(result, dict):
+            raise ExtractionError("model.bim does not contain a JSON object.")
+        return result
+
     def update_semantic_model_definition(
         self, workspace_id: str, model_id: str, parts: Any
     ) -> dict[str, Any]:

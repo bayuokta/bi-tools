@@ -308,6 +308,36 @@ class FabricClientTests(unittest.TestCase):
         self.assertNotIn(operation + "/result", urls)
         self.assertEqual(urls[-1], operation)
 
+    def test_semantic_model_tmsl(self) -> None:
+        tmsl = {"name": "Model", "compatibilityLevel": 1702, "model": {}}
+        payload = base64.b64encode(json.dumps(tmsl).encode("utf-8")).decode("ascii")
+        sleeps: list[float] = []
+        client = self._client(
+            [
+                FakeResponse(
+                    200,
+                    {
+                        "definition": {
+                            "parts": [
+                                {
+                                    "path": "model.bim",
+                                    "payload": payload,
+                                    "payloadType": "InlineBase64",
+                                }
+                            ]
+                        }
+                    },
+                )
+            ],
+            sleeps,
+        )
+        data = client.get_semantic_model_tmsl(WORKSPACE, REPORT)
+        self.assertEqual(data["compatibilityLevel"], 1702)
+        method, url, _headers = self.session.calls[0]
+        self.assertEqual(method, "POST")
+        self.assertIn(f"/semanticModels/{REPORT}/getDefinition", url)
+        self.assertTrue(url.endswith("?format=TMSL"))
+
     def test_poll_wait_caps_initial_wait(self) -> None:
         sleeps: list[float] = []
         operation = "https://api.fabric.microsoft.com/v1/operations/op-fast"

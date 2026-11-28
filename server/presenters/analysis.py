@@ -7,6 +7,7 @@ in-memory (tidak ditulis ke database) agar halaman selalu memakai data baru.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 import threading
@@ -21,7 +22,10 @@ from core.analysis_export import (
     write_dependencies_csv,
     write_lineage_files,
     write_lineage_image,
+    write_object_json,
+    write_uses_xlsx,
 )
+from core.fabric_api import FabricReportClient
 from core.analysis_lineage import build_lineage, build_table_lineage
 from core.analysis_query import (
     DEFAULT_ROWS,
@@ -50,6 +54,8 @@ from core.usage_service import (
 from core.xmla_client import XmlaError, open_client, workspace_endpoint
 from core.raw_metadata import (
     COLUMN_DMV,
+    FUNCTION_DMV,
+    HIERARCHY_DMV,
     MEASURE_DMV,
     TABLE_DMV,
     find_row,
@@ -897,6 +903,9 @@ def _column_row(
         "display_folder": str(getattr(column, "display_folder", "")),
         "is_hidden": bool(getattr(column, "is_hidden", False)),
         "is_calculated": bool(getattr(column, "is_calculated", False)),
+        "is_available_in_mdx": bool(
+            getattr(column, "is_available_in_mdx", True)
+        ),
         "reason": str(analysis.reason or ""),
         "rows": int(getattr(column, "rows", 0) or 0),
         "size_breakdown": {
@@ -1431,9 +1440,32 @@ def _session_result(dataset_id: str) -> Any:
 
 
 def _find_analysis(result: Any, kind: str, table: str, name: str) -> Any:
-    wanted_kind = "measure" if str(kind).lower() == "measure" else "column"
+    wanted_kind = str(kind or "").strip().lower()
     wanted_table = str(table or "").casefold()
     wanted_name = str(name or "").casefold()
+    if wanted_kind == "function":
+        for item in getattr(result, "functions", []) or []:
+            function = getattr(item, "function", None)
+            if (
+                function is not None
+                and str(getattr(function, "name", "")).casefold() == wanted_name
+            ):
+                return item
+        raise ExtractionError(
+            "User-defined function was not found in the analysis results. "
+            "Run the analysis again."
+        )
+    if wanted_kind == "hierarchy":
+        for item in getattr(result, "hierarchies", []) or []:
+            if (
+                str(getattr(item, "table", "")).casefold() == wanted_table
+                and str(getattr(item, "name", "")).casefold() == wanted_name
+            ):
+                return item
+        raise ExtractionError(
+            "Hierarchy was not found in the analysis results. "
+            "Run the analysis again."
+        )
     items = getattr(
         result, "measures" if wanted_kind == "measure" else "columns", []
     ) or []
@@ -1525,18 +1557,42 @@ def raw_metadata_payload(
     table: str,
     name: str,
 ) -> dict[str, Any]:
-    """Baris mentah TMSCHEMA untuk satu kolom/measure (read-only)."""
+    """Baris mentah TMSCHEMA untuk satu objek (read-only)."""
     result = _session_result(dataset_id)
-    analysis = _find_analysis(result, kind, table, name)
-    is_measure = str(kind).lower() == "measure"
-    node = getattr(analysis, "measure", None) if is_measure else getattr(
-        analysis, "column", None
-    )
-    node_table = str(getattr(node, "table", "") or table)
-    node_name = str(
-        getattr(node, "measure", "") if is_measure else getattr(node, "column", "")
-    ) or name
-    column_id = None if is_measure else int(getattr(node, "column_id", 0) or 0)
+    wanted_kind = str(kind or "").strip().lower()
+    if wanted_kind not in {"column", "measure", "function", "hierarchy", "table"}:
+        raise ExtractionError("Raw metadata kind must be column, measure, function, hierarchy, or table.")
+    node_table = str(table or "")
+    node_name = str(name or "")
+    column_id: int | None = None
+    dmv = COLUMN_DMV
+    if wanted_kind == "table":
+        node_table = table
+        node_name = name
+        dmv = TABLE_DMV
+    else:
+        analysis = _find_analysis(result, wanted_kind, table, name)
+        if wanted_kind == "function":
+            node = analysis.function
+            node_table = ""
+            node_name = str(getattr(node, "name", "") or name)
+            dmv = FUNCTION_DMV
+        elif wanted_kind == "hierarchy":
+            node = analysis.hierarchy
+            node_table = str(getattr(analysis, "table", "") or table)
+            node_name = str(getattr(analysis, "name", "") or name)
+            dmv = HIERARCHY_DMV
+        elif wanted_kind == "measure":
+            node = analysis.measure
+            node_table = str(getattr(node, "table", "") or table)
+            node_name = str(getattr(node, "measure", "") or name)
+            dmv = MEASURE_DMV
+        else:
+            node = analysis.column
+            node_table = str(getattr(node, "table", "") or table)
+            node_name = str(getattr(node, "column", "") or name)
+            column_id = int(getattr(node, "column_id", 0) or 0)
+            dmv = COLUMN_DMV
     principal: Any = store.auth()
     principal.validate()
     tokens = EntraTokens(principal)
@@ -1555,7 +1611,6 @@ def raw_metadata_payload(
             f"Cannot connect to the XMLA workspace '{result.workspace_name}': "
             f"{exc}\nMake sure XMLA Read is enabled and the account can access the workspace."
         ) from exc
-    dmv = MEASURE_DMV if is_measure else COLUMN_DMV
     try:
         tables = client.query(TABLE_DMV)
         rows = client.query(dmv)
@@ -1565,21 +1620,98 @@ def raw_metadata_payload(
         client.close()
     row = find_row(
         rows,
-        kind="measure" if is_measure else "column",
+        kind=wanted_kind,
         table=node_table,
         name=node_name,
         column_id=column_id,
         tables=tables,
     )
     payload = metadata_payload(
-        row, kind=kind, dmv=dmv, table=node_table, name=node_name
+        row, kind=wanted_kind, dmv=dmv, table=node_table, name=node_name
     )
     if not payload["found"]:
+        label = f"'{node_table}'[{node_name}]" if node_table else f"'{node_name}'"
         raise ExtractionError(
-            f"{dmv} row for '{node_table}'[{node_name}] was not found. "
+            f"{dmv} row for {label} was not found. "
             "Run the analysis again or check the object name."
         )
     return payload
+
+
+def tmsl_payload(
+    store: SettingsStore, dataset_id: str, log: Any = None
+) -> dict[str, Any]:
+    """Ambil TMSL semantic model dari Fabric API (bukan TOM)."""
+    result = _session_result(dataset_id)
+    principal: Any = store.auth()
+    principal.validate()
+    tokens = EntraTokens(principal)
+    client = FabricReportClient(tokens, poll_wait=1, log=log or (lambda _m: None))
+    try:
+        data = client.get_semantic_model_tmsl(
+            result.workspace_id, result.dataset_id
+        )
+    finally:
+        client.close()
+    text = json.dumps(data, indent=2, ensure_ascii=False)
+    return {
+        "model": result.dataset_name,
+        "workspace": result.workspace_name,
+        "tmsl": text,
+        "bytes": len(text.encode("utf-8")),
+    }
+
+
+def export_object(
+    store: SettingsStore, payload: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Tulis detail objek (full/simple/no_dax) ke JSON di ``outputs``."""
+    dataset_id = str(payload.get("dataset_id") or "").strip()
+    kind = str(payload.get("kind") or "column").strip().lower()
+    table = str(payload.get("table") or "")
+    name = str(payload.get("name") or "")
+    mode = str(payload.get("mode") or "full").strip().lower()
+    result = _session_result(dataset_id)
+    try:
+        path = write_object_json(
+            result,
+            outputs_dir(),
+            kind=kind,
+            table=table,
+            name=name,
+            mode=mode,
+        )
+    except OSError as exc:
+        raise ExtractionError(
+            f"Could not write the export file: {exc}. Close the open file "
+            "and try again."
+        ) from exc
+    return {"path": str(path), "bytes": path.stat().st_size}
+
+
+def export_uses(
+    store: SettingsStore, payload: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Tulis pemakaian objek ke Excel di ``outputs``."""
+    dataset_id = str(payload.get("dataset_id") or "").strip()
+    kind = str(payload.get("kind") or "column").strip().lower()
+    table = str(payload.get("table") or "")
+    name = str(payload.get("name") or "")
+    result = _session_result(dataset_id)
+    try:
+        path = write_uses_xlsx(
+            result,
+            outputs_dir(),
+            kind=kind,
+            table=table,
+            name=name,
+        )
+    except OSError as exc:
+        raise ExtractionError(
+            f"Could not write the export file: {exc}. Close the open file "
+            "and try again."
+        ) from exc
+    return {"path": str(path), "bytes": path.stat().st_size}
 
 
 def export_lineage(

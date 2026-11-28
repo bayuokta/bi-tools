@@ -12,8 +12,15 @@ import binascii
 import csv
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+
+import pandas as pd
+
+from .errors import ExtractionError
+from .metadata_common import write_sheet
+from .usage_service import format_bytes
 
 ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 IMAGE_FORMATS = {"svg": ".svg", "png": ".png"}
@@ -170,6 +177,21 @@ def write_lineage_image(
 def _analysis_of(result: Any, kind: str, table: str, name: str) -> Any:
     wanted = str(name or "").casefold()
     wanted_table = str(table or "").casefold()
+    wanted_kind = str(kind or "").strip().lower()
+    if wanted_kind == "function":
+        for item in getattr(result, "functions", []) or []:
+            function = getattr(item, "function", None)
+            if function is not None and str(function.name).casefold() == wanted:
+                return item
+        return None
+    if wanted_kind == "hierarchy":
+        for item in getattr(result, "hierarchies", []) or []:
+            if (
+                str(getattr(item, "table", "")).casefold() == wanted_table
+                and str(getattr(item, "name", "")).casefold() == wanted
+            ):
+                return item
+        return None
     items = getattr(result, "measures" if kind == "measure" else "columns", []) or []
     for item in items:
         node = getattr(item, "measure", None) or getattr(item, "column", None)
@@ -223,7 +245,10 @@ def dependency_rows(
     analysis = _analysis_of(result, kind, table, name)
     if analysis is None:
         return []
-    source = f"'{table}'[{name}]"
+    if str(kind or "").strip().lower() == "function":
+        source = f"function '{name}'"
+    else:
+        source = f"'{table}'[{name}]"
     rows: list[dict[str, Any]] = []
     for reference in getattr(analysis, "model_refs", []) or []:
         rows.append(
@@ -279,3 +304,170 @@ def write_dependencies_csv(
     return _write_csv(
         target / f"Dependencies_{stem}.csv", DEPENDENCY_FIELDS, rows
     )
+
+
+OBJECT_EXPORT_MODES = {
+    "full": "Full",
+    "simple": "Simple",
+    "no_dax": "SimpleNoDax",
+}
+
+
+def _export_timestamp() -> str:
+    return datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+
+
+def _table_object_details(result: Any, table: str) -> dict[str, Any]:
+    wanted = str(table or "").casefold()
+    info = next(
+        (
+            item
+            for item in (getattr(result.stats, "tables", []) or [])
+            if str(item.table).casefold() == wanted
+        ),
+        None,
+    )
+    columns = [
+        item
+        for item in (getattr(result, "columns", []) or [])
+        if str(item.column.table).casefold() == wanted
+    ]
+    measures = [
+        item
+        for item in (getattr(result, "measures", []) or [])
+        if str(item.measure.table).casefold() == wanted
+    ]
+    hierarchies = [
+        item
+        for item in (getattr(result, "hierarchies", []) or [])
+        if str(item.table).casefold() == wanted
+    ]
+    return {
+        "name": table,
+        "type": "Table",
+        "table": table,
+        "status": "Used" if columns or measures or hierarchies else "Unused",
+        "rows": int(getattr(info, "rows", 0) or 0),
+        "size": format_bytes(getattr(info, "size_total_bytes", 0)) if info else "",
+        "storage_mode": str(getattr(info, "storage_mode", "") or ""),
+        "partition_count": int(getattr(info, "partition_count", 0) or 0),
+        "columns": [
+            {
+                "name": item.column.column,
+                "type": item.column.column_type,
+                "data_type": item.column.data_type,
+                "status": item.status,
+                "expression": item.column.expression,
+            }
+            for item in columns
+        ],
+        "measures": [
+            {
+                "name": item.measure.measure,
+                "data_type": item.measure.data_type,
+                "status": item.status,
+                "expression": item.measure.expression,
+            }
+            for item in measures
+        ],
+        "hierarchies": [
+            {
+                "name": item.name,
+                "levels": str(item.hierarchy.get("levels") or ""),
+                "status": item.status,
+            }
+            for item in hierarchies
+        ],
+    }
+
+
+def object_details_payload(
+    result: Any,
+    *,
+    kind: str,
+    table: str,
+    name: str,
+    mode: str = "full",
+) -> dict[str, Any]:
+    """Payload JSON satu objek untuk menu Exports."""
+    wanted_mode = str(mode or "full").strip().lower()
+    if wanted_mode not in OBJECT_EXPORT_MODES:
+        raise ExtractionError("Export mode must be full, simple, or no_dax.")
+    wanted_kind = str(kind or "").strip().lower()
+    rows = dependency_rows(result, kind=wanted_kind, table=table, name=name)
+    if wanted_kind == "table":
+        details = _table_object_details(result, table)
+    else:
+        from .analysis_details import item_details
+
+        analysis = _analysis_of(result, wanted_kind, table, name)
+        if analysis is None:
+            raise ExtractionError(
+                "The selected item was not found in the analysis results."
+            )
+        details = item_details(result, analysis, kind=wanted_kind)
+    if wanted_mode in {"simple", "no_dax"}:
+        payload = {
+            "export_date": _export_timestamp(),
+            "kind": wanted_kind,
+            "table": table,
+            "name": name,
+            "type": str(details.get("type") or ""),
+            "status": str(details.get("status") or ""),
+            "expression": str(details.get("expression") or ""),
+            "dependencies": len(rows),
+        }
+        if wanted_mode == "no_dax":
+            payload.pop("expression", None)
+        return payload
+    return {
+        "export_date": _export_timestamp(),
+        "kind": wanted_kind,
+        "table": table,
+        "name": name,
+        "details": details,
+        "dependencies": rows,
+    }
+
+
+def write_object_json(
+    result: Any,
+    directory: Path | str,
+    *,
+    kind: str,
+    table: str,
+    name: str,
+    mode: str = "full",
+) -> Path:
+    wanted_mode = str(mode or "full").strip().lower()
+    payload = object_details_payload(
+        result, kind=kind, table=table, name=name, mode=wanted_mode
+    )
+    target = Path(directory)
+    target.mkdir(parents=True, exist_ok=True)
+    stem = safe_name(f"{kind}_{table}_{name}", "Export")
+    path = target / f"Export_{OBJECT_EXPORT_MODES[wanted_mode]}_{stem}.json"
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    return path
+
+
+def write_uses_xlsx(
+    result: Any,
+    directory: Path | str,
+    *,
+    kind: str,
+    table: str,
+    name: str,
+) -> Path:
+    rows = dependency_rows(result, kind=kind, table=table, name=name)
+    target = Path(directory)
+    target.mkdir(parents=True, exist_ok=True)
+    stem = safe_name(f"{kind}_{table}_{name}", "Export")
+    path = target / f"Export_Uses_{stem}.xlsx"
+    frame = pd.DataFrame(rows, columns=DEPENDENCY_FIELDS)
+    frame.columns = [str(column).capitalize() for column in DEPENDENCY_FIELDS]
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        write_sheet(writer, frame, "Uses", {"Object": 40, "Detail": 56})
+    return path

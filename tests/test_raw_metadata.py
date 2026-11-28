@@ -30,6 +30,15 @@ MEASURES = [
     {"ID": 21, "TableID": 2, "Name": "Other"},
 ]
 
+FUNCTIONS = [
+    {"ID": 30, "Name": "PercentageGrowth", "Expression": "(x) => x"},
+]
+
+HIERARCHIES = [
+    {"ID": 40, "TableID": 1, "Name": "Date"},
+    {"ID": 41, "TableID": 1, "Name": "Product"},
+]
+
 
 class TableLookupTests(unittest.TestCase):
     def test_lookup(self) -> None:
@@ -69,6 +78,23 @@ class FindRowTests(unittest.TestCase):
             )
         )
 
+    def test_function_by_name(self) -> None:
+        row = find_row(
+            FUNCTIONS, kind="function", table="", name="PercentageGrowth"
+        )
+        self.assertEqual(row["ID"], 30)
+
+    def test_hierarchy_by_table_and_name(self) -> None:
+        row = find_row(
+            HIERARCHIES, kind="hierarchy", table="Sales", name="Date", tables=TABLES
+        )
+        self.assertEqual(row["ID"], 40)
+
+    def test_table_by_name(self) -> None:
+        rows = [{"ID": 1, "Name": "Sales"}, {"ID": 2, "Name": "KPI"}]
+        row = find_row(rows, kind="table", table="", name="KPI")
+        self.assertEqual(row["ID"], 2)
+
 
 class PayloadTests(unittest.TestCase):
     def test_normalize_row(self) -> None:
@@ -91,6 +117,17 @@ class PayloadTests(unittest.TestCase):
         )
         self.assertFalse(payload["found"])
         self.assertIsNone(payload["row"])
+
+    def test_function_payload_keeps_kind(self) -> None:
+        payload = metadata_payload(
+            FUNCTIONS[0],
+            kind="function",
+            dmv="TMSCHEMA_FUNCTIONS",
+            table="",
+            name="PercentageGrowth",
+        )
+        self.assertEqual(payload["kind"], "function")
+        self.assertEqual(payload["row"]["Name"], "PercentageGrowth")
 
 
 if __name__ == "__main__":

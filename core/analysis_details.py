@@ -216,6 +216,191 @@ def _flag_common(analysis: Any, refs: list[Any], records: list[Mapping[str, Any]
     }
 
 
+def _function_usage_records(result: Any, analysis: Any) -> list[dict[str, Any]]:
+    """Pemakaian report dari pemanggil function (langsung + transitif)."""
+    measures = {
+        (str(getattr(item.measure, "table", "")).casefold(),
+         str(getattr(item.measure, "measure", "")).casefold()): item
+        for item in (getattr(result, "measures", []) or [])
+        if getattr(item, "measure", None) is not None
+    }
+    columns = {
+        (str(getattr(item.column, "table", "")).casefold(),
+         str(getattr(item.column, "column", "")).casefold()): item
+        for item in (getattr(result, "columns", []) or [])
+        if getattr(item, "column", None) is not None
+    }
+    functions = {
+        str(getattr(item.function, "name", "")).casefold(): item
+        for item in (getattr(result, "functions", []) or [])
+        if getattr(item, "function", None) is not None
+    }
+    queue = list(getattr(analysis, "model_refs", []) or [])
+    seen_refs: set[tuple[str, str]] = set()
+    records: list[dict[str, Any]] = []
+    seen_records: set[tuple[Any, ...]] = set()
+    while queue:
+        ref = queue.pop(0)
+        kind = str(getattr(ref, "kind", "") or "")
+        object_text = str(getattr(ref, "object", "") or "")
+        token = (kind, object_text)
+        if token in seen_refs:
+            continue
+        seen_refs.add(token)
+        item = None
+        if kind == "measure":
+            table_name, item_name = _parse_object(object_text)
+            item = measures.get((table_name.casefold(), item_name.casefold()))
+        elif kind in {"calculated column", "calculated table column"}:
+            table_name, item_name = _parse_object(object_text)
+            item = columns.get((table_name.casefold(), item_name.casefold()))
+        elif kind == "user-defined function":
+            match = re.match(r"^function\s+(.+)$", object_text, re.IGNORECASE)
+            name = match.group(1).strip().strip("'\"") if match else object_text
+            item = functions.get(name.casefold())
+            if item is not None:
+                queue.extend(getattr(item, "model_refs", []) or [])
+        if item is None:
+            continue
+        for record in getattr(item, "report_records", []) or []:
+            if not isinstance(record, Mapping):
+                continue
+            key = (
+                record.get("report_id"),
+                record.get("page_id"),
+                record.get("visual_id"),
+                record.get("usage_kind"),
+                record.get("detail"),
+            )
+            if key in seen_records:
+                continue
+            seen_records.add(key)
+            records.append(dict(record))
+    return records
+
+
+def _function_details(result: Any, analysis: Any) -> dict[str, Any]:
+    function = analysis.function
+    refs = list(getattr(analysis, "model_refs", []) or [])
+    records = _function_usage_records(result, analysis)
+    details: dict[str, Any] = {
+        "kind": "function",
+        "name": str(getattr(function, "name", "")),
+        "model_name": str(getattr(result, "dataset_name", "") or ""),
+        "original_name": str(getattr(function, "name", "")),
+        "table_name": "",
+        "table_original_name": "",
+        "lineage_tag": str(getattr(function, "lineage_tag", "") or ""),
+        "source_lineage_tag": None,
+        "description": str(getattr(function, "description", "") or ""),
+        "database_id": None,
+        "type": "User-defined function",
+        "expression": str(getattr(function, "expression", "") or ""),
+        "size": 0,
+        "size_data": 0,
+        "size_hierarchy": 0,
+        "size_dictionary": 0,
+        "cardinality": 0,
+        "rows": 0,
+        "id": int(getattr(function, "function_id", 0) or 0),
+        "data_type": None,
+        "data_type_str": "",
+        "summarize_by": None,
+        "summarize_by_str": "",
+        "data_category": "",
+        "display_folder": "",
+        "format_string": "",
+        "dynamic_format": False,
+        "is_hidden": bool(getattr(function, "is_hidden", False)),
+        "is_user_aware": None,
+        "table": "",
+        "kpi": None,
+        "annotation": str(getattr(result, "dataset_name", "") or ""),
+        "status": str(getattr(analysis, "status", "") or ""),
+        "reason": str(getattr(analysis, "reason", "") or ""),
+        "unsupported": [],
+        "model_dependencies": _ref_rows(
+            refs, {"measure", "calculated column", "user-defined function"}
+        ),
+        "visual_dependencies": _record_rows(
+            records, {"field", "format", "calculation"}
+        ),
+        "visual_level_filters_dependencies": _record_rows(
+            records, {"filter-visual"}
+        ),
+        "page_level_filters_dependencies": _record_rows(
+            records, {"filter-page"}
+        ),
+        "report_level_filters_dependencies": _record_rows(
+            records, {"filter-report"}
+        ),
+        "sort_dependencies": _record_rows(records, {"sort"}),
+    }
+    details.update(_flag_common(analysis, refs, records))
+    details["is_used_key"] = False
+    return details
+
+
+def _hierarchy_details(result: Any, analysis: Any) -> dict[str, Any]:
+    definition = getattr(analysis, "hierarchy", {}) or {}
+    records = list(getattr(analysis, "report_records", []) or [])
+    details: dict[str, Any] = {
+        "kind": "hierarchy",
+        "name": str(getattr(analysis, "name", "")),
+        "model_name": str(getattr(result, "dataset_name", "") or ""),
+        "original_name": str(getattr(analysis, "name", "")),
+        "table_name": str(getattr(analysis, "table", "")),
+        "table_original_name": "",
+        "lineage_tag": str(definition.get("lineage_tag") or ""),
+        "source_lineage_tag": None,
+        "description": str(definition.get("description") or ""),
+        "database_id": None,
+        "type": "Hierarchy",
+        "expression": "",
+        "levels": str(definition.get("levels") or ""),
+        "level_count": int(definition.get("level_count") or 0),
+        "size": 0,
+        "size_data": 0,
+        "size_hierarchy": 0,
+        "size_dictionary": 0,
+        "cardinality": 0,
+        "rows": 0,
+        "id": None,
+        "data_type": None,
+        "data_type_str": "",
+        "summarize_by": None,
+        "summarize_by_str": "",
+        "data_category": "",
+        "display_folder": str(definition.get("display_folder") or ""),
+        "format_string": "",
+        "dynamic_format": False,
+        "is_hidden": bool(definition.get("is_hidden", False)),
+        "is_user_aware": None,
+        "table": str(getattr(analysis, "table", "")),
+        "kpi": None,
+        "annotation": str(getattr(result, "dataset_name", "") or ""),
+        "status": str(getattr(analysis, "status", "") or ""),
+        "reason": str(getattr(analysis, "reason", "") or ""),
+        "unsupported": [],
+        "visual_dependencies": _record_rows(
+            records, {"field", "format", "calculation"}
+        ),
+        "visual_level_filters_dependencies": _record_rows(
+            records, {"filter-visual"}
+        ),
+        "page_level_filters_dependencies": _record_rows(
+            records, {"filter-page"}
+        ),
+        "report_level_filters_dependencies": _record_rows(
+            records, {"filter-report"}
+        ),
+        "sort_dependencies": _record_rows(records, {"sort"}),
+    }
+    details.update(_flag_common(analysis, [], records))
+    details["is_used_key"] = False
+    return details
+
+
 def item_details(
     result: Any,
     analysis: Any,
@@ -223,7 +408,12 @@ def item_details(
     kind: str,
 ) -> dict[str, Any]:
     """Susun objek detail (properti + flag + dependency) untuk satu item."""
-    is_measure = str(kind).lower() == "measure"
+    kind_key = str(kind or "").strip().lower()
+    if kind_key == "function":
+        return _function_details(result, analysis)
+    if kind_key == "hierarchy":
+        return _hierarchy_details(result, analysis)
+    is_measure = kind_key == "measure"
     node = getattr(analysis, "measure", None) if is_measure else getattr(
         analysis, "column", None
     )
@@ -250,6 +440,7 @@ def item_details(
 
     size = int(getattr(node, "size_total_bytes", 0) or 0) if not is_measure else 0
     details: dict[str, Any] = {
+        "kind": "measure" if is_measure else "column",
         "name": name,
         "model_name": str(getattr(result, "dataset_name", "") or ""),
         "original_name": name,

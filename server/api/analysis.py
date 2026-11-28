@@ -132,12 +132,17 @@ def raw_metadata(
     table = str(data.get("table") or "").strip()
     name = str(data.get("name") or "").strip()
     kind = str(data.get("kind") or "column").strip().lower()
-    if not dataset_id or not table or not name:
+    if not dataset_id or not name:
         raise HTTPException(
-            status_code=400, detail="Select a column or measure first."
+            status_code=400, detail="Select an item first."
         )
-    if kind not in {"column", "measure"}:
-        raise HTTPException(status_code=400, detail="Item type must be column/measure.")
+    if kind not in {"column", "measure", "function", "hierarchy", "table"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Item type must be column, measure, function, hierarchy, or table.",
+        )
+    if kind != "function" and not table:
+        raise HTTPException(status_code=400, detail="Select a table or item first.")
     return submit_job(
         request,
         "analysis-raw-metadata",
@@ -146,6 +151,35 @@ def raw_metadata(
             store, dataset_id, kind, table, name
         ),
     )
+
+
+@router.post("/tmsl", status_code=202)
+def tmsl(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    store = settings_of(request)
+    data = payload or {}
+    dataset_id = str(data.get("dataset_id") or "").strip()
+    if not dataset_id:
+        raise HTTPException(status_code=400, detail="Choose a dataset first.")
+    return submit_job(
+        request,
+        "analysis-tmsl",
+        "Model details (TMSL)",
+        lambda log, cancel: presenter.tmsl_payload(store, dataset_id, log=log),
+    )
+
+
+@router.post("/export/object")
+def export_object(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return presenter.export_object(settings_of(request), payload or {})
+
+
+@router.post("/export/uses")
+def export_uses(
+    request: Request, payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return presenter.export_uses(settings_of(request), payload or {})
 
 
 @router.post("/run", status_code=202)

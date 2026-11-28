@@ -31,12 +31,16 @@ import { state } from "../core/state.js";
     graph: icon("network", "", 1.6),
     details: icon("table-properties", "", 1.6),
     raw: icon("braces", "", 1.7),
+    filter: icon("filter", "", 1.6),
     dependencies: icon("git-fork", "", 1.6),
     table: icon("table", "", 1.6),
     model: icon("box", "", 1.6),
     export: icon("download", "", 1.7),
+    excel: icon("file-spreadsheet", "", 1.7),
     refresh: icon("refresh-cw", "", 1.7),
     settings: icon("settings", "", 1.6),
+    check: icon("check", "", 1.8),
+    hidden: icon("eye-off", "", 1.6),
     chevron: icon("chevron-right", "", 1.8)
   };
   var LINEAGE_KIND_LABELS = {
@@ -609,21 +613,32 @@ import { state } from "../core/state.js";
   function analysisFindItem(kind, table, name) {
     var result = state.analysis;
     if (!result) return null;
-    var list = kind === "measure" ? (result.measures || []) : (result.columns || []);
+    var list;
+    if (kind === "function") list = result.functions || [];
+    else if (kind === "hierarchy") list = result.hierarchies || [];
+    else list = kind === "measure" ? (result.measures || []) : (result.columns || []);
     var wantTable = String(table || "").toLowerCase();
     var wantName = String(name || "").toLowerCase();
     for (var index = 0; index < list.length; index += 1) {
       var item = list[index];
-      if (String(item.table || "").toLowerCase() === wantTable &&
-          String(item.name || "").toLowerCase() === wantName) {
-        return item;
-      }
+      if (String(item.name || "").toLowerCase() !== wantName) continue;
+      if (kind === "function") return item;
+      if (String(item.table || "").toLowerCase() === wantTable) return item;
     }
     return null;
   }
 
-  function analysisItemLabel(item) {
+  function analysisItemLabel(item, kind) {
+    if (kind === "function") return String(item.name || "");
+    if (kind === "table") return String(item.name || item.table || "");
+    if (kind === "hierarchy") {
+      return "'" + item.table + "'[" + item.name + "]";
+    }
     return "'" + item.table + "'[" + item.name + "]";
+  }
+
+  function analysisTargetLabel(target) {
+    return analysisItemLabel(target, target.kind);
   }
 
   export function analysisRowTarget(node) {
@@ -644,6 +659,77 @@ import { state } from "../core/state.js";
         { divider: true },
         { id: "exports", label: "Exports", icon: "export", submenu: "exports" }
       ];
+    }
+    if (target.kind === "function" || target.kind === "hierarchy") {
+      var obj = analysisFindItem(target.kind, target.table, target.name);
+      var canToggle = Boolean(obj && (obj.children || []).length);
+      var entries = [
+        {
+          id: "expand",
+          label: "Expand items below",
+          icon: "expand",
+          disabled: !canToggle
+        },
+        {
+          id: "collapse",
+          label: "Collapse items below",
+          icon: "collapse",
+          disabled: !canToggle
+        },
+        { id: "copy", label: "Copy text", icon: "copy" },
+        { divider: true }
+      ];
+      if (target.kind === "function") {
+        entries.push(
+          { id: "dax", label: "View DAX expression", icon: "sigma" },
+          {
+            id: "details",
+            label: "User-defined function details",
+            icon: "details"
+          },
+          {
+            id: "raw-metadata",
+            label: "User-defined function raw data",
+            icon: "raw"
+          },
+          {
+            id: "dependencies",
+            label: "View dependencies",
+            icon: "dependencies",
+            submenu: "dependencies"
+          },
+          {
+            id: "exports",
+            label: "Exports",
+            icon: "export",
+            submenu: "exports"
+          }
+        );
+        return entries;
+      }
+      entries.push(
+        { id: "details", label: "Hierarchy details", icon: "details" },
+        {
+          id: "exports",
+          label: "Exports",
+          icon: "export",
+          submenu: "exports"
+        },
+        {
+          id: "dependencies",
+          label: "View dependencies",
+          icon: "dependencies",
+          submenu: "dependencies"
+        },
+        {
+          id: "table-options",
+          label: "Table options",
+          icon: "table",
+          submenu: "table-options"
+        },
+        { id: "model-details", label: "Model details", icon: "model" }
+      );
+      return entries;
     }
     var item = analysisFindItem(target.kind, target.table, target.name);
     var isMeasure = target.kind === "measure";
@@ -749,7 +835,23 @@ import { state } from "../core/state.js";
   }
 
   function analysisSubmenuEntries(action) {
+    var target = state.analysisMenuTarget || {};
     if (action === "dependencies") {
+      if (target.kind === "function") {
+        return [
+          { action: "item-dependencies:all", label: "View all impacted items", icon: "graph" },
+          { action: "item-dependencies:model", label: "View all artifact dependencies", icon: "details" },
+          { action: "item-dependencies:visual", label: "View all visual dependencies", icon: "graph" },
+          { action: "item-dependencies:visual_filters", label: "View all visual level filters dependencies", icon: "filter" }
+        ];
+      }
+      if (target.kind === "hierarchy") {
+        return [
+          { action: "item-dependencies:all", label: "View all impacted items", icon: "graph" },
+          { action: "item-dependencies:visual", label: "View all visual dependencies", icon: "graph" },
+          { action: "item-dependencies:visual_filters", label: "View all visual level filters dependencies", icon: "filter" }
+        ];
+      }
       return LINEAGE_CATEGORIES.map(function (item) {
         return {
           action: "lineage-graph:" + item[0],
@@ -766,6 +868,24 @@ import { state } from "../core/state.js";
         { action: "table-copy", label: "Copy table name", icon: "copy" }
       ];
     }
+    if (action === "table-options") {
+      return [
+        { action: "view-m-expression", label: "View M expression", icon: "raw" },
+        { action: "view-artifacts", label: "View artifacts", icon: "table" },
+        { action: "table-details", label: "Table details", icon: "details" },
+        { action: "table-raw-metadata", label: "Table raw data", icon: "raw" },
+        { action: "mdx-options", label: "isAvailableInMdx options", icon: "settings", submenu: "mdx-options" },
+        { action: "model-options", label: "Model options", icon: "model", submenu: "model" },
+        { action: "table-exports", label: "Exports", icon: "export", submenu: "table-exports" }
+      ];
+    }
+    if (action === "mdx-options") {
+      return [
+        { action: "mdx-options:all", label: "All columns", icon: "table" },
+        { action: "mdx-options:true", label: "IsAvailableInMdx = true", icon: "check" },
+        { action: "mdx-options:false", label: "IsAvailableInMdx = false", icon: "hidden" }
+      ];
+    }
     if (action === "model") {
       return [
         { action: "model-details", label: "Model details", icon: "details" },
@@ -774,7 +894,23 @@ import { state } from "../core/state.js";
         { action: "model-settings", label: "Open settings", icon: "settings" }
       ];
     }
+    if (action === "table-exports") {
+      return [
+        { action: "table-export-object:full", label: "Full export (.json)", icon: "raw" },
+        { action: "table-export-object:simple", label: "Simple export (.json)", icon: "raw" },
+        { action: "table-export-object:no_dax", label: "Simple export without DAX expression (.json)", icon: "raw" },
+        { action: "table-export-uses-xlsx", label: "Export uses to Excel (.xlsx)", icon: "excel" }
+      ];
+    }
     if (action === "exports") {
+      if (target.kind === "function" || target.kind === "hierarchy") {
+        return [
+          { action: "export-object:full", label: "Full export (.json)", icon: "raw" },
+          { action: "export-object:simple", label: "Simple export (.json)", icon: "raw" },
+          { action: "export-object:no_dax", label: "Simple export without DAX expression (.json)", icon: "raw" },
+          { action: "export-uses-xlsx", label: "Export uses to Excel (.xlsx)", icon: "excel" }
+        ];
+      }
       return [
         {
           action: "export-lineage-svg",
@@ -813,15 +949,22 @@ import { state } from "../core/state.js";
 
   function analysisSubmenuMarkup(action) {
     return analysisSubmenuEntries(action).map(function (entry) {
-      return '<div class="menu-item" role="menuitem" tabindex="-1" data-menu-action="' +
-        escapeHtml(entry.action) + '">' +
+      var attrs = ' role="menuitem" tabindex="-1" data-menu-action="' +
+        escapeHtml(entry.action) + '"';
+      if (entry.submenu) {
+        attrs += ' data-menu-submenu="' + escapeHtml(entry.submenu) + '"';
+      }
+      var arrow = entry.submenu
+        ? '<span class="menu-arrow">' + MENU_ICONS.chevron + "</span>"
+        : "";
+      return '<div class="menu-item"' + attrs + ">" +
         '<span class="menu-icon">' + (MENU_ICONS[entry.icon] || "") + "</span>" +
-        '<span class="menu-label">' + escapeHtml((entry.label)) + "</span></div>";
+        '<span class="menu-label">' + escapeHtml((entry.label)) + "</span>" +
+        arrow + "</div>";
     }).join("");
   }
 
-  function analysisSubmenuPlace(anchorEl) {
-    var submenu = $("#analysisSubmenu");
+  function analysisSubmenuPlace(submenu, anchorEl) {
     if (!submenu) return;
     var anchor = anchorEl.getBoundingClientRect();
     submenu.hidden = false;
@@ -846,15 +989,43 @@ import { state } from "../core/state.js";
     if (!submenu || !analysisSubmenuEntries(action).length || !anchorEl) {
       return;
     }
+    analysisCloseSubmenu2(false);
     state.analysisSubmenuTarget = action;
     state.analysisSubmenuAnchor = anchorEl;
     submenu.innerHTML = analysisSubmenuMarkup(action);
-    analysisSubmenuPlace(anchorEl);
+    analysisSubmenuPlace(submenu, anchorEl);
     var first = submenu.querySelector("[role='menuitem']");
     if (first) first.focus({ preventScroll: true });
   }
 
+  export function analysisOpenSubmenu2(action, anchorEl) {
+    var submenu = $("#analysisSubmenu2");
+    if (!submenu || !analysisSubmenuEntries(action).length || !anchorEl) {
+      return;
+    }
+    state.analysisSubmenu2Target = action;
+    state.analysisSubmenu2Anchor = anchorEl;
+    submenu.innerHTML = analysisSubmenuMarkup(action);
+    analysisSubmenuPlace(submenu, anchorEl);
+    var first = submenu.querySelector("[role='menuitem']");
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  export function analysisCloseSubmenu2(restoreFocus) {
+    var submenu = $("#analysisSubmenu2");
+    var anchor = state.analysisSubmenu2Anchor;
+    state.analysisSubmenu2Anchor = null;
+    state.analysisSubmenu2Target = null;
+    if (!submenu || submenu.hidden) return;
+    submenu.hidden = true;
+    submenu.innerHTML = "";
+    if (restoreFocus && anchor && document.contains(anchor)) {
+      anchor.focus({ preventScroll: true });
+    }
+  }
+
   export function analysisCloseSubmenu(restoreFocus) {
+    analysisCloseSubmenu2(false);
     var submenu = $("#analysisSubmenu");
     var anchor = state.analysisSubmenuAnchor;
     state.analysisSubmenuAnchor = null;
@@ -957,7 +1128,7 @@ import { state } from "../core/state.js";
       return;
     }
     if (action === "copy") {
-      copyTextValue(analysisItemLabel(item));
+      copyTextValue(analysisItemLabel(item, target.kind));
       analysisCloseMenu(true);
       return;
     }
@@ -969,6 +1140,64 @@ import { state } from "../core/state.js";
     if (action === "dax") {
       analysisCloseMenu(false);
       analysisOpenDetails(target, "dax");
+      return;
+    }
+    if (action.indexOf("item-dependencies:") === 0) {
+      var depCategory = action.slice("item-dependencies:".length);
+      analysisCloseMenu(false);
+      analysisOpenItemDetails(target, "dependencies", depCategory);
+      return;
+    }
+    if (action.indexOf("export-object:") === 0) {
+      analysisCloseMenu(false);
+      analysisExportObject(target, action.slice("export-object:".length));
+      return;
+    }
+    if (action === "export-uses-xlsx") {
+      analysisCloseMenu(false);
+      analysisExportUses(target);
+      return;
+    }
+    if (action.indexOf("table-export-object:") === 0) {
+      analysisCloseMenu(false);
+      analysisExportObject(
+        { kind: "table", table: target.table, name: target.table },
+        action.slice("table-export-object:".length)
+      );
+      return;
+    }
+    if (action === "table-export-uses-xlsx") {
+      analysisCloseMenu(false);
+      analysisExportUses({ kind: "table", table: target.table, name: target.table });
+      return;
+    }
+    if (action === "view-m-expression") {
+      analysisCloseMenu(false);
+      analysisOpenTableMExpression(target);
+      return;
+    }
+    if (action === "view-artifacts") {
+      analysisCloseMenu(false);
+      analysisOpenTableArtifacts(target);
+      return;
+    }
+    if (action === "table-raw-metadata") {
+      analysisCloseMenu(false);
+      analysisOpenRawMetadata({
+        kind: "table",
+        table: target.table,
+        name: target.table
+      });
+      return;
+    }
+    if (action.indexOf("mdx-options:") === 0) {
+      analysisCloseMenu(false);
+      analysisOpenMdxOptions(target, action.slice("mdx-options:".length));
+      return;
+    }
+    if (action === "model-details") {
+      analysisCloseMenu(false);
+      analysisOpenModelTmsl();
       return;
     }
     if (action === "lineage" || action === "lineage-graph" ||
@@ -1111,34 +1340,41 @@ import { state } from "../core/state.js";
   }
 
   function analysisOpenModelDetails() {
-    var result = state.analysis;
-    if (!result) {
+    analysisOpenModelTmsl();
+  }
+
+  function analysisOpenModelTmsl() {
+    var datasetId = getSelectValue("modelSelect");
+    if (!datasetId) {
       app.toast("Run the analysis first");
       return;
     }
-    var dataset = result.dataset || {};
-    var totals = result.totals || {};
-    var rows = [
-      ["Model", dataset.name || ""],
-      ["Workspace", dataset.workspace_name || ""],
-      ["Dataset ID", dataset.id || ""],
-      ["Analyzed at", String(result.analyzed_at || "").replace("T", " ").slice(0, 19)],
-      ["Method", result.method || ""],
-      ["Coverage", result.coverage || ""],
-      ["Model size", analysisFmtBytes(totals.model_bytes || 0)],
-      ["Tables", totals.tables || 0],
-      ["Columns", totals.columns || 0],
-      ["Measures", totals.measures || 0],
-      ["Reports", totals.reports || 0],
-      ["Pages", totals.pages || 0],
-      ["Visuals", totals.visuals || 0],
-      ["Report usage", result.reports_included === false
-        ? "Not included" : "Included"]
-    ];
-    var html = '<div class="detail-grid">' + rows.map(function (row) {
-      return analysisDetailRow(row[0], row[1]);
-    }).join("") + "</div>";
-    analysisOpenInfoDialog("Model details", dataset.name || "", html);
+    app.startJob({
+      kind: "analysis-tmsl",
+      path: "/api/analysis/tmsl",
+      body: { dataset_id: datasetId },
+      label: "Model details (TMSL)",
+      onBusy: function () {
+        app.toast("Another job is still running. Try again.");
+      },
+      onDone: function (snapshot) {
+        var result = snapshot.result || {};
+        var text = String(result.tmsl || "");
+        var html = '<p class="helper">' +
+          escapeHtml(result.model || "") + " \u00b7 " +
+          escapeHtml(String(result.bytes || 0)) + " bytes</p>" +
+          '<pre class="detail-code">' + escapeHtml(text) + "</pre>";
+        analysisOpenInfoDialog(
+          "Model details (TMSL)",
+          result.model || "",
+          html,
+          { copyText: text }
+        );
+      },
+      onError: function (_snapshot, message) {
+        app.toast(message || "TMSL could not be loaded");
+      }
+    });
   }
 
   function analysisCopyModelName() {
@@ -1203,6 +1439,117 @@ import { state } from "../core/state.js";
       app.toast("Export: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
     }).catch(app.reportError);
+  }
+
+  function analysisExportObject(target, mode) {
+    if (!app.apiReady()) return;
+    app.api().post("/api/analysis/export/object", {
+      dataset_id: getSelectValue("modelSelect"),
+      kind: target.kind,
+      table: target.table,
+      name: target.name,
+      mode: mode
+    }).then(function (data) {
+      if (!data.path) return;
+      app.toast("Export: " + data.path);
+      app.api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
+    }).catch(app.reportError);
+  }
+
+  function analysisExportUses(target) {
+    if (!app.apiReady()) return;
+    app.api().post("/api/analysis/export/uses", {
+      dataset_id: getSelectValue("modelSelect"),
+      kind: target.kind,
+      table: target.table,
+      name: target.name
+    }).then(function (data) {
+      if (!data.path) return;
+      app.toast("Export: " + data.path);
+      app.api().post("/api/files/open", { path: data.path, mode: "open" }).catch(function () {});
+    }).catch(app.reportError);
+  }
+
+  function analysisOpenTableMExpression(target) {
+    var query = (state.analysis.m_queries || []).filter(function (item) {
+      return item.kind === "Table" && item.name === target.table;
+    })[0] || {};
+    var expression = String(query.expression || "");
+    var html = expression
+      ? analysisExpressionMarkup(expression, "m")
+      : '<p class="helper">' + escapeHtml("(no M expression)") + "</p>";
+    analysisOpenInfoDialog(
+      "M expression", "'" + target.table + "'", html, { copyText: expression }
+    );
+  }
+
+  function analysisOpenTableArtifacts(target) {
+    var table = target.table;
+    var columns = (state.analysis.columns || []).filter(function (item) {
+      return item.table === table;
+    });
+    var measures = (state.analysis.measures || []).filter(function (item) {
+      return item.table === table;
+    });
+    var hierarchies = (state.analysis.hierarchies || []).filter(function (item) {
+      return item.table === table;
+    });
+    var rows = [];
+    columns.forEach(function (item) {
+      rows.push(["Column", item.name, item.status + " \u00b7 " +
+        String(item.uses || 0) + " uses"]);
+    });
+    measures.forEach(function (item) {
+      rows.push(["Measure", item.name, item.status + " \u00b7 " +
+        String(item.uses || 0) + " uses"]);
+    });
+    hierarchies.forEach(function (item) {
+      rows.push(["Hierarchy", item.name, item.status + " \u00b7 " +
+        String(item.uses || 0) + " uses"]);
+    });
+    var html = rows.length
+      ? '<div class="detail-grid">' + rows.map(function (row) {
+        return analysisDetailRow(row[0] + " \u00b7 " + row[1], row[2]);
+      }).join("") + "</div>"
+      : '<p class="helper">' + escapeHtml("No artifacts in this table") + "</p>";
+    analysisOpenInfoDialog(
+      "Table artifacts",
+      "'" + table + "' \u00b7 " + rows.length + " items",
+      html
+    );
+  }
+
+  function analysisOpenMdxOptions(target, mode) {
+    var wanted = String(mode || "all").toLowerCase();
+    var columns = (state.analysis.columns || []).filter(function (item) {
+      if (item.table !== target.table) return false;
+      if (wanted === "true") return item.is_available_in_mdx === true;
+      if (wanted === "false") return item.is_available_in_mdx === false;
+      return true;
+    });
+    var rows = columns.map(function (item) {
+      return [
+        item.name,
+        item.is_available_in_mdx ? "Yes" : "No",
+        item.data_type || "\u2014",
+        item.is_hidden ? "Yes" : "No",
+        item.status || ""
+      ];
+    });
+    var html = rows.length
+      ? '<div class="detail-grid">' + rows.map(function (row) {
+        return analysisDetailRow(row[0], row[1] + " \u00b7 " + row[2] +
+          " \u00b7 hidden " + row[3] + " \u00b7 " + row[4]);
+      }).join("") + "</div>"
+      : '<p class="helper">' + escapeHtml("No columns") + "</p>";
+    html += '<p class="helper">' + escapeHtml(
+      "Read-only view: isAvailableInMdx is copied from the semantic model."
+    ) + "</p>";
+    analysisOpenInfoDialog(
+      "isAvailableInMdx options",
+      "'" + target.table + "' \u00b7 " + rows.length + " columns",
+      html
+    );
   }
 
   function analysisLineageSvgPalette() {
@@ -1579,7 +1926,7 @@ import { state } from "../core/state.js";
     $("#analysisRawQuery").textContent = payload.query || "";
   }
 
-  function analysisOpenItemDetails(target) {
+  function analysisOpenItemDetails(target, tab, category) {
     var datasetId = getSelectValue("modelSelect");
     var dialog = $("#analysisItemDialog");
     if (!datasetId || !dialog) return;
@@ -1591,10 +1938,13 @@ import { state } from "../core/state.js";
     state.analysisItem = null;
     state.analysisItemRaw = null;
     state.analysisItemRawError = "";
-    state.analysisItemTab = "properties";
-    $("#analysisItemTitle").textContent = target.kind === "measure"
-      ? "Measure details" : "Column details";
-    $("#analysisItemSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    state.analysisItemTab = tab || "properties";
+    state.analysisItemCategory = category || "all";
+    var title = target.kind === "measure" ? "Measure details"
+      : (target.kind === "function" ? "User-defined function details"
+        : (target.kind === "hierarchy" ? "Hierarchy details" : "Column details"));
+    $("#analysisItemTitle").textContent = title;
+    $("#analysisItemSub").textContent = analysisTargetLabel(target);
     $("#analysisItemPane").innerHTML =
       '<p class="helper">' + escapeHtml("Loading details…") + "</p>";
     analysisItemTabs();
@@ -1631,7 +1981,9 @@ import { state } from "../core/state.js";
     } else if (state.analysisItemTab === "usage") {
       pane.innerHTML = analysisItemUsageMarkup(details);
     } else if (state.analysisItemTab === "dependencies") {
-      pane.innerHTML = analysisItemDependenciesMarkup(details);
+      pane.innerHTML = analysisItemDependenciesMarkup(
+        details, state.analysisItemCategory
+      );
     } else if (state.analysisItemRawError) {
       pane.innerHTML = '<p class="helper">' +
         escapeHtml(state.analysisItemRawError) + "</p>" +
@@ -1648,33 +2000,64 @@ import { state } from "../core/state.js";
   }
 
   function analysisItemPropertiesMarkup(details) {
-    var measure = details.type === "Measure";
-    var rows = [
-      ["Name", details.name],
-      ["Model", details.model_name],
-      ["Table", details.table_name],
-      ["Type", details.type],
-      ["Data type", details.data_type_str],
-      ["Size", measure ? "\u2014" : analysisFmtBytes(details.size)],
-      ["Rows", measure ? "\u2014" : details.rows],
-      ["Format string", details.format_string],
-      ["Display folder", details.display_folder],
-      ["Hidden", details.is_hidden ? "Yes" : "No"],
-      ["Status", tStatus(details.status)],
-      ["Reason", (details.reason)],
-      ["Lineage tag", details.lineage_tag ||
-        (state.analysisItemRaw
-          ? (state.analysisItemRaw.LineageTag || "\u2014")
-          : "See Raw JSON")],
-      ["Annotation", details.annotation]
-    ];
-    if (!measure) {
-      rows.splice(6, 0,
-        ["Cardinality", details.cardinality ? fmtInt(details.cardinality) : "—"],
-        ["Data size", analysisFmtBytes(details.size_data)],
-        ["Hierarchy size", analysisFmtBytes(details.size_hierarchy)],
-        ["Dictionary size", analysisFmtBytes(details.size_dictionary)]
-      );
+    var kind = details.kind || (details.type === "Measure" ? "measure" : "column");
+    var rows;
+    if (kind === "function") {
+      rows = [
+        ["Name", details.name],
+        ["Model", details.model_name],
+        ["Type", details.type],
+        ["ID", details.id || "\u2014"],
+        ["Hidden", details.is_hidden ? "Yes" : "No"],
+        ["Status", tStatus(details.status)],
+        ["Reason", (details.reason)],
+        ["Description", details.description || "\u2014"],
+        ["Lineage tag", details.lineage_tag || "\u2014"]
+      ];
+    } else if (kind === "hierarchy") {
+      rows = [
+        ["Name", details.name],
+        ["Model", details.model_name],
+        ["Table", details.table_name],
+        ["Type", details.type],
+        ["Levels", details.levels || "\u2014"],
+        ["Level count", details.level_count || 0],
+        ["Display folder", details.display_folder || "\u2014"],
+        ["Hidden", details.is_hidden ? "Yes" : "No"],
+        ["Status", tStatus(details.status)],
+        ["Reason", (details.reason)],
+        ["Description", details.description || "\u2014"],
+        ["Lineage tag", details.lineage_tag || "\u2014"]
+      ];
+    } else {
+      var measure = kind === "measure";
+      rows = [
+        ["Name", details.name],
+        ["Model", details.model_name],
+        ["Table", details.table_name],
+        ["Type", details.type],
+        ["Data type", details.data_type_str],
+        ["Size", measure ? "\u2014" : analysisFmtBytes(details.size)],
+        ["Rows", measure ? "\u2014" : details.rows],
+        ["Format string", details.format_string],
+        ["Display folder", details.display_folder],
+        ["Hidden", details.is_hidden ? "Yes" : "No"],
+        ["Status", tStatus(details.status)],
+        ["Reason", (details.reason)],
+        ["Lineage tag", details.lineage_tag ||
+          (state.analysisItemRaw
+            ? (state.analysisItemRaw.LineageTag || "\u2014")
+            : "See Raw JSON")],
+        ["Annotation", details.annotation]
+      ];
+      if (!measure) {
+        rows.splice(6, 0,
+          ["Cardinality", details.cardinality ? fmtInt(details.cardinality) : "—"],
+          ["Data size", analysisFmtBytes(details.size_data)],
+          ["Hierarchy size", analysisFmtBytes(details.size_hierarchy)],
+          ["Dictionary size", analysisFmtBytes(details.size_dictionary)]
+        );
+      }
     }
     var html = '<div class="detail-grid">' + rows.map(function (row) {
       return analysisDetailRow(row[0], row[1]);
@@ -1722,9 +2105,24 @@ import { state } from "../core/state.js";
     return html;
   }
 
-  function analysisItemDependenciesMarkup(details) {
+  var DEPENDENCY_CATEGORY_GROUPS = {
+    model: ["model_dependencies"],
+    visual: ["visual_dependencies", "artifact_dependencies"],
+    visual_filters: ["visual_level_filters_dependencies"],
+    filters: [
+      "visual_level_filters_dependencies",
+      "page_level_filters_dependencies",
+      "report_level_filters_dependencies"
+    ],
+    sort: ["sort_dependencies"]
+  };
+
+  function analysisItemDependenciesMarkup(details, category) {
+    var scope = category || state.analysisItemCategory || "all";
+    var allowed = DEPENDENCY_CATEGORY_GROUPS[scope] || [];
     var sections = [];
     DETAIL_GROUPS.forEach(function (group) {
+      if (allowed.length && allowed.indexOf(group[0]) === -1) return;
       var rows = details[group[0]];
       if (!rows || !rows.length) return;
       sections.push(
@@ -1846,7 +2244,7 @@ import { state } from "../core/state.js";
       table: target.table,
       name: target.name
     };
-    $("#analysisRawMetaSub").textContent = "'" + target.table + "'[" + target.name + "]";
+    $("#analysisRawMetaSub").textContent = analysisTargetLabel(target);
     $("#analysisRawMetaStatus").textContent = "Loading metadata…";
     $("#analysisRawMetaJson").textContent = "";
     if (dialog.open) dialog.close();
@@ -1951,7 +2349,7 @@ import { state } from "../core/state.js";
     $("#analysisDetailsTitle").textContent = mode === "dax"
       ? "DAX expression"
       : (isMeasure ? "Measure details" : "Column details");
-    $("#analysisDetailsSub").textContent = analysisItemLabel(item);
+    $("#analysisDetailsSub").textContent = analysisItemLabel(item, target.kind);
     state.analysisDetailsExpression = String(item.expression || "");
     if (mode === "dax") {
       $("#analysisDetailsBody").innerHTML = item.expression
@@ -3320,8 +3718,7 @@ import { state } from "../core/state.js";
       else columnCount += 1;
       var data = item.data;
       var id = "item:" + item.kind + ":" + data.table + ":" + data.name;
-      var showExpression = (item.kind === "column" || item.kind === "function") &&
-        Boolean(data.expression);
+      var showExpression = item.kind === "column" && Boolean(data.expression);
       var expandable = showExpression || (data.children || []).length > 0;
       var open = expandable && analysisIsOpen(id, false, true);
       if (data.status === "Unused") unused += 1;
@@ -3335,7 +3732,7 @@ import { state } from "../core/state.js";
             : (item.kind === "hierarchy" ? "group"
               : (item.kind === "function" ? "code" : "column")), {
             level: 0, toggleId: expandable ? id : "", open: open,
-            menu: item.kind !== "hierarchy" && item.kind !== "function"
+            menu: true
           }),
           item.kind === "measure"
             ? "Measure"

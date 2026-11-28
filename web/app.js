@@ -64,6 +64,8 @@ import {
   analysisOpenHealthRules,
   analysisOpenMenu,
   analysisOpenSubmenu,
+  analysisOpenSubmenu2,
+  analysisCloseSubmenu2,
   analysisPrettyJson,
   analysisReloadRawMetadata,
   analysisRender,
@@ -1341,8 +1343,6 @@ var NEWLINE = String.fromCharCode(10);
     $("#analyzeBody").addEventListener("contextmenu", function (event) {
       var row = event.target.closest("tr[data-item-kind]");
       if (!row) return;
-      var kind = row.getAttribute("data-item-kind");
-      if (kind === "hierarchy" || kind === "function") return;
       event.preventDefault();
       state.analysisMenuFocus = row;
       analysisOpenMenu(analysisRowTarget(row), {
@@ -1356,8 +1356,6 @@ var NEWLINE = String.fromCharCode(10);
       if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
         var menuRow = event.target.closest("tr[data-item-kind]");
         if (!menuRow) return;
-        var menuKind = menuRow.getAttribute("data-item-kind");
-        if (menuKind === "hierarchy" || menuKind === "function") return;
         event.preventDefault();
         var rowRect = menuRow.getBoundingClientRect();
         state.analysisMenuFocus = menuRow;
@@ -1438,7 +1436,49 @@ var NEWLINE = String.fromCharCode(10);
       var entry = event.target.closest("[data-menu-action]");
       if (!entry) return;
       event.preventDefault();
+      if (entry.hasAttribute("data-menu-submenu")) {
+        analysisOpenSubmenu2(entry.getAttribute("data-menu-submenu"), entry);
+        return;
+      }
       analysisRunMenuAction(entry.getAttribute("data-menu-action"));
+    });
+    $("#analysisSubmenu").addEventListener("mouseover", function (event) {
+      var entry = event.target.closest("[data-menu-action]");
+      if (!entry) return;
+      if (entry.hasAttribute("data-menu-submenu")) {
+        analysisOpenSubmenu2(entry.getAttribute("data-menu-submenu"), entry);
+      } else {
+        analysisCloseSubmenu2(false);
+      }
+    });
+    $("#analysisSubmenu2").addEventListener("click", function (event) {
+      var entry = event.target.closest("[data-menu-action]");
+      if (!entry) return;
+      event.preventDefault();
+      analysisRunMenuAction(entry.getAttribute("data-menu-action"));
+    });
+    $("#analysisSubmenu2").addEventListener("keydown", function (event) {
+      var items = $$("#analysisSubmenu2 [role='menuitem']");
+      if (!items.length) return;
+      var index = items.indexOf(document.activeElement);
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        index = index < 0 ? 0 : (index + 1) % items.length;
+        items[index].focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        index = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length;
+        items[index].focus();
+      } else if (event.key === "Escape" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        event.stopPropagation();
+        analysisCloseSubmenu2(true);
+      } else if (event.key === "Tab") {
+        analysisCloseMenu(false);
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (document.activeElement) document.activeElement.click();
+      }
     });
     $("#analysisSubmenu").addEventListener("keydown", function (event) {
       var items = $$("#analysisSubmenu [role='menuitem']");
@@ -1473,6 +1513,7 @@ var NEWLINE = String.fromCharCode(10);
       if (!state.analysisMenuTarget) return;
       if (event.target.closest("#analysisMenu")) return;
       if (event.target.closest("#analysisSubmenu")) return;
+      if (event.target.closest("#analysisSubmenu2")) return;
       if (event.target.closest("[data-analysis-menu]")) return;
       analysisCloseMenu(false);
     });

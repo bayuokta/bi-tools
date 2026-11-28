@@ -189,9 +189,16 @@ dengan `grep`, lalu baca jendela kecil.
   `analysisApply`, `analysisApplyTabTools`, `analysisRun`, `analysisStop`.
 - Menu dan detail: `analysisMenuEntries`, `analysisMenuMarkup`,
   `analysisSubmenuEntries`, `analysisSubmenuMarkup`, `analysisOpenMenu`,
-  `analysisCloseMenu`, `analysisRunMenuAction`, `copyTextValue`,
-  `analysisOpenTableDetails`, `analysisOpenModelDetails`, `analysisShowTable`,
-  `analysisExportLineage`, `analysisExportDependencies`.
+  `analysisOpenSubmenu`, `analysisOpenSubmenu2`, `analysisCloseSubmenu`,
+  `analysisCloseSubmenu2`, `analysisCloseMenu`, `analysisRunMenuAction`,
+  `copyTextValue`, `analysisOpenTableDetails`, `analysisOpenModelDetails`,
+  `analysisOpenModelTmsl`, `analysisShowTable`, `analysisExportLineage`,
+  `analysisExportDependencies`, `analysisExportObject`, `analysisExportUses`,
+  `analysisOpenTableMExpression`, `analysisOpenTableArtifacts`,
+  `analysisOpenMdxOptions`.
+- Menu function/hierarchy memakai submenu bertingkat (`#analysisSubmenu`,
+  `#analysisSubmenu2`); `Model details` memanggil job TMSL dari Fabric API,
+  bukan TOM.
 - Lineage dialog: `analysisLineageSvgPalette`, `analysisLineageSvgDocument`,
   `analysisLineagePngData`, `analysisLineageFetchGraph`,
   `analysisExportLineageImage`, `analysisLineageMermaid`, `analysisOpenDetails`,
