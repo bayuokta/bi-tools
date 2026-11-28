@@ -423,6 +423,8 @@ import { state } from "../core/state.js";
     state.analysisNote = note || "";
     state.analysisOpen = {};
     state.analysisQueries = {};
+    state.analysisObjectFilter = "all";
+    $("#searchAnalyze").value = "";
     state.relNodeOffset = {};
     state.relNodeDrag = null;
     state.reportDetail = {};
@@ -478,7 +480,7 @@ import { state } from "../core/state.js";
           ? "Model only — report usage not included"
           : "Partial coverage")
     );
-    analysisApplyTabTools(state.analysisTab, false);
+    analysisApplyTabTools(state.analysisTab, true);
     analysisRender();
   }
 
@@ -511,6 +513,7 @@ import { state } from "../core/state.js";
       return { value: pair[0], label: pair[1] };
     });
     setSelectOptions("typeAnalyze", options, null);
+    if (reset) state.analysisObjectFilter = "all";
     var desired = reset ? "all" : (state.analysisObjectFilter || "all");
     var valid = options.some(function (item) { return item.value === desired; });
     setSelectValue("typeAnalyze", valid ? desired : "all");

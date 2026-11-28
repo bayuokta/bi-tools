@@ -284,6 +284,11 @@ class FabricReportClient:
         max_polls: int = MAX_POLLS,
         poll_wait: float | None = None,
     ) -> None:
+        if not hasattr(token_provider, "get_token"):
+            raise ExtractionError(
+                "FabricReportClient needs a token provider with get_token(); "
+                "use auth.fabric_provider(EntraTokens) instead of EntraTokens."
+            )
         self._transport = Transport(
             token_provider,
             FABRIC_API,

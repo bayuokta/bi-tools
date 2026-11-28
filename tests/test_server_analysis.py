@@ -818,13 +818,19 @@ class AnalysisPresenterTests(unittest.TestCase):
             presenter, "_session_result", return_value=fake_result()
         ), patch.object(
             presenter, "EntraTokens", return_value=object()
-        ), patch.object(presenter, "FabricReportClient") as client_cls:
+        ), patch.object(
+            presenter, "fabric_provider", return_value="provider"
+        ) as provider, patch.object(
+            presenter, "FabricReportClient"
+        ) as client_cls:
             client_cls.return_value.get_semantic_model_tmsl.return_value = {
                 "name": "Model Uji",
                 "model": {},
             }
             data = presenter.tmsl_payload(self.store, DATASET)
         self.assertIn('"name": "Model Uji"', data["tmsl"])
+        provider.assert_called_once()
+        self.assertEqual(client_cls.call_args.args[0], "provider")
         client_cls.return_value.close.assert_called_once()
 
     def test_export_object_and_uses(self) -> None:

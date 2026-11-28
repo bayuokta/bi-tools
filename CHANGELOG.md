@@ -38,6 +38,15 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   (`getDefinition?format=TMSL`), bukan TOM. Inline DAX function dihapus dari
   baris; akses lewat `View DAX expression`. Detail/raw metadata mendukung
   function, hierarchy, dan tabel.
+- Perbaikan: setelah analisa selesai, tab All results langsung menampilkan semua
+  baris. `analysisApply()` sekarang mengosongkan `#searchAnalyze`, mereset
+  `analysisObjectFilter` ke `all`, dan memakai `analysisApplyTabTools(..., true)`
+  agar filter/pencarian lama tidak menyaring hasil.
+- Perbaikan: Model details (TMSL) memakai `fabric_provider(tokens)` sebagai token
+  provider untuk `FabricReportClient`; sebelumnya `EntraTokens` dikirim langsung
+  sehingga muncul `'EntraTokens' object has no attribute 'get_token'`.
+  `FabricReportClient` juga menolak provider tanpa `get_token()` dengan pesan
+  yang jelas.
 
 ### Perbaikan
 

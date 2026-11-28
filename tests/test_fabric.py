@@ -308,6 +308,10 @@ class FabricClientTests(unittest.TestCase):
         self.assertNotIn(operation + "/result", urls)
         self.assertEqual(urls[-1], operation)
 
+    def test_rejects_non_token_provider(self) -> None:
+        with self.assertRaises(ExtractionError):
+            FabricReportClient(object(), session=FakeSession([]))
+
     def test_semantic_model_tmsl(self) -> None:
         tmsl = {"name": "Model", "compatibilityLevel": 1702, "model": {}}
         payload = base64.b64encode(json.dumps(tmsl).encode("utf-8")).decode("ascii")

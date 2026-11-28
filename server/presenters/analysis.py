@@ -14,7 +14,7 @@ import threading
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.auth import EntraTokens
+from core.auth import EntraTokens, fabric_provider
 from core.analysis_details import item_details
 from core.best_practice import build_best_practice
 from core.analysis_export import (
@@ -1646,7 +1646,9 @@ def tmsl_payload(
     principal: Any = store.auth()
     principal.validate()
     tokens = EntraTokens(principal)
-    client = FabricReportClient(tokens, poll_wait=1, log=log or (lambda _m: None))
+    client = FabricReportClient(
+        fabric_provider(tokens), poll_wait=1, log=log or (lambda _m: None)
+    )
     try:
         data = client.get_semantic_model_tmsl(
             result.workspace_id, result.dataset_id
