@@ -1071,7 +1071,39 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 blocking=False,
             )
 
+    # Calculated table columns (Type 4) duplicate the calculated table itself.
+    # Measure Killer counts the calculated table once; keep the column ref only
+    # when the owning table expression did not already reference the source.
+    calculated_tables: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for key, items in refs.items():
+        for ref in items:
+            if ref.kind != "calculated table":
+                continue
+            match = re.match(r"^calculated table '(.+)'$", str(ref.object or ""))
+            if match:
+                calculated_tables[key].add(
+                    match.group(1).replace("''", "'").casefold()
+                )
+    for key, owners in calculated_tables.items():
+        refs[key] = [
+            ref
+            for ref in refs.get(key, [])
+            if not (
+                ref.kind == "calculated table column"
+                and _object_table(ref.object).casefold() in owners
+            )
+        ]
+
     return refs
+
+
+def _object_table(text: Any) -> str:
+    """Nama tabel dari objek ``'Tabel'[Kolom]``."""
+    value = str(text or "").strip()
+    match = re.match(r"^'((?:[^']|'')+)'\s*\[([^\]]+)\]$", value)
+    if not match:
+        match = re.match(r"^([^\[\]]+?)\s*\[([^\]]+)\]$", value)
+    return match.group(1).replace("''", "'") if match else ""
 
 
 # ---------------------------------------------------------------------------

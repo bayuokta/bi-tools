@@ -1510,6 +1510,8 @@ class ModelReferenceTests(unittest.TestCase):
                 {"ID": 3, "Name": "Product", "IsHidden": False},
                 {"ID": 4, "Name": "Parameter Posisi", "IsHidden": False},
                 {"ID": 5, "Name": "Sales Copy", "IsHidden": False},
+                {"ID": 6, "Name": "TestingMaster", "IsHidden": False},
+                {"ID": 7, "Name": "CopyTable", "IsHidden": False},
             ],
             "TMSCHEMA_COLUMNS": [
                 {"ID": 10, "TableID": 2, "ExplicitName": "Customer", "Type": 1, "ExplicitDataType": 2},
@@ -1526,6 +1528,8 @@ class ModelReferenceTests(unittest.TestCase):
                 },
                 {"ID": 20, "TableID": 3, "ExplicitName": "Name", "Type": 1, "ExplicitDataType": 2, "IsKey": True},
                 {"ID": 21, "TableID": 4, "ExplicitName": "Parameter", "Type": 1, "ExplicitDataType": 2},
+                {"ID": 30, "TableID": 6, "ExplicitName": "Name", "Type": 4, "ColumnOriginID": 20},
+                {"ID": 31, "TableID": 7, "ExplicitName": "Name", "Type": 4, "ColumnOriginID": 20},
             ],
             "TMSCHEMA_MEASURES": [
                 {
@@ -1600,6 +1604,22 @@ class ModelReferenceTests(unittest.TestCase):
                     "Mode": 0,
                     "QueryDefinition": 'let Source = #"Sales" in Source',
                 },
+                {
+                    "ID": 43,
+                    "TableID": 6,
+                    "Name": "TestingMaster",
+                    "Mode": 0,
+                    "Type": 2,
+                    "QueryDefinition": "DISTINCT ( Product[Name] )",
+                },
+                {
+                    "ID": 44,
+                    "TableID": 7,
+                    "Name": "CopyTable",
+                    "Mode": 0,
+                    "Type": 2,
+                    "QueryDefinition": 'ROW ( "Name", "x" )',
+                },
             ],
             "TMSCHEMA_REFRESH_POLICIES": [
                 {
@@ -1660,6 +1680,19 @@ class ModelReferenceTests(unittest.TestCase):
         self.assertIn("hierarchy", kinds("Year"))
         self.assertIn("sort by", kinds("Year"))
         self.assertIn("relationship", kinds("Name", table="product"))
+
+    def test_calculated_table_column_is_not_counted_twice(self) -> None:
+        refs = model_references(self.model())
+        items = refs[("product", "name")]
+        column_owners = {
+            ref.object for ref in items if ref.kind == "calculated table column"
+        }
+        self.assertIn("'CopyTable'[Name]", column_owners)
+        self.assertNotIn("'TestingMaster'[Name]", column_owners)
+        tables = {
+            ref.object for ref in items if ref.kind == "calculated table"
+        }
+        self.assertIn("calculated table 'TestingMaster'", tables)
 
     def test_calculated_column_resolves_unqualified_column(self) -> None:
         refs = model_references(self.model())

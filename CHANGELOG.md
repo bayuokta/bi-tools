@@ -50,6 +50,12 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Perbaikan
 
+- Kolom yang dipakai calculated table tidak lagi dihitung dua kali. Ref
+  `calculated table column` (kolom Type 4) yang sumbernya sudah direferensikan
+  expression calculated table yang sama dihapus, sehingga `# used` dan ekspor
+  Result hanya menampilkan satu baris `Used in calculated tables` mengikuti
+  Measure Killer. Contoh: `Master Main Dealer[Main Dealer Name]` menjadi 2,
+  bukan 3.
 - Analisa semantic model kini menampilkan **user-defined function (DAX UDF)**
   dari `TMSCHEMA_FUNCTIONS`: objek seperti `PercentageGrowth` muncul di tab
   All results (Type `User-defined function`) dan di ekspor Result (Table kosong,
