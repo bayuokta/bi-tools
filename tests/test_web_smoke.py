@@ -692,6 +692,64 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("Model details", menu)
         self.assertNotIn("Model options", menu)
 
+    def test_analysis_health_tab_enables_export(self) -> None:
+        """Tab Health memakai 6 kolom UI dan tombol Export health."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 0, "measures": 0, "hierarchies": 0, "functions": 0},
+            "measures": [],
+            "columns": [],
+            "functions": [],
+            "tables": [],
+            "m_queries": [],
+            "unloaded_queries": [],
+            "relationships": [],
+            "roles": [],
+            "reports": [],
+            "coverage": {"complete": True},
+            "reports_included": True,
+            "health": {
+                "counts": {"critical": 0, "warning": 0, "info": 1},
+                "items": [
+                    {
+                        "id": "unused_table:old",
+                        "rule": "unused_table",
+                        "severity": "info",
+                        "severity_rank": 2,
+                        "area": "model",
+                        "object": "Old",
+                        "kind": "table",
+                        "table": "Old",
+                        "name": "Old",
+                        "detail": "",
+                        "size_bytes": 1024,
+                        "metrics": {"columns": 1, "measures": 0},
+                        "target": {"kind": "table", "table": "Old"},
+                    }
+                ],
+            },
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'health';
+                state.analysisOpen = {};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 6)
+        self.assertIn("Export health", page.inner_text("#exportXlsx"))
+        self.assertIn("1 findings", page.inner_text("#analyzeSummary"))
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")

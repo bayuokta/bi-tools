@@ -963,6 +963,32 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('label: "Unloaded table details"', js)
         self.assertIn('"Used in Power Query"', js)
 
+    def test_web_health_export_uses_internal_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        export = (ROOT / "core" / "health_export.py").read_text(
+            encoding="utf-8"
+        )
+        for column in (
+            "Severity",
+            "Area",
+            "Rule",
+            "Object",
+            "Detail",
+            "Size",
+            "Rule ID",
+            "Kind",
+            "Report",
+            "Page",
+            "Visual",
+            "Size_bytes",
+        ):
+            self.assertIn(f'"{column}"', export, column)
+        self.assertIn("write_health_export", presenter)
+        self.assertIn('"Export health"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

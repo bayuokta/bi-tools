@@ -139,6 +139,14 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   template (`Name`..`Usage_number_of_uses`); objek unused mendapat baris
   kosong pada kolom `Usage_*`. `build_expressions` kini deterministik menurut
   ID ekspresi, dan `usage_m_query` menyimpan `position` untuk urutan root.
+- Tab **Health** kini punya ekspor sendiri dengan format internal (bukan
+  template Measure Killer): `Health_<dataset>_<id8>.xlsx`, 12 kolom —
+  `Severity`, `Area`, `Rule`, `Object`, `Detail`, `Size` (6 kolom UI) plus
+  `Rule ID`, `Kind`, `Report`, `Page`, `Visual`, `Size_bytes`. `Detail`
+  menggabungkan metrics (`columns`/`measures`, dictionary share/bytes,
+  visuals, unmapped fields), ukuran 0 ditulis kosong, dan konteks
+  report/page/visual diisi untuk temuan report-level. Tombol toolbar menjadi
+  **Export health**; ekspor memuat semua temuan, bukan hanya hasil filter.
 
 ### Perbaikan
 

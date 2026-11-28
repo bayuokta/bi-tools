@@ -63,6 +63,7 @@ from core.raw_metadata import (
 )
 from core.best_practice_export import write_best_practice_export
 from core.dax_export import write_dax_export
+from core.health_export import write_health_export
 from core.m_export import write_m_export
 from core.relationship_export import relationship_row, write_relationship_export
 from core.unloaded_export import write_unloaded_export
@@ -1990,6 +1991,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Best_Practice_{safe}_{suffix}.xlsx"
         elif tab in {"unloaded", "unloaded_power_query"}:
             target = outputs_dir() / f"Unloaded_Power_Query_{safe}_{suffix}.xlsx"
+        elif tab == "health":
+            target = outputs_dir() / f"Health_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -2021,11 +2024,12 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_best_practice_export(result, target)
     elif tab in {"unloaded", "unloaded_power_query"}:
         write_unloaded_export(result, target)
+    elif tab == "health":
+        write_health_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
         "roles",
-        "health",
     }:
         raise ExtractionError(
             "Export for this tab is not available yet (coming soon)."

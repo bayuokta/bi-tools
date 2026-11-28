@@ -739,6 +739,22 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["path"], str(target))
         write.assert_called_once()
 
+    def test_export_writes_health_template(self) -> None:
+        target = self.root / "health.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "write_health_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "health"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
     def test_export_full_workbook_option(self) -> None:
         target = self.root / "semua.xlsx"
         target.write_bytes(b"xlsx")
