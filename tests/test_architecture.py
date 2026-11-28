@@ -786,6 +786,33 @@ class WebLayerTests(unittest.TestCase):
         self.assertNotIn("function processPartitions(", js)
         self.assertIn('$("#processSelectedPartitions").addEventListener', js)
 
+    def test_web_tables_export_uses_template_groups(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        table_export = (ROOT / "core" / "table_export.py").read_text(
+            encoding="utf-8"
+        )
+        for label in (
+            "Used in artifacts",
+            "Used in calculated tables",
+            "Used in field parameters",
+            "Columns",
+            "Hierarchies",
+            "Measures",
+            "Used in calculation items",
+            "Used in row/object level security",
+        ):
+            self.assertIn(f'"{label}"', table_export, f"grup {label} hilang")
+        self.assertIn("write_table_export", presenter)
+        self.assertIn("build_table_groups", presenter)
+        self.assertIn("Export tables", js)
+        self.assertIn("analysisStatusCell", js)
+        self.assertIn('"Has error"', js)
+        self.assertEqual(js.count("function analysisChildGroups("), 1)
+        self.assertIn("function analysisTableSummary(", js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

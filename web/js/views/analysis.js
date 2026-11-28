@@ -301,6 +301,13 @@ import { state } from "../core/state.js";
       '"><span class="dot"></span>' + escapeHtml(tStatus(status) || "-") + "</span>";
   }
 
+  function analysisStatusCell(status) {
+    if (["Unused", "Needs review", "Used", "Must keep"].indexOf(status) !== -1) {
+      return analysisStatusChip(status);
+    }
+    return escapeHtml(status || "");
+  }
+
   function analysisReportUrl(workspaceId, reportId) {
     if (!workspaceId || !reportId) return "";
     return "https://app.powerbi.com/groups/" + encodeURIComponent(workspaceId) +
@@ -487,10 +494,11 @@ import { state } from "../core/state.js";
   function analysisExportState() {
     var button = $("#exportXlsx");
     if (!button) return;
-    var canExport = state.analysisTab === "all";
+    var canExport = state.analysisTab === "all" || state.analysisTab === "tables";
+    var label = state.analysisTab === "tables" ? "Export tables" : "Export Result";
     button.disabled = !state.analysis || !canExport;
-    button.textContent = (canExport ? "Export Result" : "Export (coming soon)");
-    button.title = canExport ? "Export Result" : "Coming soon";
+    button.textContent = (canExport ? label : "Export (coming soon)");
+    button.title = canExport ? label : "Coming soon";
     button.setAttribute(
       "aria-disabled",
       state.analysis && canExport ? "false" : "true"
@@ -3592,43 +3600,45 @@ import { state } from "../core/state.js";
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var type = getSelectValue("typeAnalyze") || "all";
     var unusedOnly = $("#unusedOnly").checked;
-    var map = {};
-    var order = [];
-    function ensure(name) {
-      var key = name || "(No table)";
-      if (!map[key]) {
-        map[key] = { name: key, columns: [], measures: [], info: null };
-        order.push(key);
-      }
-      return map[key];
-    }
-    (result.tables || []).forEach(function (table) {
-      var group = ensure(table.name);
-      group.info = table;
-      order = order.filter(function (name) { return name !== group.name; });
-      order.push(group.name);
+    var ownLabels = { Columns: true, Measures: true, Hierarchies: true };
+    var tables = (result.tables || []).slice().sort(function (left, right) {
+      return (right.size_bytes || 0) - (left.size_bytes || 0) ||
+        String(left.name || "").localeCompare(String(right.name || ""));
     });
-    (result.columns || []).forEach(function (column) {
-      ensure(column.table).columns.push(column);
+    var groups = [];
+    tables.forEach(function (table) {
+      var tableHit = Boolean(query) &&
+        String(table.name || "").toLowerCase().indexOf(query) !== -1;
+      var children = [];
+      (table.children || []).forEach(function (group) {
+        var isOwn = ownLabels[group.label] === true;
+        if (unusedOnly && !isOwn) return;
+        if (type === "columns" && group.label !== "Columns") return;
+        if (type === "measures" && group.label !== "Measures") return;
+        if (type === "hierarchies" && group.label !== "Hierarchies") return;
+        var rows = (group.rows || []).filter(function (row) {
+          if (unusedOnly && row.status !== "Unused") return false;
+          if (!query || tableHit) return true;
+          var cells = row.cells || {};
+          return [row.name, cells["1"], cells["2"], group.label].join(" ")
+            .toLowerCase().indexOf(query) !== -1;
+        });
+        if (!rows.length) return;
+        children.push({
+          label: group.label,
+          icon: group.icon,
+          count: rows.length,
+          rows: rows
+        });
+      });
+      if (!children.length && !tableHit) return;
+      groups.push({ name: table.name, info: table, children: children });
     });
-    (result.measures || []).forEach(function (measure) {
-      ensure(measure.table).measures.push(measure);
-    });
-    var groups = order.map(function (name) { return map[name]; });
-    groups.forEach(function (group) {
-      group.visibleColumns = (type === "measures" ? [] : group.columns.filter(function (column) {
-        return analysisItemMatches(column, "column", query, type, unusedOnly);
-      }));
-      group.visibleMeasures = (type === "columns" ? [] : group.measures.filter(function (measure) {
-        return analysisItemMatches(measure, "measure", query, type, unusedOnly);
-      }));
-    });
-    return groups.filter(function (group) {
-      return group.visibleColumns.length || group.visibleMeasures.length;
-    });
+    return groups;
   }
 
-  function analysisChildGroups(item, itemId) {
+  function analysisChildGroups(item, itemId, options) {
+    options = options || {};
     var rows = [];
     (item.children || []).forEach(function (group, index) {
       var groupId = itemId + ":g" + index;
@@ -3644,12 +3654,19 @@ import { state } from "../core/state.js";
         var cells = [];
         for (var j = 0; j < 11; j += 1) cells.push("");
         Object.keys(child.cells || {}).forEach(function (key) {
-          cells[Number(key)] = escapeHtml(child.cells[key]);
+          var column = Number(key);
+          cells[column] = column === 6 && options.statusChip && child.status
+            ? analysisStatusCell(child.status)
+            : escapeHtml(child.cells[key]);
         });
-        cells[0] = analysisNameCell(child.name || "—", child.icon || "group", {
+        var nameOptions = {
           level: 2, href: child.href || ""
-        });
-        rows.push({ level: 2, cells: cells });
+        };
+        if (options.menus && child.item) nameOptions.menu = true;
+        cells[0] = analysisNameCell(child.name || "—", child.icon || "group", nameOptions);
+        var row = { level: 2, cells: cells };
+        if (options.menus && child.item) row.item = child.item;
+        rows.push(row);
       });
     });
     return rows;
@@ -3887,7 +3904,8 @@ import { state } from "../core/state.js";
         { label: "Name" }, { label: "Type" }, { label: "Table" },
         { label: "Source" }, { label: "Data type" }, { label: "Size", num: true },
         { label: "Status" }, { label: "# used", num: true },
-        { label: "Mode" }, { label: "Partitions", num: true }
+        { label: "Has error" }, { label: "Mode" },
+        { label: "Partitions", num: true }
       ];
     }
     return [
@@ -3911,16 +3929,18 @@ import { state } from "../core/state.js";
     var unused = 0;
     groups.forEach(function (group) {
       var info = group.info || {};
-      var fallbackItems = group.columns.concat(group.measures);
-      var totalItems = info.total_items != null
-        ? info.total_items : fallbackItems.length;
-      var usedItems = info.used_items != null
-        ? info.used_items
-        : fallbackItems.filter(function (item) { return item.status !== "Unused"; }).length;
-      var statuses = info.statuses || fallbackItems.reduce(function (acc, item) {
-        acc[item.status] = (acc[item.status] || 0) + 1;
-        return acc;
-      }, {});
+      var totalItems = info.total_items != null ? info.total_items : 0;
+      var usedItems = info.used_items != null ? info.used_items : 0;
+      var statuses = info.statuses || {};
+      (group.children || []).forEach(function (child) {
+        if (["Columns", "Measures", "Hierarchies"].indexOf(child.label) === -1) {
+          return;
+        }
+        itemCount += child.rows.length;
+        child.rows.forEach(function (row) {
+          if (row.status === "Unused") unused += 1;
+        });
+      });
       var size = info.size || analysisFmtBytes(info.size_bytes || 0);
       var tableId = "tbl:" + group.name;
       var tableOpen = analysisIsOpen(tableId, false);
@@ -3932,82 +3952,25 @@ import { state } from "../core/state.js";
           analysisNameCell(group.name, "table", {
             level: 0, toggleId: tableId, open: tableOpen, menu: true
           }),
-          "Table", "—", "Model", "—", escapeHtml(size || "—"),
-          analysisTableSummary(usedItems, totalItems, statuses), String(usedItems),
-          escapeHtml(info.storage_mode || "—"), String(info.partition_count || 0)
+          escapeHtml(info.type_label || "Table"), "—", "Model", "—",
+          escapeHtml(size || "—"),
+          analysisTableSummary(usedItems, totalItems, statuses),
+          String(info.table_uses != null ? info.table_uses : usedItems),
+          info.has_error ? "Yes" : "No",
+          escapeHtml(info.storage_mode || "—"),
+          String(info.partition_count || 0)
         ],
-        numCols: [5, 7, 9]
+        numCols: [5, 7, 10]
       });
       if (!tableOpen) return;
-      if (group.visibleMeasures.length) {
-        var measureId = tableId + ":m";
-        var measureOpen = analysisIsOpen(measureId, false);
-        rows.push({
-          level: 1,
-          group: true,
-          cells: [
-            analysisNameCell("Measure (" + group.visibleMeasures.length + ")", "group", {
-              level: 1, toggleId: measureId, open: measureOpen
-            }),
-            "Grup", escapeHtml(group.name), "Model", "—", "—", "—", "—", "—", "—"
-          ]
-        });
-        if (measureOpen) {
-          group.visibleMeasures.forEach(function (measure) {
-            itemCount += 1;
-            if (measure.status === "Unused") unused += 1;
-            rows.push({
-              level: 2,
-              itemRow: true,
-              item: { kind: "measure", table: measure.table || "", name: measure.name || "" },
-              cells: [
-                analysisNameCell(measure.name, "measure", { level: 2, menu: true }),
-                "Measure", escapeHtml(group.name), "Model", "DAX", "0 B",
-                analysisStatusChip(measure.status), String(measure.uses || 0), "—", "—"
-              ],
-              cls: measure.status === "Unused" ? "row-unused" : "",
-              numCols: [5, 7]
-            });
-          });
-        }
-      }
-      if (group.visibleColumns.length) {
-        var columnId = tableId + ":c";
-        var columnOpen = analysisIsOpen(columnId, false);
-        rows.push({
-          level: 1,
-          group: true,
-          cells: [
-            analysisNameCell("Columns (" + group.visibleColumns.length + ")", "group", {
-              level: 1, toggleId: columnId, open: columnOpen
-            }),
-            "Grup", escapeHtml(group.name), "Model", "—", "—", "—", "—", "—", "—"
-          ]
-        });
-        if (columnOpen) {
-          group.visibleColumns.forEach(function (column) {
-            itemCount += 1;
-            if (column.status === "Unused") unused += 1;
-            rows.push({
-              level: 2,
-              itemRow: true,
-              item: { kind: "column", table: column.table || "", name: column.name || "" },
-              cells: [
-                analysisNameCell(column.name, "column", { level: 2, menu: true }),
-                "Column", escapeHtml(group.name), "Model",
-                escapeHtml(column.data_type || "—"), escapeHtml(column.size || "—"),
-                analysisStatusChip(column.status), String(column.uses || 0), "—", "—"
-              ],
-              cls: column.status === "Unused" ? "row-unused" : "",
-              numCols: [5, 7]
-            });
-          });
-        }
-      }
+      rows = rows.concat(analysisChildGroups(group, tableId, {
+        statusChip: true,
+        menus: true
+      }));
     });
     return {
       headers: analysisTreeHeaders(true),
-      widths: ["27%", "7%", "8%", "8%", "8%", "6%", "15%", "7%", "7%", "7%"],
+      widths: ["22%", "8%", "7%", "7%", "7%", "7%", "13%", "6%", "7%", "8%", "8%"],
       rows: rows,
       summary: (state.analysisNote ? state.analysisNote + " " : "") +
         itemCount + " items · " + groups.length + " tables · " +
@@ -5883,13 +5846,13 @@ import { state } from "../core/state.js";
       return;
     }
     var tab = state.analysisTab || "all";
-    if (tab !== "all") {
+    if (tab !== "all" && tab !== "tables") {
       app.toast("Coming soon");
       return;
     }
     app.api().post("/api/analysis/export", {
       dataset_id: getSelectValue("modelSelect"),
-      tab: "all"
+      tab: tab
     }).then(function (data) {
       app.toast("Export: " + data.path);
       app.api().post("/api/files/open", { path: data.path, mode: "open" })

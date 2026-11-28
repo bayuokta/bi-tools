@@ -62,6 +62,11 @@ from core.raw_metadata import (
     metadata_payload,
 )
 from core.result_export import write_result_export
+from core.table_export import (
+    GROUP_ICONS as TABLE_GROUP_ICONS,
+    build_table_groups,
+    write_table_export,
+)
 
 from .. import settings as keys
 from ..settings_store import SettingsStore
@@ -1095,6 +1100,65 @@ def _hierarchy_row(analysis: Any) -> dict[str, Any]:
     }
 
 
+def _table_children(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Kelompokkan baris ekspor tabel untuk tampilan tab Tables."""
+    order: list[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        label = str(row.get("usage_type") or "")
+        if not label:
+            continue
+        if label not in groups:
+            groups[label] = []
+            order.append(label)
+        has_error = row.get("has_error")
+        if has_error is True:
+            has_error_text = "Yes"
+        elif has_error is False:
+            has_error_text = "No"
+        else:
+            has_error_text = str(has_error or "")
+        kind = str(row.get("kind") or "")
+        item = (
+            {
+                "kind": kind,
+                "table": str(row.get("table") or ""),
+                "name": str(row.get("name") or ""),
+            }
+            if kind
+            else None
+        )
+        uses = row.get("uses")
+        uses_text = "" if uses is None else str(uses)
+        groups[label].append(
+            {
+                "name": str(row.get("name") or ""),
+                "icon": str(row.get("icon") or "group"),
+                "status": str(row.get("status") or ""),
+                "item": item,
+                "cells": {
+                    "1": str(row.get("object_type") or ""),
+                    "2": str(row.get("table") or ""),
+                    "3": "Model",
+                    "4": str(row.get("data_type") or ""),
+                    "5": str(row.get("size") or ""),
+                    "6": str(row.get("status") or ""),
+                    "7": uses_text,
+                    "8": has_error_text,
+                },
+            }
+        )
+    return [
+        {
+            "label": label,
+            "icon": TABLE_GROUP_ICONS.get(label, "group"),
+            "count": len(groups[label]),
+            "rows": groups[label],
+        }
+        for label in order
+    ]
+
+
 def _table_rows(result: Any) -> list[dict[str, Any]]:
     """Ringkasan per tabel (dipakai tab Tables dan graph relasi)."""
     columns_by_table: dict[str, list[Any]] = {}
@@ -1103,6 +1167,10 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
     measures_by_table: dict[str, list[Any]] = {}
     for measure in result.measures:
         measures_by_table.setdefault(measure.measure.table.casefold(), []).append(measure)
+    table_groups = {
+        str(group.get("table") or "").casefold(): group
+        for group in build_table_groups(result)
+    }
     rows: list[dict[str, Any]] = []
     for table in getattr(result.stats, "tables", []) or []:
         key = table.table.casefold()
@@ -1114,9 +1182,21 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
             counts[item.status] = counts.get(item.status, 0) + 1
         used = sum(1 for item in items if item.status != "Unused")
         size_bytes = int(table.size_total_bytes)
+        group = table_groups.get(key) or {}
+        table_uses = group.get("uses")
+        if table_uses is None:
+            table_uses = used
+        total_items = group.get("total")
+        if total_items is None:
+            total_items = len(items)
+        used_items = group.get("used")
+        if used_items is None:
+            used_items = used
         rows.append(
             {
                 "name": table.table,
+                "id": int(getattr(table, "table_id", 0) or 0),
+                "type_label": str(group.get("type_label") or "Table"),
                 "column_count": len(columns),
                 "measure_count": len(measures),
                 "rows": int(table.rows),
@@ -1124,10 +1204,14 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
                 "size_bytes": size_bytes,
                 "storage_mode": str(table.storage_mode or ""),
                 "partition_count": int(table.partition_count or 0),
-                "uses": used,
-                "total_items": len(items),
-                "used_items": used,
+                "uses": int(table_uses),
+                "table_uses": int(table_uses),
+                "status_label": str(group.get("status") or ""),
+                "has_error": bool(group.get("has_error", False)),
+                "total_items": int(total_items),
+                "used_items": int(used_items),
                 "statuses": counts,
+                "children": _table_children(group.get("rows") or []),
             }
         )
     return rows
@@ -1880,16 +1964,19 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         safe = re.sub(r"\s+", " ", safe).strip() or "Semantic Model"
         if tab in {"all", "result"}:
             target = outputs_dir() / f"Result_{safe}_{suffix}.xlsx"
+        elif tab == "tables":
+            target = outputs_dir() / f"Table_Result_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
             )
     if tab in {"all", "result"}:
         write_result_export(result, target)
+    elif tab == "tables":
+        write_table_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
-        "tables",
         "relationships",
         "roles",
         "report",

@@ -1266,6 +1266,7 @@ class AnalysisResult:
     relationships: list[dict[str, Any]] = field(default_factory=list)
     m_queries: list[dict[str, Any]] = field(default_factory=list)
     roles: list[dict[str, Any]] = field(default_factory=list)
+    table_dependencies: list[dict[str, Any]] = field(default_factory=list)
     report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     reports_included: bool = True
 
@@ -1694,6 +1695,38 @@ def build_hierarchy_analyses(
     return out
 
 
+TABLE_DEPENDENCY_FIELDS = (
+    "OBJECT_TYPE",
+    "TABLE",
+    "OBJECT",
+    "REFERENCED_OBJECT_TYPE",
+    "REFERENCED_TABLE",
+    "REFERENCED_OBJECT",
+)
+
+
+def trim_table_dependencies(
+    rows: Iterable[Mapping[str, Any]] | None,
+) -> list[dict[str, str]]:
+    """Simpan hanya kolom dependency yang dipakai tab Tables.
+
+    ``DISCOVER_CALC_DEPENDENCY`` membawa ekspresi/query panjang di setiap baris;
+    menyalin seluruh baris ke snapshot membuat ``model_json`` membengkak tanpa
+    menambah informasi yang dipakai.
+    """
+    trimmed: list[dict[str, str]] = []
+    for row in rows or []:
+        if not isinstance(row, Mapping):
+            continue
+        trimmed.append(
+            {
+                field: str(row.get(field) or "")
+                for field in TABLE_DEPENDENCY_FIELDS
+            }
+        )
+    return trimmed
+
+
 def build_analysis(
     *,
     stats: ModelStats,
@@ -1721,6 +1754,7 @@ def build_analysis(
     relationships: list[dict[str, Any]] | None = None,
     m_queries: list[dict[str, Any]] | None = None,
     roles: list[dict[str, Any]] | None = None,
+    table_dependencies: Iterable[Mapping[str, Any]] | None = None,
     report_pages: dict[str, list[dict[str, Any]]] | None = None,
     hierarchies: Iterable[Mapping[str, Any]] = (),
     reports_included: bool = True,
@@ -1810,6 +1844,7 @@ def build_analysis(
         relationships=list(relationships or []),
         m_queries=list(m_queries or []),
         roles=list(roles or []),
+        table_dependencies=trim_table_dependencies(table_dependencies),
         report_pages=dict(report_pages or {}),
         reports_included=reports_included,
     )
@@ -2621,6 +2656,7 @@ def analyze_dataset(
             relationships=relationships,
             m_queries=m_rows,
             roles=list(metadata.get("roles") or []),
+            table_dependencies=dependencies,
             report_pages=page_rows,
             hierarchies=list(metadata.get("hierarchies") or []),
             reports_included=include_reports,
@@ -2646,7 +2682,13 @@ def analyze_dataset(
                 "report_inaccessible": counters.inaccessible,
                 "report_app": counters.app,
                 "coverage_complete": 1 if coverage_complete else 0,
-                "model_json": model_snapshot(stats, workspace_name, relationships),
+                "model_json": model_snapshot(
+                    stats,
+                    workspace_name,
+                    relationships,
+                    roles=list(metadata.get("roles") or []),
+                    table_dependencies=dependencies,
+                ),
                 "column_count": len(result.columns),
                 "unused_count": len(result.unused),
                 "measure_count": len(result.measures),
@@ -2670,6 +2712,9 @@ def model_snapshot(
     stats: ModelStats,
     workspace_name: str = "",
     relationships: Iterable[dict[str, Any]] | None = None,
+    *,
+    roles: Iterable[dict[str, Any]] | None = None,
+    table_dependencies: Iterable[Mapping[str, Any]] | None = None,
 ) -> str:
     """JSON ringkas metadata model untuk memulihkan snapshot tanpa XMLA."""
     payload = {
@@ -2696,10 +2741,13 @@ def model_snapshot(
                 "data_category": table.data_category,
                 "description": table.description,
                 "is_calculated_table": table.is_calculated_table,
+                "is_calculation_group": table.is_calculation_group,
             }
             for table in stats.tables
         ],
         "relationships": list(relationships or []),
+        "roles": list(roles or []),
+        "table_dependencies": trim_table_dependencies(table_dependencies),
         "functions": [
             {
                 "function_id": item.function_id,
@@ -2799,6 +2847,7 @@ def snapshot_from_connection(
             data_category=str(item.get("data_category") or ""),
             description=str(item.get("description") or ""),
             is_calculated_table=bool(item.get("is_calculated_table")),
+            is_calculation_group=bool(item.get("is_calculation_group")),
         )
         for item in meta.get("tables") or []
     ]
@@ -2919,6 +2968,12 @@ def snapshot_from_connection(
         analyzed_at=str(run.get("finished_at") or ""),
         relationships=relationships,
         m_queries=stored_m_queries(conn, dataset_id),
+        roles=[
+            dict(item)
+            for item in (meta.get("roles") or [])
+            if isinstance(item, dict)
+        ],
+        table_dependencies=meta.get("table_dependencies") or [],
         hierarchies=stored_hierarchies(conn, dataset_id),
         reports_included=reports_included,
     )

@@ -301,6 +301,7 @@ class TableStat:
     data_category: str = ""
     description: str = ""
     is_calculated_table: bool = False
+    is_calculation_group: bool = False
     table_id: int = 0
 
     @property
@@ -483,6 +484,7 @@ def build_model_stats(
                 data_category=str(row.get("data_category") or ""),
                 description=str(row.get("description") or ""),
                 is_calculated_table=bool(row.get("is_calculated_table")),
+                is_calculation_group=bool(row.get("is_calculation_group")),
             )
         )
 

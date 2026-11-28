@@ -209,15 +209,24 @@ dengan `grep`, lalu baca jendela kecil.
   `analysisLineageDragTarget`, `analysisLineageMoveItems`,
   `analysisLineageApplySelection`, `analysisLineageSelect`,
   `analysisLineageReroot`, `analysisLineageApplySearch`.
-- Tabel dan baris: `analysisTableSummary`, `analysisTreeGroups`,
-  `analysisChildGroups`, `analysisFlatRows`, `analysisTreeView`,
-  `analysisFilteredRelationships`, `analysisRelationshipRows`,
-  `analysisReportRows`, `analysisDaxRows`, `analysisMRows`,
-  `analysisHealthRows`, `analysisBestPracticeRows`, `analysisSortItems`,
-  `analysisRoleRows`, `analysisHead`, `analysisBody`, `analysisRender`.
-  `analysisFlatRows` menyertakan `state.analysis.functions` (user-defined
-  function) dengan Type `User-defined function`, tanpa menu konteks; pemanggil
-  ditampilkan sebagai grup `Used in artifacts`.
+- Tabel dan baris: `analysisTableSummary`, `analysisStatusCell`,
+  `analysisTreeGroups`, `analysisChildGroups`, `analysisFlatRows`,
+  `analysisTreeView`, `analysisFilteredRelationships`,
+  `analysisRelationshipRows`, `analysisReportRows`, `analysisDaxRows`,
+  `analysisMRows`, `analysisHealthRows`, `analysisBestPracticeRows`,
+  `analysisSortItems`, `analysisRoleRows`, `analysisHead`, `analysisBody`,
+  `analysisRender`. `analysisFlatRows` menyertakan `state.analysis.functions`
+  (user-defined function) dengan Type `User-defined function` beserta menu
+  konteks; pemanggil ditampilkan sebagai grup `Used in artifacts`.
+- Tab `Tables` memakai 11 kolom (`Name | Type | Table | Source | Data type |
+  Size | Status | # used | Has error | Mode | Partitions`) dan mengurutkan tabel
+  ukuran terbesar. Baris anak berasal dari payload `tables[].children`
+  (`build_table_groups`): 8 grup template Measure Killer. `analysisChildGroups`
+  dipanggil dengan `{statusChip, menus}` untuk tab ini, sedangkan All results
+  memakai perilaku lama (tanpa chip/menu anak).
+- Ekspor: `analysisExportState`/`analysisExport` mengizinkan tab `all` dan
+  `tables`. Label tombol menjadi **Export tables** untuk tab Tables dan
+  memanggil `POST /api/analysis/export` dengan `tab: "tables"`.
 - Health/best practice: `analysisHealthRuleLabel`, `analysisHealthRulesMarkup`,
   `analysisPracticeTitle`, `analysisHealthDetail`, `analysisHealthOpen`,
   `analysisBestPracticeIcon`, `analysisBestPracticeSeverity`,

@@ -1371,6 +1371,59 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertEqual(payload["functions"][0]["name"], "PercentageGrowth")
         self.assertEqual(payload["functions"][0]["function_id"], 56708)
 
+    def test_model_snapshot_keeps_table_dependencies_and_roles(self) -> None:
+        value = ModelStats(
+            model_name="Model",
+            compatibility_level=1600,
+            last_update="2026-01-01",
+            columns=[],
+            tables=[
+                TableStat(
+                    "Time Intelligence",
+                    2,
+                    1,
+                    100,
+                    0,
+                    is_calculation_group=True,
+                )
+            ],
+            segment_bytes=0,
+            artifact_bytes=0,
+        )
+
+        payload = json.loads(
+            model_snapshot(
+                value,
+                roles=[
+                    {
+                        "name": "Dealer",
+                        "permissions": [
+                            {"table": "Pages", "expression": "", "has_ols": True}
+                        ],
+                    }
+                ],
+                table_dependencies=[
+                    {
+                        "OBJECT_TYPE": "MEASURE",
+                        "TABLE": "Sales",
+                        "OBJECT": "Total",
+                        "REFERENCED_OBJECT_TYPE": "TABLE",
+                        "REFERENCED_TABLE": "Sales",
+                        "REFERENCED_OBJECT": "Sales",
+                        "EXPRESSION": "SUM(Sales[Amount])",
+                    }
+                ],
+            )
+        )
+
+        self.assertTrue(payload["tables"][0]["is_calculation_group"])
+        self.assertEqual(payload["roles"][0]["name"], "Dealer")
+        self.assertEqual(len(payload["table_dependencies"]), 1)
+        self.assertNotIn("EXPRESSION", payload["table_dependencies"][0])
+        self.assertEqual(
+            payload["table_dependencies"][0]["REFERENCED_TABLE"], "Sales"
+        )
+
 
 class WriteWorkbookTests(unittest.TestCase):
     def test_workbook_contains_expected_sheets(self) -> None:

@@ -404,6 +404,17 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertIn("score", data["best_practice"])
         self.assertEqual(data["tables"][0]["storage_mode"], "Import")
         self.assertEqual(data["tables"][0]["partition_count"], 1)
+        self.assertEqual(data["tables"][0]["type_label"], "Table")
+        self.assertEqual(data["tables"][0]["id"], 0)
+        table_children = data["tables"][0]["children"]
+        self.assertEqual(
+            [group["label"] for group in table_children],
+            ["Columns", "Hierarchies"],
+        )
+        self.assertEqual(table_children[0]["count"], 1)
+        self.assertEqual(table_children[0]["rows"][0]["name"], "Customer Name")
+        self.assertEqual(table_children[0]["rows"][0]["cells"]["8"], "No")
+        self.assertGreaterEqual(data["tables"][0]["table_uses"], 1)
         relation = data["relationships"][0]
         self.assertEqual(relation["name"], "Rel")
         self.assertEqual(relation["label"], "'Fact Sales'[Customer Name] N \u2190 1 'Dim Customer'[Customer Name]")
@@ -593,6 +604,22 @@ class AnalysisPresenterTests(unittest.TestCase):
         with self.assertRaises(ExtractionError):
             presenter.export({"dataset_id": DATASET, "output": "relatif.xlsx"}, self.store)
 
+    def test_export_writes_table_template(self) -> None:
+        target = self.root / "tabel.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "write_table_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {"dataset_id": DATASET, "output": str(target), "tab": "tables"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
     def test_export_full_workbook_option(self) -> None:
         target = self.root / "semua.xlsx"
         target.write_bytes(b"xlsx")
@@ -613,7 +640,7 @@ class AnalysisPresenterTests(unittest.TestCase):
             presenter, "snapshot_from_connection", return_value=fake_result()
         ):
             with self.assertRaises(ExtractionError) as ctx:
-                presenter.export({"dataset_id": DATASET, "tab": "tables"}, self.store)
+                presenter.export({"dataset_id": DATASET, "tab": "roles"}, self.store)
         self.assertIn("not available", str(ctx.exception))
 
     def test_snapshot_payload_reads_session(self) -> None:

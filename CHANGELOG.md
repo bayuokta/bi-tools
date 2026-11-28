@@ -47,6 +47,17 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   sehingga muncul `'EntraTokens' object has no attribute 'get_token'`.
   `FabricReportClient` juga menolak provider tanpa `get_token()` dengan pesan
   yang jelas.
+- Tab **Tables** kini punya ekspor sendiri: `Table_Result_<dataset>_<id8>.xlsx`
+  dengan 22 kolom template Measure Killer (`Table_name`..`Used_in_display_folder`)
+  dan satu baris per grup per tabel. Grup mengikuti template: `Used in
+  artifacts`, `Used in calculated tables`, `Used in field parameters`, `Columns`,
+  `Hierarchies`, `Measures`, `Used in calculation items`, dan `Used in
+  row/object level security` (OLS ikut ditulis, berbeda dari ekspor `Result`).
+  `Table_uses` = uses kolom + measure + jumlah baris grup pemakaian; grup
+  pemakaian dibaca dari `DISCOVER_CALC_DEPENDENCY` yang kini disimpan di
+  `AnalysisResult.table_dependencies`. Tabel UI ikut menyesuaikan: 11 kolom
+  (termasuk **Has error**), tipe tabel sebenarnya, `# used` = `Table_uses`, dan
+  baris anak 8 grup di atas; tombol toolbar menjadi **Export tables**.
 
 ### Perbaikan
 
