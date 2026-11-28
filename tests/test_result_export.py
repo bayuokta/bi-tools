@@ -102,6 +102,19 @@ class ResultExportTests(unittest.TestCase):
                             "measure", "'Sales'[Total]", "", blocking=False
                         )
                     ],
+                    report_records=[
+                        {
+                            "usage_kind": "filter-visual",
+                            "report_id": "r1",
+                            "report_name": "Report",
+                            "page_name": "Page 1",
+                            "visual_id": "v9",
+                            "visual_type": "tableEx",
+                            "visual_title": "tableEx",
+                            "detail": "Advanced · 0b99b676a76184c14e97",
+                            "is_hidden": False,
+                        }
+                    ],
                 ),
             ],
             reports=[],
@@ -184,6 +197,16 @@ class ResultExportTests(unittest.TestCase):
         self.assertEqual(int(amount["Used_in_ID"]), 20)
         self.assertEqual(amount["Used_in_object_type"], "Measure")
         self.assertEqual(amount["Used_in_status"], "Used")
+
+        filter_row = frame[
+            (frame["Name"] == "Amount")
+            & (frame["Used_in_type"] == "Used in visual level filters")
+        ].iloc[0]
+        self.assertEqual(
+            filter_row["Used_in_name"],
+            "tableEx (Filter: 0b99b676a76184c14e97)",
+        )
+        self.assertEqual(filter_row["Used_in_object_type"], "Advanced")
 
         total = frame[frame["Name"] == "Total"].iloc[0]
         self.assertEqual(total["Used_in_type"], "Used in visuals")

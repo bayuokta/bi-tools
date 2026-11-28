@@ -50,6 +50,10 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Perbaikan
 
+- Baris filter di ekspor `Result` kini memakai bagian terakhir detail sebagai
+  nama filter (`tableEx (Filter: <id filter>)`), sehingga sama dengan pembanding
+  Measure Killer. Sebelumnya ID filter dibuang dan hanya tertulis
+  `tableEx (Filter)`.
 - Kolom yang dipakai calculated table tidak lagi dihitung dua kali. Ref
   `calculated table column` (kolom Type 4) yang sumbernya sudah direferensikan
   expression calculated table yang sama dihapus, sehingga `# used` dan ekspor

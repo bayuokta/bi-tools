@@ -140,9 +140,9 @@ def _visual_name(record: Mapping[str, Any]) -> str:
 
 
 def _filter_parts(detail: Any) -> tuple[str, str]:
-    parts = [part.strip() for part in str(detail or "").split("·")]
+    parts = [part.strip() for part in str(detail or "").split("·") if part.strip()]
     kind = parts[0] if parts else ""
-    name = parts[-1] if parts and parts[-1].lower().startswith("filter") else ""
+    name = parts[-1] if len(parts) > 1 else ""
     return kind, name
 
 
