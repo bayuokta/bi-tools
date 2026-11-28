@@ -120,6 +120,40 @@ class RelationshipExportTests(unittest.TestCase):
         self.assertEqual(both["Auto_created"], "Yes")
         self.assertEqual(both["DAX_uses"], 1)
 
+    def test_userelationship_usage_adds_rows_and_status(self) -> None:
+        measure = SimpleNamespace(
+            measure=SimpleNamespace(
+                table="Sales",
+                measure="Rel Measure",
+                measure_id=99,
+                expression=(
+                    "CALCULATE(SUM(Sales[Qty]), "
+                    "USERELATIONSHIP('Prev Dates'[Dates Key], "
+                    "'Dates'[Dates Key]))"
+                ),
+            ),
+            status="Used",
+            use_count=4,
+        )
+        data = SimpleNamespace(
+            relationships=result().relationships, measures=[measure]
+        )
+        rows = build_relationship_rows(data)
+        prev = [
+            row for row in rows
+            if row["Name"].startswith("'Prev Dates'[Dates Key]")
+        ]
+        self.assertEqual(len(prev), 1)
+        row = prev[0]
+        self.assertEqual(row["Status"], "Used")
+        self.assertEqual(row["DAX_uses"], 1)
+        self.assertEqual(row["used_in_name"], "Rel Measure")
+        self.assertEqual(row["used_in_ID"], 99)
+        self.assertEqual(row["used_in_type"], "Measure")
+        self.assertEqual(row["used_in_table"], "Sales")
+        self.assertEqual(row["used_in_status"], "Used")
+        self.assertEqual(row["used_in_number_of_uses"], 4)
+
     def test_write_relationship_export_columns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "Relationships.xlsx"

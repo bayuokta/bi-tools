@@ -8,12 +8,13 @@ belum punya rule best-practice per ekspresi DAX (template pembanding juga 0).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from .metadata_common import write_sheet
+from .metadata_common import strip_dax_literals, write_sheet
 
 DAX_RESULT_COLUMNS = [
     "Name",
@@ -35,6 +36,13 @@ TYPE_CALCULATED_COLUMN = "Calculated Column"
 TYPE_MEASURE = "Measure"
 TYPE_FUNCTION = "User-defined function"
 
+_DIVISION = re.compile(r"(?:\]|\))\s*/(?!/)(?!\*)", re.IGNORECASE)
+
+
+def _violations(expression: str) -> int:
+    """Jumlah pelanggaran ekspresi DAX yang dihitung Measure Killer."""
+    return 1 if _DIVISION.search(strip_dax_literals(expression or "")) else 0
+
 
 def _field_parameter_tables(result: Any) -> set[str]:
     return {
@@ -52,6 +60,7 @@ def _row(
     type_label: str,
     has_error: Any,
     source: str,
+    violations: int = 0,
     lineage_tag: str,
     display_folder: str,
     description: str,
@@ -62,7 +71,7 @@ def _row(
         "Table": table,
         "Type": type_label,
         "Has_error": has_error,
-        "Best_practices_violations": 0,
+        "Best_practices_violations": int(violations),
         "Source": source,
         "Source_type": "Semantic model",
         "Lineage_tag": lineage_tag,
@@ -101,6 +110,7 @@ def build_dax_rows(result: Any) -> list[dict[str, Any]]:
                 table=str(getattr(measure, "table", "")),
                 type_label=TYPE_MEASURE,
                 has_error=bool(getattr(measure, "has_error", False)),
+                violations=_violations(str(getattr(measure, "expression", "") or "")),
                 source=source,
                 lineage_tag=str(getattr(measure, "lineage_tag", "") or ""),
                 display_folder=str(getattr(measure, "display_folder", "") or ""),
@@ -119,6 +129,7 @@ def build_dax_rows(result: Any) -> list[dict[str, Any]]:
                 table=str(getattr(column, "table", "")),
                 type_label=TYPE_CALCULATED_COLUMN,
                 has_error=bool(getattr(column, "has_error", False)),
+                violations=_violations(str(getattr(column, "expression", "") or "")),
                 source=source,
                 lineage_tag=str(getattr(column, "lineage_tag", "") or ""),
                 display_folder=str(getattr(column, "display_folder", "") or ""),

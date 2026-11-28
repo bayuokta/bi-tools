@@ -155,6 +155,35 @@ class DaxExportTests(unittest.TestCase):
         self.assertNotIn("Dates", [row["Name"] for row in rows])
         self.assertNotIn("Time Intelligence", by_name)
 
+    def test_best_practice_violations_count_division(self) -> None:
+        def measure(name: str, expression: str) -> SimpleNamespace:
+            return SimpleNamespace(
+                measure=SimpleNamespace(
+                    table="Sales",
+                    measure=name,
+                    expression=expression,
+                    display_folder="",
+                    description="",
+                    lineage_tag="",
+                    has_error=False,
+                ),
+                status="Used",
+            )
+
+        data = SimpleNamespace(
+            dataset_name="Model Uji",
+            functions=[],
+            measures=[
+                measure("Bad", "SUM(Sales[A]) / SUM(Sales[B])"),
+                measure("Good", "DIVIDE(SUM(Sales[A]), SUM(Sales[B]))"),
+            ],
+            columns=[],
+            stats=SimpleNamespace(tables=[]),
+        )
+        rows = {row["Name"]: row for row in build_dax_rows(data)}
+        self.assertEqual(rows["Bad"]["Best_practices_violations"], 1)
+        self.assertEqual(rows["Good"]["Best_practices_violations"], 0)
+
     def test_write_dax_export_columns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "DAX.xlsx"
