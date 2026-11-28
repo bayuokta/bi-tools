@@ -932,6 +932,37 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('label: "Violation Score"', js)
         self.assertIn('label: "Object"', js)
 
+    def test_web_unloaded_export_uses_template_columns(self) -> None:
+        js = web_script_text()
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        export = (ROOT / "core" / "unloaded_export.py").read_text(
+            encoding="utf-8"
+        )
+        for column in (
+            "Name",
+            "Type",
+            "Source",
+            "Status",
+            "Number_of_uses",
+            "Usage_name",
+            "Usage_type",
+            "Usage_source",
+            "Usage_status",
+            "Usage_number_of_uses",
+        ):
+            self.assertIn(f'"{column}"', export, column)
+        self.assertIn("write_unloaded_export", presenter)
+        self.assertIn('data-analysis-tab="unloaded"', html)
+        self.assertIn('id="tabCountUnloaded"', html)
+        self.assertIn('"Export unloaded power query"', js)
+        self.assertEqual(js.count("function analysisUnloadedRows("), 1)
+        self.assertEqual(js.count("function analysisOpenUnloadedDetails("), 1)
+        self.assertIn('label: "Unloaded table details"', js)
+        self.assertIn('"Used in Power Query"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

@@ -29,7 +29,8 @@ from .report_usage import ReportUsage, UsageRecord
 M_QUERY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_m_query (
   dataset_id TEXT, entry_key TEXT, name TEXT, kind TEXT, source TEXT,
-  expression TEXT, warning TEXT, detail TEXT, analyzed_at TEXT,
+  expression TEXT, warning TEXT, detail TEXT, position INTEGER DEFAULT 0,
+  analyzed_at TEXT,
   PRIMARY KEY (dataset_id, entry_key)
 );
 """
@@ -197,6 +198,9 @@ MIGRATIONS = {
     "usage_field": {
         "order_index": "INTEGER DEFAULT 0",
     },
+    "usage_m_query": {
+        "position": "INTEGER DEFAULT 0",
+    },
 }
 
 
@@ -240,8 +244,8 @@ def _migrate_m_query(conn: sqlite3.Connection) -> None:
             """
             INSERT OR REPLACE INTO usage_m_query (
               dataset_id, entry_key, name, kind, source, expression, warning,
-              detail, analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              detail, position, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row["dataset_id"],
@@ -252,6 +256,7 @@ def _migrate_m_query(conn: sqlite3.Connection) -> None:
                 row["expression"],
                 row["warning"],
                 row["detail"],
+                0,
                 row["analyzed_at"],
             ),
         )
@@ -1309,6 +1314,7 @@ def save_m_queries(
                 str(row.get("expression") or ""),
                 str(row.get("warning") or ""),
                 str(row.get("detail") or ""),
+                int(row.get("position") or 0),
                 stamp,
             )
         )
@@ -1318,8 +1324,8 @@ def save_m_queries(
             """
             INSERT OR REPLACE INTO usage_m_query (
               dataset_id, entry_key, name, kind, source, expression, warning,
-              detail, analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              detail, position, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )
@@ -1330,7 +1336,10 @@ def m_queries(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]
     rows = conn.execute(
         """
         SELECT * FROM usage_m_query WHERE dataset_id = ?
-        ORDER BY CASE WHEN kind = 'Table' THEN 0 ELSE 1 END, name, entry_key
+        ORDER BY
+          CASE WHEN kind = 'Table' THEN 0 ELSE 1 END,
+          CASE WHEN kind = 'M Query' THEN 0 WHEN kind = 'M Parameter' THEN 1 ELSE 2 END,
+          position, name, entry_key
         """,
         (dataset_id,),
     ).fetchall()

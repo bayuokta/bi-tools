@@ -65,6 +65,8 @@ from core.best_practice_export import write_best_practice_export
 from core.dax_export import write_dax_export
 from core.m_export import write_m_export
 from core.relationship_export import relationship_row, write_relationship_export
+from core.unloaded_export import write_unloaded_export
+from core.unloaded_queries import build_unloaded_queries
 from core.report_export import write_report_export
 from core.result_export import write_result_export
 from core.table_export import (
@@ -1439,6 +1441,7 @@ def serialize_result(
             for item in (getattr(result, "m_queries", []) or [])
             if isinstance(item, Mapping)
         ],
+        "unloaded_queries": build_unloaded_queries(result),
         "messages": list(result.messages),
     }
 
@@ -1985,6 +1988,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"M_Expressions_{safe}_{suffix}.xlsx"
         elif tab in {"bestpractice", "best_practice"}:
             target = outputs_dir() / f"Best_Practice_{safe}_{suffix}.xlsx"
+        elif tab in {"unloaded", "unloaded_power_query"}:
+            target = outputs_dir() / f"Unloaded_Power_Query_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -2014,6 +2019,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_m_export(result, target)
     elif tab in {"bestpractice", "best_practice"}:
         write_best_practice_export(result, target)
+    elif tab in {"unloaded", "unloaded_power_query"}:
+        write_unloaded_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {

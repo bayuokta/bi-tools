@@ -1913,6 +1913,7 @@ def m_query_rows(
                     "expression": expression,
                     "warning": "",
                     "detail": partition,
+                    "position": 0,
                     "entry_key": f"table:{table}:p:{partition}",
                 }
             )
@@ -1940,11 +1941,12 @@ def m_query_rows(
                     "expression": policy,
                     "warning": warning,
                     "detail": "refresh policy" if index == 0 else f"refresh policy {index + 1}",
+                    "position": 0,
                     "entry_key": f"table:{table}:z:policy{suffix}",
                 }
             )
 
-    for row in expressions:
+    for position, row in enumerate(expressions):
         kind = str(row.get("kind") or "Expression")
         is_parameter = kind == "Parameter"
         rows.append(
@@ -1959,6 +1961,7 @@ def m_query_rows(
                 ),
                 "warning": "",
                 "detail": str(row.get("data_type") or ""),
+                "position": position,
                 "entry_key": (
                     f"parameter:{row.get('name')}"
                     if is_parameter
@@ -1966,11 +1969,13 @@ def m_query_rows(
                 ),
             }
         )
+    kind_order = {"M Query": 0, "M Parameter": 1}
     rows.sort(
         key=lambda item: (
             item["kind"] != "Table",
+            kind_order.get(item["kind"], 2),
+            int(item.get("position") or 0),
             item["name"].casefold(),
-            item["entry_key"],
         )
     )
     return rows

@@ -126,6 +126,19 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   kolom hidden untuk kapitalisasi, semua kolom DateTime, primary key tabel
   tanggal). Katalog rule tetap berbeda dari Measure Killer; 18 temuan
   `Set IsAvailableInMdx…` tetap `not_evaluated`.
+- Tab **Unloaded M queries** baru, berada tepat setelah M queries: hanya
+  menampilkan shared M query/parameter (bukan tabel) dengan 5 kolom `Name`,
+  `Type`, `Source`, `Status`, `# of uses`. Expand menampilkan grup
+  **Used in Power Query** dan tabel pemakai dengan status `Used xx.x% (x/y)`
+  serta jumlah uses dari tab Tables. Pemakaian menghitung parameter di dalam
+  `if`, shared query transitif (guard siklus), mengabaikan variabel `let`
+  lokal. Menu klik kanan root menyediakan Expand/Collapse, Copy text,
+  **Unloaded table details**, **View M expression**, dan **Model details**
+  (langsung, bukan submenu Model options). Ekspor **Export unloaded power
+  query** menulis `Unloaded_Power_Query_<dataset>_<id8>.xlsx` dengan 10 kolom
+  template (`Name`..`Usage_number_of_uses`); objek unused mendapat baris
+  kosong pada kolom `Usage_*`. `build_expressions` kini deterministik menurut
+  ID ekspresi, dan `usage_m_query` menyimpan `position` untuk urutan root.
 
 ### Perbaikan
 

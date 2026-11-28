@@ -233,6 +233,12 @@ import { state } from "../core/state.js";
       unused: false,
       expandable: true
     },
+    unloaded: {
+      placeholder: "Unloaded query or parameter",
+      filters: [["all", "All types"], ["M Query", "M Query"], ["M Parameter", "M Parameter"]],
+      unused: false,
+      expandable: true
+    },
     health: {
       placeholder: "Rule, object, or report name",
       filters: [
@@ -507,7 +513,8 @@ import { state } from "../core/state.js";
       state.analysisTab === "relationships" ||
       state.analysisTab === "dax" ||
       state.analysisTab === "m" ||
-      state.analysisTab === "bestpractice";
+      state.analysisTab === "bestpractice" ||
+      state.analysisTab === "unloaded";
     var label = state.analysisTab === "tables" ? "Export tables"
       : (state.analysisTab === "report" ? "Export reports"
         : (state.analysisTab === "relationships"
@@ -517,7 +524,9 @@ import { state } from "../core/state.js";
             : (state.analysisTab === "m"
               ? "Export M expressions"
               : (state.analysisTab === "bestpractice"
-                ? "Export best practice" : "Export Result")))));
+                ? "Export best practice"
+                : (state.analysisTab === "unloaded"
+                  ? "Export unloaded power query" : "Export Result"))))));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -561,7 +570,8 @@ import { state } from "../core/state.js";
   function analysisCounts() {
     var result = state.analysis;
     var counts = {
-      all: 0, tables: 0, relationships: 0, roles: 0, report: 0, dax: 0, m: 0, health: 0,
+      all: 0, tables: 0, relationships: 0, roles: 0, report: 0, dax: 0, m: 0,
+      unloaded: 0, health: 0,
       bestpractice: 0
     };
     if (!result) return counts;
@@ -573,6 +583,7 @@ import { state } from "../core/state.js";
     counts.report = (result.reports || []).length;
     counts.dax = analysisDaxObjects().length;
     counts.m = (result.m_queries || []).length;
+    counts.unloaded = (result.unloaded_queries || []).length;
     counts.health = ((result.health && result.health.items) || []).length;
     counts.bestpractice = ((result.best_practice && result.best_practice.items) || []).length;
     return counts;
@@ -654,6 +665,8 @@ import { state } from "../core/state.js";
     $("#tabCountReport").textContent = state.analysis ? fmtInt(counts.report) : "";
     $("#tabCountDax").textContent = state.analysis ? fmtInt(counts.dax) : "";
     $("#tabCountM").textContent = state.analysis ? fmtInt(counts.m) : "";
+    $("#tabCountUnloaded").textContent = state.analysis
+      ? fmtInt(counts.unloaded) : "";
     $("#tabCountHealth").textContent = state.analysis ? fmtInt(counts.health) : "";
     $("#tabCountBestPractice").textContent = state.analysis
       ? fmtInt(counts.bestpractice) : "";
@@ -744,6 +757,34 @@ import { state } from "../core/state.js";
   }
 
   function analysisMenuEntries(target) {
+    if (target.kind === "unloaded") {
+      var unloaded = ((state.analysis && state.analysis.unloaded_queries) || [])
+        .filter(function (item) { return item.name === target.name; })[0] || {};
+      var canToggle = Boolean((unloaded.usages || []).length);
+      return [
+        {
+          id: "expand",
+          label: "Expand items below",
+          icon: "expand",
+          disabled: !canToggle
+        },
+        {
+          id: "collapse",
+          label: "Collapse items below",
+          icon: "collapse",
+          disabled: !canToggle
+        },
+        { id: "copy", label: "Copy text", icon: "copy" },
+        { divider: true },
+        {
+          id: "unloaded-details",
+          label: "Unloaded table details",
+          icon: "details"
+        },
+        { id: "unloaded-m-expression", label: "View M expression", icon: "raw" },
+        { id: "model-details", label: "Model details", icon: "model" }
+      ];
+    }
     if (target.kind === "table") {
       return [
         { id: "table-lineage", label: "Table lineage", icon: "graph", primary: true },
@@ -1156,11 +1197,12 @@ import { state } from "../core/state.js";
     var menu = $("#analysisMenu");
     if (!menu) return;
     var item = analysisFindItem(target.kind, target.table, target.name);
-    if (target.kind !== "table" && !item) return;
+    if (target.kind !== "table" && target.kind !== "unloaded" && !item) return;
+    var direct = target.kind === "table" || target.kind === "unloaded";
     state.analysisMenuTarget = {
       kind: target.kind,
-      table: target.kind === "table" ? target.table : item.table,
-      name: target.kind === "table" ? target.name : item.name
+      table: direct ? (target.table || "") : item.table,
+      name: direct ? (target.name || "") : item.name
     };
     if (!state.analysisMenuFocus || !document.contains(state.analysisMenuFocus)) {
       state.analysisMenuFocus = document.activeElement;
@@ -1212,6 +1254,36 @@ import { state } from "../core/state.js";
   export function analysisRunMenuAction(action) {
     var target = state.analysisMenuTarget;
     if (!target) return;
+    if (target.kind === "unloaded") {
+      if (action === "expand" || action === "collapse") {
+        state.analysisOpen["unloaded:" + target.name] = action === "expand";
+        analysisCloseMenu(false);
+        analysisRender();
+        return;
+      }
+      if (action === "copy") {
+        copyTextValue(target.name);
+        analysisCloseMenu(true);
+        return;
+      }
+      if (action === "unloaded-details") {
+        analysisCloseMenu(false);
+        analysisOpenUnloadedDetails(target.name);
+        return;
+      }
+      if (action === "unloaded-m-expression") {
+        analysisCloseMenu(false);
+        analysisOpenUnloadedMExpression(target.name);
+        return;
+      }
+      if (action === "model-details") {
+        analysisCloseMenu(false);
+        analysisOpenModelTmsl();
+        return;
+      }
+      analysisCloseMenu(true);
+      return;
+    }
     var item = analysisFindItem(target.kind, target.table, target.name);
     if (!item && target.kind !== "table") {
       analysisCloseMenu(false);
@@ -1388,6 +1460,49 @@ import { state } from "../core/state.js";
     } catch (error) {
       app.toast("Copy failed");
     }
+  }
+
+  function analysisUnloadedItem(name) {
+    return ((state.analysis && state.analysis.unloaded_queries) || [])
+      .filter(function (item) { return item.name === name; })[0] || {};
+  }
+
+  function analysisOpenUnloadedDetails(name) {
+    var item = analysisUnloadedItem(name);
+    var rows = [
+      ["Name", item.name || name],
+      ["Type", item.type || "\u2014"],
+      ["Source", item.source || "\u2014"],
+      ["Status", item.status || "\u2014"],
+      ["# of uses", String(item.uses || 0)]
+    ];
+    var html = '<div class="detail-grid">' + rows.map(function (row) {
+      return analysisDetailRow(row[0], row[1]);
+    }).join("") + "</div>";
+    var usages = item.usages || [];
+    if (usages.length) {
+      html += '<h3 class="detail-heading">' +
+        escapeHtml("Used in Power Query") + "</h3>" +
+        '<div class="detail-grid">' + usages.map(function (usage) {
+          return analysisDetailRow(
+            usage.name || "\u2014",
+            (usage.status || "\u2014") + " \u00b7 " +
+              String(usage.uses || 0) + " uses"
+          );
+        }).join("") + "</div>";
+    }
+    analysisOpenInfoDialog("Unloaded table details", name, html);
+  }
+
+  function analysisOpenUnloadedMExpression(name) {
+    var item = analysisUnloadedItem(name);
+    var expression = String(item.expression || "");
+    var html = expression
+      ? analysisExpressionMarkup(expression, "m")
+      : '<p class="helper">' + escapeHtml("(no M expression)") + "</p>";
+    analysisOpenInfoDialog(
+      "M expression", name, html, { copyText: expression }
+    );
   }
 
   function analysisOpenInfoDialog(title, sub, html, options) {
@@ -4775,6 +4890,91 @@ import { state } from "../core/state.js";
     };
   }
 
+  function analysisUnloadedStatus(status) {
+    var text = String(status || "");
+    var cls = text === "Unused" ? "chip-danger" : "chip-ok";
+    return '<span class="chip ' + cls + '"><span class="dot"></span>' +
+      escapeHtml(text || "\u2014") + "</span>";
+  }
+
+  function analysisUnloadedRows() {
+    var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
+    var type = getSelectValue("typeAnalyze") || "all";
+    var items = ((state.analysis && state.analysis.unloaded_queries) || [])
+      .filter(function (item) {
+        if (type !== "all" && item.type !== type) return false;
+        if (!query) return true;
+        return [item.name, item.type, item.source, item.status, item.expression]
+          .concat((item.usages || []).map(function (usage) {
+            return [usage.name, usage.status];
+          }).join(" "))
+          .join(" ").toLowerCase().indexOf(query) !== -1;
+      });
+    items = analysisSortItems(items);
+    var rows = [];
+    items.forEach(function (item) {
+      var id = "unloaded:" + item.name;
+      var open = analysisIsOpen(id, false);
+      var canExpand = Boolean((item.usages || []).length);
+      rows.push({
+        cells: [
+          analysisNameCell(
+            item.name,
+            item.type === "M Query" ? "query" : "code",
+            { level: 0, toggleId: canExpand ? id : "", open: open }
+          ),
+          escapeHtml(item.type || "\u2014"),
+          escapeHtml(item.source || "\u2014"),
+          analysisUnloadedStatus(item.status),
+          fmtInt(item.uses || 0)
+        ],
+        numCols: [4],
+        item: { kind: "unloaded", table: "", name: item.name }
+      });
+      if (!open || !canExpand) return;
+      rows.push({
+        level: 1,
+        cells: [
+          analysisNameCell("Used in Power Query", "group", { level: 1 }),
+          "",
+          "",
+          "",
+          ""
+        ]
+      });
+      (item.usages || []).forEach(function (usage) {
+        rows.push({
+          level: 2,
+          cells: [
+            analysisNameCell(usage.name, "table", { level: 2 }),
+            escapeHtml(usage.type || "Table"),
+            escapeHtml(usage.source || "\u2014"),
+            analysisUnloadedStatus(usage.status),
+            fmtInt(usage.uses || 0)
+          ],
+          numCols: [4],
+          item: { kind: "table", table: usage.name, name: usage.name }
+        });
+      });
+    });
+    var unused = items.filter(function (item) {
+      return item.status === "Unused";
+    }).length;
+    return {
+      headers: [
+        { label: "Name", key: "name" },
+        { label: "Type", key: "type" },
+        { label: "Source" },
+        { label: "Status", key: "status" },
+        { label: "# of uses", key: "uses", num: true }
+      ],
+      widths: ["40%", "14%", "24%", "14%", "8%"],
+      rows: rows,
+      summary: items.length + " unloaded expressions \u00b7 " +
+        unused + " unused" + analysisCoverageSuffix(state.analysis)
+    };
+  }
+
   function analysisHealthDetail(item) {
     var metrics = item.metrics || {};
     var parts = [];
@@ -5266,6 +5466,7 @@ import { state } from "../core/state.js";
     else if (tab === "report") view = analysisReportRows();
     else if (tab === "dax") view = analysisDaxRows();
     else if (tab === "m") view = analysisMRows();
+    else if (tab === "unloaded") view = analysisUnloadedRows();
     else if (tab === "health") view = analysisHealthRows();
     else if (tab === "bestpractice") view = analysisBestPracticeRows();
     else view = analysisFlatRows();
@@ -5819,7 +6020,7 @@ import { state } from "../core/state.js";
     var tab = state.analysisTab || "all";
     if (tab !== "all" && tab !== "tables" && tab !== "report" &&
         tab !== "relationships" && tab !== "dax" && tab !== "m" &&
-        tab !== "bestpractice") {
+        tab !== "bestpractice" && tab !== "unloaded") {
       app.toast("Coming soon");
       return;
     }

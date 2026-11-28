@@ -602,6 +602,96 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("'Sales'[Customer]", body)
         self.assertIn("Sales (Table)", body)
 
+    def test_analysis_unloaded_tab_renders_tree_and_menu(self) -> None:
+        """Tab Unloaded M queries: 5 kolom, grup pemakaian, dan menu root."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 0, "measures": 0, "hierarchies": 0, "functions": 0},
+            "measures": [],
+            "columns": [],
+            "functions": [],
+            "tables": [],
+            "m_queries": [],
+            "unloaded_queries": [
+                {
+                    "name": "Pages Testing",
+                    "type": "M Query",
+                    "source": "Model Uji",
+                    "status": "Unused",
+                    "uses": 0,
+                    "expression": "let Source = 1 in Source",
+                    "usages": [],
+                },
+                {
+                    "name": "RangeStart",
+                    "type": "M Parameter",
+                    "source": "Model Uji",
+                    "status": "Used",
+                    "uses": 1,
+                    "expression": "#datetime(2026, 1, 1, 0, 0, 0)",
+                    "usages": [
+                        {
+                            "name": "Sales",
+                            "type": "Table",
+                            "source": "Model Uji",
+                            "status": "Used 50.0% (1/2)",
+                            "uses": 1,
+                        }
+                    ],
+                },
+            ],
+            "relationships": [],
+            "roles": [],
+            "reports": [],
+            "coverage": {"complete": True},
+            "reports_included": False,
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'unloaded';
+                state.analysisOpen = {'unloaded:RangeStart': true};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 5)
+        headers = [text.lower() for text in page.locator("#analyzeHead th").all_inner_texts()]
+        self.assertEqual(
+            headers, ["name", "type", "source", "status", "# of uses"]
+        )
+        self.assertEqual(page.locator("#analyzeBody tr").count(), 4)
+        body = page.inner_text("#analyzeBody")
+        self.assertIn("Pages Testing", body)
+        self.assertIn("Used in Power Query", body)
+        self.assertIn("Sales", body)
+        self.assertIn("Used 50.0% (1/2)", body)
+        self.assertIn("Export unloaded power query", page.inner_text("#exportXlsx"))
+        self.assertEqual(page.inner_text("#tabCountUnloaded"), "2")
+
+        page.evaluate(
+            """async () => {
+                const view = await import('/js/views/analysis.js');
+                view.analysisOpenMenu(
+                  { kind: 'unloaded', table: '', name: 'RangeStart' },
+                  { x: 20, y: 20 }
+                );
+            }"""
+        )
+        menu = page.inner_text("#analysisMenu")
+        self.assertIn("Unloaded table details", menu)
+        self.assertIn("View M expression", menu)
+        self.assertIn("Model details", menu)
+        self.assertNotIn("Model options", menu)
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")

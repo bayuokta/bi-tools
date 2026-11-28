@@ -744,6 +744,7 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
         group = model.query_group_by_id.get(int(row["QueryGroupID"])) if row.get("QueryGroupID") is not None else None
         rows.append(
             {
+                "expression_id": int(expression_id),
                 "name": str(row["Name"]),
                 "kind": "Parameter" if is_parameter else "Expression",
                 "data_type": meta.get("Type", ""),
@@ -755,6 +756,7 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
                 "lineage_tag": str(row.get("LineageTag") or ""),
             }
         )
+    rows.sort(key=lambda item: item["expression_id"])
     return rows
 
 
