@@ -403,7 +403,7 @@ class ModelReference:
 
 
 # Pemakaian yang tidak dihitung di kolom "Uses" (tetap disimpan di detail).
-UNCOUNTED_REF_KINDS = frozenset({"langkah M"})
+UNCOUNTED_REF_KINDS = frozenset({"langkah M", "column permission"})
 UNCOUNTED_USAGE_KINDS = frozenset({"sort"})
 
 
