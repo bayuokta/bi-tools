@@ -1245,7 +1245,7 @@ class MetadataRowsTests(unittest.TestCase):
         from core.model import relationship_is_auto
 
         self.assertTrue(relationship_is_auto("AutoDetected_526c6f8a"))
-        self.assertTrue(relationship_is_auto("526c6f8a-bde4-49fa-b1c4-79db0a095bfd"))
+        self.assertFalse(relationship_is_auto("526c6f8a-bde4-49fa-b1c4-79db0a095bfd"))
         self.assertFalse(relationship_is_auto("Relasi Dealer"))
 
     def test_m_query_rows_group_partitions_and_parameters(self) -> None:

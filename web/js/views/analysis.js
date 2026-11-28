@@ -496,9 +496,12 @@ import { state } from "../core/state.js";
     if (!button) return;
     var canExport = state.analysisTab === "all" ||
       state.analysisTab === "tables" ||
-      state.analysisTab === "report";
+      state.analysisTab === "report" ||
+      state.analysisTab === "relationships";
     var label = state.analysisTab === "tables" ? "Export tables"
-      : (state.analysisTab === "report" ? "Export reports" : "Export Result");
+      : (state.analysisTab === "report" ? "Export reports"
+        : (state.analysisTab === "relationships"
+          ? "Export relationships" : "Export Result"));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -3988,28 +3991,37 @@ import { state } from "../core/state.js";
       if (type === "active" && !rel.is_active) return false;
       if (type === "inactive" && rel.is_active) return false;
       if (!query) return true;
-      return [rel.name, rel.label, rel.from_table, rel.from_column, rel.to_table,
-        rel.to_column, rel.type, rel.cross, rel.cardinality, rel.auto, rel.status]
+      return [rel.name, rel.relationship_id, rel.label, rel.from_table,
+        rel.from_column, rel.to_table, rel.to_column, rel.type, rel.cross,
+        rel.cardinality, rel.auto, rel.status]
         .join(" ").toLowerCase().indexOf(query) !== -1;
     });
   }
 
   function analysisRelationshipRows() {
     var items = analysisSortItems(analysisFilteredRelationships());
+    if (!state.analysisSort || state.analysisSort === "default") {
+      items = items.slice().sort(function (left, right) {
+        return String(left.label || "").localeCompare(String(right.label || ""));
+      });
+    }
     var rows = items.map(function (rel) {
       var fromText = (rel.from_table || "—") + "[" + (rel.from_column || "—") + "]";
       var toText = (rel.to_table || "—") + "[" + (rel.to_column || "—") + "]";
+      var relationshipId = rel.relationship_id || rel.name || "—";
       return {
         level: 0,
         cls: rel.is_active ? "" : "row-unused",
         cells: [
           analysisNameCell(rel.label || rel.name || "(relationship)", "link", { level: 0 }),
-          escapeHtml(rel.type || "—"),
-          escapeHtml(rel.cross || "—"),
-          escapeHtml(rel.cardinality || "—"),
+          '<span class="mono-trunc" title="' + escapeHtml(relationshipId) + '">' +
+            escapeHtml(relationshipId) + "</span>",
           rel.is_active
             ? '<span class="chip chip-ok"><span class="dot"></span>' + "Active" + "</span>"
             : '<span class="chip chip-idle"><span class="dot"></span>' + "Inactive" + "</span>",
+          escapeHtml(rel.cross || "—"),
+          escapeHtml(rel.cardinality || "—"),
+          analysisStatusChip(rel.status || "Unused"),
           escapeHtml(rel.auto || "No"),
           String(rel.used || 0),
           '<span class="mono-trunc" title="' + escapeHtml(fromText) + '">' +
@@ -4017,28 +4029,30 @@ import { state } from "../core/state.js";
           '<span class="mono-trunc" title="' + escapeHtml(toText) + '">' +
             escapeHtml(toText) + "</span>"
         ],
-        numCols: [6]
+        numCols: [7]
       };
     });
     var active = items.filter(function (rel) { return rel.is_active; }).length;
     return {
       headers: [
-        { label: "Relationship name", key: "label" }, { label: "Type", key: "type" },
+        { label: "Name", key: "label" },
+        { label: "ID", key: "relationship_id" },
+        { label: "Is active", key: "is_active" },
         { label: "Cross filter", key: "cross" },
         { label: "Cardinality", key: "cardinality" },
         { label: "Status", key: "status" },
         {
-          label: "Auto create", key: "auto",
-          hint: "Power BI automatic relationship (AutoDetected_ name or GUID)"
+          label: "Auto created", key: "auto",
+          hint: "RelationshipIsAuto or AutoDetected_ name; GUID is not an auto-created marker"
         },
         {
-          label: "# used", key: "used", num: true,
+          label: "DAX uses", key: "used", num: true,
           hint: "Number of model objects that depend on the relationship (DMV DISCOVER_CALC_DEPENDENCY)"
         },
         { label: "From column", key: "from_column" },
         { label: "To column", key: "to_column" }
       ],
-      widths: ["28%", "7%", "8%", "9%", "11%", "8%", "7%", "11%", "11%"],
+      widths: ["24%", "13%", "7%", "7%", "7%", "6%", "7%", "6%", "11%", "12%"],
       rows: rows,
       summary: items.length + " relationships · " + active + " active · " +
         (items.length - active) + " inactive" + analysisCoverageSuffix(state.analysis)
@@ -4183,7 +4197,7 @@ import { state } from "../core/state.js";
       rule: "auto_relationship",
       severity: "info",
       description: "Power BI created this relationship automatically.",
-      source: "Relationship name or RelationshipIsAuto",
+      source: "RelationshipIsAuto or AutoDetected_ relationship name",
       action: "Review the name, columns, and cardinality; recreate it explicitly if it should be part of the model."
     },
     {
@@ -5737,7 +5751,8 @@ import { state } from "../core/state.js";
       return;
     }
     var tab = state.analysisTab || "all";
-    if (tab !== "all" && tab !== "tables" && tab !== "report") {
+    if (tab !== "all" && tab !== "tables" && tab !== "report" &&
+        tab !== "relationships") {
       app.toast("Coming soon");
       return;
     }

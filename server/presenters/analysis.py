@@ -61,6 +61,7 @@ from core.raw_metadata import (
     find_row,
     metadata_payload,
 )
+from core.relationship_export import relationship_row, write_relationship_export
 from core.report_export import write_report_export
 from core.result_export import write_result_export
 from core.table_export import (
@@ -89,6 +90,8 @@ SORT_KEYS = (
     "display_folder",
     "from_table",
     "to_table",
+    "label",
+    "relationship_id",
     "cross_filtering",
     "from_cardinality",
     "to_cardinality",
@@ -1218,51 +1221,8 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _cardinality_code(value: Any) -> str:
-    return {"one": "1", "many": "N", "none": "0"}.get(
-        str(value or "").casefold(), str(value or "") or "?"
-    )
-
-
 def _relationship_row(item: Mapping[str, Any]) -> dict[str, Any]:
-    from_table = str(item.get("from_table") or "")
-    from_column = str(item.get("from_column") or "")
-    to_table = str(item.get("to_table") or "")
-    to_column = str(item.get("to_column") or "")
-    cardinality = (
-        f"{_cardinality_code(item.get('from_cardinality'))} \u2190 "
-        f"{_cardinality_code(item.get('to_cardinality'))}"
-    )
-    cross_filtering = str(item.get("cross_filtering") or "")
-    cross = {
-        "oneDirection": "Single",
-        "bothDirections": "Both",
-        "automatic": "Auto",
-    }.get(cross_filtering, cross_filtering)
-    is_active = bool(item.get("is_active"))
-    return {
-        "name": str(item.get("name") or ""),
-        "label": (
-            f"'{from_table}'[{from_column}] {cardinality} "
-            f"'{to_table}'[{to_column}]"
-        ),
-        "from_table": from_table,
-        "from_column": from_column,
-        "to_table": to_table,
-        "to_column": to_column,
-        "type": "Active" if is_active else "Inactive",
-        "cross": cross,
-        "cross_filtering": cross_filtering,
-        "cardinality": cardinality,
-        "status": "Used" if is_active else "Unused",
-        "auto": "Yes" if item.get("is_auto") else "No",
-        "used": int(item.get("dependent_count") or 0),
-        "security_filtering": str(item.get("security_filtering") or ""),
-        "is_active": is_active,
-        "join_on_date_behavior": str(item.get("join_on_date_behavior") or ""),
-        "from_cardinality": str(item.get("from_cardinality") or ""),
-        "to_cardinality": str(item.get("to_cardinality") or ""),
-    }
+    return relationship_row(item)
 
 
 def serialize_result(
@@ -1996,6 +1956,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Table_Result_{safe}_{suffix}.xlsx"
         elif tab in {"report", "reports"}:
             target = outputs_dir() / f"Report_Result_{safe}_{suffix}.xlsx"
+        elif tab in {"relationship", "relationships"}:
+            target = outputs_dir() / f"Relationship_Result_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -2017,10 +1979,11 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
                     session.conn, dataset_id, report_id
                 )
         write_report_export(result, details, target)
+    elif tab in {"relationship", "relationships"}:
+        write_relationship_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
-        "relationships",
         "roles",
         "dax",
         "m",

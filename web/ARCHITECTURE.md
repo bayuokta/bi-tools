@@ -234,10 +234,15 @@ dengan `grep`, lalu baca jendela kecil.
   (flat dengan `parent_id`) + `report_filters`; tidak ada label grup
   `Pages`/`Visuals`. `Visuals` report/page memakai `container_count`, dan
   `Practice score` memakai skor PBI Inspector dari payload report.
+- Tab `Relationships` (table view) memakai 10 kolom `Name | ID | Is active |
+  Cross filter | Cardinality | Status | Auto created | DAX uses | From column |
+  To column`, urut Name secara default. Nilainya berasal dari
+  `core/relationship_export.relationship_row` (`label` ASCII, `relationship_id`
+  GUID, `cardinality`, `auto`, `used`).
 - Ekspor: `analysisExportState`/`analysisExport` mengizinkan tab `all`,
-  `tables`, dan `report`. Label tombol menjadi **Export tables** /
-  **Export reports** dan memanggil `POST /api/analysis/export` dengan
-  `tab: "tables"` atau `tab: "report"`.
+  `tables`, `report`, dan `relationships`. Label tombol menjadi **Export
+  tables** / **Export reports** / **Export relationships** dan memanggil
+  `POST /api/analysis/export` dengan tab masing-masing.
 - Health/best practice: `analysisHealthRuleLabel`, `analysisHealthRulesMarkup`,
   `analysisPracticeTitle`, `analysisHealthDetail`, `analysisHealthOpen`,
   `analysisBestPracticeIcon`, `analysisBestPracticeSeverity`,

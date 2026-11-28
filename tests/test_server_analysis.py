@@ -184,6 +184,7 @@ def fake_result() -> SimpleNamespace:
         relationships=[
             {
                 "name": "Rel",
+                "relationship_id": "e859c681-77f7-63ab-02a9-84db2d28ded4",
                 "from_table": "Fact Sales",
                 "from_column": "Customer Name",
                 "to_table": "Dim Customer",
@@ -422,10 +423,17 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertGreaterEqual(data["tables"][0]["table_uses"], 1)
         relation = data["relationships"][0]
         self.assertEqual(relation["name"], "Rel")
-        self.assertEqual(relation["label"], "'Fact Sales'[Customer Name] N \u2190 1 'Dim Customer'[Customer Name]")
+        self.assertEqual(
+            relation["relationship_id"],
+            "e859c681-77f7-63ab-02a9-84db2d28ded4",
+        )
+        self.assertEqual(
+            relation["label"],
+            "'Fact Sales'[Customer Name] N <- 1 'Dim Customer'[Customer Name]",
+        )
         self.assertEqual(relation["type"], "Active")
         self.assertEqual(relation["cross"], "Single")
-        self.assertEqual(relation["cardinality"], "N \u2190 1")
+        self.assertEqual(relation["cardinality"], "N <- 1")
         self.assertEqual(relation["status"], "Used")
         self.assertEqual(relation["auto"], "Yes")
         self.assertEqual(relation["used"], 2)
@@ -638,6 +646,26 @@ class AnalysisPresenterTests(unittest.TestCase):
         ) as write:
             data = presenter.export(
                 {"dataset_id": DATASET, "output": str(target), "tab": "report"},
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
+    def test_export_writes_relationship_template(self) -> None:
+        target = self.root / "relationship.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "write_relationship_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {
+                    "dataset_id": DATASET,
+                    "output": str(target),
+                    "tab": "relationships",
+                },
                 self.store,
             )
         self.assertEqual(data["path"], str(target))

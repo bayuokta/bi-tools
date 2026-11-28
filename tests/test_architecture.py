@@ -778,8 +778,9 @@ class WebLayerTests(unittest.TestCase):
             "Used in field parameters",
         ):
             self.assertIn(f'"{label}"', presenter, f"grup {label} hilang dari presenter")
-        self.assertIn('label: "Auto create"', js)
-        self.assertIn('label: "# used", key: "used", num: true', js)
+        self.assertIn('label: "Auto created"', js)
+        self.assertIn('label: "DAX uses", key: "used", num: true', js)
+        self.assertIn('label: "# used", key: "uses", num: true', js)
         self.assertNotIn('{ label: "Security filter"', js)
         self.assertNotIn('kind: "subhead"', js)
         self.assertIn('"columns": [', presenter)
@@ -843,6 +844,34 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn("report_type", js)
         self.assertIn("practice_label", js)
         self.assertNotIn("Hidden pages", js)
+
+    def test_web_relationships_export_uses_template_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        relationship_export = (ROOT / "core" / "relationship_export.py").read_text(
+            encoding="utf-8"
+        )
+        for column in (
+            "Name",
+            "ID",
+            "Is_active",
+            "Cross_filter",
+            "Cardinality",
+            "Status",
+            "Auto_created",
+            "DAX_uses",
+            "From_column",
+            "To_column",
+        ):
+            self.assertIn(f'"{column}"', relationship_export, column)
+        self.assertIn("write_relationship_export", presenter)
+        self.assertIn("relationship_row", presenter)
+        self.assertIn("Export relationships", js)
+        self.assertIn('label: "Is active"', js)
+        self.assertIn('label: "DAX uses"', js)
+        self.assertIn('label: "ID"', js)
 
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

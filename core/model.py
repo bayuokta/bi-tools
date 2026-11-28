@@ -750,19 +750,13 @@ def build_expressions(model: LiveModel) -> list[dict[str, Any]]:
 
 
 def relationship_is_auto(name: str) -> bool:
-    """Relasi buatan Power BI biasanya bernama ``AutoDetected_<guid>`` atau GUID."""
-    value = str(name or "").strip()
-    if not value:
-        return False
-    if value.casefold().startswith("autodetected_"):
-        return True
-    return bool(
-        re.match(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-            value,
-            re.IGNORECASE,
-        )
-    )
+    """Relasi auto dari nama ``AutoDetected_<guid>``.
+
+    Power BI versi baru memberi nama relationship berupa GUID untuk relasi
+    manual juga, jadi GUID bukan penanda auto. Flag ``RelationshipIsAuto`` dari
+    DMV dipakai lebih dulu di :func:`build_relationships`.
+    """
+    return str(name or "").strip().casefold().startswith("autodetected_")
 
 
 def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
@@ -775,11 +769,15 @@ def build_relationships(model: LiveModel) -> list[dict[str, Any]]:
         if not to_table:
             to_table = model.table_name.get(int(row["ToTableID"]), "")
         name = str(row.get("Name") or f"{from_table}[{from_column}] -> {to_table}[{to_column}]")
+        auto_flag = row.get("RelationshipIsAuto")
+        if auto_flag is None:
+            auto_flag = row.get("IsAuto")
         rows.append(
             {
                 "name": name,
+                "relationship_id": name,
                 "id": int(row["ID"]),
-                "is_auto": relationship_is_auto(name),
+                "is_auto": bool(auto_flag) or relationship_is_auto(name),
                 "from_table": from_table,
                 "from_column": from_column,
                 "to_table": to_table,

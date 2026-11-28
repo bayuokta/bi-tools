@@ -75,6 +75,16 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   parent, hidden, urutan), `usage_field.order_index`, dan `usage_report`
   `container_count`/`practice_*`; `report_detail` menyusun pohon visual, field,
   filter, dan formatting field dari data itu.
+- Tab **Relationships** kini punya ekspor sendiri:
+  `Relationship_Result_<dataset>_<id8>.xlsx` dengan **10 kolom** template
+  Measure Killer (`Name`, `ID`, `Is_active`, `Cross_filter`, `Cardinality`,
+  `Status`, `Auto_created`, `DAX_uses`, `From_column`, `To_column`). Nama
+  memakai panah ASCII (`<-`/`<->`), `ID` = GUID relationship,
+  `Cardinality` diekspor dengan spasi seperti template, dan `DAX_uses` memakai
+  jumlah objek model yang bergantung pada relasi. UI tab Relationships memakai
+  10 kolom yang sama dengan label ramah dan urut Name; `Auto created` memakai
+  `RelationshipIsAuto`/prefix `AutoDetected_`, bukan nama GUID. Tombol toolbar
+  menjadi **Export relationships**.
 
 ### Perbaikan
 
