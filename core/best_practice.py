@@ -9,8 +9,9 @@ tidak menulis berkas. Skor model memakai penskalaan logaritmik:
 
     skor aturan = round(severity × jumlah_objek × log10(N))
 
-dengan ``N`` = jumlah objek model yang dianalisa. Skor total adalah jumlah
-skor aturan, lalu dipetakan ke verdict.
+dengan ``N`` = jumlah objek model yang dianalisa (kolom + measure + tabel +
+relasi; M query tidak dihitung, mengikuti template Measure Killer). Skor
+total adalah jumlah skor aturan, lalu dipetakan ke verdict.
 """
 
 from __future__ import annotations
@@ -25,8 +26,17 @@ from typing import Any, Callable, Iterable, Mapping
 from .metadata_common import strip_dax_literals
 from .model_health import UNUSED_STATUS
 from .paths import RULES_DIR
+from .relationship_export import relationship_label
 
 RULE_FILE = "BPARules.json"
+
+# Nama tampilan yang mengikuti template Measure Killer (katalog resmi memakai
+# nama tanpa titik). Hanya kosmetik; ID aturan tidak berubah.
+RULE_NAME_OVERRIDES = {
+    "DATECOLUMN_FORMATSTRING": (
+        '[Formatting] Provide format string for "Date" columns.'
+    ),
+}
 
 SEVERITY_LABELS = {1: "Low", 2: "Medium", 3: "High"}
 
@@ -264,7 +274,9 @@ def build_best_practice(
         item["rule_score"] = int(rows_by_id[finding.rule_id]["score"])
         item["category"] = str(by_id[finding.rule_id].category)
         item["severity"] = int(by_id[finding.rule_id].severity)
-        item["rule_name"] = str(by_id[finding.rule_id].name)
+        item["rule_name"] = RULE_NAME_OVERRIDES.get(
+            finding.rule_id, str(by_id[finding.rule_id].name)
+        )
         item_payloads.append(item)
 
     evaluated = sum(1 for row in rule_rows if row["status"] in {"violation", "pass"})
@@ -314,7 +326,6 @@ def _model_objects(result: Any) -> int:
         + len(getattr(result, "measures", []) or [])
         + len(getattr(getattr(result, "stats", None), "tables", []) or [])
         + len(getattr(result, "relationships", []) or [])
-        + len(getattr(result, "m_queries", []) or [])
     )
 
 
@@ -382,15 +393,59 @@ def _visible_column(column: Any, tables: Mapping[str, Any] | None = None) -> boo
 
 
 def _column_label(column: Any) -> str:
-    return f"{getattr(column, 'table', '')}[{getattr(column, 'column', '')}]"
-
-
-def _column_finding(rule: BpaRule, column: Any, detail: str = "") -> Finding:
     table = str(getattr(column, "table", "") or "")
     name = str(getattr(column, "column", "") or "")
+    return f"'{table}'[{name}]" if table else f"[{name}]"
+
+
+DATA_TYPE_LABELS = {
+    "string": "Text",
+    "int64": "Integer",
+    "double": "Double",
+    "decimal": "Decimal",
+    "datetime": "DateTime",
+    "boolean": "Boolean",
+    "variant": "Variant",
+    "binary": "Binary",
+}
+
+
+def _type_label(value: Any) -> str:
+    text = str(value or "")
+    return DATA_TYPE_LABELS.get(text.casefold(), text)
+
+
+def _table_type_label(table: Any) -> str:
+    if bool(getattr(table, "is_calculated_table", False)):
+        return "Calculated Table"
+    return "Table"
+
+
+def _field_parameter_tables(result: Any) -> set[str]:
+    return {
+        str(getattr(item.column, "table", "")).casefold()
+        for item in (getattr(result, "columns", []) or [])
+        if str(getattr(item.column, "column_type", "")).casefold()
+        == "field parameter"
+    }
+
+
+def _is_auto_date_table(table: Any) -> bool:
+    name = str(getattr(table, "table", "") or "")
+    return name.startswith("LocalDateTable_") or name.startswith("DateTableTemplate_")
+
+
+def _column_finding(
+    rule: BpaRule, column: Any, detail: str = "", suffix: str = ""
+) -> Finding:
+    table = str(getattr(column, "table", "") or "")
+    name = str(getattr(column, "column", "") or "")
+    label = _column_label(column)
+    if suffix:
+        label = f"{label} {suffix}"
     return Finding(
         rule_id=rule.id,
-        object=_column_label(column),
+        object=label,
         table=table,
         name=name,
         kind="column",
@@ -400,12 +455,17 @@ def _column_finding(rule: BpaRule, column: Any, detail: str = "") -> Finding:
     )
 
 
-def _measure_finding(rule: BpaRule, measure: Any, detail: str = "") -> Finding:
+def _measure_finding(
+    rule: BpaRule, measure: Any, detail: str = "", suffix: str = ""
+) -> Finding:
     table = str(getattr(measure, "table", "") or "")
     name = str(getattr(measure, "measure", "") or "")
+    label = f"'{table}'[{name}]" if table else f"[{name}]"
+    if suffix:
+        label = f"{label} {suffix}"
     return Finding(
         rule_id=rule.id,
-        object=f"{table}[{name}]",
+        object=label,
         table=table,
         name=name,
         kind="measure",
@@ -418,7 +478,7 @@ def _table_finding(rule: BpaRule, table: Any, detail: str = "") -> Finding:
     name = str(getattr(table, "table", "") or "")
     return Finding(
         rule_id=rule.id,
-        object=name,
+        object=f"{name} ({_table_type_label(table)})" if name else "",
         table=name,
         name=name,
         kind="table",
@@ -428,17 +488,15 @@ def _table_finding(rule: BpaRule, table: Any, detail: str = "") -> Finding:
     )
 
 
-def _relationship_label(relationship: Mapping[str, Any]) -> str:
-    return (
-        f"'{relationship.get('from_table') or ''}'"
-        f"[{relationship.get('from_column') or ''}] -> "
-        f"'{relationship.get('to_table') or ''}'"
-        f"[{relationship.get('to_column') or ''}]"
-    )
-
-
-def _relationship_finding(rule: BpaRule, relationship: Mapping[str, Any], detail: str = "") -> Finding:
-    label = _relationship_label(relationship)
+def _relationship_finding(
+    rule: BpaRule,
+    relationship: Mapping[str, Any],
+    detail: str = "",
+    suffix: str = "",
+) -> Finding:
+    label = relationship_label(relationship)
+    if suffix:
+        label = f"{label} {suffix}"
     return Finding(
         rule_id=rule.id,
         object=label,
@@ -463,7 +521,7 @@ def _rule_row(
 ) -> dict[str, Any]:
     return {
         "id": rule.id,
-        "name": rule.name,
+        "name": RULE_NAME_OVERRIDES.get(rule.id, rule.name),
         "category": rule.category,
         "severity": rule.severity,
         "severity_label": rule.severity_label,
@@ -680,6 +738,7 @@ def _power_query_transformations(result: Any, rule: BpaRule) -> list[Finding]:
         "Value.NativeQuery",
         "OleDb.",
     )
+    tables = _table_map(result)
     found: list[Finding] = []
     seen: set[str] = set()
     for item in getattr(result, "m_queries", []) or []:
@@ -693,20 +752,23 @@ def _power_query_transformations(result: Any, rule: BpaRule) -> list[Finding]:
         expression = str(item.get("expression") or "")
         if any(marker in expression for marker in markers):
             seen.add(name.casefold())
-            table = _table_map(result).get(name.casefold())
-            target = {"kind": "table", "table": name}
-            found.append(
-                Finding(
-                    rule_id=rule.id,
-                    object=name,
-                    table=name,
-                    name=name,
-                    kind="table",
-                    detail="transformasi Power Query",
-                    size_bytes=int(getattr(table, "size_total_bytes", 0) or 0) if table else 0,
-                    target=target,
+            table = tables.get(name.casefold())
+            if table is not None:
+                found.append(
+                    _table_finding(rule, table, "Power Query transformation")
                 )
-            )
+            else:
+                found.append(
+                    Finding(
+                        rule_id=rule.id,
+                        object=f"{name} (Table)",
+                        table=name,
+                        name=name,
+                        kind="table",
+                        detail="Power Query transformation",
+                        target={"kind": "table", "table": name},
+                    )
+                )
     return found
 
 
@@ -738,10 +800,12 @@ def _m2m_both_directions(result: Any, rule: BpaRule) -> list[Finding]:
 
 
 def _calculated_tables(result: Any, rule: BpaRule) -> list[Finding]:
+    field_parameters = _field_parameter_tables(result)
     return [
         _table_finding(rule, table, "calculated table")
         for table in _tables(result)
         if bool(getattr(table, "is_calculated_table", False))
+        and str(getattr(table, "table", "") or "").casefold() not in field_parameters
     ]
 
 
@@ -1060,12 +1124,23 @@ def _tables_without_relationship(result: Any, rule: BpaRule) -> list[Finding]:
     for relationship in _relationships(result):
         related.add(str(relationship.get("from_table") or "").casefold())
         related.add(str(relationship.get("to_table") or "").casefold())
-    return [
-        _table_finding(rule, table, "no relationships")
-        for table in _tables(result)
-        if str(getattr(table, "table", "") or "").casefold() not in related
-        and not bool(getattr(table, "is_calculation_group", False))
-    ]
+    field_parameters = _field_parameter_tables(result)
+    found: list[Finding] = []
+    for table in _tables(result):
+        name = str(getattr(table, "table", "") or "")
+        key = name.casefold()
+        if key in related or not name:
+            continue
+        if bool(getattr(table, "is_calculation_group", False)):
+            continue
+        if bool(getattr(table, "is_hidden", False)):
+            continue
+        if int(getattr(table, "column_count", 0) or 0) == 0:
+            continue
+        if key in field_parameters:
+            continue
+        found.append(_table_finding(rule, table, "no relationships"))
+    return found
 
 
 def _no_description(result: Any, rule: BpaRule) -> list[Finding]:
@@ -1099,13 +1174,13 @@ def _special_chars(result: Any, rule: BpaRule) -> list[Finding]:
     found: list[Finding] = []
     for table in _tables(result):
         if _has_special(str(getattr(table, "table", "") or "")):
-            found.append(_table_finding(rule, table, "karakter tab/newline"))
+            found.append(_table_finding(rule, table, "tab/newline characters"))
     for column in _columns(result):
         if _has_special(str(getattr(column, "column", "") or "")):
-            found.append(_column_finding(rule, column, "karakter tab/newline"))
+            found.append(_column_finding(rule, column, "tab/newline characters"))
     for measure in _measures(result):
         if _has_special(str(getattr(measure, "measure", "") or "")):
-            found.append(_measure_finding(rule, measure, "karakter tab/newline"))
+            found.append(_measure_finding(rule, measure, "tab/newline characters"))
     return found
 
 
@@ -1132,9 +1207,7 @@ def _first_letter_capital(result: Any, rule: BpaRule) -> list[Finding]:
         if _lower_first(str(getattr(measure, "measure", "") or "")):
             found.append(_measure_finding(rule, measure))
     for column in _columns(result):
-        if bool(getattr(column, "is_calculated", False)) and _lower_first(
-            str(getattr(column, "column", "") or "")
-        ):
+        if _lower_first(str(getattr(column, "column", "") or "")):
             found.append(_column_finding(rule, column))
     return found
 
@@ -1161,13 +1234,19 @@ def _object_space_boundary(result: Any, rule: BpaRule) -> list[Finding]:
 def _date_format(result: Any, rule: BpaRule) -> list[Finding]:
     found: list[Finding] = []
     for column in _columns(result):
-        if "date" not in str(getattr(column, "column", "") or "").casefold():
-            continue
         if not _is_datetime(getattr(column, "data_type", "")):
             continue
-        if str(getattr(column, "format_string", "") or "") != "mm/dd/yyyy":
+        if str(getattr(column, "format_string", "") or "") != "dd-MM-yyyy":
+            value = str(getattr(column, "format_string", "") or "(empty)")
             found.append(
-                _column_finding(rule, column, str(getattr(column, "format_string", "") or "(empty)"))
+                _column_finding(
+                    rule,
+                    column,
+                    value,
+                    suffix=(
+                        f"(Format: '{value}' - Expected: 'dd-MM-yyyy')"
+                    ),
+                )
             )
     return found
 
@@ -1195,8 +1274,6 @@ def _measure_format(result: Any, rule: BpaRule) -> list[Finding]:
             table is not None and bool(getattr(table, "is_hidden", False))
         ):
             continue
-        if not _is_numeric(getattr(measure, "data_type", "")):
-            continue
         if not str(getattr(measure, "format_string", "") or "").strip():
             found.append(_measure_finding(rule, measure, "no format string"))
     return found
@@ -1212,7 +1289,14 @@ def _numeric_summarize(result: Any, rule: BpaRule) -> list[Finding]:
             continue
         summarize = str(getattr(column, "summarize_by", "") or "").casefold()
         if summarize and summarize != "none":
-            found.append(_column_finding(rule, column, summarize))
+            found.append(
+                _column_finding(
+                    rule,
+                    column,
+                    summarize,
+                    suffix=f"({_type_label(getattr(column, 'data_type', ''))})",
+                )
+            )
     return found
 
 
@@ -1221,7 +1305,11 @@ def _percentage_format(result: Any, rule: BpaRule) -> list[Finding]:
     for measure in _measures(result):
         value = str(getattr(measure, "format_string", "") or "")
         if "%" in value and value != "#,0.0%;-#,0.0%;#,0.0%":
-            found.append(_measure_finding(rule, measure, value))
+            suffix = (
+                f"(Format: '{value}' - Expected: '#,0.0%;-#,0.0%;#,0.0%' "
+                "or '#,0.0\\ %;-#,0.0\\ %;#,0.0\\ %')"
+            )
+            found.append(_measure_finding(rule, measure, value, suffix=suffix))
     return found
 
 
@@ -1248,26 +1336,34 @@ def _relationship_integer(result: Any, rule: BpaRule) -> list[Finding]:
     columns = _column_map(result)
     found: list[Finding] = []
     for relationship in _relationships(result):
-        for table_key, column_key in (
-            ("from_table", "from_column"),
-            ("to_table", "to_column"),
-        ):
-            column = columns.get(
-                (
-                    str(relationship.get(table_key) or "").casefold(),
-                    str(relationship.get(column_key) or "").casefold(),
-                )
+        from_column = columns.get(
+            (
+                str(relationship.get("from_table") or "").casefold(),
+                str(relationship.get("from_column") or "").casefold(),
             )
-            if column is None:
-                continue
-            if str(getattr(column, "data_type", "") or "").casefold() != "int64":
-                found.append(
-                    _column_finding(
-                        rule,
-                        column,
-                        str(getattr(column, "data_type", "") or "?"),
-                    )
-                )
+        )
+        to_column = columns.get(
+            (
+                str(relationship.get("to_table") or "").casefold(),
+                str(relationship.get("to_column") or "").casefold(),
+            )
+        )
+        if from_column is None or to_column is None:
+            continue
+        from_type = str(getattr(from_column, "data_type", "") or "?")
+        to_type = str(getattr(to_column, "data_type", "") or "?")
+        if from_type.casefold() == "int64" and to_type.casefold() == "int64":
+            continue
+        from_label = _type_label(from_type)
+        to_label = _type_label(to_type)
+        found.append(
+            _relationship_finding(
+                rule,
+                relationship,
+                f"{from_label}, {to_label}",
+                suffix=f"({from_label}, {to_label})",
+            )
+        )
     return found
 
 
@@ -1302,7 +1398,7 @@ def _hide_foreign_keys(result: Any, rule: BpaRule) -> list[Finding]:
         )
         if column is None or bool(getattr(column, "is_hidden", False)):
             continue
-        found.append(_column_finding(rule, column, "foreign key terlihat"))
+        found.append(_column_finding(rule, column, "visible foreign key"))
     return found
 
 
@@ -1322,7 +1418,7 @@ def _mark_primary_keys(result: Any, rule: BpaRule) -> list[Finding]:
         if column is None or bool(getattr(column, "is_key", False)):
             continue
         table = tables.get(str(getattr(column, "table", "")).casefold())
-        if table is not None and str(getattr(table, "data_category", "") or "").casefold() == "time":
+        if table is not None and _is_auto_date_table(table):
             continue
         found.append(_column_finding(rule, column, "not IsKey"))
     return found

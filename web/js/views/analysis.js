@@ -506,7 +506,8 @@ import { state } from "../core/state.js";
       state.analysisTab === "report" ||
       state.analysisTab === "relationships" ||
       state.analysisTab === "dax" ||
-      state.analysisTab === "m";
+      state.analysisTab === "m" ||
+      state.analysisTab === "bestpractice";
     var label = state.analysisTab === "tables" ? "Export tables"
       : (state.analysisTab === "report" ? "Export reports"
         : (state.analysisTab === "relationships"
@@ -514,7 +515,9 @@ import { state } from "../core/state.js";
           : (state.analysisTab === "dax"
             ? "Export DAX expressions"
             : (state.analysisTab === "m"
-              ? "Export M expressions" : "Export Result"))));
+              ? "Export M expressions"
+              : (state.analysisTab === "bestpractice"
+                ? "Export best practice" : "Export Result")))));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -4948,88 +4951,67 @@ import { state } from "../core/state.js";
   function analysisBestPracticeRows() {
     var bp = ((state.analysis && state.analysis.best_practice) || {});
     var items = bp.items || [];
-    var rules = bp.rules || [];
     if (bp.available === false) {
       return { headers: [], widths: [], rows: [], summary: (bp.error || "") };
     }
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var category = getSelectValue("typeAnalyze") || "all";
-    var byRule = {};
-    items.forEach(function (item) {
-      var filtered = category === "all" || item.category === category;
-      if (!filtered) return;
-      if (query) {
-        var haystack = [
-          item.rule_name, item.object, item.detail, item.category, item.table,
-          item.name
-        ].join(" ").toLowerCase();
-        if (haystack.indexOf(query) === -1) return;
-      }
-      var key = item.rule_id;
-      if (!byRule[key]) byRule[key] = [];
-      byRule[key].push(item);
+    items = items.filter(function (item) {
+      if (category !== "all" && item.category !== category) return false;
+      if (!query) return true;
+      var haystack = [
+        item.rule_name, item.object, item.detail, item.category, item.table,
+        item.name
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) !== -1;
     });
-    var ruleMap = {};
-    rules.forEach(function (rule) { ruleMap[rule.id] = rule; });
-    var rows = [];
-    Object.keys(byRule).sort(function (left, right) {
-      var a = ruleMap[left] || {};
-      var b = ruleMap[right] || {};
-      return (b.score || 0) - (a.score || 0) ||
-        String(a.name || "").localeCompare(String(b.name || ""));
-    }).forEach(function (ruleId) {
-      var rule = ruleMap[ruleId] || { id: ruleId, name: ruleId, severity: 1 };
-      var groupId = "bp:" + ruleId;
-      var open = analysisIsOpen(groupId, false, true);
-      var findings = byRule[ruleId];
-      rows.push({
-        level: 0,
-        group: true,
+    if (state.analysisSort && state.analysisSort !== "default") {
+      items = analysisSortItems(items);
+    } else {
+      items.sort(function (left, right) {
+        return (Number(right.rule_score) || 0) - (Number(left.rule_score) || 0) ||
+          String(left.rule_name || "").localeCompare(String(right.rule_name || "")) ||
+          String(left.object || "").localeCompare(String(right.object || ""));
+      });
+    }
+    var rows = items.map(function (item) {
+      var isModel = item.kind === "column" || item.kind === "measure" ||
+        item.kind === "table";
+      var objectCell = analysisNameCell(
+        item.object || "\u2014", analysisBestPracticeIcon(item.kind)
+      );
+      if (item.detail) {
+        objectCell += ' <span class="helper">' + escapeHtml(item.detail) + "</span>";
+      }
+      var row = {
         cells: [
-          analysisNameCell(rule.name, "group", {
-            level: 0, toggleId: groupId, open: open
-          }),
-          fmtInt(rule.score || 0),
-          analysisBestPracticeSeverity(rule.severity),
-          fmtInt(findings.length)
+          escapeHtml(item.rule_name || "\u2014"),
+          fmtInt(Number(item.rule_score) || 0),
+          fmtInt(Number(item.severity) || 1),
+          objectCell
         ],
-        numCols: [1, 3]
-      });
-      if (!open) return;
-      findings.forEach(function (item) {
-        var isModel = item.kind === "column" || item.kind === "measure" ||
-          item.kind === "table";
-        var nameCell = analysisNameCell(
-          item.object || "—", analysisBestPracticeIcon(item.kind), { level: 1 }
-        );
-        if (item.detail) {
-          nameCell += ' <span class="helper">' + escapeHtml(item.detail) + "</span>";
-        }
-        var row = {
-          level: 1,
-          cells: [nameCell, "", "", ""],
-          healthTarget: item.target || {}
+        numCols: [1, 2],
+        healthTarget: item.target || {}
+      };
+      if (isModel) {
+        row.item = {
+          kind: item.kind,
+          table: item.table || "",
+          name: item.kind === "table" ? (item.table || "") : (item.name || "")
         };
-        if (isModel) {
-          row.item = {
-            kind: item.kind,
-            table: item.table || "",
-            name: item.kind === "table" ? (item.table || "") : (item.name || "")
-          };
-        }
-        rows.push(row);
-      });
+      }
+      return row;
     });
     return {
       headers: [
-        { label: "Rule" },
-        { label: "Violation score" },
-        { label: "Severity" },
-        { label: "Objects" }
+        { label: "Rule", key: "rule_name" },
+        { label: "Violation Score", key: "rule_score", num: true },
+        { label: "Severity", key: "severity", num: true },
+        { label: "Object", key: "object" }
       ],
-      widths: ["55%", "13%", "14%", "18%"],
+      widths: ["38%", "12%", "10%", "40%"],
       rows: rows,
-      summary: "{v} violations · {r} rules with findings · {e}/{n} evaluated · {u} not evaluated"
+      summary: "{v} violations \u00b7 {r} rules with findings \u00b7 {e}/{n} evaluated \u00b7 {u} not evaluated"
         .replace("{v}", fmtInt((bp.counts || {}).violations || 0))
         .replace("{r}", fmtInt((bp.counts || {}).rules || 0))
         .replace("{e}", fmtInt(bp.evaluated || 0))
@@ -5037,6 +5019,7 @@ import { state } from "../core/state.js";
         .replace("{u}", fmtInt(bp.not_evaluated || 0))
     };
   }
+
 
   var BP_STATUS_LABELS = {
     violation: "Violation",
@@ -5119,7 +5102,7 @@ import { state } from "../core/state.js";
       if (key === "size") {
         a = Number(left.size_bytes || 0);
         b = Number(right.size_bytes || 0);
-      } else if (["uses", "pages", "visuals", "fields", "unresolved", "used"].includes(key)) {
+      } else if (["uses", "pages", "visuals", "fields", "unresolved", "used", "rule_score", "severity"].includes(key)) {
         a = Number(a || 0);
         b = Number(b || 0);
       } else if (key === "status") {
@@ -5835,7 +5818,8 @@ import { state } from "../core/state.js";
     }
     var tab = state.analysisTab || "all";
     if (tab !== "all" && tab !== "tables" && tab !== "report" &&
-        tab !== "relationships" && tab !== "dax" && tab !== "m") {
+        tab !== "relationships" && tab !== "dax" && tab !== "m" &&
+        tab !== "bestpractice") {
       app.toast("Coming soon");
       return;
     }

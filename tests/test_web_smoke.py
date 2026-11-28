@@ -520,6 +520,88 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("Model Uji", body)
         self.assertIn("evaluationError", body)
 
+    def test_analysis_best_practice_tab_renders_flat_template(self) -> None:
+        """Tab Best practice memakai 4 kolom template dengan baris datar."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 0, "measures": 0, "hierarchies": 0, "functions": 0},
+            "measures": [],
+            "columns": [],
+            "functions": [],
+            "tables": [],
+            "m_queries": [],
+            "relationships": [],
+            "roles": [],
+            "reports": [],
+            "coverage": {"complete": True},
+            "reports_included": True,
+            "best_practice": {
+                "available": True,
+                "score": 42,
+                "verdict": "Poor",
+                "verdict_key": "poor",
+                "rule_count": 71,
+                "evaluated": 54,
+                "not_evaluated": 17,
+                "counts": {"violations": 2, "rules": 1},
+                "rules": [],
+                "items": [
+                    {
+                        "rule_id": "OBJECTS_WITH_NO_DESCRIPTION",
+                        "rule_name": "[Maintenance] Visible objects with no description",
+                        "category": "Maintenance",
+                        "severity": 1,
+                        "rule_score": 42,
+                        "object": "'Sales'[Customer]",
+                        "kind": "column",
+                        "table": "Sales",
+                        "name": "Customer",
+                        "detail": "no description",
+                        "target": {"kind": "column", "table": "Sales", "name": "Customer"},
+                    },
+                    {
+                        "rule_id": "OBJECTS_WITH_NO_DESCRIPTION",
+                        "rule_name": "[Maintenance] Visible objects with no description",
+                        "category": "Maintenance",
+                        "severity": 1,
+                        "rule_score": 42,
+                        "object": "Sales (Table)",
+                        "kind": "table",
+                        "table": "Sales",
+                        "name": "Sales",
+                        "detail": "no description",
+                        "target": {"kind": "table", "table": "Sales"},
+                    },
+                ],
+            },
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'bestpractice';
+                state.analysisOpen = {};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 4)
+        headers = [text.lower() for text in page.locator("#analyzeHead th").all_inner_texts()]
+        self.assertEqual(headers, ["rule", "violation score", "severity", "object"])
+        self.assertEqual(page.locator("#analyzeBody tr").count(), 2)
+        self.assertIn("Export best practice", page.inner_text("#exportXlsx"))
+        body = page.inner_text("#analyzeBody")
+        self.assertIn("Visible objects with no description", body)
+        self.assertIn("'Sales'[Customer]", body)
+        self.assertIn("Sales (Table)", body)
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")

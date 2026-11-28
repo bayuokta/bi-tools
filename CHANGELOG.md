@@ -112,6 +112,20 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   `M Query`/`M Parameter`, dan tombol **Export M expressions**.
   `usage_m_query` memakai kunci `entry_key` agar baris duplikat tersimpan;
   migrasi DB lama menormalkan label `Expression`/`M parameter`.
+- Tab **Best practice** kini punya ekspor sendiri:
+  `Best_Practice_<dataset>_<id8>.xlsx` dengan **4 kolom** template Measure
+  Killer (`Rule`, `Violation Score`, `Severity`, `Object`), satu baris per
+  temuan. UI tab memakai 4 kolom datar yang sama (severity numerik, urut skor
+  rule), dan tombol toolbar menjadi **Export best practice**. Skor rule
+  `round(severity × count × log10(N))` kini memakai `N` tanpa M query seperti
+  template. Format objek diselaraskan (`'Table'[Column]`,
+  `Name (Table)`/`Name (Calculated Table)`, relationship ASCII dengan
+  `(Text, Text)`, suffix `(Format: ... - Expected: ...)`), dan tujuh evaluator
+  diperbaiki agar cocok dengan pembanding (relationship integer per
+  relationship, tabel field parameter/0 kolom dilewati, measure `variant`,
+  kolom hidden untuk kapitalisasi, semua kolom DateTime, primary key tabel
+  tanggal). Katalog rule tetap berbeda dari Measure Killer; 18 temuan
+  `Set IsAvailableInMdx…` tetap `not_evaluated`.
 
 ### Perbaikan
 

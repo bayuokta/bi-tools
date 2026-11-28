@@ -39,11 +39,13 @@ def column(
     data_category: str = "",
     is_key: bool = False,
     sort_by: str = "",
+    column_type: str = "data",
 ):
     stat = SimpleNamespace(
         column=name,
         table=table,
         data_type=data_type,
+        column_type=column_type,
         size_total_bytes=size,
         size_data_bytes=size // 2,
         size_hierarchy_bytes=0,
@@ -103,6 +105,7 @@ def table(
     description: str = "desc",
     calculated: bool = False,
     calc_group: bool = False,
+    column_count: int = 1,
 ):
     return SimpleNamespace(
         table=name,
@@ -115,7 +118,7 @@ def table(
         is_calculated_table=calculated,
         is_calculation_group=calc_group,
         size_total_bytes=1024,
-        column_count=1,
+        column_count=column_count,
         measure_count=1,
     )
 
@@ -385,6 +388,310 @@ class EvaluationTests(unittest.TestCase):
             if row["status"] in {"violation", "pass"}
         )
         self.assertEqual(data["score"], expected)
+
+
+class TemplateParityTests(unittest.TestCase):
+    def rules(self) -> dict[str, object]:
+        return {rule.id: rule for rule in load_rules()}
+
+    def test_model_objects_excludes_m_queries(self) -> None:
+        base = result(
+            columns=[column("Amount")],
+            measures=[measure("Total")],
+            tables=[table("Sales")],
+        )
+        with_m = result(
+            columns=[column("Amount")],
+            measures=[measure("Total")],
+            tables=[table("Sales")],
+            m_queries=[
+                {"name": "Sales", "kind": "Table", "expression": "let 1 in 1"}
+            ],
+        )
+        self.assertEqual(
+            build_best_practice(base)["model_objects"],
+            build_best_practice(with_m)["model_objects"],
+        )
+
+    def test_object_labels_follow_measure_killer(self) -> None:
+        data = build_best_practice(
+            result(
+                columns=[column("Customer", description="")],
+                measures=[measure("Total", description="")],
+                tables=[
+                    table("Sales", description=""),
+                    table("Calc", calculated=True, description=""),
+                ],
+            )
+        )
+        objects = {item["object"] for item in data["items"]}
+        self.assertIn("'Sales'[Customer]", objects)
+        self.assertIn("'Sales'[Total]", objects)
+        self.assertIn("Sales (Table)", objects)
+        self.assertIn("Calc (Calculated Table)", objects)
+
+    def test_relationship_label_uses_ascii_cardinality(self) -> None:
+        rule = self.rules()["CHECK_IF_BI-DIRECTIONAL_AND_MANY-TO-MANY_RELATIONSHIPS_ARE_VALID"]
+        data = build_best_practice(
+            result(
+                columns=[column("Key", data_type="string")],
+                relationships=[
+                    relationship("Rel", "A", "Key", "B", "Key", cross="bothDirections")
+                ],
+            )
+        )
+        items = [
+            item for item in data["items"] if item["rule_id"] == rule.id
+        ]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["object"], "'A'[Key] N <-> 1 'B'[Key]")
+
+    def test_relationship_integer_one_row_per_relationship(self) -> None:
+        rule = self.rules()["RELATIONSHIP_COLUMNS_SHOULD_BE_OF_INTEGER_DATA_TYPE"]
+        data = build_best_practice(
+            result(
+                columns=[
+                    column("From Key", table="Fact", data_type="string"),
+                    column("To Key", table="Dim", data_type="string"),
+                ],
+                relationships=[
+                    relationship("Rel", "Fact", "From Key", "Dim", "To Key")
+                ],
+            )
+        )
+        items = [item for item in data["items"] if item["rule_id"] == rule.id]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["object"],
+            "'Fact'[From Key] N <- 1 'Dim'[To Key] (Text, Text)",
+        )
+
+    def test_relationship_integer_passes_for_integer_columns(self) -> None:
+        rule = self.rules()["RELATIONSHIP_COLUMNS_SHOULD_BE_OF_INTEGER_DATA_TYPE"]
+        data = build_best_practice(
+            result(
+                columns=[
+                    column("From Key", table="Fact", data_type="int64"),
+                    column("To Key", table="Dim", data_type="int64"),
+                ],
+                relationships=[
+                    relationship("Rel", "Fact", "From Key", "Dim", "To Key")
+                ],
+            )
+        )
+        rows = {row["id"]: row for row in data["rules"]}
+        self.assertEqual(rows[rule.id]["status"], "pass")
+
+    def test_tables_without_relationship_skips_measure_and_field_parameter(self) -> None:
+        rule = self.rules()["ENSURE_TABLES_HAVE_RELATIONSHIPS"]
+        columns = [
+            column("Field", table="Parameter Posisi", column_type="Field parameter")
+        ]
+        data = build_best_practice(
+            result(
+                columns=columns,
+                tables=[
+                    table("Pages"),
+                    table("_Measures", column_count=0),
+                    table("Hidden", hidden=True),
+                    table("Parameter Posisi", calculated=True),
+                ],
+                relationships=[],
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"Pages (Table)"})
+
+    def test_calculated_tables_skip_field_parameter(self) -> None:
+        rule = self.rules()["REDUCE_USAGE_OF_CALCULATED_TABLES"]
+        data = build_best_practice(
+            result(
+                columns=[
+                    column(
+                        "Field",
+                        table="Parameter Posisi",
+                        column_type="Field parameter",
+                    )
+                ],
+                tables=[
+                    table("Parameter", calculated=True),
+                    table("Parameter Posisi", calculated=True),
+                ],
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"Parameter (Calculated Table)"})
+
+    def test_measure_format_flags_variant_measures(self) -> None:
+        rule = self.rules()["PROVIDE_FORMAT_STRING_FOR_MEASURES"]
+        data = build_best_practice(
+            result(
+                measures=[
+                    measure(
+                        "Dynamic", table="Pages", data_type="variant", format_string=""
+                    ),
+                    measure(
+                        "Hidden", table="Pages", data_type="variant",
+                        format_string="", hidden=True,
+                    ),
+                ]
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"'Pages'[Dynamic]"})
+
+    def test_first_letter_checks_hidden_columns(self) -> None:
+        rule = self.rules()["FIRST_LETTER_OF_OBJECTS_MUST_BE_CAPITALIZED"]
+        data = build_best_practice(
+            result(columns=[column("lowercase", hidden=True)])
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"'Sales'[lowercase]"})
+
+    def test_date_format_checks_every_datetime_column(self) -> None:
+        rule = self.rules()["DATECOLUMN_FORMATSTRING"]
+        data = build_best_practice(
+            result(
+                columns=[
+                    column("Start of Month", data_type="datetime", format_string="General Date"),
+                    column("Proper Date", data_type="datetime", format_string="dd-MM-yyyy"),
+                ]
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(
+            objects,
+            {
+                "'Sales'[Start of Month] "
+                "(Format: 'General Date' - Expected: 'dd-MM-yyyy')"
+            },
+        )
+
+    def test_primary_keys_include_date_table_but_not_auto_date(self) -> None:
+        rule = self.rules()["MARK_PRIMARY_KEYS"]
+        data = build_best_practice(
+            result(
+                columns=[
+                    column("Key", table="Sales", data_type="string"),
+                    column("Dates Key", table="Dates", data_type="int64", is_key=False),
+                    column(
+                        "Date", table="LocalDateTable_abc", data_type="int64",
+                        is_key=False,
+                    ),
+                ],
+                tables=[
+                    table("Sales"),
+                    table("Dates", data_category="Time"),
+                    table("LocalDateTable_abc"),
+                ],
+                relationships=[
+                    relationship("Dates Rel", "Sales", "Key", "Dates", "Dates Key"),
+                    relationship(
+                        "Auto Rel", "Sales", "Key", "LocalDateTable_abc", "Date"
+                    ),
+                ],
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"'Dates'[Dates Key]"})
+
+
+    def test_numeric_summarize_includes_data_type(self) -> None:
+        rule = self.rules()["NUMERIC_COLUMN_SUMMARIZE_BY"]
+        data = build_best_practice(
+            result(
+                columns=[column("Amount", data_type="int64", summarize_by="sum")]
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"'Sales'[Amount] (Integer)"})
+
+    def test_percentage_format_includes_expected_format(self) -> None:
+        rule = self.rules()["PERCENTAGE_FORMATTING"]
+        data = build_best_practice(
+            result(
+                measures=[
+                    measure("Growth", format_string="0.00%;-0.00%;0.00%")
+                ]
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(len(objects), 1)
+        self.assertTrue(
+            objects.pop().endswith(
+                "(Format: '0.00%;-0.00%;0.00%' - Expected: "
+                "'#,0.0%;-#,0.0%;#,0.0%' or '#,0.0\\ %;-#,0.0\\ %;#,0.0\\ %')"
+            )
+        )
+
+    def test_power_query_transformation_uses_table_suffix(self) -> None:
+        rule = self.rules()["MINIMIZE_POWER_QUERY_TRANSFORMATIONS"]
+        data = build_best_practice(
+            result(
+                tables=[table("Sales")],
+                m_queries=[
+                    {
+                        "name": "Sales",
+                        "kind": "Table",
+                        "expression": "Table.AddColumn(Source, \"x\", each 1)",
+                    }
+                ],
+            )
+        )
+        objects = {
+            item["object"]
+            for item in data["items"]
+            if item["rule_id"] == rule.id
+        }
+        self.assertEqual(objects, {"Sales (Table)"})
+
+    def test_calculation_group_uses_table_suffix(self) -> None:
+        data = build_best_practice(
+            result(tables=[table("Time Intelligence", calc_group=True, description="")])
+        )
+        objects = {item["object"] for item in data["items"]}
+        self.assertIn("Time Intelligence (Table)", objects)
+        self.assertNotIn("Time Intelligence (Calculation Group)", objects)
+
+    def test_date_rule_name_matches_template(self) -> None:
+        data = build_best_practice(result())
+        rows = {row["id"]: row for row in data["rules"]}
+        self.assertEqual(
+            rows["DATECOLUMN_FORMATSTRING"]["name"],
+            '[Formatting] Provide format string for "Date" columns.',
+        )
 
 
 if __name__ == "__main__":

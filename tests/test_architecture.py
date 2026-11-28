@@ -916,6 +916,22 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('label: "Warnings"', js)
         self.assertIn('"M Parameter"', js)
 
+    def test_web_best_practice_export_uses_template_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        export = (ROOT / "core" / "best_practice_export.py").read_text(
+            encoding="utf-8"
+        )
+        for column in ("Rule", "Violation Score", "Severity", "Object"):
+            self.assertIn(f'"{column}"', export, column)
+        self.assertIn("write_best_practice_export", presenter)
+        self.assertIn('"Export best practice"', js)
+        self.assertEqual(js.count("function analysisBestPracticeRows("), 1)
+        self.assertIn('label: "Violation Score"', js)
+        self.assertIn('label: "Object"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

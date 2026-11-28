@@ -703,6 +703,26 @@ class AnalysisPresenterTests(unittest.TestCase):
         self.assertEqual(data["path"], str(target))
         write.assert_called_once()
 
+    def test_export_writes_best_practice_template(self) -> None:
+        target = self.root / "best.xlsx"
+        target.write_bytes(b"xlsx")
+        presenter._session(DATASET)
+        with patch.object(
+            presenter, "snapshot_from_connection", return_value=fake_result()
+        ), patch.object(
+            presenter, "write_best_practice_export", return_value=target
+        ) as write:
+            data = presenter.export(
+                {
+                    "dataset_id": DATASET,
+                    "output": str(target),
+                    "tab": "bestpractice",
+                },
+                self.store,
+            )
+        self.assertEqual(data["path"], str(target))
+        write.assert_called_once()
+
     def test_export_full_workbook_option(self) -> None:
         target = self.root / "semua.xlsx"
         target.write_bytes(b"xlsx")
