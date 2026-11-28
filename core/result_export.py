@@ -61,7 +61,7 @@ TYPE_LABELS = {
     "data": "Column",
     "Column": "Column",
     "calculated": "Calculated Column",
-    "Field parameter": "Column",
+    "Field parameter": "Field parameter",
 }
 CARDINALITY_SYMBOL = {"many": "N", "one": "1", "none": "0"}
 BLANK = ""
@@ -131,12 +131,15 @@ def _quoted(text: Any) -> str:
 
 def _visual_name(record: Mapping[str, Any]) -> str:
     title = str(record.get("visual_title") or "").strip()
-    for prefix in ("(untitled) ",):
-        if title.startswith(prefix):
-            title = title[len(prefix) :].strip()
-            title = re.sub(r"\s+[0-9a-f]{8}$", "", title, flags=re.IGNORECASE)
-            break
-    return title or str(record.get("visual_type") or "visual")
+    if title.startswith("(untitled) "):
+        title = title[len("(untitled) ") :].strip()
+        title = re.sub(r"\s+[0-9a-f]{8}$", "", title, flags=re.IGNORECASE)
+        return title or str(record.get("visual_type") or "visual")
+    if title:
+        # Pembanding Measure Killer menulis judul kustom apa adanya, termasuk
+        # tanda kutip literal DAX dari properti title.
+        return f"'{title}'"
+    return str(record.get("visual_type") or "visual")
 
 
 def _filter_parts(detail: Any) -> tuple[str, str]:
@@ -288,7 +291,7 @@ def _record_row(
     detail = str(record.get("detail") or "")
     name = visual
     object_type = str(record.get("visual_type") or "")
-    data_type = detail
+    data_type = "parameterExpr" if detail == "field parameter" else detail
     page = str(record.get("page_name") or "")
     if kind.startswith("filter"):
         filter_type, filter_name = _filter_parts(detail)
@@ -302,18 +305,11 @@ def _record_row(
             )
         elif kind == "filter-page":
             page_name = page or str(record.get("report_name") or "")
-            name = (
-                f"{page_name} (Filter: {filter_name})"
-                if filter_name
-                else f"{page_name} (Filter)"
-            )
+            name = page_name or fallback_name
         else:
             report_name = str(record.get("report_name") or "")
-            name = (
-                f"{report_name} (Filter: {filter_name})"
-                if filter_name
-                else f"{report_name} (Filter)"
-            )
+            name = report_name or fallback_name
+            page = ""
     report_id = str(record.get("report_id") or "")
     return _with_usage(
         base,
@@ -533,7 +529,10 @@ def _object_rows(
             if row is not None:
                 rows.append(row)
             continue
-        if ref_kind in {"RLS", "column permission"}:
+        if ref_kind == "column permission":
+            # Measure Killer tidak menulis baris OLS pada ekspor Result.
+            continue
+        if ref_kind == "RLS":
             role = ""
             match = re.search(r"role '([^']+)'", detail)
             if match:
@@ -542,12 +541,8 @@ def _object_rows(
                 _with_usage(
                     base,
                     usage_type="Used in row/object level security",
-                    name=role or ("OLS" if ref_kind == "column permission" else "RLS"),
-                    object_type=(
-                        "Object level security"
-                        if ref_kind == "column permission"
-                        else "Row level security"
-                    ),
+                    name=role or "RLS",
+                    object_type="Row level security",
                     source=dataset,
                 )
             )
@@ -561,9 +556,10 @@ def _object_rows(
                     usage_type="Used in column sorting",
                     name=sort_column or obj,
                     object_id=(meta or {}).get("id", BLANK),
-                    object_type="Column",
+                    object_type=(meta or {}).get("type", "Column"),
                     page=sort_table,
                     source=dataset,
+                    data_type=(meta or {}).get("data_type", BLANK),
                     size=(meta or {}).get("size", BLANK),
                     status=(meta or {}).get("status", BLANK),
                     uses=(meta or {}).get("uses", BLANK),
@@ -704,6 +700,60 @@ def _object_rows(
                 )
             )
             continue
+        if ref_kind in {"field parameter", "field parameter grouping"}:
+            parameter_table = _quoted(obj)
+            table_row = tables.get(parameter_table.casefold())
+            _used, _total, table_uses = _table_usage(result, parameter_table)
+            if ref_kind == "field parameter grouping":
+                owner_table, owner_name = _split_object(obj)
+                meta = _artifact_meta(
+                    columns, measures, tables, owner_table, owner_name
+                )
+                rows.append(
+                    _with_usage(
+                        base,
+                        usage_type="Used in column grouping",
+                        name=owner_name or obj,
+                        object_id=(meta or {}).get("id", BLANK),
+                        object_type=(meta or {}).get("type", "Field parameter"),
+                        page=owner_table,
+                        source=dataset,
+                        data_type=(meta or {}).get("data_type", BLANK),
+                        uses=(meta or {}).get("uses", BLANK),
+                    )
+                )
+                continue
+            rows.append(
+                _with_usage(
+                    base,
+                    usage_type="Used in field parameters",
+                    name=parameter_table,
+                    object_id=(
+                        int(getattr(table_row, "table_id", 0) or 0)
+                        if table_row is not None
+                        else BLANK
+                    ),
+                    object_type="Field param. table",
+                    source=dataset,
+                    uses=table_uses,
+                )
+            )
+            continue
+        if ref_kind == "calculation item":
+            match = re.match(r"^calculation item '(.+)'$", obj)
+            item_name = match.group(1) if match else obj
+            rows.append(
+                _with_usage(
+                    base,
+                    usage_type="Used in calculation items",
+                    name=item_name,
+                    object_id=getattr(ref, "source_id", 0) or BLANK,
+                    object_type="Calculation item",
+                    page=getattr(ref, "source_table", "") or BLANK,
+                    source=dataset,
+                )
+            )
+            continue
         # Artifact: measure, calculated column/table column, calculation item,
         # KPI, field parameter.
         artifact_table, artifact_name = _split_object(obj)
@@ -766,7 +816,7 @@ def _function_rows(
         uses=_use_count(analysis),
         has_error=None,
     )
-    rows = [base]
+    rows = []
     for ref in getattr(analysis, "model_refs", []) or []:
         kind = str(getattr(ref, "kind", "") or "")
         object_text = str(getattr(ref, "object", "") or "")
@@ -807,25 +857,24 @@ def _function_rows(
         else:
             continue
         meta = meta or {}
-        rows.append(
-            _with_usage(
-                base,
-                usage_type="Used in artifacts",
-                name=name,
-                object_id=meta.get("id", BLANK),
-                object_type=object_type,
-                page=meta.get("table", BLANK),
-                source=dataset,
-                data_type=meta.get("data_type", BLANK),
-                size=meta.get("size", BLANK),
-                status=meta.get("status", BLANK),
-                uses=meta.get("uses", BLANK),
-                format_string=meta.get("format_string", BLANK),
-                has_error=meta.get("has_error", BLANK),
-                display_folder=meta.get("display_folder", BLANK),
-            )
+        usage = _with_usage(
+            base,
+            usage_type="Used in artifacts",
+            name=name,
+            object_id=meta.get("id", BLANK),
+            object_type=object_type,
+            page=meta.get("table", BLANK),
+            source=dataset,
+            data_type=meta.get("data_type", BLANK),
+            size=meta.get("size", BLANK),
+            status=meta.get("status", BLANK),
+            uses=meta.get("uses", BLANK),
+            format_string=meta.get("format_string", BLANK),
+            has_error=meta.get("has_error", BLANK),
+            display_folder=meta.get("display_folder", BLANK),
         )
-    return rows
+        rows.append(usage)
+    return rows or [base]
 
 
 def write_result_export(result: Any, path: Path | str) -> Path:

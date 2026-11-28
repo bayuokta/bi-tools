@@ -399,6 +399,7 @@ class ModelReference:
     source_table: str = ""
     source_measure: str = ""
     depth: int = 1
+    source_id: int = 0
 
 
 # Pemakaian yang tidak dihitung di kolom "Uses" (tetap disimpan di detail).
@@ -724,6 +725,8 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
         *,
         blocking: bool = True,
         depth: int = 1,
+        source_table: str = "",
+        source_id: int = 0,
     ) -> None:
         table_name = str(table or "")
         column_name = str(column or "")
@@ -739,7 +742,9 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
                 object=obj,
                 detail=detail,
                 blocking=blocking,
+                source_table=source_table,
                 depth=depth,
+                source_id=source_id,
             )
         )
 
@@ -822,6 +827,35 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
         owner = f"calculated table '{table_name}'"
         for table, column in find_dax_refs(source, table_names)[0]:
             add(table, column, "calculated table", owner, owner)
+
+    parameter_columns: dict[str, dict[str, str]] = defaultdict(dict)
+    for row in columns_rows:
+        if str(row.get("column_type") or "") != "Field parameter":
+            continue
+        table = str(row.get("table") or "")
+        column = str(row.get("column") or "")
+        if table and column:
+            parameter_columns[table.casefold()][column.casefold()] = column
+    for table_key, columns in parameter_columns.items():
+        fields = columns.get("parameter fields")
+        parameter = columns.get("parameter")
+        if not fields or not parameter:
+            continue
+        table_name = next(
+            (
+                str(row.get("table") or "")
+                for row in columns_rows
+                if str(row.get("table") or "").casefold() == table_key
+            ),
+            table_key,
+        )
+        add(
+            table_name,
+            fields,
+            "field parameter grouping",
+            f"'{table_name}'[{parameter}]",
+            f"column grouping '{table_name}'[{parameter}]",
+        )
 
     for row in model.raw["TMSCHEMA_RELATIONSHIPS"]:
         from_table, from_column = model.column_name.get(
@@ -942,10 +976,20 @@ def model_references(model: LiveModel) -> dict[tuple[str, str], list[ModelRefere
 
     for row in model.raw["TMSCHEMA_CALCULATION_ITEMS"]:
         owner = f"calculation item '{row.get('Name')}'"
+        group = model.calc_group_by_id.get(int(row["CalculationGroupID"]), {})
+        group_table = model.table_name.get(int(group.get("TableID") or 0), "")
         for table, column in find_dax_refs(
             str(row.get("Expression") or ""), table_names
         )[0]:
-            add(table, column, "calculation item", owner, owner)
+            add(
+                table,
+                column,
+                "calculation item",
+                owner,
+                owner,
+                source_table=group_table,
+                source_id=int(row.get("ID") or 0),
+            )
 
     for row in model.raw["TMSCHEMA_KPIS"]:
         owner = f"KPI '{row.get('Name')}'"
@@ -1447,6 +1491,8 @@ def _build_measure_analyses(
                 row.get("visual_id"),
                 row.get("usage_kind"),
             )
+            if row.get("usage_kind") == "format":
+                visual_key += (row.get("detail"),)
             if visual_key in seen_visual:
                 continue
             seen_visual.add(visual_key)
@@ -1614,6 +1660,8 @@ def build_hierarchy_analyses(
                 row.get("visual_id"),
                 row.get("usage_kind"),
             )
+            if str(row.get("usage_kind") or "").startswith("filter"):
+                key += (row.get("detail"),)
             if key in seen:
                 continue
             seen.add(key)
@@ -1679,60 +1727,6 @@ def build_analysis(
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
     rows = list(usage_rows)
-    columns_by_table: dict[str, dict[str, str]] = defaultdict(dict)
-    for column in stats.columns:
-        columns_by_table[column.table.casefold()][
-            column.column.casefold()
-        ] = column.column
-    parameter_tables = {
-        table
-        for table, columns in columns_by_table.items()
-        if "parameter fields" in columns
-        and ("parameter" in columns or "parameter order" in columns)
-    }
-    seen_usage = {
-        (
-            row.get("report_id"),
-            row.get("page_id"),
-            row.get("visual_id"),
-            row.get("usage_kind"),
-            str(row.get("table_name") or "").casefold(),
-            str(row.get("field_name") or "").casefold(),
-        )
-        for row in rows
-    }
-    extra: list[dict[str, Any]] = []
-    for row in rows:
-        table = str(row.get("table_name") or "").casefold()
-        if table not in parameter_tables:
-            continue
-        if str(row.get("usage_kind") or "") != "field":
-            continue
-        if str(row.get("field_name") or "").casefold() != "parameter":
-            continue
-        if str(row.get("detail") or "") != "field parameter":
-            continue
-        field_name = columns_by_table[table]["parameter fields"]
-        key = (
-            row.get("report_id"),
-            row.get("page_id"),
-            row.get("visual_id"),
-            "field",
-            table,
-            field_name.casefold(),
-        )
-        if key in seen_usage:
-            continue
-        seen_usage.add(key)
-        extra.append(
-            {
-                **row,
-                "field_kind": "Column",
-                "field_name": field_name,
-                "detail": "column grouping",
-            }
-        )
-    rows.extend(extra)
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         if str(row.get("field_kind") or "") in {"Measure", "HierarchyLevel"}:

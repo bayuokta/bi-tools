@@ -98,6 +98,7 @@ _MODEL_KINDS = {
     "RLS",
     "column permission",
     "field parameter",
+    "field parameter grouping",
 }
 
 
@@ -1686,6 +1687,12 @@ def build_lineage(
             label = parameter
             node_kind = "field-parameter"
             identity = f"field-parameter:{parameter}"
+        elif kind == "field parameter grouping":
+            owner_table, owner_name = _parse_object(object_text)
+            label = owner_name or object_text
+            context = owner_table
+            node_kind = "field-parameter"
+            identity = f"field-parameter:{owner_table}:{owner_name}:grouping"
         elif kind == "calculated table":
             label = object_text.strip("'") or object_text
             node_kind = "table"

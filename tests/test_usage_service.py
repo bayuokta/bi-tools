@@ -1160,6 +1160,26 @@ class MeasureAnalysisTests(unittest.TestCase):
                 "table_name": "Dim",
                 "field_name": "Calendar.Month",
             },
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v1",
+                "usage_kind": "filter-visual",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Year",
+                "detail": "Advanced · 11111111111111111111",
+            },
+            {
+                "report_id": "r1",
+                "page_id": "p1",
+                "visual_id": "v1",
+                "usage_kind": "filter-visual",
+                "field_kind": "HierarchyLevel",
+                "table_name": "Dim",
+                "field_name": "Calendar.Month",
+                "detail": "Categorical · 22222222222222222222",
+            },
         ]
         result = build_hierarchy_analyses(
             rows,
@@ -1175,7 +1195,7 @@ class MeasureAnalysisTests(unittest.TestCase):
         )
 
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].use_count, 2)
+        self.assertEqual(result[0].use_count, 4)
         self.assertEqual(result[0].status, STATUS_USED)
 
     def test_measure_rows_for_gui(self) -> None:

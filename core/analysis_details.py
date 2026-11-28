@@ -203,7 +203,9 @@ def _flag_common(analysis: Any, refs: list[Any], records: list[Mapping[str, Any]
             kinds & {"calculated table", "calculated table column"}
         ),
         "is_used_hierarchy": "hierarchy" in kinds,
-        "is_used_field_parameters": "field parameter" in kinds,
+        "is_used_field_parameters": bool(
+            kinds & {"field parameter", "field parameter grouping"}
+        ),
         "is_used_calculation_items": "calculation item" in kinds,
         "is_used_visuals": "field" in usage,
         "is_used_visual_level_filters": "filter-visual" in usage,
@@ -492,7 +494,9 @@ def item_details(
         "sorting_dependencies": _ref_rows(refs, {"sort by"}),
         "relationship_dependencies": relationship_rows,
         "hierarchy_dependencies": _ref_rows(refs, {"hierarchy"}),
-        "field_parameter_dependencies": _ref_rows(refs, {"field parameter"}),
+        "field_parameter_dependencies": _ref_rows(
+            refs, {"field parameter", "field parameter grouping"}
+        ),
         "calculation_item_dependencies": _ref_rows(refs, {"calculation item"}),
         "calc_table_dependencies": _ref_rows(
             refs, {"calculated table", "calculated table column"}

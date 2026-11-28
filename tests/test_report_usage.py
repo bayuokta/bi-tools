@@ -417,7 +417,7 @@ class PbirScanTests(unittest.TestCase):
         )
         self.assertEqual(formats, ["Highlight"])
 
-    def test_formatting_counts_on_visual_that_does_not_use_the_field(self) -> None:
+    def test_formatting_dropped_when_field_is_used_as_visual_field(self) -> None:
         parts = pbir_parts()
         visual = parts["definition/pages/p1/visuals/v3/visual.json"]["visual"]
         visual["objects"] = {
@@ -438,7 +438,7 @@ class PbirScanTests(unittest.TestCase):
             for row in usage.records
             if row.usage_kind == USAGE_FORMAT
         )
-        self.assertIn(("Customer", "v3"), formats)
+        self.assertNotIn(("Customer", "v3"), formats)
         self.assertNotIn(("Customer", "v1"), formats)
 
     def test_formatting_counts_each_property(self) -> None:
@@ -470,6 +470,10 @@ class PbirScanTests(unittest.TestCase):
             if row.usage_kind == USAGE_FORMAT and row.field == "Highlight"
         ]
         self.assertEqual(len(formats), 2)
+        self.assertEqual(
+            {row.detail for row in formats},
+            {"labels > lineColor > color", "labels > fillColor > color"},
+        )
 
     def test_filter_v2_without_field_is_read_from_where(self) -> None:
         parts = pbir_parts()

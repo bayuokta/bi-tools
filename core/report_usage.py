@@ -253,26 +253,21 @@ class _Collector:
         self.records.append(record)
 
     def finish(self) -> None:
-        """Buang format ganda pada visual yang sudah memakai field itu.
+        """Buang format bila field sudah dipakai sebagai field visual di report.
 
-        Measure Killer menghitung formatting pada visual yang tidak memakai
-        field tersebut sebagai field visual, walaupun field yang sama dipakai
-        di visual lain pada report yang sama.
+        Measure Killer menghitung formatting hanya untuk field yang tidak
+        muncul sebagai field visual di report mana pun, bukan hanya di visual
+        yang sama.
         """
         visual_fields = {
-            (
-                record.table.casefold(),
-                record.field.casefold(),
-                record.page_id,
-                record.visual_id,
-            )
+            (record.table.casefold(), record.field.casefold())
             for record in self.records
             if record.usage_kind == USAGE_FIELD
         }
         if not visual_fields:
             return
         measure_fields = {
-            (record.field.casefold(), record.page_id, record.visual_id)
+            record.field.casefold()
             for record in self.records
             if record.usage_kind == USAGE_FIELD
             and record.field_kind == "Measure"
@@ -286,18 +281,11 @@ class _Collector:
                     (
                         record.table.casefold(),
                         record.field.casefold(),
-                        record.page_id,
-                        record.visual_id,
                     )
                     in visual_fields
                     or (
                         record.field_kind == "Measure"
-                        and (
-                            record.field.casefold(),
-                            record.page_id,
-                            record.visual_id,
-                        )
-                        in measure_fields
+                        and record.field.casefold() in measure_fields
                     )
                 )
             )
@@ -353,9 +341,7 @@ class _Collector:
         """Cari referensi Column/Measure/Aggregation di struktur objects/formatting."""
         for info in _expression_fields(node):
             property_name = str(info.get("property") or "")
-            detail_text = detail or "formatting"
-            if property_name:
-                detail_text = f"{detail_text} \u00b7 {property_name}"
+            detail_text = property_name or detail or "formatting"
             self.add_field(
                 info,
                 usage_kind=usage_kind,
@@ -412,11 +398,27 @@ class _Collector:
 
 
 def _format_property(path: tuple[str, ...]) -> str:
-    if "properties" in path:
-        index = path.index("properties")
-        if index + 1 < len(path):
-            return str(path[index + 1])
-    return str(path[-1]) if path else ""
+    ignored = {
+        "objects",
+        "visualContainerObjects",
+        "vcObjects",
+        "columnProperties",
+        "properties",
+        "solid",
+        "expr",
+        "Literal",
+        "Column",
+        "Measure",
+        "Aggregation",
+        "Hierarchy",
+        "HierarchyLevel",
+    }
+    parts = [
+        str(part)
+        for part in path
+        if str(part) not in ignored and not str(part).isdigit()
+    ]
+    return " > ".join(parts[-3:]) if parts else ""
 
 
 def _expression_fields(

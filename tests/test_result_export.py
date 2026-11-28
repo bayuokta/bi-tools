@@ -20,12 +20,14 @@ from core.usage_service import (
 )
 
 
-def column_stat(column_id: int, name: str) -> ColumnStat:
+def column_stat(
+    column_id: int, name: str, column_type: str = "data", table: str = "Sales"
+) -> ColumnStat:
     return ColumnStat(
-        table="Sales",
+        table=table,
         column=name,
         column_id=column_id,
-        column_type="data",
+        column_type=column_type,
         data_type="Text",
         format_string="",
         display_folder="",
@@ -43,6 +45,7 @@ class ResultExportTests(unittest.TestCase):
     def result(self) -> AnalysisResult:
         customer = column_stat(10, "Customer")
         amount = column_stat(11, "Amount")
+        parameter = column_stat(12, "Parameter", "Field parameter")
         measure = MeasureStat(
             table="Sales",
             measure="Total",
@@ -54,7 +57,7 @@ class ResultExportTests(unittest.TestCase):
             model_name="Model",
             compatibility_level=1600,
             last_update="",
-            columns=[customer, amount],
+            columns=[customer, amount, parameter],
             tables=[
                 TableStat(
                     table="Sales",
@@ -110,11 +113,27 @@ class ResultExportTests(unittest.TestCase):
                             "page_name": "Page 1",
                             "visual_id": "v9",
                             "visual_type": "tableEx",
-                            "visual_title": "tableEx",
+                            "visual_title": "(untitled) tableEx 12345678",
                             "detail": "Advanced · 0b99b676a76184c14e97",
+                            "is_hidden": False,
+                        },
+                        {
+                            "usage_kind": "filter-page",
+                            "report_id": "r1",
+                            "report_name": "Report",
+                            "page_name": "Page 1",
+                            "visual_id": "",
+                            "visual_type": "",
+                            "visual_title": "",
+                            "detail": "Categorical · 0ece509bcf87a8935434",
                             "is_hidden": False,
                         }
                     ],
+                ),
+                ColumnAnalysis(
+                    column=parameter,
+                    status="Unused",
+                    reason="",
                 ),
             ],
             reports=[],
@@ -208,6 +227,20 @@ class ResultExportTests(unittest.TestCase):
         )
         self.assertEqual(filter_row["Used_in_object_type"], "Advanced")
 
+        page_filter = frame[
+            (frame["Name"] == "Amount")
+            & (frame["Used_in_type"] == "Used in page level filters")
+        ].iloc[0]
+        self.assertEqual(page_filter["Used_in_name"], "Page 1")
+        self.assertEqual(page_filter["Used_in_table_page"], "Page 1")
+
+        parameter_row = frame[frame["Name"] == "Parameter"].iloc[0]
+        self.assertEqual(parameter_row["Type"], "Field parameter")
+
+        used_func_rows = frame[frame["Name"] == "UsedFunc"]
+        self.assertEqual(len(used_func_rows), 1)
+        self.assertEqual(used_func_rows.iloc[0]["Used_in_type"], "Used in artifacts")
+
         total = frame[frame["Name"] == "Total"].iloc[0]
         self.assertEqual(total["Used_in_type"], "Used in visuals")
         self.assertEqual(total["Used_in_ID"], "v1")
@@ -218,7 +251,7 @@ class ResultExportTests(unittest.TestCase):
         calendar = frame[frame["Name"] == "Calendar"].iloc[0]
         self.assertEqual(calendar["Type"], "Hierarchy")
         self.assertEqual(int(calendar["Number_of_Uses"]), 1)
-        self.assertEqual(calendar["Used_in_name"], "Trend")
+        self.assertEqual(calendar["Used_in_name"], "'Trend'")
         self.assertEqual(calendar["Used_in_object_type"], "lineChart")
 
         function = frame[frame["Name"] == "PercentageGrowth"].iloc[0]
@@ -244,6 +277,121 @@ class ResultExportTests(unittest.TestCase):
         self.assertFalse(bool(used_func["Used_in_has_error"]))
         self.assertEqual(used_func["Used_in_format_string"], "#,0")
         self.assertEqual(used_func["Used_in_source"], "Model Uji")
+
+    def test_field_parameter_grouping_and_calculation_item_rows(self) -> None:
+        parameter = column_stat(
+            40, "Parameter", "Field parameter", table="Parameter Table"
+        )
+        fields = column_stat(
+            41, "Parameter Fields", "Field parameter", table="Parameter Table"
+        )
+        date = column_stat(42, "Date", table="Sales")
+        param_table = TableStat(
+            table="Parameter Table",
+            table_id=30,
+            column_count=2,
+            rows=6,
+            size_data_bytes=50,
+            size_hierarchy_bytes=0,
+        )
+        stats = ModelStats(
+            model_name="Model",
+            compatibility_level=1600,
+            last_update="",
+            columns=[parameter, fields, date],
+            tables=[param_table],
+            segment_bytes=0,
+            artifact_bytes=0,
+            measures=[],
+        )
+        result = AnalysisResult(
+            dataset_id="ds",
+            dataset_name="Model Uji",
+            workspace_id="ws",
+            workspace_name="Workspace",
+            analyzed_at="2026-01-01T00:00:00",
+            stats=stats,
+            columns=[
+                ColumnAnalysis(
+                    column=parameter,
+                    status="Used",
+                    reason="",
+                    model_refs=[
+                        ModelReference(
+                            "field parameter", "'Parameter Table'", ""
+                        )
+                    ],
+                ),
+                ColumnAnalysis(
+                    column=fields,
+                    status="Used",
+                    reason="",
+                    model_refs=[
+                        ModelReference(
+                            "field parameter", "'Parameter Table'", ""
+                        ),
+                        ModelReference(
+                            "field parameter grouping",
+                            "'Parameter Table'[Parameter]",
+                            "",
+                        ),
+                    ],
+                ),
+                ColumnAnalysis(
+                    column=date,
+                    status="Used",
+                    reason="",
+                    model_refs=[
+                        ModelReference(
+                            "calculation item",
+                            "calculation item 'MTD'",
+                            "",
+                            source_table="Time Intelligence",
+                            source_id=56835,
+                        )
+                    ],
+                ),
+            ],
+            reports=[],
+            report_total=1,
+            report_scanned=1,
+            report_skipped=0,
+            report_failed=0,
+            method="admin",
+            coverage="1 report",
+            coverage_complete=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Result.xlsx"
+            write_result_export(result, target)
+            frame = pd.read_excel(target, "Result", keep_default_na=False)
+
+        parameters = frame[
+            (frame["Name"] == "Parameter")
+            & (frame["Used_in_type"] == "Used in field parameters")
+        ].iloc[0]
+        self.assertEqual(parameters["Used_in_name"], "Parameter Table")
+        self.assertEqual(parameters["Used_in_object_type"], "Field param. table")
+        self.assertEqual(int(parameters["Used_in_ID"]), 30)
+        self.assertEqual(parameters["Used_in_table_page"], "")
+
+        grouping = frame[
+            (frame["Name"] == "Parameter Fields")
+            & (frame["Used_in_type"] == "Used in column grouping")
+        ].iloc[0]
+        self.assertEqual(grouping["Used_in_name"], "Parameter")
+        self.assertEqual(grouping["Used_in_object_type"], "Field parameter")
+        self.assertEqual(int(grouping["Used_in_ID"]), 40)
+
+        calculation = frame[
+            (frame["Name"] == "Date")
+            & (frame["Used_in_type"] == "Used in calculation items")
+        ].iloc[0]
+        self.assertEqual(calculation["Used_in_name"], "MTD")
+        self.assertEqual(calculation["Used_in_object_type"], "Calculation item")
+        self.assertEqual(int(calculation["Used_in_ID"]), 56835)
+        self.assertEqual(calculation["Used_in_table_page"], "Time Intelligence")
 
 
 if __name__ == "__main__":

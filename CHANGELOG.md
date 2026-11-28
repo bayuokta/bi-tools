@@ -50,6 +50,15 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
 
 ### Perbaikan
 
+- Ekspor `Result` kini menghitung setiap properti formatting sebagai baris
+  terpisah dan membuang formatting hanya bila field yang sama sudah dipakai
+  sebagai field visual di report mana pun (mengikuti Measure Killer). Filter
+  pada level hierarchy dihitung per objek filter, sehingga empat filter slicer
+  tanggal menjadi empat baris, bukan satu.
+- Ekspor `Result` kini memisahkan pemakaian **field parameter**
+  (`Used in field parameters`), **column grouping**, dan **calculation item**;
+  judul visual kustom ditulis apa adanya seperti pembanding, dan baris OLS
+  (column permission) tidak ditulis walaupun tetap menjadi blocker verdict.
 - Baris filter di ekspor `Result` kini memakai bagian terakhir detail sebagai
   nama filter (`tableEx (Filter: <id filter>)`), sehingga sama dengan pembanding
   Measure Killer. Sebelumnya ID filter dibuang dan hanya tertulis
