@@ -7,6 +7,7 @@ import unittest
 
 from core.fabric_api import PBIR, PBIR_LEGACY, DefinitionPart, ReportDefinition
 from core.report_usage import (
+    USAGE_BOOKMARK,
     USAGE_CALCULATION,
     USAGE_FIELD,
     USAGE_FILTER_PAGE,
@@ -417,7 +418,7 @@ class PbirScanTests(unittest.TestCase):
         )
         self.assertEqual(formats, ["Highlight"])
 
-    def test_formatting_dropped_when_field_is_used_as_visual_field(self) -> None:
+    def test_formatting_kept_when_field_is_used_in_other_visual(self) -> None:
         parts = pbir_parts()
         visual = parts["definition/pages/p1/visuals/v3/visual.json"]["visual"]
         visual["objects"] = {
@@ -438,7 +439,7 @@ class PbirScanTests(unittest.TestCase):
             for row in usage.records
             if row.usage_kind == USAGE_FORMAT
         )
-        self.assertNotIn(("Customer", "v3"), formats)
+        self.assertIn(("Customer", "v3"), formats)
         self.assertNotIn(("Customer", "v1"), formats)
 
     def test_formatting_counts_each_property(self) -> None:
@@ -802,6 +803,64 @@ class LegacyEdgeCaseTests(unittest.TestCase):
         ]
         self.assertEqual(
             fields, [("Sales", "Total Unit (STNK Date)", "Field")]
+        )
+
+
+    def test_bookmark_scope_rows(self) -> None:
+        parts = pbir_parts()
+        parts["definition/bookmarks/bookmarks.json"] = {
+            "items": [{"name": "Bookmark1"}]
+        }
+        parts["definition/bookmarks/Bookmark1.bookmark.json"] = {
+            "name": "Bookmark1",
+            "displayName": "Bookmark 1",
+            "options": {"targetVisualNames": []},
+            "explorationState": {"activeSection": "p1"},
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+        rows = [
+            (row.table, row.field)
+            for row in usage.records
+            if row.usage_kind == USAGE_BOOKMARK
+        ]
+        self.assertEqual(
+            rows,
+            [
+                ("All visuals", "True"),
+                ("Current page", "True"),
+                ("Data", "True"),
+                ("Display", "True"),
+                ("Selected visuals", "False"),
+            ],
+        )
+
+    def test_filter_without_fields_is_kept(self) -> None:
+        parts = pbir_parts()
+        parts["definition/pages/p1/visuals/v1/visual.json"]["filterConfig"] = {
+            "filters": [
+                {
+                    "name": "FilterCross",
+                    "type": "Exclude",
+                    "filter": {
+                        "Version": 2,
+                        "From": [
+                            {"Name": "s", "Entity": "Sales", "Type": 0},
+                            {"Name": "p", "Entity": "Product", "Type": 0},
+                        ],
+                        "Where": [],
+                    },
+                }
+            ]
+        }
+        usage = scan_definition(definition(PBIR, parts), table_names=["Sales"])
+        rows = [
+            row
+            for row in usage.records
+            if row.usage_kind == USAGE_FILTER_VISUAL
+        ]
+        self.assertEqual(
+            [(row.field, row.detail) for row in rows],
+            [("", "Exclude \u00b7 FilterCross")],
         )
 
 

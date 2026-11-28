@@ -393,6 +393,24 @@ class ResultExportTests(unittest.TestCase):
         self.assertEqual(int(calculation["Used_in_ID"]), 56835)
         self.assertEqual(calculation["Used_in_table_page"], "Time Intelligence")
 
+    def test_local_source_and_y_axis_role(self) -> None:
+        result = self.result()
+        result.method = "local"
+        result.source_file = "Model (File: C:\\Model.pbix)"
+        result.measures[0].report_records[0]["detail"] = "Y"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Result.xlsx"
+            write_result_export(result, target)
+            frame = pd.read_excel(target, "Result", keep_default_na=False)
+
+        row = frame[
+            (frame["Name"] == "Total")
+            & (frame["Used_in_type"] == "Used in visuals")
+        ].iloc[0]
+        self.assertEqual(row["Used_in_data_type"], "Y-Axis")
+        self.assertEqual(row["Used_in_source"], result.source_file)
+
 
 if __name__ == "__main__":
     unittest.main()

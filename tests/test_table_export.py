@@ -332,7 +332,7 @@ class TableExportTests(unittest.TestCase):
 
         dates = self.groups()["Dates"]
         self.assertEqual(dates["type_label"], "Table")
-        self.assertEqual(dates["status"], "Used")
+        self.assertEqual(dates["status"], "Used 66.7% (2/3)")
         # own uses: Date 1 + Day 1 (hierarchy excluded); usage rows:
         # Day artifact, Prev Dates, MTD, Dealer OLS.
         self.assertEqual(dates["uses"], 6)
@@ -442,6 +442,33 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(hierarchies[0]["uses"], 1)
         self.assertEqual(hierarchies[0]["has_error"], "N/A")
         self.assertEqual(dates["uses"], 6)
+
+    def test_power_query_reference_rows(self) -> None:
+        result = self.result()
+        result.m_queries = [
+            {
+                "kind": "Table",
+                "name": "Sales",
+                "expression": 'let Source = #"Dates" in Source',
+            },
+            {
+                "kind": "Table",
+                "name": "Dates",
+                "expression": "let Source = 1 in Source",
+            },
+        ]
+        groups = {group["table"]: group for group in build_table_groups(result)}
+
+        rows = [
+            row
+            for row in groups["Dates"]["rows"]
+            if row["usage_type"] == "Used in Power Query"
+        ]
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Power Query reference")
+        self.assertEqual(rows[0]["object_type"], "Reference")
+        self.assertEqual(rows[0]["table"], "Sales")
 
     def test_write_table_export_columns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

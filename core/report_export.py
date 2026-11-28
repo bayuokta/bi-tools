@@ -43,9 +43,27 @@ REPORT_RESULT_COLUMNS = [
     "Obj5_name",
     "Obj5_type",
     "Obj5_source",
+    "Level13_Name",
+    "Level13_Type",
+    "Level13_Source",
+    "Level13_Visuals",
+    "Level13_Broken visuals",
+    "Level13_Views",
+    "Level13_Pages",
+    "Level13_Theme",
+    "Level13_Best practices score",
+    "Level14_Name",
+    "Level14_Type",
+    "Level14_Source",
+    "Level14_Visuals",
+    "Level14_Broken visuals",
+    "Level14_Views",
+    "Level14_Pages",
+    "Level14_Theme",
+    "Level14_Best practices score",
 ]
 
-MAX_OBJECTS = 5
+MAX_OBJECTS = 7
 
 
 def visual_name(visual: Mapping[str, Any]) -> str:
@@ -114,17 +132,31 @@ def _row(
         "Report_best_practices_score": report["practice"],
     }
     for index in range(MAX_OBJECTS):
-        number = index + 1
+        prefix = f"Obj{index + 1}" if index < 5 else f"Level{index + 8}"
         node = objects[index] if index < len(objects) else {}
-        row[f"Obj{number}_name"] = str(node.get("name") or "")
-        row[f"Obj{number}_type"] = str(node.get("type") or "")
-        row[f"Obj{number}_source"] = str(node.get("source") or "")
-        if number == 1:
-            row["Obj1_no_of_visuals"] = node.get("visuals", "")
-            row["Obj1_no_of_broken_visuals"] = node.get("broken_visuals", "")
-            row["Obj1_no_of_views"] = node.get("views", "")
-        if number == 2:
-            row["Obj2_is_broken"] = node.get("is_broken", "")
+        if index < 5:
+            row[f"{prefix}_name"] = str(node.get("name") or "")
+            row[f"{prefix}_type"] = str(node.get("type") or "")
+            row[f"{prefix}_source"] = str(node.get("source") or "")
+        else:
+            row[f"{prefix}_Name"] = str(node.get("name") or "")
+            row[f"{prefix}_Type"] = str(node.get("type") or "")
+            row[f"{prefix}_Source"] = str(node.get("source") or "")
+        if index < 5:
+            number = index + 1
+            if number == 1:
+                row["Obj1_no_of_visuals"] = node.get("visuals", "")
+                row["Obj1_no_of_broken_visuals"] = node.get("broken_visuals", "")
+                row["Obj1_no_of_views"] = node.get("views", "")
+            if number == 2:
+                row["Obj2_is_broken"] = node.get("is_broken", "")
+        else:
+            row[f"{prefix}_Visuals"] = ""
+            row[f"{prefix}_Broken visuals"] = ""
+            row[f"{prefix}_Views"] = ""
+            row[f"{prefix}_Pages"] = ""
+            row[f"{prefix}_Theme"] = ""
+            row[f"{prefix}_Best practices score"] = ""
     return row
 
 
@@ -169,8 +201,22 @@ def _emit_visual(
         rows.append(_row(report, path))
     for entry in filters:
         filter_node = _filter_node(entry, "")
-        for field in entry.get("fields") or []:
-            rows.append(_row(report, path + [filter_node, _field_node(field)]))
+        field_entries = list(entry.get("fields") or [])
+        if not field_entries:
+            rows.append(_row(report, path + [filter_node]))
+            continue
+        artifacts = _node("Artifacts used", "Type", "Table")
+        for field in field_entries:
+            field_node = _field_node(field)
+            if len(path) + 2 <= 5:
+                rows.append(_row(report, path + [filter_node, field_node]))
+            else:
+                rows.append(
+                    _row(
+                        report,
+                        path + [filter_node, artifacts, field_node],
+                    )
+                )
 
 
 def _report_header(
@@ -250,6 +296,25 @@ def build_report_rows(
             filter_node = _filter_node(entry, header["name"])
             for field in entry.get("fields") or []:
                 rows.append(_row(header, [filter_node, _field_node(field)]))
+
+        for bookmark in detail.get("bookmarks") or []:
+            bookmark_node = _node(
+                str(bookmark.get("name") or "Bookmark"), "Bookmark", ""
+            )
+            for attribute in bookmark.get("attributes") or []:
+                rows.append(
+                    _row(
+                        header,
+                        [
+                            bookmark_node,
+                            _node(
+                                str(attribute.get("name") or ""),
+                                str(attribute.get("value") or ""),
+                                "",
+                            ),
+                        ],
+                    )
+                )
     return rows
 
 

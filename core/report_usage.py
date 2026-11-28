@@ -41,6 +41,7 @@ USAGE_QUERY_FILTER = "filter-query"
 USAGE_SORT = "sort"
 USAGE_FORMAT = "format"
 USAGE_CALCULATION = "calculation"
+USAGE_BOOKMARK = "bookmark"
 
 USAGE_LABELS = {
     USAGE_FIELD: "Visual field",
@@ -258,23 +259,29 @@ class _Collector:
         self.records.append(record)
 
     def finish(self) -> None:
-        """Buang format bila field sudah dipakai sebagai field visual di report.
+        """Buang format bila field sudah dipakai sebagai field visual.
 
-        Measure Killer menghitung formatting hanya untuk field yang tidak
-        muncul sebagai field visual di report mana pun, bukan hanya di visual
-        yang sama.
+        Measure Killer hanya menghitung formatting untuk field yang tidak
+        muncul sebagai field visual di visual yang sama. Field yang dipakai
+        visual lain tetap dihitung (mis. selector ``columnWidth`` matriks yang
+        memakai kolom dimensi tanpa memproyeksikannya).
         """
         visual_fields = {
-            (record.table.casefold(), record.field.casefold())
+            (
+                record.table.casefold(),
+                record.field.casefold(),
+                record.page_id,
+                record.visual_id,
+            )
             for record in self.records
-            if record.usage_kind == USAGE_FIELD
+            if record.usage_kind in {USAGE_FIELD, USAGE_CALCULATION}
         }
         if not visual_fields:
             return
         measure_fields = {
-            record.field.casefold()
+            (record.field.casefold(), record.page_id, record.visual_id)
             for record in self.records
-            if record.usage_kind == USAGE_FIELD
+            if record.usage_kind in {USAGE_FIELD, USAGE_CALCULATION}
             and record.field_kind == "Measure"
         }
         self.records = [
@@ -286,11 +293,18 @@ class _Collector:
                     (
                         record.table.casefold(),
                         record.field.casefold(),
+                        record.page_id,
+                        record.visual_id,
                     )
                     in visual_fields
                     or (
                         record.field_kind == "Measure"
-                        and record.field.casefold() in measure_fields
+                        and (
+                            record.field.casefold(),
+                            record.page_id,
+                            record.visual_id,
+                        )
+                        in measure_fields
                     )
                 )
             )
@@ -328,6 +342,61 @@ class _Collector:
             is_hidden=is_hidden,
             filter_name=str(info.get("filter_name") or ""),
         )
+
+    def add_filter_object(
+        self,
+        *,
+        usage_kind: str,
+        detail: str,
+        filter_name: str,
+        page_id: str = "",
+        page_name: str = "",
+        visual_id: str = "",
+        visual_type: str = "",
+        visual_title: str = "",
+        is_hidden: bool = False,
+    ) -> None:
+        """Simpan objek filter tanpa field (mis. filter lintas tabel)."""
+        key = (usage_kind, page_id, visual_id, filter_name or detail)
+        if key in self._seen_filter:
+            return
+        self._seen_filter.add(key)
+        self.records.append(
+            UsageRecord(
+                usage_kind=usage_kind,
+                field_kind="",
+                table="",
+                field="",
+                page_id=page_id,
+                page_name=page_name,
+                visual_id=visual_id,
+                visual_type=visual_type,
+                visual_title=visual_title,
+                detail=_shorten(detail),
+                is_hidden=is_hidden,
+            )
+        )
+
+    def add_bookmarks(
+        self,
+        name: str,
+        bookmark_id: str,
+        attributes: Iterable[tuple[str, bool]],
+    ) -> None:
+        """Baris bookmark: nama bookmark lalu atribut cakupan (True/False)."""
+        for attribute, value in attributes:
+            self.records.append(
+                UsageRecord(
+                    usage_kind=USAGE_BOOKMARK,
+                    field_kind=USAGE_BOOKMARK,
+                    table=attribute,
+                    field="True" if value else "False",
+                    page_name=name,
+                    visual_id=bookmark_id,
+                    visual_type=USAGE_BOOKMARK,
+                    detail=name,
+                )
+            )
 
     def add_expression(
         self,
@@ -423,6 +492,11 @@ def _format_property(path: tuple[str, ...]) -> str:
         for part in path
         if str(part) not in ignored and not str(part).isdigit()
     ]
+    if "selector" in parts:
+        # Selector formatting (mis. columnWidth) memakai scope data; nama
+        # properti berhenti di scopeId, bukan operand Comparison/Left.
+        stop = parts.index("selector") + 3
+        return " > ".join(parts[:stop])
     return " > ".join(parts[-3:]) if parts else ""
 
 
@@ -546,6 +620,41 @@ def _dax_columns(expression: str, table_names: Iterable[str]) -> list[tuple[str,
 # ---------------------------------------------------------------------------
 # PBIR
 # ---------------------------------------------------------------------------
+def _scan_bookmarks(parts: _Parts, collector: _Collector) -> None:
+    """Catat bookmark dan cakupannya seperti template Report results."""
+    files = {
+        path.rsplit("/", 1)[-1][: -len(".bookmark.json")]: path
+        for path in parts.paths("definition/bookmarks/", ".bookmark.json")
+    }
+    if not files:
+        return
+    meta = parts.json("definition/bookmarks/bookmarks.json")
+    ordered = [
+        str(item.get("name") or "")
+        for item in (meta.get("items") or [])
+        if str(item.get("name") or "") in files
+    ]
+    ordered += sorted(set(files) - set(ordered))
+    for name in ordered:
+        data = parts.json(files[name])
+        if not isinstance(data, dict) or not data:
+            continue
+        display = str(data.get("displayName") or name)
+        options = data.get("options") or {}
+        targets = [
+            item for item in (options.get("targetVisualNames") or []) if item
+        ]
+        exploration = data.get("explorationState") or {}
+        attributes = [
+            ("All visuals", not targets),
+            ("Current page", bool(exploration.get("activeSection"))),
+            ("Data", bool(options.get("data", True))),
+            ("Display", bool(options.get("display", True))),
+            ("Selected visuals", bool(targets)),
+        ]
+        collector.add_bookmarks(display, name, attributes)
+
+
 def _scan_pbir(
     parts: _Parts,
     collector: _Collector,
@@ -570,7 +679,16 @@ def _scan_pbir(
             )
             if part
         )
-        for info in _filter_infos(flt):
+        infos = _filter_infos(flt)
+        if not infos:
+            collector.add_filter_object(
+                usage_kind=USAGE_FILTER_REPORT,
+                detail=f"{str(flt.get('type') or 'Filter')} · {str(flt.get('name') or 'Filter')}",
+                filter_name=str(flt.get("name") or ""),
+                page_name="(all pages)",
+                visual_title="(all visuals)",
+            )
+        for info in infos:
             collector.add_field(
                 info,
                 usage_kind=USAGE_FILTER_REPORT,
@@ -578,6 +696,8 @@ def _scan_pbir(
                 visual_title="(all visuals)",
                 detail=detail,
             )
+
+    _scan_bookmarks(parts, collector)
 
     page_ids = list(pages_meta.get("pageOrder") or [])
     visual_paths = parts.paths("definition/pages/", "visual.json")
@@ -603,7 +723,17 @@ def _scan_pbir(
                 )
                 if part
             )
-            for info in _filter_infos(flt):
+            infos = _filter_infos(flt)
+            if not infos:
+                collector.add_filter_object(
+                    usage_kind=USAGE_FILTER_PAGE,
+                    detail=f"{str(flt.get('type') or 'Filter')} · {str(flt.get('name') or 'Filter')}",
+                    filter_name=str(flt.get("name") or ""),
+                    page_id=page_id,
+                    page_name=page_name,
+                    visual_title="(all visuals on page)",
+                )
+            for info in infos:
                 collector.add_field(
                     info,
                     usage_kind=USAGE_FILTER_PAGE,
@@ -784,7 +914,23 @@ def _scan_pbir(
                     )
                     if part
                 )
-                for info in _filter_infos(flt):
+                infos = _filter_infos(flt)
+                if not infos:
+                    collector.add_filter_object(
+                        usage_kind=USAGE_FILTER_VISUAL,
+                        detail=(
+                            f"{str(flt.get('type') or 'Filter')} · "
+                            f"{str(flt.get('name') or 'Filter')}"
+                        ),
+                        filter_name=str(flt.get("name") or ""),
+                        page_id=page_id,
+                        page_name=page_name,
+                        visual_id=visual_id,
+                        visual_type=visual_type,
+                        visual_title=title,
+                        is_hidden=is_hidden,
+                    )
+                for info in infos:
                     collector.add_field(
                         info,
                         usage_kind=USAGE_FILTER_VISUAL,

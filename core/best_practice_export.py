@@ -12,7 +12,7 @@ from typing import Any
 
 import pandas as pd
 
-from .best_practice import build_best_practice
+from .best_practice import build_best_practice, mk_rules
 from .errors import ExtractionError
 from .metadata_common import write_sheet
 
@@ -21,7 +21,7 @@ BEST_PRACTICE_COLUMNS = ["Rule", "Violation Score", "Severity", "Object"]
 
 def build_best_practice_rows(result: Any) -> list[dict[str, Any]]:
     """Susun 4 kolom template dari hasil ``build_best_practice``."""
-    payload = build_best_practice(result)
+    payload = build_best_practice(result, rules=mk_rules())
     if not payload.get("available", False):
         raise ExtractionError(
             str(payload.get("error") or "Best practice catalog is unavailable.")

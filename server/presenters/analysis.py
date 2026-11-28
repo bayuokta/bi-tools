@@ -61,6 +61,7 @@ from core.raw_metadata import (
     find_row,
     metadata_payload,
 )
+from core.best_practice import mk_rules
 from core.best_practice_export import write_best_practice_export
 from core.dax_export import write_dax_export
 from core.health_export import write_health_export
@@ -1426,7 +1427,7 @@ def serialize_result(
         "functions": function_rows,
         "reports": reports,
         "health": health,
-        "best_practice": build_best_practice(result),
+        "best_practice": build_best_practice(result, rules=mk_rules()),
         "tables": table_rows,
         "relationships": relationship_rows,
         "roles": list(getattr(result, "roles", []) or []),

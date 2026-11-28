@@ -755,6 +755,14 @@ def _filter_entries(
         field = _resolve_field(row, column_types, measure_names)
         if not field["field"]:
             continue
+        if field["kind"] != "Hierarchy":
+            lookup = (field["table"].casefold(), field["field"].casefold())
+            if (
+                (column_types or measure_names)
+                and lookup not in column_types
+                and lookup not in measure_names
+            ):
+                continue
         fingerprint = (
             field["table"].casefold(),
             field["field"].casefold(),
@@ -799,6 +807,14 @@ def _visual_fields(
         item = _resolve_field(row, column_types, measure_names)
         if not item["field"]:
             continue
+        if item["kind"] != "Hierarchy":
+            lookup = (item["table"].casefold(), item["field"].casefold())
+            if (
+                (column_types or measure_names)
+                and lookup not in column_types
+                and lookup not in measure_names
+            ):
+                continue
         key = (
             item["table"].casefold(),
             item["field"].casefold(),
@@ -819,6 +835,14 @@ def _visual_fields(
         item = _resolve_field(row, column_types, measure_names)
         if not item["field"] or item["field"].casefold() in names:
             continue
+        if item["kind"] != "Hierarchy":
+            lookup = (item["table"].casefold(), item["field"].casefold())
+            if (
+                (column_types or measure_names)
+                and lookup not in column_types
+                and lookup not in measure_names
+            ):
+                continue
         key = (
             item["table"].casefold(),
             item["field"].casefold(),
@@ -918,8 +942,12 @@ def report_detail(
     visual_filters: dict[str, list[dict[str, Any]]] = {}
     page_filters: dict[str, list[dict[str, Any]]] = {}
     report_filter_rows: list[dict[str, Any]] = []
+    bookmark_rows: list[dict[str, Any]] = []
     for row in rows:
         kind = str(row.get("usage_kind") or "")
+        if kind == "bookmark":
+            bookmark_rows.append(row)
+            continue
         if kind == "filter-report":
             report_filter_rows.append(row)
             continue
@@ -987,6 +1015,19 @@ def report_detail(
             measure_names,
             model_tables,
         )
+        for row in field_rows.get(visual_id, []):
+            item = _resolve_field(row, column_types, measure_names)
+            if not item["field"] or item["kind"] == "Hierarchy":
+                continue
+            lookup = (item["table"].casefold(), item["field"].casefold())
+            if (
+                (column_types or measure_names)
+                and lookup not in column_types
+                and lookup not in measure_names
+            ):
+                broken.add(visual_id)
+                break
+        visual["is_broken"] = visual_id in broken
         visual["fields"] = fields
         visual["artifacts"] = fields
         visual["filters"] = _filter_entries(
@@ -1013,6 +1054,24 @@ def report_detail(
     report_filters = _filter_entries(
         report_filter_rows, column_types, measure_names
     )
+    bookmarks: list[dict[str, Any]] = []
+    bookmark_map: dict[str, dict[str, Any]] = {}
+    for row in bookmark_rows:
+        bookmark_id = str(row.get("visual_id") or row.get("page_name") or "")
+        entry = bookmark_map.get(bookmark_id)
+        if entry is None:
+            entry = {
+                "name": str(row.get("page_name") or row.get("detail") or bookmark_id),
+                "attributes": [],
+            }
+            bookmark_map[bookmark_id] = entry
+            bookmarks.append(entry)
+        entry["attributes"].append(
+            {
+                "name": str(row.get("table_name") or ""),
+                "value": str(row.get("field_name") or ""),
+            }
+        )
     container_count = sum(
         int(page.get("container_count") or 0) for page in output_pages
     )
@@ -1024,6 +1083,7 @@ def report_detail(
         "broken_visuals": len(broken),
         "pages": output_pages,
         "report_filters": report_filters,
+        "bookmarks": bookmarks,
     }
 
 

@@ -129,6 +129,49 @@ class UsageStoreTests(unittest.TestCase):
         self.assertEqual(pages[0]["visual_count"], 1)
         self.assertEqual(pages[0]["field_count"], 2)
 
+    def test_report_detail_includes_bookmarks(self) -> None:
+        usage_value = ReportUsage(
+            report_format="PBIR",
+            records=[
+                UsageRecord(
+                    "bookmark", "bookmark", "All visuals", "True",
+                    page_name="Bookmark 1", visual_id="b1",
+                    visual_type="bookmark", detail="Bookmark 1",
+                ),
+                UsageRecord(
+                    "bookmark", "bookmark", "Selected visuals", "False",
+                    page_name="Bookmark 1", visual_id="b1",
+                    visual_type="bookmark", detail="Bookmark 1",
+                ),
+            ],
+        )
+        save_report(
+            self.conn,
+            report_id="r1",
+            workspace_id="ws",
+            dataset_id="ds",
+            name="Report A",
+            report_format="PBIR",
+            modified_at="2026-01-01T00:00:00Z",
+            status="ok",
+            usage=usage_value,
+        )
+
+        detail = report_detail(self.conn, "ds", "r1")
+
+        self.assertEqual(
+            detail["bookmarks"],
+            [
+                {
+                    "name": "Bookmark 1",
+                    "attributes": [
+                        {"name": "All visuals", "value": "True"},
+                        {"name": "Selected visuals", "value": "False"},
+                    ],
+                }
+            ],
+        )
+
     def test_report_detail_groups_visuals_and_filters(self) -> None:
         usage_value = ReportUsage(
             report_format="PBIR",

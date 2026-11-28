@@ -15,6 +15,7 @@ from typing import Any, Mapping
 import pandas as pd
 
 from .export_common import (
+    source_text,
     BLANK,
     artifact_meta,
     size_text,
@@ -22,6 +23,8 @@ from .export_common import (
     type_text,
     use_count,
 )
+from .export_status import effective_status_map
+from .m_lineage import parse_let, strip_comments
 from .metadata_common import write_sheet
 from .usage_service import STATUS_BLOCKER, STATUS_USED, display_data_type
 
@@ -56,6 +59,7 @@ GROUP_FIELD_PARAMETERS = "Used in field parameters"
 GROUP_COLUMNS = "Columns"
 GROUP_HIERARCHIES = "Hierarchies"
 GROUP_MEASURES = "Measures"
+GROUP_POWER_QUERY = "Used in Power Query"
 GROUP_CALC_ITEMS = "Used in calculation items"
 GROUP_SECURITY = "Used in row/object level security"
 
@@ -67,6 +71,7 @@ GROUP_ORDER = (
     GROUP_COLUMNS,
     GROUP_HIERARCHIES,
     GROUP_MEASURES,
+    GROUP_POWER_QUERY,
     GROUP_CALC_ITEMS,
     GROUP_SECURITY,
 )
@@ -78,6 +83,7 @@ GROUP_ICONS = {
     GROUP_COLUMNS: "column",
     GROUP_HIERARCHIES: "group",
     GROUP_MEASURES: "measure",
+    GROUP_POWER_QUERY: "code",
     GROUP_CALC_ITEMS: "code",
     GROUP_SECURITY: "filter",
 }
@@ -106,6 +112,7 @@ def _row(
     owner_table: str = "",
     target_table: str = "",
     size_bytes: int = 0,
+    source: str | None = None,
 ) -> dict[str, Any]:
     return {
         "usage_type": usage_type,
@@ -125,6 +132,7 @@ def _row(
         "owner_table": str(owner_table or ""),
         "target_table": str(target_table or ""),
         "size_bytes": int(size_bytes or 0),
+        "source": source,
     }
 
 
@@ -142,7 +150,11 @@ def _table_type(table: Any, columns: list[Any]) -> str:
 
 
 def _table_status(used: int, total: int) -> str:
-    if not total or used == total:
+    if not total:
+        return "Used"
+    if used == 0:
+        return "Unused"
+    if used == total:
         return "Used"
     percent = used / total * 100
     return f"Used {percent:.1f}% ({used}/{total})"
@@ -264,9 +276,63 @@ def _security_by_table(result: Any) -> dict[str, list[dict[str, Any]]]:
                     name=name,
                     object_type=object_type,
                     icon="filter",
+                    source=str(getattr(result, "dataset_name", "") or ""),
                 )
             )
     return security
+
+
+def _power_query_usage(
+    result: Any, *, tables: Mapping[str, Any]
+) -> dict[str, list[dict[str, Any]]]:
+    """Tabel yang mereferensikan query tabel lain di ekspresi M-nya.
+
+    Measure Killer menampilkan referensi antartabel Power Query sebagai baris
+    ``Used in Power Query`` pada tabel yang direferensikan. Referensi dibaca
+    dari ekspresi partisi (``AnalysisResult.m_queries``) dan dicocokkan dengan
+    nama tabel; nama lokal ``let`` tidak dihitung.
+    """
+    usage: dict[str, list[dict[str, Any]]] = {}
+    dataset = str(getattr(result, "dataset_name", "") or "")
+    rows = [
+        row
+        for row in (getattr(result, "m_queries", []) or [])
+        if isinstance(row, Mapping)
+    ]
+    expressions: dict[str, str] = {}
+    for row in rows:
+        if str(row.get("kind") or "").casefold() != "table":
+            continue
+        name = str(row.get("name") or "")
+        expression = str(row.get("expression") or "")
+        if not name or not expression:
+            continue
+        expressions.setdefault(name, expression)
+    quoted = re.compile(r'#"[^"]+"')
+    for owner, expression in expressions.items():
+        text = strip_comments(expression)
+        steps, _ = parse_let(expression)
+        bindings = {name.casefold() for name, _ in steps}
+        candidates = {
+            match[2:-1] for match in quoted.findall(text)
+        } - bindings
+        for target in sorted(candidates, key=str.casefold):
+            key = target.casefold()
+            if key not in tables or key == owner.casefold():
+                continue
+            usage.setdefault(key, []).append(
+                _row(
+                    GROUP_POWER_QUERY,
+                    name="Power Query reference",
+                    object_type="Reference",
+                    table=owner,
+                    kind="reference",
+                    icon="code",
+                    target_table=target,
+                    source=dataset,
+                )
+            )
+    return usage
 
 
 def _usage_by_table(
@@ -277,6 +343,7 @@ def _usage_by_table(
     measures: Mapping[tuple[str, str], Any],
     field_parameters: set[str],
     calc_item_ids: Mapping[tuple[str, str], int],
+    status_map: Mapping[tuple[str, str, str], str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Baris pemakaian dari ``DISCOVER_CALC_DEPENDENCY`` per tabel tujuan."""
     usage: dict[str, list[dict[str, Any]]] = {}
@@ -324,6 +391,19 @@ def _usage_by_table(
                 meta.get("type")
                 or ("Measure" if owner_type == "MEASURE" else "Calculated Column")
             )
+            status_value = meta.get("status", BLANK)
+            if meta:
+                lookup_kind = (
+                    "measure" if object_type == "Measure" else "column"
+                )
+                status_value = (status_map or {}).get(
+                    (
+                        lookup_kind,
+                        str(meta.get("table") or owner_table).casefold(),
+                        owner_name.casefold(),
+                    ),
+                    status_value,
+                )
             row = _row(
                 group,
                 name=owner_name,
@@ -332,7 +412,7 @@ def _usage_by_table(
                 table=meta.get("table") or owner_table,
                 data_type=meta.get("data_type", BLANK),
                 size=meta.get("size", BLANK),
-                status=meta.get("status", BLANK),
+                status=status_value,
                 uses=meta.get("uses", BLANK),
                 format_string=meta.get("format_string", BLANK),
                 has_error=_has_error_text(meta.get("has_error", BLANK)),
@@ -425,6 +505,7 @@ def build_table_groups(
             key=lambda row: (-int(row.get("size_bytes") or 0), row["name"].casefold())
         )
 
+    status_map = effective_status_map(result)
     usage = _usage_by_table(
         result,
         tables=tables,
@@ -432,24 +513,35 @@ def build_table_groups(
         measures=measures,
         field_parameters=field_parameters,
         calc_item_ids=calc_item_ids,
+        status_map=status_map,
     )
     security = _security_by_table(result)
+    power_query = _power_query_usage(result, tables=tables)
 
     groups: list[dict[str, Any]] = []
     for table_name, table in tables.items():
         items = own.get(table_name, {"columns": [], "measures": [], "hierarchies": []})
-        used = sum(
-            1
-            for item in items["columns"] + items["measures"]
-            if str(item["status"]) in USED_STATUS_LABELS
+        used = 0
+        for kind, rows in (("column", items["columns"]), ("measure", items["measures"])):
+            for item in rows:
+                effective = status_map.get(
+                    (kind, table_name, str(item["name"]).casefold()),
+                    item["status"],
+                )
+                item["status"] = status_text(effective)
+                if status_text(effective) in USED_STATUS_LABELS:
+                    used += 1
+        total = (
+            len(items["columns"])
+            + len(items["measures"])
+            + len(items["hierarchies"])
         )
-        total = len(items["columns"]) + len(items["measures"])
         own_uses = sum(
             int(item["uses"])
             for item in items["columns"] + items["measures"]
             if isinstance(item["uses"], int)
         )
-        table_usage = usage.get(table_name, [])
+        table_usage = usage.get(table_name, []) + power_query.get(table_name, [])
         table_security = security.get(table_name, [])
         groups.append(
             {
@@ -458,7 +550,7 @@ def build_table_groups(
                 "type_label": _table_type(
                     table, columns_by_table.get(table_name, [])
                 ),
-                "source": str(getattr(result, "dataset_name", "") or ""),
+                "source": source_text(result),
                 "size": size_text(getattr(table, "size_total_bytes", 0)),
                 "size_bytes": int(getattr(table, "size_total_bytes", 0) or 0),
                 "storage_mode": str(getattr(table, "storage_mode", "") or ""),
@@ -539,7 +631,11 @@ def write_table_export(result: Any, path: Path | str) -> Path:
                     "Used_in_ID": row["object_id"],
                     "Used_in_object_type": row["object_type"],
                     "Used_in_table": row["table"],
-                    "Used_in_source": group["source"],
+                    "Used_in_source": (
+                        row["source"]
+                        if row.get("source") is not None
+                        else group["source"]
+                    ),
                     "Used_in_data_type": row["data_type"],
                     "Used_in_size": row["size"],
                     "Used_in_status": row["status"],

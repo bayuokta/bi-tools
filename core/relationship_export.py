@@ -138,6 +138,11 @@ def _relationship_key(item: Mapping[str, Any]) -> str:
     )
 
 
+def relationship_usage(result: Any) -> dict[str, list[dict[str, Any]]]:
+    """Wrapper publik untuk pemakaian relasi (Measure Killer)."""
+    return _relationship_usage(result)
+
+
 def _relationship_usage(result: Any) -> dict[str, list[dict[str, Any]]]:
     """Measure yang memakai relasi lewat ``USERELATIONSHIP`` di DAX."""
     pairs: dict[frozenset[tuple[str, str]], str] = {}

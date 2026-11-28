@@ -1269,6 +1269,8 @@ class AnalysisResult:
     table_dependencies: list[dict[str, Any]] = field(default_factory=list)
     report_pages: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     reports_included: bool = True
+    source_label: str = ""
+    source_file: str = ""
 
     @property
     def unused(self) -> list[ColumnAnalysis]:
@@ -1758,6 +1760,8 @@ def build_analysis(
     report_pages: dict[str, list[dict[str, Any]]] | None = None,
     hierarchies: Iterable[Mapping[str, Any]] = (),
     reports_included: bool = True,
+    source_label: str = "",
+    source_file: str = "",
 ) -> AnalysisResult:
     """Gabungkan ukuran kolom, measure, pemakaian report, dan referensi model."""
     rows = list(usage_rows)
@@ -1847,6 +1851,8 @@ def build_analysis(
         table_dependencies=trim_table_dependencies(table_dependencies),
         report_pages=dict(report_pages or {}),
         reports_included=reports_included,
+        source_label=source_label,
+        source_file=source_file,
     )
 
 

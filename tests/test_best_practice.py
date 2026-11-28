@@ -14,6 +14,7 @@ from core.best_practice import (
     UNSUPPORTED_REASONS,
     build_best_practice,
     load_rules,
+    mk_rules,
     model_verdict,
 )
 from core.paths import RULES_DIR
@@ -195,6 +196,24 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(len(_EVALUATORS), 54)
         self.assertEqual(len(UNSUPPORTED_REASONS), 17)
 
+    def test_measure_killer_catalog_has_22_rules(self) -> None:
+        rules = mk_rules()
+        self.assertEqual(len(rules), 22)
+        self.assertIn(
+            "AVOID_BI-DIRECTIONAL_RELATIONSHIPS",
+            {rule.id for rule in rules},
+        )
+        self.assertIn("ONE-TO-ONE_RELATIONSHIPS", {rule.id for rule in rules})
+        by_id = {rule.id: rule for rule in rules}
+        self.assertEqual(
+            by_id["AVOID_DUPLICATE_MEASURES"].name,
+            "[DAX Expressions] No two measures should have the same DAX expression",
+        )
+        self.assertEqual(
+            by_id["SNOWFLAKE_SCHEMA_ARCHITECTURE"].name,
+            "[Performance] Consider a star-schema instead of other architectures",
+        )
+
     def test_missing_catalog_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with patch("core.best_practice.RULES_DIR", Path(tmp)):
@@ -303,8 +322,8 @@ class EvaluationTests(unittest.TestCase):
         data = build_best_practice(self.sample())
         self.assertTrue(data["available"])
         self.assertEqual(data["rule_count"], 71)
-        self.assertEqual(data["evaluated"], 54)
-        self.assertEqual(data["not_evaluated"], 17)
+        self.assertEqual(data["evaluated"], 55)
+        self.assertEqual(data["not_evaluated"], 16)
         self.assertGreater(data["score"], 0)
         self.assertIn(data["verdict"], {
             "Power BI Pro", "Good", "Ok", "Poor", "Awful", "Power BI Criminal"
@@ -335,6 +354,12 @@ class EvaluationTests(unittest.TestCase):
             "REMOVE_AUTO-DATE_TABLE",
         ):
             self.assertIn(rule_id, fired, rule_id)
+
+    def test_mk_catalog_evaluates_all_22_rules(self) -> None:
+        data = build_best_practice(self.sample(), rules=mk_rules())
+        self.assertEqual(data["rule_count"], 22)
+        self.assertEqual(data["evaluated"], 22)
+        self.assertEqual(data["not_evaluated"], 0)
 
     def test_score_uses_log_scale(self) -> None:
         data = build_best_practice(self.sample())
@@ -436,7 +461,11 @@ class TemplateParityTests(unittest.TestCase):
             result(
                 columns=[column("Key", data_type="string")],
                 relationships=[
-                    relationship("Rel", "A", "Key", "B", "Key", cross="bothDirections")
+                    relationship(
+                        "Rel", "A", "Key", "B", "Key",
+                        from_type="many", to_type="many",
+                        cross="bothDirections",
+                    )
                 ],
             )
         )
@@ -444,7 +473,7 @@ class TemplateParityTests(unittest.TestCase):
             item for item in data["items"] if item["rule_id"] == rule.id
         ]
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["object"], "'A'[Key] N <-> 1 'B'[Key]")
+        self.assertEqual(items[0]["object"], "'A'[Key] N <-> M 'B'[Key]")
 
     def test_relationship_integer_one_row_per_relationship(self) -> None:
         rule = self.rules()["RELATIONSHIP_COLUMNS_SHOULD_BE_OF_INTEGER_DATA_TYPE"]

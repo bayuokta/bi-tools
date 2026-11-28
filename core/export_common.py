@@ -21,6 +21,20 @@ from .usage_service import (
 
 BLANK = ""
 
+
+def source_text(result: Any) -> str:
+    """Label sumber lokal/Service; fallback ke nama dataset."""
+    return str(
+        getattr(result, "source_label", "")
+        or getattr(result, "dataset_name", "")
+        or ""
+    )
+
+
+def report_source_text(result: Any) -> str:
+    """Sumber pemakaian report: path file lokal bila tersedia."""
+    return str(getattr(result, "source_file", "") or "")
+
 STATUS_LABELS = {
     STATUS_UNUSED: "Unused",
     STATUS_USED: "Used",

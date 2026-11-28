@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
@@ -227,7 +227,7 @@ def build_best_practice(
     rule_rows: list[dict[str, Any]] = []
     findings: list[Finding] = []
     for rule in catalog:
-        evaluator = _EVALUATORS.get(rule.id)
+        evaluator = MK_EVALUATORS.get(rule.id) or _EVALUATORS.get(rule.id)
         if evaluator is None:
             rule_rows.append(_rule_row(rule, "not_evaluated", 0, 0, UNSUPPORTED_REASONS.get(
                 rule.id, "This rule has no evaluator in this tool yet."
@@ -942,13 +942,10 @@ def _duplicate_measures(result: Any, rule: BpaRule) -> list[Finding]:
         if not expression:
             continue
         if expression in seen:
-            found.append(
-                _measure_finding(
-                    rule,
-                    measure,
-                    f"definition matches {getattr(seen[expression], 'measure', '')}",
-                )
-            )
+            first = seen[expression]
+            label = _measure_finding(rule, first, "duplicate definition").object
+            if not any(item.object == label for item in found):
+                found.append(_measure_finding(rule, first, "duplicate definition"))
         else:
             seen[expression] = measure
     return found
@@ -1328,7 +1325,10 @@ def _integer_format(result: Any, rule: BpaRule) -> list[Finding]:
         if "$" in value or "%" in value:
             continue
         if value not in {"#,0", "#,0.0"}:
-            found.append(_measure_finding(rule, measure, value or "(empty)"))
+            suffix = f"(Format: '{value}' - Expected: '#,0' or '#,0.0')"
+            found.append(
+                _measure_finding(rule, measure, value or "(empty)", suffix=suffix)
+            )
     return found
 
 
@@ -1482,6 +1482,347 @@ def _lower_first(text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
+
+MK_RULE_IDS = [
+    "OBJECTS_WITH_NO_DESCRIPTION",
+    "NUMERIC_COLUMN_SUMMARIZE_BY",
+    "HIDE_FOREIGN_KEYS",
+    "RELATIONSHIP_COLUMNS_SHOULD_BE_OF_INTEGER_DATA_TYPE",
+    "MINIMIZE_POWER_QUERY_TRANSFORMATIONS",
+    "USE_THE_DIVIDE_FUNCTION_FOR_DIVISION",
+    "DATECOLUMN_FORMATSTRING",
+    "PERCENTAGE_FORMATTING",
+    "MARK_PRIMARY_KEYS",
+    "ISAVAILABLEINMDX_FALSE_NONATTRIBUTE_COLUMNS",
+    "AVOID_BI-DIRECTIONAL_RELATIONSHIPS",
+    "PROVIDE_FORMAT_STRING_FOR_MEASURES",
+    "INTEGER_FORMATTING",
+    "ONE-TO-ONE_RELATIONSHIPS",
+    "FIRST_LETTER_OF_OBJECTS_MUST_BE_CAPITALIZED",
+    "AVOID_FLOATING_POINT_DATA_TYPES",
+    "AVOID_DUPLICATE_MEASURES",
+    "MANY-TO-MANY_RELATIONSHIPS_SHOULD_BE_SINGLE-DIRECTION",
+    "INACTIVE_RELATIONSHIPS_THAT_ARE_NEVER_ACTIVATED",
+    "SNOWFLAKE_SCHEMA_ARCHITECTURE",
+    "ENSURE_TABLES_HAVE_RELATIONSHIPS",
+    "CHECK_IF_BI-DIRECTIONAL_AND_MANY-TO-MANY_RELATIONSHIPS_ARE_VALID",
+]
+
+MK_RULE_NAME_OVERRIDES = {
+    "DATECOLUMN_FORMATSTRING": '[Formatting] Provide format string for "Date" columns.',
+    "AVOID_DUPLICATE_MEASURES": (
+        "[DAX Expressions] No two measures should have the same DAX expression"
+    ),
+    "SNOWFLAKE_SCHEMA_ARCHITECTURE": (
+        "[Performance] Consider a star-schema instead of other architectures"
+    ),
+}
+
+
+def mk_rules() -> list[BpaRule]:
+    catalog = {rule.id: rule for rule in load_rules()}
+    rules: list[BpaRule] = []
+    for rule_id in MK_RULE_IDS:
+        rule = catalog.get(rule_id)
+        if rule is None:
+            continue
+        name = MK_RULE_NAME_OVERRIDES.get(rule_id, rule.name)
+        rules.append(replace(rule, name=name))
+    rules.append(
+        BpaRule(
+            id="AVOID_BI-DIRECTIONAL_RELATIONSHIPS",
+            name="[Performance] Avoid bi-directional relationships",
+            category="Performance",
+            severity=2,
+            scope="",
+            description="",
+            expression="",
+            fix_expression="",
+        )
+    )
+    rules.append(
+        BpaRule(
+            id="ONE-TO-ONE_RELATIONSHIPS",
+            name=(
+                "[Maintenance] One-to-one relationships should be avoided. "
+                "Merge the tables instead."
+            ),
+            category="Maintenance",
+            severity=2,
+            scope="",
+            description="",
+            expression="",
+            fix_expression="",
+        )
+    )
+    order = {rule_id: index for index, rule_id in enumerate(MK_RULE_IDS)}
+    rules.sort(key=lambda rule: order.get(rule.id, 999))
+    return rules
+
+
+def _mk_avoid_bidirectional(result: Any, rule: BpaRule) -> list[Finding]:
+    return [
+        _relationship_finding(rule, row, "bidirectional")
+        for row in _relationships(result)
+        if str(row.get("cross_filtering") or "").casefold()
+        == "bothdirections"
+    ]
+
+
+def _mk_one_to_one(result: Any, rule: BpaRule) -> list[Finding]:
+    return [
+        _relationship_finding(rule, row, "one-to-one")
+        for row in _relationships(result)
+        if str(row.get("from_cardinality") or "").casefold() == "one"
+        and str(row.get("to_cardinality") or "").casefold() == "one"
+    ]
+
+
+def _mk_check_many_to_many(result: Any, rule: BpaRule) -> list[Finding]:
+    return [
+        _relationship_finding(rule, row, "many-to-many")
+        for row in _relationships(result)
+        if str(row.get("from_cardinality") or "").casefold() == "many"
+        and str(row.get("to_cardinality") or "").casefold() == "many"
+    ]
+
+
+def _mk_inactive_relationships(result: Any, rule: BpaRule) -> list[Finding]:
+    from .relationship_export import relationship_usage
+
+    usage = relationship_usage(result)
+    found: list[Finding] = []
+    for row in _relationships(result):
+        if bool(row.get("is_active", True)):
+            continue
+        key = str(
+            row.get("relationship_id") or row.get("name") or row.get("id") or ""
+        )
+        if usage.get(key):
+            continue
+        found.append(_relationship_finding(rule, row, "never activated"))
+    return found
+
+
+def _mk_snowflake(result: Any, rule: BpaRule) -> list[Finding]:
+    if not _snowflake(result, rule):
+        return []
+    return [_model_finding(rule, result, "snowflake architecture")]
+
+
+def _hierarchy_level_keys(result: Any) -> set[tuple[str, str]]:
+    keys: set[tuple[str, str]] = set()
+    for analysis in getattr(result, "hierarchies", []) or []:
+        row = getattr(analysis, "hierarchy", None)
+        if row is None and isinstance(analysis, Mapping):
+            row = analysis
+        if not isinstance(row, Mapping):
+            continue
+        table = str(row.get("table") or "").casefold()
+        levels = str(row.get("levels") or "")
+        for segment in levels.split(" > "):
+            segment = segment.strip()
+            if not segment:
+                continue
+            level_name = segment.split(" (", 1)[0].strip()
+            if level_name:
+                keys.add((table, level_name.casefold()))
+            match = re.search(r"\(([^)]+)\)", segment)
+            if match:
+                keys.add((table, match.group(1).strip().casefold()))
+    return keys
+
+
+def _mk_is_available_in_mdx(result: Any, rule: BpaRule) -> list[Finding]:
+    levels = _hierarchy_level_keys(result)
+    found: list[Finding] = []
+    for column in _columns(result):
+        if not bool(getattr(column, "is_hidden", False)):
+            continue
+        if not bool(getattr(column, "is_available_in_mdx", True)):
+            continue
+        if bool(getattr(column, "is_key", False)):
+            continue
+        key = (
+            str(getattr(column, "table", "") or "").casefold(),
+            str(getattr(column, "column", "") or "").casefold(),
+        )
+        if key in levels:
+            continue
+        found.append(_column_finding(rule, column, "IsAvailableInMdx"))
+    return found
+
+
+def _mk_numeric_summarize(result: Any, rule: BpaRule) -> list[Finding]:
+    found: list[Finding] = []
+    for column in _columns(result):
+        if not _is_numeric(getattr(column, "data_type", "")):
+            continue
+        summarize = str(getattr(column, "summarize_by", "") or "").casefold()
+        if summarize and summarize != "none":
+            found.append(
+                _column_finding(
+                    rule,
+                    column,
+                    summarize,
+                    suffix=f"({_type_label(getattr(column, 'data_type', ''))})",
+                )
+            )
+    return found
+
+
+
+def _mk_measure_format(result: Any, rule: BpaRule) -> list[Finding]:
+    tables = _table_map(result)
+    found: list[Finding] = []
+    for measure in _measures(result):
+        table = tables.get(str(getattr(measure, "table", "")).casefold())
+        if bool(getattr(measure, "is_hidden", False)) or (
+            table is not None and bool(getattr(table, "is_hidden", False))
+        ):
+            continue
+        if str(getattr(measure, "data_type", "") or "").casefold() in {
+            "string",
+            "text",
+        }:
+            continue
+        if not str(getattr(measure, "format_string", "") or "").strip():
+            found.append(_measure_finding(rule, measure, "no format string"))
+    return found
+
+
+def _mk_hide_foreign_keys(result: Any, rule: BpaRule) -> list[Finding]:
+    columns = _column_map(result)
+    found: list[Finding] = []
+    seen: set[tuple[str, str]] = set()
+    for relationship in _relationships(result):
+        sides = []
+        if str(relationship.get("from_cardinality") or "").casefold() == "many":
+            sides.append(("from_table", "from_column"))
+        if str(relationship.get("to_cardinality") or "").casefold() == "many":
+            sides.append(("to_table", "to_column"))
+        for table_key, column_key in sides:
+            key = (
+                str(relationship.get(table_key) or "").casefold(),
+                str(relationship.get(column_key) or "").casefold(),
+            )
+            if key in seen:
+                continue
+            column = columns.get(key)
+            if column is None or bool(getattr(column, "is_hidden", False)):
+                continue
+            seen.add(key)
+            found.append(_column_finding(rule, column, "visible foreign key"))
+    return found
+
+
+def _mk_mark_primary_keys(result: Any, rule: BpaRule) -> list[Finding]:
+    found = _mark_primary_keys(result, rule)
+    seen = {str(item.object).casefold() for item in found}
+    columns = _column_map(result)
+    tables = _table_map(result)
+    for relationship in _relationships(result):
+        if str(relationship.get("from_cardinality") or "").casefold() != "one":
+            continue
+        if str(relationship.get("to_cardinality") or "").casefold() != "one":
+            continue
+        column = columns.get(
+            (
+                str(relationship.get("from_table") or "").casefold(),
+                str(relationship.get("from_column") or "").casefold(),
+            )
+        )
+        if column is None or bool(getattr(column, "is_key", False)):
+            continue
+        table = tables.get(str(getattr(column, "table", "")).casefold())
+        if table is not None and _is_auto_date_table(table):
+            continue
+        finding = _column_finding(rule, column, "not IsKey")
+        if finding.object.casefold() not in seen:
+            seen.add(finding.object.casefold())
+            found.append(finding)
+    return found
+
+
+
+def _mk_duplicate_measures(result: Any, rule: BpaRule) -> list[Finding]:
+    """Satu temuan per ekspresi duplikat; pilih yang paling layak ditandai.
+
+    Template Measure Killer memilih measure tanpa pemakaian lebih dulu, lalu
+    measure dengan ID terbesar bila semuanya dipakai (mis. dua measure yang
+    sama-sama dipakai visual).
+    """
+    analyses = {
+        (
+            str(getattr(item.measure, "table", "") or "").casefold(),
+            str(getattr(item.measure, "measure", "") or "").casefold(),
+        ): item
+        for item in (getattr(result, "measures", []) or [])
+    }
+    groups: dict[str, list[Any]] = {}
+    for measure in _measures(result):
+        expression = re.sub(
+            r"\s+", "", str(getattr(measure, "expression", "") or "")
+        )
+        if expression:
+            groups.setdefault(expression, []).append(measure)
+    found: list[Finding] = []
+    for items in groups.values():
+        if len(items) < 2:
+            continue
+
+        def rank(measure: Any) -> tuple[int, int]:
+            analysis = analyses.get(
+                (
+                    str(getattr(measure, "table", "") or "").casefold(),
+                    str(getattr(measure, "measure", "") or "").casefold(),
+                )
+            )
+            uses = int(getattr(analysis, "use_count", 0) or 0)
+            return (0 if uses == 0 else 1, -int(getattr(measure, "measure_id", 0) or 0))
+
+        chosen = min(items, key=rank)
+        found.append(_measure_finding(rule, chosen, "duplicate definition"))
+    return found
+
+
+def _mk_divide(result: Any, rule: BpaRule) -> list[Finding]:
+    pattern = re.compile(r"(?:\]|\))\s*/(?!/)(?!\*)", re.IGNORECASE)
+    found: list[Finding] = []
+    for measure in _measures(result):
+        expression = strip_dax_literals(
+            str(getattr(measure, "expression", "") or "")
+        )
+        if pattern.search(expression):
+            found.append(_measure_finding(rule, measure, "division"))
+    for column in _columns(result):
+        if not bool(getattr(column, "is_calculated", False)):
+            continue
+        expression = strip_dax_literals(
+            str(getattr(column, "expression", "") or "")
+        )
+        if pattern.search(expression):
+            found.append(_column_finding(rule, column, "division"))
+    return found
+
+
+MK_EVALUATORS: dict[str, Evaluator] = {
+    "AVOID_BI-DIRECTIONAL_RELATIONSHIPS": _mk_avoid_bidirectional,
+    "ONE-TO-ONE_RELATIONSHIPS": _mk_one_to_one,
+    "CHECK_IF_BI-DIRECTIONAL_AND_MANY-TO-MANY_RELATIONSHIPS_ARE_VALID": (
+        _mk_check_many_to_many
+    ),
+    "INACTIVE_RELATIONSHIPS_THAT_ARE_NEVER_ACTIVATED": _mk_inactive_relationships,
+    "SNOWFLAKE_SCHEMA_ARCHITECTURE": _mk_snowflake,
+    "ISAVAILABLEINMDX_FALSE_NONATTRIBUTE_COLUMNS": _mk_is_available_in_mdx,
+    "NUMERIC_COLUMN_SUMMARIZE_BY": _mk_numeric_summarize,
+    "PROVIDE_FORMAT_STRING_FOR_MEASURES": _mk_measure_format,
+    "HIDE_FOREIGN_KEYS": _mk_hide_foreign_keys,
+    "MARK_PRIMARY_KEYS": _mk_mark_primary_keys,
+    "USE_THE_DIVIDE_FUNCTION_FOR_DIVISION": _mk_divide,
+    "AVOID_DUPLICATE_MEASURES": _mk_duplicate_measures,
+}
+
 _EVALUATORS: dict[str, Evaluator] = {
     "AVOID_FLOATING_POINT_DATA_TYPES": _floating_point,
     "AVOID_BI-DIRECTIONAL_RELATIONSHIPS_AGAINST_HIGH-CARDINALITY_COLUMNS": _bi_directional_high_cardinality,

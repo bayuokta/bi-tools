@@ -13,8 +13,9 @@ from typing import Any, Mapping
 import pandas as pd
 
 from .export_common import (
+    report_source_text,
+    source_text,
     BLANK,
-    CARDINALITY_SYMBOL,
     artifact_meta as _artifact_meta,
     quoted as _quoted,
     size_text as _size_text,
@@ -23,6 +24,8 @@ from .export_common import (
     type_text as _type_text,
     use_count as _use_count,
 )
+from .export_status import effective_status_map, relationship_status_map
+from .relationship_export import cardinality_text
 from .metadata_common import write_sheet
 from .usage_service import (
     STATUS_BLOCKER,
@@ -58,6 +61,9 @@ RESULT_COLUMNS = [
     "Used_in_has_error",
     "Used_in_display_folder",
 ]
+
+ROLE_LABELS = {"Y": "Y-Axis"}
+
 
 def _visual_name(record: Mapping[str, Any]) -> str:
     title = str(record.get("visual_title") or "").strip()
@@ -106,12 +112,25 @@ def _table_usage(result: Any, table: str) -> tuple[int, int, int]:
     return used, len(columns), sum(int(item.use_count) for item in columns)
 
 
+def _table_export_uses(result: Any, table: str) -> Any:
+    """``Table_uses`` dari tab Tables (termasuk grup pemakaian)."""
+    from .table_export import build_table_groups
+
+    key = str(table or "").casefold()
+    for group in build_table_groups(result):
+        if str(group.get("table") or "").casefold() == key:
+            return int(group.get("uses") or 0)
+    return BLANK
+
+
 def _table_status(result: Any, table: str) -> str:
-    used, total, _uses = _table_usage(result, table)
-    if not total:
-        return "Used" if used else "Unused"
-    percent = used / total * 100
-    return f"Used {percent:.1f}% ({used}/{total})"
+    from .table_export import build_table_groups
+
+    key = str(table or "").casefold()
+    for group in build_table_groups(result):
+        if str(group.get("table") or "").casefold() == key:
+            return str(group.get("status") or "Used")
+    return "Used"
 
 
 def _base_row(
@@ -140,7 +159,13 @@ def _base_row(
         "Status": _status_text(status),
         "Number_of_Uses": int(uses),
         "Format_string": format_string,
-        "Has_error": BLANK if has_error is None else bool(has_error),
+        "Has_error": (
+            BLANK
+            if has_error is None
+            else has_error
+            if isinstance(has_error, str)
+            else bool(has_error)
+        ),
         "Display_folder": display_folder,
         "Used_in_type": BLANK,
         "Used_in_name": BLANK,
@@ -203,6 +228,7 @@ def _record_row(
     dataset: str,
     urls: Mapping[str, str],
     fallback_name: str,
+    report_source: str = "",
 ) -> dict[str, Any] | None:
     kind = str(record.get("usage_kind") or "")
     if kind == "sort":
@@ -222,6 +248,7 @@ def _record_row(
     name = visual
     object_type = str(record.get("visual_type") or "")
     data_type = "parameterExpr" if detail == "field parameter" else detail
+    data_type = ROLE_LABELS.get(data_type, data_type)
     page = str(record.get("page_name") or "")
     if kind.startswith("filter"):
         filter_type, filter_name = _filter_parts(detail)
@@ -248,7 +275,7 @@ def _record_row(
         object_id=str(record.get("visual_id") or BLANK),
         object_type=object_type,
         page=page,
-        source=urls.get(report_id) or dataset,
+        source=report_source or urls.get(report_id) or dataset,
         data_type=data_type,
     )
 
@@ -260,6 +287,7 @@ def _relationship_row(
     ref: Any,
     relationships: list[Mapping[str, Any]],
     dataset: str,
+    statuses: Mapping[str, str] | None = None,
 ) -> dict[str, Any] | None:
     own_table = str(getattr(analysis.column, "table", "") or "")
     own_name = str(getattr(analysis.column, "column", "") or "")
@@ -285,20 +313,18 @@ def _relationship_row(
         to_column = str(relation.get("to_column") or "")
         from_card = str(relation.get("from_cardinality") or "")
         to_card = str(relation.get("to_cardinality") or "")
-        from_symbol = CARDINALITY_SYMBOL.get(from_card, from_card)
-        to_symbol = CARDINALITY_SYMBOL.get(to_card, to_card)
-        name = str(relation.get("name") or "").strip()
-        if (
-            not name
-            or relation.get("is_auto")
-            or re.fullmatch(r"[0-9a-fA-F-]{36}", name)
-        ):
-            name = f"{from_column} {from_symbol} <- {to_symbol} {to_column}"
+        name = f"{from_column} {cardinality_text(relation)} {to_column}"
         active = "Active" if relation.get("is_active") else "Inactive"
         object_type = (
             f"{active} {from_card.capitalize()} to {to_card}"
             if from_card or to_card
             else active
+        )
+        relationship_key = str(
+            relation.get("relationship_id")
+            or relation.get("name")
+            or relation.get("id")
+            or ""
         )
         return _with_usage(
             base,
@@ -306,9 +332,9 @@ def _relationship_row(
             name=name,
             object_id=int(relation.get("id") or 0),
             object_type=object_type,
-            page=f"{from_table} {from_symbol} <- {to_symbol} {to_table}",
+            page=f"{from_table} {cardinality_text(relation)} {to_table}",
             source=dataset,
-            status="Used",
+            status=(statuses or {}).get(relationship_key, "Used"),
         )
     return None
 
@@ -324,8 +350,11 @@ def _object_rows(
     relationships: list[Mapping[str, Any]],
     hierarchies: Mapping[tuple[str, str], Any],
     urls: Mapping[str, str],
+    status_map: Mapping[tuple[str, str, str], str] | None = None,
+    relationship_statuses: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    dataset = str(result.dataset_name or "")
+    dataset = source_text(result)
+    plain_dataset = str(getattr(result, "dataset_name", "") or dataset)
     if kind == "measure":
         item = analysis.measure
         name = str(item.measure)
@@ -346,7 +375,7 @@ def _object_rows(
         data_type = ""
         size = "0 B"
         format_string = ""
-        has_error = False
+        has_error = "N/A"
         display_folder = str(item.get("display_folder") or "")
     else:
         item = analysis.column
@@ -368,7 +397,10 @@ def _object_rows(
         dataset=dataset,
         data_type=display_data_type(data_type),
         size=size,
-        status=getattr(analysis, "status", ""),
+        status=(status_map or {}).get(
+            (kind, table.casefold(), name.casefold()),
+            getattr(analysis, "status", ""),
+        ),
         uses=_use_count(analysis),
         format_string=format_string,
         has_error=has_error,
@@ -377,7 +409,8 @@ def _object_rows(
     rows: list[dict[str, Any]] = []
     for record in analysis.report_records or []:
         row = _record_row(
-            base, record, dataset=dataset, urls=urls, fallback_name=name
+            base, record, dataset=dataset, urls=urls, fallback_name=name,
+            report_source=report_source_text(result),
         )
         if row is not None:
             rows.append(row)
@@ -400,6 +433,7 @@ def _object_rows(
                 ref=ref,
                 relationships=relationships,
                 dataset=dataset,
+                statuses=relationship_statuses,
             )
             if row is not None:
                 rows.append(row)
@@ -418,7 +452,7 @@ def _object_rows(
                     usage_type="Used in row/object level security",
                     name=role or "RLS",
                     object_type="Row level security",
-                    source=dataset,
+                    source=plain_dataset,
                 )
             )
             continue
@@ -469,13 +503,14 @@ def _object_rows(
                         if hierarchy is not None
                         else BLANK
                     ),
+                    has_error="N/A",
                 )
             )
             continue
         if ref_kind in {"key column", "default label"}:
             ref_table = _split_object(obj)[0] or table
             table_row = tables.get(ref_table.casefold())
-            _used, _total, table_uses = _table_usage(result, ref_table)
+            _used, _total, _table_uses = _table_usage(result, ref_table)
             rows.append(
                 _with_usage(
                     base,
@@ -498,7 +533,7 @@ def _object_rows(
                         else BLANK
                     ),
                     status=_table_status(result, ref_table),
-                    uses=table_uses,
+                    uses=_table_export_uses(result, ref_table),
                 )
             )
             continue
@@ -563,7 +598,7 @@ def _object_rows(
                 match = re.search(r"table '([^']+)'", obj)
                 ref_table = match.group(1) if match else ""
                 name = "Incremental refresh"
-                object_type = "Incremental refresh"
+                object_type = "M expression"
             rows.append(
                 _with_usage(
                     base,
@@ -571,7 +606,7 @@ def _object_rows(
                     name=name,
                     object_type=object_type,
                     page=ref_table,
-                    source=dataset,
+                    source=plain_dataset,
                 )
             )
             continue
@@ -648,6 +683,17 @@ def _object_rows(
                 else "Measure"
             )
         )
+        artifact_status = (meta or {}).get("status", BLANK)
+        if meta is not None:
+            lookup_kind = "measure" if meta.get("type") == "Measure" else "column"
+            artifact_status = (status_map or {}).get(
+                (
+                    lookup_kind,
+                    artifact_table.casefold(),
+                    artifact_name.casefold(),
+                ),
+                artifact_status,
+            )
         rows.append(
             _with_usage(
                 base,
@@ -659,7 +705,7 @@ def _object_rows(
                 source=dataset,
                 data_type=(meta or {}).get("data_type", BLANK),
                 size=(meta or {}).get("size", BLANK),
-                status=(meta or {}).get("status", BLANK),
+                status=artifact_status,
                 uses=(meta or {}).get("uses", BLANK),
                 format_string=(meta or {}).get("format_string", BLANK),
                 has_error=(meta or {}).get("has_error", BLANK),
@@ -756,6 +802,8 @@ def write_result_export(result: Any, path: Path | str) -> Path:
     """Tulis satu sheet ``Result`` dengan kolom template Measure Killer."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    status_map = effective_status_map(result)
+    relationship_statuses = relationship_status_map(result)
     columns = {
         (item.column.table.casefold(), item.column.column.casefold()): item
         for item in (result.columns or [])
@@ -796,6 +844,8 @@ def write_result_export(result: Any, path: Path | str) -> Path:
                 relationships=relationships,
                 hierarchies=hierarchies,
                 urls=urls,
+                status_map=status_map,
+                relationship_statuses=relationship_statuses,
             )
         )
     for analysis in result.measures or []:
@@ -810,6 +860,8 @@ def write_result_export(result: Any, path: Path | str) -> Path:
                 relationships=relationships,
                 hierarchies=hierarchies,
                 urls=urls,
+                status_map=status_map,
+                relationship_statuses=relationship_statuses,
             )
         )
     for analysis in getattr(result, "hierarchies", []) or []:
@@ -824,6 +876,8 @@ def write_result_export(result: Any, path: Path | str) -> Path:
                 relationships=relationships,
                 hierarchies=hierarchies,
                 urls=urls,
+                status_map=status_map,
+                relationship_statuses=relationship_statuses,
             )
         )
     for analysis in getattr(result, "functions", []) or []:
