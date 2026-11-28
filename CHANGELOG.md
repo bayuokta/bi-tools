@@ -85,6 +85,21 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   10 kolom yang sama dengan label ramah dan urut Name; `Auto created` memakai
   `RelationshipIsAuto`/prefix `AutoDetected_`, bukan nama GUID. Tombol toolbar
   menjadi **Export relationships**.
+- Tab **DAX expressions** kini punya ekspor sendiri:
+  `DAX_Expressions_<dataset>_<id8>.xlsx` dengan **11 kolom** template Measure
+  Killer (`Name`, `Table`, `Type`, `Has_error`, `Best_practices_violations`,
+  `Source`, `Source_type`, `Lineage_tag`, `Display_folder`, `Description`,
+  `Expression`) dan satu baris per objek ber-ekspresi: measure, calculated
+  column, calculated table, field parameter table, dan user-defined function
+  (78 baris pada model uji). `Table` kosong untuk calculated table/field
+  parameter/UDF, `Has_error` `N/A` untuk table/UDF, `Lineage_tag` memakai GUID
+  `LineageTag` TMSCHEMA, dan `Best_practices_violations` bernilai 0 seperti
+  template. Ekspresi calculated table/field parameter dibaca dari partisi
+  `calculated`. UI tab memakai 11 kolom yang sama (Expression berupa preview
+  satu baris + tooltip penuh, klik nama membuka kode DAX), filter Type bertambah
+  untuk kelima jenis objek, dan tombol toolbar menjadi **Export DAX
+  expressions**. `ColumnStat`/`MeasureStat`/`TableStat` kini menyimpan
+  `lineage_tag`, dan `TableStat` menyimpan `expression`.
 
 ### Perbaikan
 

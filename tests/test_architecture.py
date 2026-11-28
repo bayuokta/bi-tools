@@ -873,6 +873,33 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('label: "DAX uses"', js)
         self.assertIn('label: "ID"', js)
 
+    def test_web_dax_export_uses_template_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        dax_export = (ROOT / "core" / "dax_export.py").read_text(encoding="utf-8")
+        for column in (
+            "Name",
+            "Table",
+            "Type",
+            "Has_error",
+            "Best_practices_violations",
+            "Source",
+            "Source_type",
+            "Lineage_tag",
+            "Display_folder",
+            "Description",
+            "Expression",
+        ):
+            self.assertIn(f'"{column}"', dax_export, column)
+        self.assertIn("write_dax_export", presenter)
+        self.assertIn('"Export DAX expressions"', js)
+        self.assertEqual(js.count("function analysisDaxObjects("), 1)
+        self.assertEqual(js.count("function analysisExpressionPreview("), 1)
+        self.assertIn('label: "Best practices violations"', js)
+        self.assertIn('label: "Lineage tag"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

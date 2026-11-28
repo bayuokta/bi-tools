@@ -1333,6 +1333,8 @@ class MetadataRowsTests(unittest.TestCase):
                 TableStat(
                     "Sales", 2, 10, 3000, 0,
                     storage_mode="DirectQuery", measure_count=4, partition_count=3,
+                    expression="GENERATESERIES(1, 3)",
+                    lineage_tag="sales-lineage",
                 )
             ],
             segment_bytes=3000,
@@ -1346,6 +1348,8 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertEqual(payload["tables"][0]["storage_mode"], "DirectQuery")
         self.assertEqual(payload["tables"][0]["measure_count"], 4)
         self.assertEqual(payload["tables"][0]["partition_count"], 3)
+        self.assertEqual(payload["tables"][0]["expression"], "GENERATESERIES(1, 3)")
+        self.assertEqual(payload["tables"][0]["lineage_tag"], "sales-lineage")
         self.assertEqual(payload["relationships"][0]["name"], "Rel")
 
     def test_model_snapshot_keeps_functions(self) -> None:

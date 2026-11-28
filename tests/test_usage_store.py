@@ -396,11 +396,13 @@ class UsageStoreTests(unittest.TestCase):
             size_hierarchy_bytes=512,
             size_dictionary_bytes=256,
             rows=100,
+            lineage_tag="customer-lineage",
         )
         save_columns(self.conn, "ds", [column], analyzed_at="2026-01-01T00:00:00Z")
 
         rows = columns(self.conn, "ds")
         self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["lineage_tag"], "customer-lineage")
         self.assertEqual(rows[0]["size_data_bytes"], 1024)
         self.assertEqual(rows[0]["size_hierarchy_bytes"], 512)
         self.assertEqual(rows[0]["size_dictionary_bytes"], 256)

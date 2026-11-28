@@ -2742,6 +2742,8 @@ def model_snapshot(
                 "description": table.description,
                 "is_calculated_table": table.is_calculated_table,
                 "is_calculation_group": table.is_calculation_group,
+                "expression": table.expression,
+                "lineage_tag": table.lineage_tag,
             }
             for table in stats.tables
         ],
@@ -2826,6 +2828,7 @@ def snapshot_from_connection(
             is_available_in_mdx=bool(row.get("is_available_in_mdx", 1)),
             source_column=str(row.get("source_column") or ""),
             description=str(row.get("description") or ""),
+            lineage_tag=str(row.get("lineage_tag") or ""),
         )
         for row in rows
     ]
@@ -2848,6 +2851,8 @@ def snapshot_from_connection(
             description=str(item.get("description") or ""),
             is_calculated_table=bool(item.get("is_calculated_table")),
             is_calculation_group=bool(item.get("is_calculation_group")),
+            expression=str(item.get("expression") or ""),
+            lineage_tag=str(item.get("lineage_tag") or ""),
         )
         for item in meta.get("tables") or []
     ]
@@ -2892,6 +2897,7 @@ def snapshot_from_connection(
             expression=str(row.get("expression") or ""),
             error_message=str(row.get("error_message") or ""),
             description=str(row.get("description") or ""),
+            lineage_tag=str(row.get("lineage_tag") or ""),
         )
         for row in measure_data
     ]

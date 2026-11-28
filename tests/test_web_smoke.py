@@ -320,6 +320,114 @@ class WebSmokeTests(unittest.TestCase):
         text = page.inner_text("#analyzeEmptyText").lower()
         self.assertTrue(text)
 
+    def test_analysis_dax_tab_renders_template_columns(self) -> None:
+        """Tab DAX expressions memakai 11 kolom template dengan state palsu."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 1, "measures": 1, "hierarchies": 0, "functions": 1},
+            "measures": [
+                {
+                    "name": "Max Pages",
+                    "table": "Pages",
+                    "status": "Used",
+                    "uses": 2,
+                    "has_error": False,
+                    "lineage_tag": "measure-guid",
+                    "display_folder": "",
+                    "description": "",
+                    "expression": "MAX('Pages'[Pages])",
+                }
+            ],
+            "columns": [
+                {
+                    "name": "Day",
+                    "table": "Dates",
+                    "status": "Used",
+                    "uses": 1,
+                    "has_error": False,
+                    "is_calculated": True,
+                    "expression": "DAY(Dates[Dates])",
+                    "lineage_tag": "column-guid",
+                    "display_folder": "",
+                    "description": "",
+                }
+            ],
+            "functions": [
+                {
+                    "name": "PercentageGrowth",
+                    "status": "Used",
+                    "uses": 1,
+                    "lineage_tag": "function-guid",
+                    "description": "",
+                    "expression": "(x: SCALAR) => x",
+                }
+            ],
+            "tables": [
+                {
+                    "name": "Parameter",
+                    "is_calculated_table": True,
+                    "is_calculation_group": False,
+                    "is_field_parameter": False,
+                    "expression": "GENERATESERIES(3, 6, 3)",
+                    "lineage_tag": "table-guid",
+                    "description": "",
+                },
+                {
+                    "name": "Parameter Posisi",
+                    "is_calculated_table": True,
+                    "is_calculation_group": False,
+                    "is_field_parameter": True,
+                    "expression": "{\"A\"}",
+                    "lineage_tag": "field-guid",
+                    "description": "",
+                },
+                {
+                    "name": "Time Intelligence",
+                    "is_calculated_table": False,
+                    "is_calculation_group": True,
+                    "is_field_parameter": False,
+                    "expression": "",
+                    "lineage_tag": "group-guid",
+                    "description": "",
+                },
+            ],
+            "relationships": [],
+            "roles": [],
+            "reports": [],
+            "m_queries": [],
+            "coverage": {"complete": True},
+            "reports_included": False,
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'dax';
+                state.analysisOpen = {};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 11)
+        headers = [text.lower() for text in page.locator("#analyzeHead th").all_inner_texts()]
+        self.assertEqual(headers[0], "name")
+        self.assertIn("best practices violations", headers[4])
+        self.assertEqual(headers[10], "expression")
+        self.assertEqual(page.locator("#analyzeBody tr").count(), 5)
+        self.assertIn("Export DAX expressions", page.inner_text("#exportXlsx"))
+        body = page.inner_text("#analyzeBody")
+        self.assertIn("PercentageGrowth", body)
+        self.assertIn("Parameter Posisi", body)
+        self.assertIn("GENERATESERIES(3, 6, 3)", body)
+        self.assertNotIn("Time Intelligence", body)
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")

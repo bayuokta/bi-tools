@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS usage_column (
   size_dictionary_bytes INTEGER DEFAULT 0,
   cardinality INTEGER DEFAULT 0, data_category TEXT, summarize_by TEXT,
   is_key INTEGER DEFAULT 0, is_available_in_mdx INTEGER DEFAULT 1,
-  source_column TEXT, description TEXT,
+  source_column TEXT, description TEXT, lineage_tag TEXT,
   row_count INTEGER DEFAULT 0, error_message TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, column_name)
 );
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS usage_measure (
   measure_id INTEGER DEFAULT 0,
   data_type TEXT, format_string TEXT, display_folder TEXT,
   is_hidden INTEGER DEFAULT 0, expression TEXT, error_message TEXT,
-  description TEXT, refs_json TEXT, analyzed_at TEXT,
+  description TEXT, lineage_tag TEXT, refs_json TEXT, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, measure_name)
 );
 CREATE TABLE IF NOT EXISTS usage_hierarchy (
@@ -170,10 +170,12 @@ MIGRATIONS = {
         "is_available_in_mdx": "INTEGER DEFAULT 1",
         "source_column": "TEXT",
         "description": "TEXT",
+        "lineage_tag": "TEXT",
     },
     "usage_measure": {
         "description": "TEXT",
         "measure_id": "INTEGER DEFAULT 0",
+        "lineage_tag": "TEXT",
     },
     "usage_model_ref": {
         "depth": "INTEGER DEFAULT 1",
@@ -982,8 +984,8 @@ def save_columns(
           sort_by_column, expression, size_data_bytes, size_hierarchy_bytes,
           size_dictionary_bytes, cardinality, data_category, summarize_by,
           is_key, is_available_in_mdx, source_column, description,
-          row_count, error_message, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          lineage_tag, row_count, error_message, analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -1009,6 +1011,7 @@ def save_columns(
                 1 if getattr(column, "is_available_in_mdx", True) else 0,
                 getattr(column, "source_column", ""),
                 getattr(column, "description", ""),
+                getattr(column, "lineage_tag", ""),
                 int(column.rows),
                 column.error_message,
                 stamp,
@@ -1057,6 +1060,7 @@ def save_measures(
                 measure.expression,
                 measure.error_message,
                 getattr(measure, "description", ""),
+                getattr(measure, "lineage_tag", ""),
                 json.dumps((refs or {}).get(key, []), ensure_ascii=False),
                 stamp,
             )
@@ -1068,8 +1072,8 @@ def save_measures(
             INSERT OR REPLACE INTO usage_measure (
               dataset_id, table_name, measure_name, measure_id, data_type,
               format_string, display_folder, is_hidden, expression,
-              error_message, description, refs_json, analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              error_message, description, lineage_tag, refs_json, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )

@@ -61,6 +61,7 @@ from core.raw_metadata import (
     find_row,
     metadata_payload,
 )
+from core.dax_export import write_dax_export
 from core.relationship_export import relationship_row, write_relationship_export
 from core.report_export import write_report_export
 from core.result_export import write_result_export
@@ -910,6 +911,8 @@ def _column_row(
         "format_string": str(getattr(column, "format_string", "")),
         "has_error": bool(getattr(column, "has_error", False)),
         "display_folder": str(getattr(column, "display_folder", "")),
+        "description": str(getattr(column, "description", "") or ""),
+        "lineage_tag": str(getattr(column, "lineage_tag", "") or ""),
         "is_hidden": bool(getattr(column, "is_hidden", False)),
         "is_calculated": bool(getattr(column, "is_calculated", False)),
         "is_available_in_mdx": bool(
@@ -955,6 +958,8 @@ def _measure_row(
         "format_string": str(getattr(measure, "format_string", "")),
         "has_error": bool(getattr(measure, "has_error", False)),
         "display_folder": str(getattr(measure, "display_folder", "")),
+        "description": str(getattr(measure, "description", "") or ""),
+        "lineage_tag": str(getattr(measure, "lineage_tag", "") or ""),
         "is_hidden": bool(getattr(measure, "is_hidden", False)),
         "reason": str(analysis.reason or ""),
         "rows": 0,
@@ -988,6 +993,8 @@ def _function_row(
         "format_string": "",
         "has_error": bool(getattr(function, "has_error", False)),
         "display_folder": "",
+        "description": str(getattr(function, "description", "") or ""),
+        "lineage_tag": str(getattr(function, "lineage_tag", "") or ""),
         "is_hidden": bool(getattr(function, "is_hidden", False)),
         "is_calculated": False,
         "reason": str(analysis.reason or ""),
@@ -1208,6 +1215,17 @@ def _table_rows(result: Any) -> list[dict[str, Any]]:
                 "size_bytes": size_bytes,
                 "storage_mode": str(table.storage_mode or ""),
                 "partition_count": int(table.partition_count or 0),
+                "expression": str(getattr(table, "expression", "") or ""),
+                "lineage_tag": str(getattr(table, "lineage_tag", "") or ""),
+                "description": str(getattr(table, "description", "") or ""),
+                "is_calculated_table": bool(
+                    getattr(table, "is_calculated_table", False)
+                ),
+                "is_calculation_group": bool(
+                    getattr(table, "is_calculation_group", False)
+                ),
+                "is_field_parameter": str(group.get("type_label") or "")
+                == "Field param. table",
                 "uses": int(table_uses),
                 "table_uses": int(table_uses),
                 "status_label": str(group.get("status") or ""),
@@ -1958,6 +1976,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Report_Result_{safe}_{suffix}.xlsx"
         elif tab in {"relationship", "relationships"}:
             target = outputs_dir() / f"Relationship_Result_{safe}_{suffix}.xlsx"
+        elif tab in {"dax", "expressions"}:
+            target = outputs_dir() / f"DAX_Expressions_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -1981,11 +2001,12 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_report_export(result, details, target)
     elif tab in {"relationship", "relationships"}:
         write_relationship_export(result, target)
+    elif tab in {"dax", "expressions"}:
+        write_dax_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
         "roles",
-        "dax",
         "m",
         "health",
         "bestpractice",

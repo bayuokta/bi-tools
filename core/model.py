@@ -527,10 +527,18 @@ def build_tables(model: LiveModel) -> list[dict[str, Any]]:
         partitions = partitions_by_table.get(table_id, [])
         modes = {label(part.get("Mode"), MODE_TYPE, "mode") for part in partitions if part.get("Mode") is not None}
         query_group = ""
+        expression = ""
         for part in partitions:
             if part.get("QueryGroupID") is not None:
                 group = model.query_group_by_id.get(int(part["QueryGroupID"]))
                 query_group = str(group["Folder"]) if group else ""
+                break
+        for part in partitions:
+            if (
+                label(part.get("Type"), PARTITION_SOURCE_TYPE, "sourceType")
+                == "calculated"
+            ):
+                expression = clean_expr(part.get("QueryDefinition"))
                 break
         rows.append(
             {
@@ -549,6 +557,7 @@ def build_tables(model: LiveModel) -> list[dict[str, Any]]:
                     == "calculated"
                     for part in partitions
                 ),
+                "expression": expression,
                 "lineage_tag": str(table.get("LineageTag") or ""),
                 "description": str(table.get("Description") or ""),
                 "data_category": str(table.get("DataCategory") or ""),

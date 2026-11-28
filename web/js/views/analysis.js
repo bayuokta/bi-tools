@@ -215,8 +215,15 @@ import { state } from "../core/state.js";
       expandable: true
     },
     dax: {
-      placeholder: "Measure, calculated column, or DAX expression",
-      filters: [["all", "All types"], ["Measure", "Measure"], ["Calculated column", "Calculated column"]],
+      placeholder: "Measure, calculated column/table, function, or DAX expression",
+      filters: [
+        ["all", "All types"],
+        ["Measure", "Measure"],
+        ["Calculated Column", "Calculated Column"],
+        ["Calculated Table", "Calculated Table"],
+        ["Field param. table", "Field param. table"],
+        ["User-defined function", "User-defined function"]
+      ],
       unused: false,
       expandable: true
     },
@@ -497,11 +504,14 @@ import { state } from "../core/state.js";
     var canExport = state.analysisTab === "all" ||
       state.analysisTab === "tables" ||
       state.analysisTab === "report" ||
-      state.analysisTab === "relationships";
+      state.analysisTab === "relationships" ||
+      state.analysisTab === "dax";
     var label = state.analysisTab === "tables" ? "Export tables"
       : (state.analysisTab === "report" ? "Export reports"
         : (state.analysisTab === "relationships"
-          ? "Export relationships" : "Export Result"));
+          ? "Export relationships"
+          : (state.analysisTab === "dax"
+            ? "Export DAX expressions" : "Export Result")));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -555,7 +565,7 @@ import { state } from "../core/state.js";
     counts.relationships = (result.relationships || []).length;
     counts.roles = (result.roles || []).length;
     counts.report = (result.reports || []).length;
-    counts.dax = (result.measures || []).length + analysisCalculatedColumns().length;
+    counts.dax = analysisDaxObjects().length;
     counts.m = (result.m_queries || []).length;
     counts.health = ((result.health && result.health.items) || []).length;
     counts.bestpractice = ((result.best_practice && result.best_practice.items) || []).length;
@@ -566,6 +576,67 @@ import { state } from "../core/state.js";
     return ((state.analysis && state.analysis.columns) || []).filter(function (column) {
       return Boolean(column.expression) && Boolean(column.is_calculated);
     });
+  }
+
+  function analysisDaxObjects() {
+    var result = state.analysis;
+    if (!result) return [];
+    var source = (result.dataset && result.dataset.name) || "";
+    var rows = [];
+    (result.functions || []).forEach(function (fn) {
+      rows.push({
+        kind: "function", name: fn.name, table: "", type: "User-defined function",
+        status: fn.status, uses: fn.uses || 0, has_error: null, violations: 0,
+        source: source, source_type: "Semantic model",
+        lineage_tag: fn.lineage_tag || "", display_folder: "",
+        description: fn.description || "", expression: fn.expression || ""
+      });
+    });
+    (result.measures || []).forEach(function (measure) {
+      rows.push({
+        kind: "measure", name: measure.name, table: measure.table || "",
+        type: "Measure", status: measure.status, uses: measure.uses || 0,
+        has_error: Boolean(measure.has_error), violations: 0,
+        source: source, source_type: "Semantic model",
+        lineage_tag: measure.lineage_tag || "",
+        display_folder: measure.display_folder || "",
+        description: measure.description || "",
+        expression: measure.expression || ""
+      });
+    });
+    analysisCalculatedColumns().forEach(function (column) {
+      rows.push({
+        kind: "column", name: column.name, table: column.table || "",
+        type: "Calculated Column", status: column.status, uses: column.uses || 0,
+        has_error: Boolean(column.has_error), violations: 0,
+        source: source, source_type: "Semantic model",
+        lineage_tag: column.lineage_tag || "",
+        display_folder: column.display_folder || "",
+        description: column.description || "",
+        expression: column.expression || ""
+      });
+    });
+    (result.tables || []).forEach(function (table) {
+      if (!table.is_calculated_table || table.is_calculation_group) return;
+      rows.push({
+        kind: "table", name: table.name, table: "", type: table.is_field_parameter
+          ? "Field param. table" : "Calculated Table",
+        status: "", uses: 0, has_error: null, violations: 0,
+        source: source, source_type: "Semantic model",
+        lineage_tag: table.lineage_tag || "", display_folder: "",
+        description: table.description || "", expression: table.expression || ""
+      });
+    });
+    return rows;
+  }
+
+  function analysisExpressionPreview(text) {
+    var lines = String(text || "").split(/\r?\n/);
+    for (var i = 0; i < lines.length; i += 1) {
+      var line = lines[i].trim();
+      if (line) return line;
+    }
+    return "";
   }
 
   function analysisTabCounts() {
@@ -4571,43 +4642,14 @@ import { state } from "../core/state.js";
   function analysisDaxRows() {
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var type = getSelectValue("typeAnalyze") || "all";
-    var rows = [];
-    ((state.analysis && state.analysis.measures) || []).forEach(function (measure) {
-      rows.push({
-        kind: "measure",
-        name: measure.name,
-        table: measure.table,
-        type: measure.is_hidden ? "Measure (hidden)" : "Measure",
-        status: measure.status,
-        uses: measure.uses || 0,
-        has_error: Boolean(measure.has_error),
-        source: "Measure",
-        expression: measure.expression || "",
-        reason: measure.reason || ""
-      });
-    });
-    analysisCalculatedColumns().forEach(function (column) {
-      rows.push({
-        kind: "column",
-        name: column.name,
-        table: column.table,
-        type: "Calculated column",
-        status: column.status,
-        uses: column.uses || 0,
-        has_error: Boolean(column.has_error),
-        source: "Column",
-        expression: column.expression || "",
-        reason: column.reason || ""
-      });
-    });
+    var rows = analysisDaxObjects();
     if (type !== "all") {
-      rows = rows.filter(function (row) {
-        return row.type === type || row.type.indexOf(type + " ") === 0;
-      });
+      rows = rows.filter(function (row) { return row.type === type; });
     }
     if (query) {
       rows = rows.filter(function (row) {
-        return [row.name, row.table, row.type, row.status, row.expression]
+        return [row.name, row.table, row.type, row.source, row.source_type,
+          row.lineage_tag, row.display_folder, row.description, row.expression]
           .join(" ").toLowerCase().indexOf(query) !== -1;
       });
     }
@@ -4617,17 +4659,29 @@ import { state } from "../core/state.js";
     rows.forEach(function (row) {
       var id = "dax:" + row.kind + ":" + row.table + ":" + row.name;
       var open = analysisIsOpen(id, false);
+      var icon = row.kind === "measure" ? "measure"
+        : (row.kind === "function" ? "code"
+          : (row.kind === "table" ? "table" : "column"));
+      var expression = analysisExpressionPreview(row.expression);
       viewRows.push({
         cells: [
-          analysisNameCell(row.name, row.kind === "measure" ? "measure" : "column", {
+          analysisNameCell(row.name, icon, {
             level: 0, toggleId: row.expression ? id : "", open: open
           }),
-          escapeHtml(row.table),
+          escapeHtml(row.table || "—"),
           escapeHtml(row.type),
-          analysisStatusChip(row.status),
-          String(row.uses),
-          row.has_error ? "Yes" : "No",
-          escapeHtml(row.source)
+          row.has_error === null ? "N/A" : (row.has_error ? "Yes" : "No"),
+          String(row.violations || 0),
+          escapeHtml(row.source || "—"),
+          escapeHtml(row.source_type || "—"),
+          '<span class="mono-trunc" title="' + escapeHtml(row.lineage_tag) + '">' +
+            escapeHtml(row.lineage_tag || "—") + "</span>",
+          escapeHtml(row.display_folder || "—"),
+          escapeHtml(row.description || "—"),
+          expression
+            ? '<span class="mono-trunc" title="' + escapeHtml(row.expression) +
+              '">' + escapeHtml(expression) + "</span>"
+            : "—"
         ],
         numCols: [4]
       });
@@ -4635,12 +4689,19 @@ import { state } from "../core/state.js";
     });
     return {
       headers: [
-        { label: "Name / expression", key: "name" }, { label: "Table", key: "table" },
-        { label: "Type", key: "type" }, { label: "Status", key: "status" },
-        { label: "# used", key: "uses", num: true },
-        { label: "Error", key: "has_error" }, { label: "Source", key: "source" }
+        { label: "Name", key: "name" },
+        { label: "Table", key: "table" },
+        { label: "Type", key: "type" },
+        { label: "Has error", key: "has_error" },
+        { label: "Best practices violations", key: "violations", num: true },
+        { label: "Source" },
+        { label: "Source type" },
+        { label: "Lineage tag", key: "lineage_tag" },
+        { label: "Display folder" },
+        { label: "Description" },
+        { label: "Expression" }
       ],
-      widths: ["37%", "13%", "11%", "15%", "8%", "6%", "10%"],
+      widths: ["14%", "8%", "10%", "6%", "7%", "11%", "8%", "12%", "6%", "8%", "10%"],
       rows: viewRows,
       summary: rows.length + " expressions · " + unused + " unused" +
         analysisCoverageSuffix(state.analysis)
@@ -5752,7 +5813,7 @@ import { state } from "../core/state.js";
     }
     var tab = state.analysisTab || "all";
     if (tab !== "all" && tab !== "tables" && tab !== "report" &&
-        tab !== "relationships") {
+        tab !== "relationships" && tab !== "dax") {
       app.toast("Coming soon");
       return;
     }

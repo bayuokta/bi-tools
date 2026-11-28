@@ -266,6 +266,7 @@ class ColumnStat:
     is_available_in_mdx: bool = True
     source_column: str = ""
     description: str = ""
+    lineage_tag: str = ""
 
     @property
     def size_total_bytes(self) -> int:
@@ -302,6 +303,8 @@ class TableStat:
     description: str = ""
     is_calculated_table: bool = False
     is_calculation_group: bool = False
+    expression: str = ""
+    lineage_tag: str = ""
     table_id: int = 0
 
     @property
@@ -327,6 +330,7 @@ class MeasureStat:
     error_message: str = ""
     description: str = ""
     measure_id: int = 0
+    lineage_tag: str = ""
 
     @property
     def key(self) -> tuple[str, str]:
@@ -456,6 +460,7 @@ def build_model_stats(
                 is_available_in_mdx=bool(row.get("is_available_in_mdx", True)),
                 source_column=str(row.get("source_column") or ""),
                 description=str(row.get("description") or ""),
+                lineage_tag=str(row.get("lineage_tag") or ""),
             )
         )
         columns_by_table.setdefault(str(row["table"]), []).append(column_id)
@@ -485,6 +490,8 @@ def build_model_stats(
                 description=str(row.get("description") or ""),
                 is_calculated_table=bool(row.get("is_calculated_table")),
                 is_calculation_group=bool(row.get("is_calculation_group")),
+                expression=str(row.get("expression") or ""),
+                lineage_tag=str(row.get("lineage_tag") or ""),
             )
         )
 
@@ -509,6 +516,7 @@ def build_model_stats(
                 expression=str(row.get("expression") or ""),
                 error_message=str(row.get("error_message") or ""),
                 description=str(row.get("description") or ""),
+                lineage_tag=str(row.get("lineage_tag") or ""),
             )
             for row in measures
         ],
