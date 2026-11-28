@@ -100,6 +100,18 @@ per-commit sebelum baseline (62 commit) disimpan di luar repo sebagai
   untuk kelima jenis objek, dan tombol toolbar menjadi **Export DAX
   expressions**. `ColumnStat`/`MeasureStat`/`TableStat` kini menyimpan
   `lineage_tag`, dan `TableStat` menyimpan `expression`.
+- Tab **M queries** kini punya ekspor sendiri:
+  `M_Expressions_<dataset>_<id8>.xlsx` dengan **5 kolom** template Measure
+  Killer (`Name`, `Type`, `Source`, `Warnings`, `Expression`). Satu baris per
+  ekspresi M: partisi tabel, ekspresi refresh policy (tabel incremental dapat
+  muncul dua kali), shared M query, dan parameter; ekspresi parameter ditulis
+  lengkap dengan `meta [IsParameterQuery=true, Type="...",
+  IsParameterQueryRequired=...]`. `Source` berisi nama dataset dan `Warnings`
+  status error partisi. UI tab M queries memakai 5 kolom yang sama (Expression
+  preview satu baris + tooltip, klik nama membuka kode M), filter `Table`/
+  `M Query`/`M Parameter`, dan tombol **Export M expressions**.
+  `usage_m_query` memakai kunci `entry_key` agar baris duplikat tersimpan;
+  migrasi DB lama menormalkan label `Expression`/`M parameter`.
 
 ### Perbaikan
 

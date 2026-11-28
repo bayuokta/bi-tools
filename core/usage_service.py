@@ -1858,15 +1858,30 @@ ERROR_PARTITION_STATES = {
 }
 
 
+def _parameter_expression(row: Mapping[str, Any]) -> str:
+    """Rekonstruksi ekspresi M parameter lengkap dengan suffix ``meta``."""
+    expression = str(row.get("expression") or "").strip()
+    if not expression:
+        return ""
+    parts = ["IsParameterQuery=true"]
+    data_type = str(row.get("data_type") or "").strip()
+    if data_type:
+        parts.append(f'Type="{data_type}"')
+    required = "true" if bool(row.get("is_required")) else "false"
+    parts.append(f"IsParameterQueryRequired={required}")
+    return f"{expression} meta [{', '.join(parts)}]"
+
+
 def m_query_rows(
     partitions: Iterable[dict[str, Any]],
     expressions: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Susun baris tab M queries dari partisi + shared expression.
 
-    Satu baris per tabel (M partisi pertama yang tidak kosong) dan satu baris
-    per shared expression/parameter. Tidak ada teks yang dikarang: ekspresi
-    kosong tetap kosong.
+    Satu baris per M partisi (QueryDefinition) dan satu baris tambahan per
+    tabel untuk ekspresi refresh policy (``SourceExpression``), mengikuti
+    template Measure Killer: tabel incremental dapat muncul dua kali walau
+    teks ekspresinya sama. Calculated/calculation group tidak ditampilkan.
     """
     grouped: dict[str, dict[str, Any]] = {}
     for row in partitions:
@@ -1879,49 +1894,85 @@ def m_query_rows(
             continue
         entry = grouped.setdefault(
             table,
-            {
-                "name": table,
-                "kind": "Table",
-                "source": "",
-                "expression": "",
-                "warning": "",
-                "detail": "",
-                "count": 0,
-            },
+            {"rows": [], "policies": [], "source": "", "warning": ""},
         )
-        entry["count"] += 1
-        # Partisi incremental menyimpan M query di SourceExpression refresh
-        # policy, bukan di QueryDefinition. Pakai sebagai fallback agar
-        # lineage/tab M queries tidak kehilangan langkah.
-        expression = str(
-            row.get("source") or row.get("source_expression") or ""
-        ).strip()
-        if expression and not entry["expression"]:
-            entry["expression"] = expression
         mode = str(row.get("mode") or "")
         if mode and not entry["source"]:
             entry["source"] = mode
         state = str(row.get("state") or "")
         if state and state.casefold() in ERROR_PARTITION_STATES and not entry["warning"]:
             entry["warning"] = state
+        expression = str(row.get("source") or "").strip()
+        if expression:
+            partition = str(row.get("partition") or "")
+            entry["rows"].append(
+                {
+                    "name": table,
+                    "kind": "Table",
+                    "source": mode,
+                    "expression": expression,
+                    "warning": "",
+                    "detail": partition,
+                    "entry_key": f"table:{table}:p:{partition}",
+                }
+            )
+        policy = str(row.get("source_expression") or "").strip()
+        if policy:
+            entry["policies"].append(policy)
+
     rows: list[dict[str, Any]] = []
-    for entry in grouped.values():
-        count = entry.pop("count")
-        entry["detail"] = f"{count} partisi"
-        rows.append(entry)
+    for table, entry in grouped.items():
+        warning = str(entry["warning"] or "")
+        for item in entry["rows"]:
+            item["warning"] = warning
+            rows.append(item)
+        policies: list[str] = []
+        for policy in entry["policies"]:
+            if policy not in policies:
+                policies.append(policy)
+        for index, policy in enumerate(policies):
+            suffix = "" if index == 0 else f":{index + 1}"
+            rows.append(
+                {
+                    "name": table,
+                    "kind": "Table",
+                    "source": str(entry["source"] or ""),
+                    "expression": policy,
+                    "warning": warning,
+                    "detail": "refresh policy" if index == 0 else f"refresh policy {index + 1}",
+                    "entry_key": f"table:{table}:z:policy{suffix}",
+                }
+            )
+
     for row in expressions:
         kind = str(row.get("kind") or "Expression")
+        is_parameter = kind == "Parameter"
         rows.append(
             {
                 "name": str(row.get("name") or ""),
-                "kind": "M parameter" if kind == "Parameter" else "Expression",
+                "kind": "M Parameter" if is_parameter else "M Query",
                 "source": str(row.get("query_group") or "Model"),
-                "expression": str(row.get("expression") or ""),
+                "expression": (
+                    _parameter_expression(row)
+                    if is_parameter
+                    else str(row.get("expression") or "")
+                ),
                 "warning": "",
                 "detail": str(row.get("data_type") or ""),
+                "entry_key": (
+                    f"parameter:{row.get('name')}"
+                    if is_parameter
+                    else f"query:{row.get('name')}"
+                ),
             }
         )
-    rows.sort(key=lambda item: (item["kind"] != "Table", item["name"].casefold()))
+    rows.sort(
+        key=lambda item: (
+            item["kind"] != "Table",
+            item["name"].casefold(),
+            item["entry_key"],
+        )
+    )
     return rows
 
 

@@ -428,6 +428,98 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("GENERATESERIES(3, 6, 3)", body)
         self.assertNotIn("Time Intelligence", body)
 
+    def test_analysis_m_tab_renders_template_columns(self) -> None:
+        """Tab M queries memakai 5 kolom template, termasuk baris duplikat."""
+
+        page = self.open_page()
+        self.show_view(page, "analisa")
+        result = {
+            "dataset": {"id": "ds", "name": "Model Uji"},
+            "totals": {"columns": 0, "measures": 0, "hierarchies": 0, "functions": 0},
+            "measures": [],
+            "columns": [],
+            "functions": [],
+            "tables": [],
+            "m_queries": [
+                {
+                    "name": "Sales",
+                    "kind": "Table",
+                    "source": "Import",
+                    "expression": "let Source = 1 in Source",
+                    "warning": "",
+                    "detail": "Sales",
+                    "entry_key": "table:Sales:p:Sales",
+                },
+                {
+                    "name": "Sales",
+                    "kind": "Table",
+                    "source": "Import",
+                    "expression": "let Source = 1 in Source",
+                    "warning": "",
+                    "detail": "refresh policy",
+                    "entry_key": "table:Sales:z:policy",
+                },
+                {
+                    "name": "Stock Level",
+                    "kind": "Table",
+                    "source": "Import",
+                    "expression": "let Source = 2 in Source",
+                    "warning": "evaluationError",
+                    "detail": "Stock Level",
+                    "entry_key": "table:Stock Level:p:Stock Level",
+                },
+                {
+                    "name": "Pages Testing",
+                    "kind": "M Query",
+                    "source": "Model",
+                    "expression": "let Source = 3 in Source",
+                    "warning": "",
+                    "detail": "",
+                    "entry_key": "query:Pages Testing",
+                },
+                {
+                    "name": "RangeStart",
+                    "kind": "M Parameter",
+                    "source": "Params",
+                    "expression": "#datetime(2026, 1, 1, 0, 0, 0)",
+                    "warning": "",
+                    "detail": "DateTime",
+                    "entry_key": "parameter:RangeStart",
+                },
+            ],
+            "relationships": [],
+            "roles": [],
+            "reports": [],
+            "coverage": {"complete": True},
+            "reports_included": False,
+        }
+        page.evaluate(
+            """async (result) => {
+                const { state } = await import('/js/core/state.js');
+                const view = await import('/js/views/analysis.js');
+                state.analysis = result;
+                state.analysisTab = 'm';
+                state.analysisOpen = {'m:table:Sales:p:Sales': true};
+                state.analysisForceOpen = null;
+                state.analysisSort = 'default';
+                view.analysisRender();
+            }""",
+            result,
+        )
+
+        self.assertEqual(page.locator("#analyzeHead th").count(), 5)
+        headers = [text.lower() for text in page.locator("#analyzeHead th").all_inner_texts()]
+        self.assertEqual(headers, ["name", "type", "source", "warnings", "expression"])
+        self.assertEqual(page.locator("#analyzeBody tr:not(.code-row)").count(), 5)
+        self.assertEqual(page.locator("#analyzeBody tr.code-row").count(), 1)
+        self.assertIn("Export M expressions", page.inner_text("#exportXlsx"))
+        body = page.inner_text("#analyzeBody")
+        self.assertIn("Sales", body)
+        self.assertIn("M Query", body)
+        self.assertIn("M Parameter", body)
+        self.assertIn("Model Uji", body)
+        self.assertIn("evaluationError", body)
+
     def test_relationship_canvas_has_dotted_background(self) -> None:
         page = self.open_page()
         self.show_view(page, "analisa")

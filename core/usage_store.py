@@ -26,6 +26,14 @@ from typing import Any, Iterable, Mapping
 from .metadata_common import reference_depth
 from .report_usage import ReportUsage, UsageRecord
 
+M_QUERY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS usage_m_query (
+  dataset_id TEXT, entry_key TEXT, name TEXT, kind TEXT, source TEXT,
+  expression TEXT, warning TEXT, detail TEXT, analyzed_at TEXT,
+  PRIMARY KEY (dataset_id, entry_key)
+);
+"""
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_scan_run (
   scan_id TEXT PRIMARY KEY,
@@ -133,11 +141,7 @@ CREATE TABLE IF NOT EXISTS usage_hierarchy (
   levels TEXT, level_count INTEGER DEFAULT 0, analyzed_at TEXT,
   PRIMARY KEY (dataset_id, table_name, hierarchy_name)
 );
-CREATE TABLE IF NOT EXISTS usage_m_query (
-  dataset_id TEXT, name TEXT, kind TEXT, source TEXT,
-  expression TEXT, warning TEXT, detail TEXT, analyzed_at TEXT,
-  PRIMARY KEY (dataset_id, kind, name)
-);
+""" + M_QUERY_SCHEMA + """
 CREATE INDEX IF NOT EXISTS ix_usage_m_query_dataset ON usage_m_query(dataset_id);
 """
 
@@ -208,9 +212,60 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
 
+def _migrate_m_query(conn: sqlite3.Connection) -> None:
+    """Pindahkan ``usage_m_query`` versi lama ke skema ber-``entry_key``.
+
+    Tabel ini cache analisa, jadi salinan baris lama dipertahankan dengan
+    ``entry_key = kind:name``; label lama dinormalkan agar filter tab M tetap
+    bekerja sebelum analisa berikutnya dijalankan.
+    """
+    existing = {
+        str(row["name"]) for row in conn.execute("PRAGMA table_info(usage_m_query)")
+    }
+    if not existing or "entry_key" in existing:
+        return
+    conn.execute("DROP INDEX IF EXISTS ix_usage_m_query_dataset")
+    conn.execute("DROP TABLE IF EXISTS usage_m_query_legacy")
+    conn.execute("ALTER TABLE usage_m_query RENAME TO usage_m_query_legacy")
+    conn.execute(M_QUERY_SCHEMA)
+    rows = conn.execute("SELECT * FROM usage_m_query_legacy").fetchall()
+    for row in rows:
+        kind = str(row["kind"] or "")
+        if kind == "Expression":
+            kind = "M Query"
+        elif kind.casefold() == "m parameter":
+            kind = "M Parameter"
+        entry_key = f"{kind}:{row['name']}"
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO usage_m_query (
+              dataset_id, entry_key, name, kind, source, expression, warning,
+              detail, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["dataset_id"],
+                entry_key,
+                row["name"],
+                kind,
+                row["source"],
+                row["expression"],
+                row["warning"],
+                row["detail"],
+                row["analyzed_at"],
+            ),
+        )
+    conn.execute("DROP TABLE usage_m_query_legacy")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS ix_usage_m_query_dataset "
+        "ON usage_m_query(dataset_id)"
+    )
+
+
 def initialize(conn: sqlite3.Connection) -> None:
     """Buat tabel analisa bila belum ada (aman dipanggil berulang)."""
     conn.executescript(SCHEMA)
+    _migrate_m_query(conn)
     _ensure_columns(conn)
     conn.commit()
 
@@ -1230,27 +1285,41 @@ def save_m_queries(
 ) -> None:
     """Simpan M query tabel/parameter terakhir untuk satu dataset (replace)."""
     stamp = analyzed_at or utc_now()
-    payload = [
-        (
-            dataset_id,
-            str(row.get("name") or ""),
-            str(row.get("kind") or ""),
-            str(row.get("source") or ""),
-            str(row.get("expression") or ""),
-            str(row.get("warning") or ""),
-            str(row.get("detail") or ""),
-            stamp,
+    payload = []
+    used: set[str] = set()
+    for row in rows:
+        name = str(row.get("name") or "")
+        kind = str(row.get("kind") or "")
+        entry_key = str(row.get("entry_key") or "").strip()
+        if not entry_key:
+            base = f"{kind}:{name}"
+            entry_key = base
+            index = 1
+            while entry_key in used:
+                index += 1
+                entry_key = f"{base}:{index}"
+        used.add(entry_key)
+        payload.append(
+            (
+                dataset_id,
+                entry_key,
+                name,
+                kind,
+                str(row.get("source") or ""),
+                str(row.get("expression") or ""),
+                str(row.get("warning") or ""),
+                str(row.get("detail") or ""),
+                stamp,
+            )
         )
-        for row in rows
-    ]
     conn.execute("DELETE FROM usage_m_query WHERE dataset_id = ?", (dataset_id,))
     if payload:
         conn.executemany(
             """
             INSERT OR REPLACE INTO usage_m_query (
-              dataset_id, name, kind, source, expression, warning, detail,
-              analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              dataset_id, entry_key, name, kind, source, expression, warning,
+              detail, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payload,
         )
@@ -1259,7 +1328,10 @@ def save_m_queries(
 
 def m_queries(conn: sqlite3.Connection, dataset_id: str) -> list[dict[str, Any]]:
     rows = conn.execute(
-        "SELECT * FROM usage_m_query WHERE dataset_id = ? ORDER BY kind, name",
+        """
+        SELECT * FROM usage_m_query WHERE dataset_id = ?
+        ORDER BY CASE WHEN kind = 'Table' THEN 0 ELSE 1 END, name, entry_key
+        """,
         (dataset_id,),
     ).fetchall()
     return [dict(row) for row in rows]

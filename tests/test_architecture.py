@@ -900,6 +900,22 @@ class WebLayerTests(unittest.TestCase):
         self.assertIn('label: "Best practices violations"', js)
         self.assertIn('label: "Lineage tag"', js)
 
+    def test_web_m_export_uses_template_columns(self) -> None:
+        js = web_script_text()
+        presenter = (ROOT / "server" / "presenters" / "analysis.py").read_text(
+            encoding="utf-8"
+        )
+        m_export = (ROOT / "core" / "m_export.py").read_text(encoding="utf-8")
+        for column in ("Name", "Type", "Source", "Warnings", "Expression"):
+            self.assertIn(f'"{column}"', m_export, column)
+        self.assertIn("write_m_export", presenter)
+        self.assertIn('"Export M expressions"', js)
+        self.assertEqual(js.count("function analysisMRows("), 1)
+        self.assertEqual(js.count("function analysisMPreview("), 1)
+        self.assertEqual(js.count("function analysisMQueryForTable("), 1)
+        self.assertIn('label: "Warnings"', js)
+        self.assertIn('"M Parameter"', js)
+
     def test_health_rules_dialog_and_rule_coverage(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         js = web_script_text()

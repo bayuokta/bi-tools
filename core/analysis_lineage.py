@@ -152,7 +152,7 @@ def _m_query_registry(result: Any) -> dict[str, str]:
     for item in getattr(result, "m_queries", []) or []:
         if not isinstance(item, Mapping):
             continue
-        if str(item.get("kind") or "") not in {"Table", "Expression"}:
+        if str(item.get("kind") or "") not in {"Table", "M Query", "Expression"}:
             continue
         name = str(item.get("name") or "").strip()
         expression = str(item.get("expression") or "").strip()
@@ -1773,7 +1773,7 @@ def build_lineage(
         if str(item.get("kind") or "") != "Table":
             continue
         table_name = str(item.get("name") or "")
-        if table_name:
+        if table_name and table_name not in mqueries:
             mqueries[table_name] = {
                 "source": str(item.get("source") or ""),
                 "expression": str(item.get("expression") or ""),
@@ -2284,7 +2284,7 @@ def build_table_lineage(
         if not isinstance(item, Mapping) or str(item.get("kind") or "") != "Table":
             continue
         table_name = str(item.get("name") or "")
-        if table_name:
+        if table_name and table_name not in mqueries:
             mqueries[table_name] = {
                 "source": str(item.get("source") or ""),
                 "expression": str(item.get("expression") or ""),

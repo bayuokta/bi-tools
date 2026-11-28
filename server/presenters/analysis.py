@@ -62,6 +62,7 @@ from core.raw_metadata import (
     metadata_payload,
 )
 from core.dax_export import write_dax_export
+from core.m_export import write_m_export
 from core.relationship_export import relationship_row, write_relationship_export
 from core.report_export import write_report_export
 from core.result_export import write_result_export
@@ -1432,6 +1433,7 @@ def serialize_result(
                 "expression": str(item.get("expression") or ""),
                 "warning": str(item.get("warning") or ""),
                 "detail": str(item.get("detail") or ""),
+                "entry_key": str(item.get("entry_key") or ""),
             }
             for item in (getattr(result, "m_queries", []) or [])
             if isinstance(item, Mapping)
@@ -1978,6 +1980,8 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
             target = outputs_dir() / f"Relationship_Result_{safe}_{suffix}.xlsx"
         elif tab in {"dax", "expressions"}:
             target = outputs_dir() / f"DAX_Expressions_{safe}_{suffix}.xlsx"
+        elif tab in {"m", "mquery", "mqueries"}:
+            target = outputs_dir() / f"M_Expressions_{safe}_{suffix}.xlsx"
         else:
             target = outputs_dir() / output_file_name(
                 result.dataset_name, result.dataset_id
@@ -2003,11 +2007,12 @@ def export(payload: Mapping[str, Any], store: SettingsStore) -> dict[str, Any]:
         write_relationship_export(result, target)
     elif tab in {"dax", "expressions"}:
         write_dax_export(result, target)
+    elif tab in {"m", "mquery", "mqueries"}:
+        write_m_export(result, target)
     elif tab in {"full", "workbook"}:
         write_workbook(result, target)
     elif tab in {
         "roles",
-        "m",
         "health",
         "bestpractice",
     }:

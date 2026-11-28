@@ -477,22 +477,38 @@ class UsageStoreTests(unittest.TestCase):
                     "source": "Import",
                     "expression": "let Source = 1 in Source",
                     "warning": "",
-                    "detail": "2 partisi",
+                    "detail": "Sales",
+                    "entry_key": "table:Sales:p:Sales",
+                },
+                {
+                    "name": "Sales",
+                    "kind": "Table",
+                    "source": "Import",
+                    "expression": "let Source = 1 in Source",
+                    "warning": "",
+                    "detail": "refresh policy",
+                    "entry_key": "table:Sales:z:policy",
                 },
                 {
                     "name": "ServerURL",
-                    "kind": "M parameter",
+                    "kind": "M Parameter",
                     "source": "Param",
                     "expression": '"server"',
                     "warning": "",
                     "detail": "Text",
+                    "entry_key": "parameter:ServerURL",
                 },
             ],
         )
 
         rows = m_queries(self.conn, "ds")
-        self.assertEqual([row["name"] for row in rows], ["ServerURL", "Sales"])
-        self.assertEqual(rows[1]["detail"], "2 partisi")
+        self.assertEqual(
+            [row["name"] for row in rows], ["Sales", "Sales", "ServerURL"]
+        )
+        self.assertEqual(
+            [row["detail"] for row in rows[:2]], ["Sales", "refresh policy"]
+        )
+        self.assertEqual(rows[1]["entry_key"], "table:Sales:z:policy")
 
         save_m_queries(
             self.conn,
@@ -503,6 +519,47 @@ class UsageStoreTests(unittest.TestCase):
         rows = m_queries(self.conn, "ds")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["name"], "Dates")
+        self.assertEqual(rows[0]["entry_key"], "Table:Dates")
+
+    def test_m_query_legacy_table_is_migrated(self) -> None:
+        legacy = Path(self._tmp.name) / "legacy.db"
+        conn = connect(legacy)
+        self.addCleanup(lambda: close_quietly(conn))
+        conn.executescript(
+            """
+            CREATE TABLE usage_m_query (
+              dataset_id TEXT, name TEXT, kind TEXT, source TEXT,
+              expression TEXT, warning TEXT, detail TEXT, analyzed_at TEXT,
+              PRIMARY KEY (dataset_id, kind, name)
+            );
+            CREATE INDEX ix_usage_m_query_dataset
+              ON usage_m_query(dataset_id);
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO usage_m_query (
+              dataset_id, name, kind, source, expression, warning, detail,
+              analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                ("ds", "Sales", "Table", "Import", "let 1 in 1", "", "1 partisi", "x"),
+                ("ds", "Helper", "Expression", "", "1", "", "", "x"),
+                ("ds", "ServerURL", "M parameter", "Param", '"server"', "", "Text", "x"),
+            ],
+        )
+        conn.commit()
+
+        initialize(conn)
+
+        rows = m_queries(conn, "ds")
+        by_name = {row["name"]: row for row in rows}
+        self.assertEqual(by_name["Sales"]["entry_key"], "Table:Sales")
+        self.assertEqual(by_name["Helper"]["kind"], "M Query")
+        self.assertEqual(by_name["Helper"]["entry_key"], "M Query:Helper")
+        self.assertEqual(by_name["ServerURL"]["kind"], "M Parameter")
+        self.assertEqual(by_name["ServerURL"]["expression"], '"server"')
 
 
 if __name__ == "__main__":

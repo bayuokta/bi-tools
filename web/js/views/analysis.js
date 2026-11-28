@@ -228,8 +228,8 @@ import { state } from "../core/state.js";
       expandable: true
     },
     m: {
-      placeholder: "Query, parameter, or M expression",
-      filters: [["all", "All types"], ["Table", "Table"], ["M parameter", "M parameter"], ["Expression", "Expression"]],
+      placeholder: "Table, M query, parameter, or expression",
+      filters: [["all", "All types"], ["Table", "Table"], ["M Query", "M Query"], ["M Parameter", "M Parameter"]],
       unused: false,
       expandable: true
     },
@@ -505,13 +505,16 @@ import { state } from "../core/state.js";
       state.analysisTab === "tables" ||
       state.analysisTab === "report" ||
       state.analysisTab === "relationships" ||
-      state.analysisTab === "dax";
+      state.analysisTab === "dax" ||
+      state.analysisTab === "m";
     var label = state.analysisTab === "tables" ? "Export tables"
       : (state.analysisTab === "report" ? "Export reports"
         : (state.analysisTab === "relationships"
           ? "Export relationships"
           : (state.analysisTab === "dax"
-            ? "Export DAX expressions" : "Export Result")));
+            ? "Export DAX expressions"
+            : (state.analysisTab === "m"
+              ? "Export M expressions" : "Export Result"))));
     button.disabled = !state.analysis || !canExport;
     button.textContent = (canExport ? label : "Export (coming soon)");
     button.title = canExport ? label : "Coming soon";
@@ -1401,9 +1404,7 @@ import { state } from "../core/state.js";
     var info = (state.analysis.tables || []).filter(function (table) {
       return table.name === target.table;
     })[0] || {};
-    var query = (state.analysis.m_queries || []).filter(function (item) {
-      return item.kind === "Table" && item.name === target.table;
-    })[0] || {};
+    var query = analysisMQueryForTable(target.table);
     var rows = [
       ["Table", target.table],
       ["Mode", info.storage_mode || "\u2014"],
@@ -1559,9 +1560,7 @@ import { state } from "../core/state.js";
   }
 
   function analysisOpenTableMExpression(target) {
-    var query = (state.analysis.m_queries || []).filter(function (item) {
-      return item.kind === "Table" && item.name === target.table;
-    })[0] || {};
+    var query = analysisMQueryForTable(target.table);
     var expression = String(query.expression || "");
     var html = expression
       ? analysisExpressionMarkup(expression, "m")
@@ -4708,45 +4707,68 @@ import { state } from "../core/state.js";
     };
   }
 
+  function analysisMPreview(text) {
+    var value = String(text || "").replace(/\s+/g, " ").trim();
+    return value.length > 160 ? value.slice(0, 159) + "\u2026" : value;
+  }
+
+  function analysisMQueryForTable(table) {
+    var rows = ((state.analysis && state.analysis.m_queries) || []).filter(function (item) {
+      return item.kind === "Table" && item.name === table;
+    });
+    return rows.filter(function (item) {
+      return Boolean(item.expression);
+    })[0] || rows[0] || {};
+  }
+
   function analysisMRows() {
     var query = ($("#searchAnalyze").value || "").trim().toLowerCase();
     var type = getSelectValue("typeAnalyze") || "all";
+    var source = (state.analysis && state.analysis.dataset && state.analysis.dataset.name) || "";
     var items = ((state.analysis && state.analysis.m_queries) || []).filter(function (row) {
       if (type !== "all" && row.kind !== type) return false;
       if (!query) return true;
-      return [row.name, row.kind, row.source, row.expression, row.detail]
+      return [row.name, row.kind, source, row.warning, row.expression, row.detail]
         .join(" ").toLowerCase().indexOf(query) !== -1;
     });
     items = analysisSortItems(items);
     var viewRows = [];
-    items.forEach(function (row) {
-      var id = "m:" + row.kind + ":" + row.name;
+    items.forEach(function (row, index) {
+      var id = "m:" + (row.entry_key || (row.kind + ":" + row.name + ":" + index));
       var open = analysisIsOpen(id, false);
       var warning = row.warning
         ? '<span class="chip chip-warn"><span class="dot"></span>' + escapeHtml(row.warning) + "</span>"
-        : "—";
+        : "\u2014";
+      var expression = analysisMPreview(row.expression);
       viewRows.push({
         cells: [
           analysisNameCell(row.name, row.kind === "Table" ? "query" : "code", {
             level: 0, toggleId: row.expression ? id : "", open: open
           }),
-          escapeHtml(row.kind || "—"),
-          escapeHtml([row.source, row.detail].filter(Boolean).join(" · ") || "—"),
-          warning
+          escapeHtml(row.kind || "\u2014"),
+          escapeHtml(source || "\u2014"),
+          warning,
+          expression
+            ? '<span class="mono-trunc" title="' + escapeHtml(row.expression) + '">' +
+              escapeHtml(expression) + "</span>"
+            : "\u2014"
         ]
       });
       if (open && row.expression) viewRows.push({ kind: "code", code: row.expression, language: "m" });
     });
+    var tableCount = items.filter(function (row) { return row.kind === "Table"; }).length;
     return {
       headers: [
-        { label: "Name", key: "name" }, { label: "Type", key: "kind" },
-        { label: "Source", key: "source" }, { label: "Warning", key: "warning" }
+        { label: "Name", key: "name" },
+        { label: "Type", key: "kind" },
+        { label: "Source" },
+        { label: "Warnings", key: "warning" },
+        { label: "Expression" }
       ],
-      widths: ["35%", "13%", "37%", "15%"],
+      widths: ["24%", "12%", "24%", "16%", "24%"],
       rows: viewRows,
-      summary: items.length + " queries · " +
-        items.filter(function (row) { return row.kind === "Table"; }).length +
-        " tables" + analysisCoverageSuffix(state.analysis)
+      summary: items.length + " M expressions \u00b7 " + tableCount + " tables" +
+        analysisCoverageSuffix(state.analysis)
     };
   }
 
@@ -5813,7 +5835,7 @@ import { state } from "../core/state.js";
     }
     var tab = state.analysisTab || "all";
     if (tab !== "all" && tab !== "tables" && tab !== "report" &&
-        tab !== "relationships" && tab !== "dax") {
+        tab !== "relationships" && tab !== "dax" && tab !== "m") {
       app.toast("Coming soon");
       return;
     }

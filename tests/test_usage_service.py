@@ -1248,29 +1248,34 @@ class MetadataRowsTests(unittest.TestCase):
         self.assertFalse(relationship_is_auto("526c6f8a-bde4-49fa-b1c4-79db0a095bfd"))
         self.assertFalse(relationship_is_auto("Relasi Dealer"))
 
-    def test_m_query_rows_group_partitions_and_parameters(self) -> None:
+    def test_m_query_rows_keeps_partitions_and_parameters(self) -> None:
         rows = m_query_rows(
             [
                 {
                     "table": "Sales",
+                    "partition": "Sales",
                     "source": "let Source = ... in Source",
                     "mode": "Import",
                     "state": "ready",
                 },
                 {
                     "table": "Sales",
+                    "partition": "Sales Policy",
                     "source": "",
+                    "source_expression": "let Source = ... in Source",
                     "mode": "Import",
                     "state": "evaluationError",
                 },
                 {
                     "table": "Dates",
+                    "partition": "Dates",
                     "source": "let Dates = ... in Dates",
                     "mode": "Import",
                     "state": "ready",
                 },
                 {
                     "table": "CalcTable",
+                    "partition": "CalcTable",
                     "source": "SUMMARIZE ( Sales, Sales[Key] )",
                     "source_type": "calculated",
                     "mode": "Import",
@@ -1281,6 +1286,7 @@ class MetadataRowsTests(unittest.TestCase):
                 {
                     "name": "ServerURL",
                     "kind": "Parameter",
+                    "is_required": True,
                     "query_group": "Param",
                     "expression": '"server"',
                     "data_type": "Text",
@@ -1295,14 +1301,27 @@ class MetadataRowsTests(unittest.TestCase):
             ],
         )
 
+        sales = [row for row in rows if row["name"] == "Sales"]
+        self.assertEqual(len(sales), 2)
+        self.assertEqual([row["detail"] for row in sales], ["Sales", "refresh policy"])
+        self.assertEqual(sales[0]["entry_key"], "table:Sales:p:Sales")
+        self.assertEqual(sales[1]["entry_key"], "table:Sales:z:policy")
+        self.assertEqual(sales[0]["kind"], "Table")
+        self.assertIn("let Source", sales[0]["expression"])
+        self.assertEqual(sales[0]["warning"], "evaluationError")
         by_name = {row["name"]: row for row in rows}
-        self.assertEqual(by_name["Sales"]["kind"], "Table")
-        self.assertEqual(by_name["Sales"]["detail"], "2 partisi")
-        self.assertIn("let Source", by_name["Sales"]["expression"])
-        self.assertEqual(by_name["Sales"]["warning"], "evaluationError")
-        self.assertEqual(by_name["ServerURL"]["kind"], "M parameter")
+        self.assertEqual(by_name["Dates"]["detail"], "Dates")
+        self.assertEqual(
+            by_name["ServerURL"]["kind"],
+            "M Parameter",
+        )
+        self.assertEqual(
+            by_name["ServerURL"]["expression"],
+            '"server" meta [IsParameterQuery=true, Type="Text", '
+            "IsParameterQueryRequired=true]",
+        )
         self.assertEqual(by_name["ServerURL"]["source"], "Param")
-        self.assertEqual(by_name["Helper"]["kind"], "Expression")
+        self.assertEqual(by_name["Helper"]["kind"], "M Query")
         self.assertNotIn("CalcTable", by_name)
         self.assertEqual(rows[0]["kind"], "Table")
 
@@ -2146,8 +2165,18 @@ class SnapshotTests(unittest.TestCase):
                         "source": "Import",
                         "expression": "let Source = ... in Source",
                         "warning": "",
-                        "detail": "2 partisi",
-                    }
+                        "detail": "Sales",
+                        "entry_key": "table:Sales:p:Sales",
+                    },
+                    {
+                        "name": "Sales",
+                        "kind": "Table",
+                        "source": "Import",
+                        "expression": "let Source = ... in Source",
+                        "warning": "",
+                        "detail": "refresh policy",
+                        "entry_key": "table:Sales:z:policy",
+                    },
                 ],
             )
             save_report(
@@ -2219,7 +2248,10 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(result.report_pages["r1"][0]["page_name"], "Overview")
         self.assertEqual(result.report_pages["r1"][0]["field_count"], 1)
         self.assertEqual(result.m_queries[0]["name"], "Sales")
-        self.assertEqual(result.m_queries[0]["detail"], "2 partisi")
+        self.assertEqual(
+            [row["detail"] for row in result.m_queries if row["name"] == "Sales"],
+            ["Sales", "refresh policy"],
+        )
         self.assertEqual(len(result.functions), 1)
         self.assertEqual(result.functions[0].function.name, "OrphanFunction")
         self.assertEqual(result.functions[0].status, STATUS_UNUSED)
